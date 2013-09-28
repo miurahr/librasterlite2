@@ -3233,7 +3233,8 @@ parse_wms_GetTileService_HTTP_Get (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetTileServiceURLGet !=
 						  NULL)
 						{
-						    free (cap->GetTileServiceURLGet);
+						    free (cap->
+							  GetTileServiceURLGet);
 						    cap->GetMapURLGet = NULL;
 						}
 					      p = (const char
@@ -3283,7 +3284,8 @@ parse_wms_GetTileService_HTTP_Post (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetTileServiceURLPost !=
 						  NULL)
 						{
-						    free (cap->GetTileServiceURLPost);
+						    free (cap->
+							  GetTileServiceURLPost);
 						    cap->GetTileServiceURLPost =
 							NULL;
 						}
@@ -3335,8 +3337,7 @@ parse_wms_GetInfo_HTTP_Get (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetFeatureInfoURLGet !=
 						  NULL)
 						{
-						    free (cap->
-							  GetFeatureInfoURLGet);
+						    free (cap->GetFeatureInfoURLGet);
 						    cap->GetFeatureInfoURLGet =
 							NULL;
 						}
@@ -3387,8 +3388,7 @@ parse_wms_GetInfo_HTTP_Post (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetFeatureInfoURLPost !=
 						  NULL)
 						{
-						    free (cap->
-							  GetFeatureInfoURLPost);
+						    free (cap->GetFeatureInfoURLPost);
 						    cap->GetFeatureInfoURLPost =
 							NULL;
 						}
@@ -4825,7 +4825,7 @@ parse_wms_feature_collection (const char *buf)
     return coll;
 }
 
-static void
+static int
 query_TileService (rl2WmsCachePtr cache_handle, wmsCapabilitiesPtr capabilities,
 		   const char *proxy)
 {
@@ -4840,6 +4840,7 @@ query_TileService (rl2WmsCachePtr cache_handle, wmsCapabilitiesPtr capabilities,
     char *url;
     wmsCachePtr cache = (wmsCachePtr) cache_handle;
     int already_cached = 0;
+    int retcode = 0;
 
 /* initializes the dynamically growing buffers */
     wmsMemBufferInitialize (&headerBuf);
@@ -4848,7 +4849,6 @@ query_TileService (rl2WmsCachePtr cache_handle, wmsCapabilitiesPtr capabilities,
 	sqlite3_mprintf ("%srequest=GetTileService",
 			 capabilities->GetTileServiceURLGet);
 
-    fprintf (stderr, "%s\n", url);
     if (cache != NULL)
       {
 	  /* checks if it's already stored into the WMS Cache */
@@ -4860,11 +4860,9 @@ query_TileService (rl2WmsCachePtr cache_handle, wmsCapabilitiesPtr capabilities,
 		xml_buf =
 		    clean_xml_str ((const char *) (cachedCapab->Response));
 		already_cached = 1;
-		fprintf (stderr, "********* Cache Hit\n");
 		goto do_tile_service;
 	    }
       }
-    fprintf (stderr, "********* Cache Miss\n");
 
     curl = curl_easy_init ();
     if (curl)
@@ -4915,6 +4913,7 @@ query_TileService (rl2WmsCachePtr cache_handle, wmsCapabilitiesPtr capabilities,
       {
 	  parse_wms_get_tile_service (capabilities, xml_buf);
 	  free (xml_buf);
+	  retcode = 1;
       }
     if (!already_cached)
       {
@@ -4930,6 +4929,7 @@ query_TileService (rl2WmsCachePtr cache_handle, wmsCapabilitiesPtr capabilities,
     sqlite3_free (url);
     if (curl != NULL)
 	curl_easy_cleanup (curl);
+    return retcode;
 }
 
 RL2_DECLARE rl2WmsCatalogPtr
@@ -4963,11 +4963,9 @@ create_wms_catalog (rl2WmsCachePtr cache_handle, const char *url,
 		xml_buf =
 		    clean_xml_str ((const char *) (cachedCapab->Response));
 		already_cached = 1;
-		fprintf (stderr, "********* Cache Hit\n");
 		goto do_capabilities;
 	    }
       }
-    fprintf (stderr, "********* Cache Miss\n");
 
     *err_msg = NULL;
     curl = curl_easy_init ();
@@ -5025,7 +5023,47 @@ create_wms_catalog (rl2WmsCachePtr cache_handle, const char *url,
 		if (capabilities->GetTileServiceURLGet != NULL)
 		  {
 		      /* attempting to resolve WMS GetTileService */
-		      query_TileService (cache_handle, capabilities, proxy);
+		      int retry = 0;
+		      /* first attempt */
+		      if (!query_TileService
+			  (cache_handle, capabilities, proxy))
+			  retry = 1;
+		      if (retry)
+			{
+			    /* second attempt */
+			    retry = 0;
+			    if (!query_TileService
+				(cache_handle, capabilities, proxy))
+				retry = 1;
+			}
+		      if (retry)
+			{
+			    /* third attempt */
+			    retry = 0;
+			    if (!query_TileService
+				(cache_handle, capabilities, proxy))
+				retry = 1;
+			}
+		      if (retry)
+			{
+			    /* fourth attempt */
+			    retry = 0;
+			    if (!query_TileService
+				(cache_handle, capabilities, proxy))
+				retry = 1;
+			}
+		      if (retry)
+			{
+			    /* fifth attempt */
+			    if (!query_TileService
+				(cache_handle, capabilities, proxy))
+			      {
+				  /* giving up */
+				  wmsFreeCapabilities (capabilities);
+				  capabilities = NULL;
+				  goto stop;
+			      }
+			}
 		  }
 		if (!already_cached)
 		  {
@@ -6730,7 +6768,6 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 				   maxx, maxy, width, height, style, format,
 				   (opaque == 0) ? "TRUE" : "FALSE");
       }
-    fprintf (stderr, "%s\n", request);
 
     if (cache != NULL)
       {
@@ -6755,11 +6792,9 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 		    raster =
 			rl2_raster_from_jpeg (cachedItem->Item,
 					      cachedItem->Size);
-		fprintf (stderr, "********* Cache Hit\n");
 		goto image_ready;
 	    }
       }
-    fprintf (stderr, "********* Cache Miss from_cache=%d\n", from_cache);
     if (from_cache)
       {
 	  sqlite3_free (request);
@@ -6935,8 +6970,6 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
     if (url == NULL)
 	url = "";
 
-    fprintf (stderr, "%s\n", url);
-
     if (cache != NULL)
       {
 	  /* checks if it's already stored into the WMS Cache */
@@ -6960,11 +6993,9 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 		    raster =
 			rl2_raster_from_jpeg (cachedItem->Item,
 					      cachedItem->Size);
-		fprintf (stderr, "********* Cache Hit\n");
 		goto image_ready;
 	    }
       }
-    fprintf (stderr, "********* Cache Miss from_cache=%d\n", from_cache);
     if (from_cache)
 	return NULL;
 
@@ -7188,7 +7219,6 @@ do_wms_GetFeatureInfo_get (const char *url, const char *proxy,
 		   crs, minx, miny, maxx, maxy, width, height, mouse_x,
 		   mouse_y, format);
       }
-    fprintf (stderr, "%s\n", request);
 
     curl = curl_easy_init ();
     if (curl)

@@ -198,6 +198,8 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
+LIBCAIRO_CFLAGS = @LIBCAIRO_CFLAGS@
+LIBCAIRO_LIBS = @LIBCAIRO_LIBS@
 LIBCURL_CFLAGS = @LIBCURL_CFLAGS@
 LIBCURL_LIBS = @LIBCURL_LIBS@
 LIBLZMA_CFLAGS = @LIBLZMA_CFLAGS@
@@ -297,7 +299,10 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 noinst_HEADERS = rasterlite2_private.h 
-nobase_include_HEADERS = rasterlite2/rasterlite2.h rasterlite2/rl2wms.h
+nobase_include_HEADERS = rasterlite2/rasterlite2.h \
+	rasterlite2/rl2wms.h \
+	rasterlite2/rl2graphics.h
+
 all: all-am
 
 .SUFFIXES:

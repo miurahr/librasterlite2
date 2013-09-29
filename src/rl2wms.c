@@ -3233,8 +3233,7 @@ parse_wms_GetTileService_HTTP_Get (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetTileServiceURLGet !=
 						  NULL)
 						{
-						    free (cap->
-							  GetTileServiceURLGet);
+						    free (cap->GetTileServiceURLGet);
 						    cap->GetMapURLGet = NULL;
 						}
 					      p = (const char
@@ -3284,8 +3283,7 @@ parse_wms_GetTileService_HTTP_Post (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetTileServiceURLPost !=
 						  NULL)
 						{
-						    free (cap->
-							  GetTileServiceURLPost);
+						    free (cap->GetTileServiceURLPost);
 						    cap->GetTileServiceURLPost =
 							NULL;
 						}
@@ -3337,7 +3335,8 @@ parse_wms_GetInfo_HTTP_Get (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetFeatureInfoURLGet !=
 						  NULL)
 						{
-						    free (cap->GetFeatureInfoURLGet);
+						    free (cap->
+							  GetFeatureInfoURLGet);
 						    cap->GetFeatureInfoURLGet =
 							NULL;
 						}
@@ -3388,7 +3387,8 @@ parse_wms_GetInfo_HTTP_Post (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetFeatureInfoURLPost !=
 						  NULL)
 						{
-						    free (cap->GetFeatureInfoURLPost);
+						    free (cap->
+							  GetFeatureInfoURLPost);
 						    cap->GetFeatureInfoURLPost =
 							NULL;
 						}

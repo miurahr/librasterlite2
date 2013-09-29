@@ -113,6 +113,10 @@ PKG_CHECK_MODULES([LIBSPATIALITE], [spatialite], , AC_MSG_ERROR(['libspatialite'
 AC_SUBST(LIBSPATIALITE_CFLAGS)
 AC_SUBST(LIBSPATIALITE_LIBS)
 
+PKG_CHECK_MODULES([LIBCAIRO], [cairo], , AC_MSG_ERROR(['libcairo' is required but it doesn't seems to be installed on this system.]))
+AC_SUBST(LIBCAIRO_CFLAGS)
+AC_SUBST(LIBCAIRO_LIBS)
+
 PKG_CHECK_MODULES([LIBCURL], [libcurl], , AC_MSG_ERROR(['libcurl' is required but it doesn't seem to be installed on this system.]))
 AC_SUBST(LIBCURL_CFLAGS)
 AC_SUBST(LIBCURL_LIBS)

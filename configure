@@ -638,6 +638,8 @@ LIBXML2_LIBS
 LIBXML2_CFLAGS
 LIBCURL_LIBS
 LIBCURL_CFLAGS
+LIBCAIRO_LIBS
+LIBCAIRO_CFLAGS
 LIBSPATIALITE_LIBS
 LIBSPATIALITE_CFLAGS
 LIBLZMA_LIBS
@@ -812,6 +814,8 @@ LIBLZMA_CFLAGS
 LIBLZMA_LIBS
 LIBSPATIALITE_CFLAGS
 LIBSPATIALITE_LIBS
+LIBCAIRO_CFLAGS
+LIBCAIRO_LIBS
 LIBCURL_CFLAGS
 LIBCURL_LIBS
 LIBXML2_CFLAGS
@@ -1491,6 +1495,10 @@ Some influential environment variables:
               C compiler flags for LIBSPATIALITE, overriding pkg-config
   LIBSPATIALITE_LIBS
               linker flags for LIBSPATIALITE, overriding pkg-config
+  LIBCAIRO_CFLAGS
+              C compiler flags for LIBCAIRO, overriding pkg-config
+  LIBCAIRO_LIBS
+              linker flags for LIBCAIRO, overriding pkg-config
   LIBCURL_CFLAGS
               C compiler flags for LIBCURL, overriding pkg-config
   LIBCURL_LIBS
@@ -17786,6 +17794,80 @@ $as_echo "no" >&6; }
 else
 	LIBSPATIALITE_CFLAGS=$pkg_cv_LIBSPATIALITE_CFLAGS
 	LIBSPATIALITE_LIBS=$pkg_cv_LIBSPATIALITE_LIBS
+        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+
+fi
+
+
+
+
+pkg_failed=no
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for LIBCAIRO" >&5
+$as_echo_n "checking for LIBCAIRO... " >&6; }
+
+if test -n "$LIBCAIRO_CFLAGS"; then
+    pkg_cv_LIBCAIRO_CFLAGS="$LIBCAIRO_CFLAGS"
+ elif test -n "$PKG_CONFIG"; then
+    if test -n "$PKG_CONFIG" && \
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"cairo\""; } >&5
+  ($PKG_CONFIG --exists --print-errors "cairo") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; then
+  pkg_cv_LIBCAIRO_CFLAGS=`$PKG_CONFIG --cflags "cairo" 2>/dev/null`
+		      test "x$?" != "x0" && pkg_failed=yes
+else
+  pkg_failed=yes
+fi
+ else
+    pkg_failed=untried
+fi
+if test -n "$LIBCAIRO_LIBS"; then
+    pkg_cv_LIBCAIRO_LIBS="$LIBCAIRO_LIBS"
+ elif test -n "$PKG_CONFIG"; then
+    if test -n "$PKG_CONFIG" && \
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"cairo\""; } >&5
+  ($PKG_CONFIG --exists --print-errors "cairo") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; then
+  pkg_cv_LIBCAIRO_LIBS=`$PKG_CONFIG --libs "cairo" 2>/dev/null`
+		      test "x$?" != "x0" && pkg_failed=yes
+else
+  pkg_failed=yes
+fi
+ else
+    pkg_failed=untried
+fi
+
+
+
+if test $pkg_failed = yes; then
+   	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+
+if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
+        _pkg_short_errors_supported=yes
+else
+        _pkg_short_errors_supported=no
+fi
+        if test $_pkg_short_errors_supported = yes; then
+	        LIBCAIRO_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "cairo" 2>&1`
+        else
+	        LIBCAIRO_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "cairo" 2>&1`
+        fi
+	# Put the nasty error message in config.log where it belongs
+	echo "$LIBCAIRO_PKG_ERRORS" >&5
+
+	as_fn_error $? "'libcairo' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+elif test $pkg_failed = untried; then
+     	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+	as_fn_error $? "'libcairo' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+else
+	LIBCAIRO_CFLAGS=$pkg_cv_LIBCAIRO_CFLAGS
+	LIBCAIRO_LIBS=$pkg_cv_LIBCAIRO_LIBS
         { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
 

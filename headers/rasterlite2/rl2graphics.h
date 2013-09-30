@@ -318,7 +318,7 @@ extern "C"
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_graph_create_pattern() by invoking rl2_graph_destroy_pattern().
  */
-    RL2_DECLARE rl2GraphicsPatternPtr rl2_graph_create_brush (unsigned char *rgbaArray, int width,
+    RL2_DECLARE rl2GraphicsPatternPtr rl2_graph_create_pattern (unsigned char *rgbaArray, int width,
 					  int height);
 
 /**
@@ -625,14 +625,18 @@ extern "C"
 
  \param context the pointer to a valid Graphics Context (aka Canvass).
  \param text string to be printed into the canvass.
- \param pre_x the X coordinate of the top left corner of the text.
- \param pre_y the Y coordinate of the top left corner of the text.
+ \param pre_x on completion this variable will contain the horizontal 
+  spacing before the text.
+ \param pre_y on completion this variable will contain the vertical
+  spacing before the text.
  \param width on completion this variable will contain the width of 
  the printed text.
  \param width on completion this variable will contain the height of 
  the printed text.
- \param post_x the new X coordinate after printing the text.
- \param post_y the new Y coordinate after printing the text.
+ \param post_x on completion this variable will contain the horizontal
+  spacing after the text.
+ \param post_y on completion this variable will contain the vertical
+  spacing after the text.
 
  \return 0 (false) on error, any other value on success.
  

@@ -59,21 +59,6 @@ antiEndian ()
     return 0;
 }
 
-static int
-naturalEndian ()
-{
-/* ensures to always encode in the natural endian order */
-    union cvt
-    {
-	unsigned char byte[4];
-	int int_value;
-    } convert;
-    convert.int_value = 1;
-    if (convert.byte[0] == 0)
-	return 0;
-    return 1;
-}
-
 static rl2SectionPtr
 create_grid_multi16 ()
 {

@@ -106,6 +106,7 @@ typedef struct rl2_graphics_pattern_brush
 /* a Cairo based pattern brush */
     int width;
     int height;
+    unsigned char *rgba;
     cairo_surface_t *bitmap;
     cairo_pattern_t *pattern;
 } RL2GraphPatternBrush;
@@ -131,6 +132,7 @@ typedef struct rl2_graphics_bitmap
 /* a Cairo based symbol bitmap */
     int width;
     int height;
+    unsigned char *rgba;
     cairo_surface_t *bitmap;
     cairo_pattern_t *pattern;
 } RL2GraphBitmap;
@@ -209,7 +211,7 @@ rl2_graph_destroy_context (rl2GraphicsContextPtr context)
 }
 
 RL2_DECLARE rl2GraphicsContextPtr
-rl2_raph_create_svg_context (const char *path, int width, int height)
+rl2_graph_create_svg_context (const char *path, int width, int height)
 {
 /* creating an SVG Graphics Context */
     RL2GraphContextPtr ctx;
@@ -539,7 +541,7 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 }
 
 static int
-gg_endianArch ()
+gg_endian_arch ()
 {
 /* checking if target CPU is a little-endian one */
     union cvt
@@ -618,6 +620,7 @@ rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height)
 	return NULL;
     pattern->width = width;
     pattern->height = height;
+    pattern->rgba = rgbaArray;
     pattern->bitmap =
 	cairo_image_surface_create_for_data (rgbaArray, CAIRO_FORMAT_ARGB32,
 					     width, height, width * 4);
@@ -627,7 +630,7 @@ rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height)
 }
 
 RL2_DECLARE void
-rl2_graph_destroy_brush (rl2GraphicsPatternPtr brush)
+rl2_graph_destroy_pattern (rl2GraphicsPatternPtr brush)
 {
 /* destroying a pattern brush */
     RL2GraphPatternBrushPtr pattern = (RL2GraphPatternBrushPtr) brush;
@@ -637,6 +640,8 @@ rl2_graph_destroy_brush (rl2GraphicsPatternPtr brush)
 
     cairo_pattern_destroy (pattern->pattern);
     cairo_surface_destroy (pattern->bitmap);
+    if (pattern->rgba != NULL)
+	free (pattern->rgba);
     free (pattern);
 }
 
@@ -739,6 +744,7 @@ rl2_graph_create_bitmap (unsigned char *rgbaArray, int width, int height)
 	return NULL;
     bmp->width = width;
     bmp->height = height;
+    bmp->rgba = rgbaArray;
     bmp->bitmap =
 	cairo_image_surface_create_for_data (rgbaArray, CAIRO_FORMAT_ARGB32,
 					     width, height, width * 4);
@@ -757,7 +763,63 @@ rl2_graph_destroy_bitmap (rl2GraphicsBitmapPtr bitmap)
 
     cairo_pattern_destroy (bmp->pattern);
     cairo_surface_destroy (bmp->bitmap);
+    if (bmp->rgba != NULL)
+	free (bmp->rgba);
     free (bmp);
+}
+
+static void
+set_current_brush (RL2GraphContextPtr ctx)
+{
+/* setting up the current Brush */
+    if (ctx->current_brush.is_solid_color)
+      {
+	  /* using a Solid Color Brush */
+	  cairo_set_source_rgba (ctx->cairo, ctx->current_brush.red,
+				 ctx->current_brush.green,
+				 ctx->current_brush.blue,
+				 ctx->current_brush.alpha);
+      }
+    else if (ctx->current_brush.is_linear_gradient)
+      {
+	  /* using a Linear Gradient Brush */
+	  cairo_pattern_t *pattern =
+	      cairo_pattern_create_linear (ctx->current_brush.x0,
+					   ctx->current_brush.y0,
+					   ctx->current_brush.x1,
+					   ctx->current_brush.y1);
+	  cairo_pattern_add_color_stop_rgba (pattern, 0.0,
+					     ctx->current_brush.red,
+					     ctx->current_brush.green,
+					     ctx->current_brush.blue,
+					     ctx->current_brush.alpha);
+	  cairo_pattern_add_color_stop_rgba (pattern, 1.0,
+					     ctx->current_brush.red2,
+					     ctx->current_brush.green2,
+					     ctx->current_brush.blue2,
+					     ctx->current_brush.alpha2);
+	  cairo_set_source (ctx->cairo, pattern);
+	  cairo_pattern_destroy (pattern);
+      }
+    else if (ctx->current_brush.is_pattern)
+      {
+	  /* using a Pattern Brush */
+	  cairo_set_source (ctx->cairo, ctx->current_brush.pattern);
+      }
+}
+
+static void
+set_current_pen (RL2GraphContextPtr ctx)
+{
+/* setting up the current Pen */
+    cairo_set_line_width (ctx->cairo, ctx->current_pen.width);
+    cairo_set_source_rgba (ctx->cairo, ctx->current_pen.red,
+			   ctx->current_pen.green, ctx->current_pen.blue,
+			   ctx->current_pen.alpha);
+    cairo_set_line_cap (ctx->cairo, CAIRO_LINE_CAP_BUTT);
+    cairo_set_line_join (ctx->cairo, CAIRO_LINE_JOIN_MITER);
+    cairo_set_dash (ctx->cairo, ctx->current_pen.lengths,
+		    ctx->current_pen.lengths_count, 0.0);
 }
 
 RL2_DECLARE int
@@ -891,6 +953,38 @@ rl2_graph_close_subpath (rl2GraphicsContextPtr context)
 }
 
 RL2_DECLARE int
+rl2_graph_stroke_path (rl2GraphicsContextPtr context, int preserve)
+{
+/* Stroking a path */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return 0;
+
+    set_current_pen (ctx);
+    if (preserve)
+	cairo_stroke_preserve (ctx->cairo);
+    else
+	cairo_stroke (ctx->cairo);
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_fill_path (rl2GraphicsContextPtr context, int preserve)
+{
+/* Filling a path */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return 0;
+
+    set_current_brush (ctx);
+    if (preserve)
+	cairo_fill_preserve (ctx->cairo);
+    else
+	cairo_fill (ctx->cairo);
+    return 1;
+}
+
+RL2_DECLARE int
 rl2_graph_get_text_extent (rl2GraphicsContextPtr context, const char *text,
 			   double *pre_x, double *pre_y, double *width,
 			   double *height, double *post_x, double *post_y)
@@ -919,7 +1013,7 @@ rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text, double x,
 /* drawing a text string (using the current font) */
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
-    if (ctx != NULL)
+    if (ctx == NULL)
 	return 0;
 
     cairo_save (ctx->cairo);

@@ -59,7 +59,6 @@ test_GetCapabilities(rl2WmsCachePtr cache)
     char *err_msg = NULL;
     const char *url;
     char *xurl;
-    int count;
     const char *str;
     int len;
     int int_res;
@@ -536,8 +535,6 @@ int
 main (int argc, char *argv[])
 {
     int ret;
-    int val;
-    double dblval;
     const char *url;
     char *err_msg = NULL;
     unsigned char *rgba;

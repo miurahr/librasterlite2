@@ -98,14 +98,14 @@ test_GetCapabilities_tuscany(rl2WmsCachePtr cache)
 	  return -5;
       }
     str = get_wms_layer_title (layer);
-    if (strcmp(str, "Geoscopio_wms AMBITI AMMINISTRATIVI") != 0)
+    if (strcmp(str, "Geoscopio_wms tematici") != 0)
       {
 	  fprintf (stderr, "GetWmsLayerTitle: unexpected result \"%s\"\n", str);
 	  return -6;
       }
     str = get_wms_layer_abstract (layer);
     len = strlen(str);
-    if (len != 460)
+    if (len != 435)
       {
 	  fprintf (stderr, "GetWmsLayerAbstract: unexpected result %d\n", len);
 	  return -7;
@@ -173,19 +173,19 @@ test_GetCapabilities_tuscany(rl2WmsCachePtr cache)
         }
     }
     count = get_wms_layer_style_count(layer);
-    if (count != 1)
+    if (count != 0)
       {
 	  fprintf (stderr, "GetWmsLayerStyleCount: unexpected result %d\n", count);
 	  return -18;
       }
     str =  get_wms_layer_style_name(layer, 0);
-    if (strcmp(str, "default") != 0)
+    if (str != NULL)
       {
 	  fprintf (stderr, "GetWmsLayerStyleName: unexpected result \"%s\"\n", str);
 	  return -19;
       }
     str =  get_wms_layer_style_title(layer, 0);
-    if (strcmp(str, "default") != 0)
+    if (str != NULL)
       {
 	  fprintf (stderr, "GetWmsLayerStyleTitle: unexpected result \"%s\"\n", str);
 	  return -20;
@@ -286,38 +286,38 @@ test_GetCapabilities_tuscany(rl2WmsCachePtr cache)
 	  return -35;
       }
     str = get_wms_title (catalog);
-    if (strcmp(str, "Geoscopio_wms AMBITI AMMINISTRATIVI") != 0)
+    if (strcmp(str, "Geoscopio_wms tematici") != 0)
       {
 	  fprintf (stderr, "GetWmsTitle: unexpected result \"%s\"\n", str);
 	  return -36;
       }
     str = get_wms_abstract (catalog);
     len = strlen(str);
-    if (len != 460)
+    if (len != 435)
       {
 	  fprintf (stderr, "GetWmsAbstract: unexpected result %d\n", len);
 	  return -37;
       }
     str = get_wms_url_GetMap_get (catalog);
-    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&language=ita&") != 0)
+    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&") != 0)
       {
 	  fprintf (stderr, "GetWmsGetMapGet: unexpected result \"%s\"\n", str);
 	  return -38;
       }
     str = get_wms_url_GetMap_post (catalog);
-    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&language=ita&") != 0)
+    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&") != 0)
       {
 	  fprintf (stderr, "GetWmsGetMapPost: unexpected result \"%s\"\n", str);
 	  return -39;
       }
     str = get_wms_url_GetFeatureInfo_get (catalog);
-    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&language=ita&") != 0)
+    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&") != 0)
       {
 	  fprintf (stderr, "GetWmsGetFeatureInfoGet: unexpected result \"%s\"\n", str);
 	  return -40;
       }
     str = get_wms_url_GetFeatureInfo_post (catalog);
-    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&language=ita&") != 0)
+    if (strcmp(str, "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&") != 0)
       {
 	  fprintf (stderr, "GetWmsGetFeatureInfoPost: unexpected result \"%s\"\n", str);
 	  return -41;
@@ -431,7 +431,7 @@ test_GetCapabilities_tuscany(rl2WmsCachePtr cache)
 	  return -59;
       }
     int_res = get_wms_format_count(catalog, 0);
-    if (int_res != 9)
+    if (int_res != 8)
       {
 	  fprintf (stderr, "GetWmsFormatCount: unexpected result %d\n", int_res);
 	  return -60;
@@ -853,7 +853,7 @@ test_GetFeatureInfo_gml()
 
     spatialite_init_ex (sqlite, cache, 0);
 
-    url = "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&language=ita";
+    url = "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&";
     coll = do_wms_GetFeatureInfo_get(url, NULL, "1.3.0", "text/gml", "rt_ambamm.idcomuni.rt.poly", "EPSG:3003",
         0, 1590122.238032, 4727226.777078, 1618469.603808, 4752914.550184, 437, 396, 257, 219, &err_msg);
     if (coll == NULL)
@@ -1117,7 +1117,7 @@ main (int argc, char *argv[])
     if (ret != 0)
         return ret;
 /* GetMap - Pass I [not cached] */
-    url = "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&language=ita";
+    url = "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&map_resolution=91&";
     rgba = do_wms_GetMap_get(cache, url, NULL, "1.3.0", 
         "rt_ambamm.idcomuni.rt.poly", "EPSG:3003", 0, 1583097.365776,
          4704017.773106,1611444.731553,4729705.546213,
@@ -1182,7 +1182,7 @@ main (int argc, char *argv[])
 	  return -91;
       }
    val = get_wms_cache_current_size(cache);
-    if (val != 3284)
+    if (val != 4670)
       {
 	  fprintf (stderr, "GetWmsCacheCurrentSize: unexpected result %d\n", val);
 	  return -92;
@@ -1206,7 +1206,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
    dblval = get_wms_total_download_size(cache);
-    if (dblval != 48637)
+    if (dblval != 46426)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n", dblval);
 	  return -96;

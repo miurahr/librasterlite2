@@ -43,6 +43,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdlib.h>
 #include <stdio.h>
 #include <float.h>
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -3233,7 +3234,8 @@ parse_wms_GetTileService_HTTP_Get (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetTileServiceURLGet !=
 						  NULL)
 						{
-						    free (cap->GetTileServiceURLGet);
+						    free (cap->
+							  GetTileServiceURLGet);
 						    cap->GetMapURLGet = NULL;
 						}
 					      p = (const char
@@ -3283,7 +3285,8 @@ parse_wms_GetTileService_HTTP_Post (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetTileServiceURLPost !=
 						  NULL)
 						{
-						    free (cap->GetTileServiceURLPost);
+						    free (cap->
+							  GetTileServiceURLPost);
 						    cap->GetTileServiceURLPost =
 							NULL;
 						}
@@ -3335,8 +3338,7 @@ parse_wms_GetInfo_HTTP_Get (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetFeatureInfoURLGet !=
 						  NULL)
 						{
-						    free (cap->
-							  GetFeatureInfoURLGet);
+						    free (cap->GetFeatureInfoURLGet);
 						    cap->GetFeatureInfoURLGet =
 							NULL;
 						}
@@ -3387,8 +3389,7 @@ parse_wms_GetInfo_HTTP_Post (xmlNodePtr node, wmsCapabilitiesPtr cap)
 					      if (cap->GetFeatureInfoURLPost !=
 						  NULL)
 						{
-						    free (cap->
-							  GetFeatureInfoURLPost);
+						    free (cap->GetFeatureInfoURLPost);
 						    cap->GetFeatureInfoURLPost =
 							NULL;
 						}
@@ -6507,9 +6508,146 @@ destroy_wms_feature_collection (rl2WmsFeatureCollectionPtr handle)
     wmsFreeFeatureCollection (ptr);
 }
 
+static int
+check_swap (gaiaGeomCollPtr geom, double point_x, double point_y)
+{
+/* checking if X and Y axes should be flipped */
+    double x;
+    double y;
+    double z;
+    double m;
+    double dist;
+    double dist_flip;
+    gaiaPointPtr pt;
+    gaiaLinestringPtr ln;
+    gaiaPolygonPtr pg;
+    pt = geom->FirstPoint;
+    if (pt != NULL)
+      {
+	  x = pt->X;
+	  y = pt->Y;
+	  goto eval;
+      }
+    ln = geom->FirstLinestring;
+    if (ln != NULL)
+      {
+	  if (ln->DimensionModel == GAIA_XY_Z)
+	    {
+		gaiaGetPointXYZ (ln->Coords, 0, &x, &y, &z);
+	    }
+	  else if (ln->DimensionModel == GAIA_XY_M)
+	    {
+		gaiaGetPointXYM (ln->Coords, 0, &x, &y, &m);
+	    }
+	  else if (ln->DimensionModel == GAIA_XY_Z_M)
+	    {
+		gaiaGetPointXYZM (ln->Coords, 0, &x, &y, &z, &m);
+	    }
+	  else
+	    {
+		gaiaGetPoint (ln->Coords, 0, &x, &y);
+	    }
+	  goto eval;
+      }
+    pg = geom->FirstPolygon;
+    if (pg != NULL)
+      {
+	  gaiaRingPtr ring = pg->Exterior;
+	  if (ring->DimensionModel == GAIA_XY_Z)
+	    {
+		gaiaGetPointXYZ (ring->Coords, 0, &x, &y, &z);
+	    }
+	  else if (ring->DimensionModel == GAIA_XY_M)
+	    {
+		gaiaGetPointXYM (ring->Coords, 0, &x, &y, &m);
+	    }
+	  else if (ring->DimensionModel == GAIA_XY_Z_M)
+	    {
+		gaiaGetPointXYZM (ring->Coords, 0, &x, &y, &z, &m);
+	    }
+	  else
+	    {
+		gaiaGetPoint (ring->Coords, 0, &x, &y);
+	    }
+	  goto eval;
+      }
+    return 0;
+  eval:
+    dist =
+	sqrt (((x - point_x) * (x - point_x)) +
+	      ((y - point_y) * (y - point_y)));
+    dist_flip =
+	sqrt (((x - point_y) * (x - point_y)) +
+	      ((y - point_x) * (y - point_x)));
+    if (dist_flip < dist)
+	return 1;
+    return 0;
+}
+
+static void
+getProjParams (void *p_sqlite, int srid, char **proj_params)
+{
+/* retrieves the PROJ params from SPATIAL_SYS_REF table, if possible */
+    sqlite3 *sqlite = (sqlite3 *) p_sqlite;
+    char *sql;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    int ret;
+    int len;
+    const char *proj4text;
+    char *errMsg = NULL;
+    *proj_params = NULL;
+    sql = sqlite3_mprintf
+	("SELECT proj4text FROM spatial_ref_sys WHERE srid = %d", srid);
+    ret = sqlite3_get_table (sqlite, sql, &results, &rows, &columns, &errMsg);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "unknown SRID: %d\t<%s>\n", srid, errMsg);
+	  sqlite3_free (errMsg);
+	  return;
+      }
+    for (i = 1; i <= rows; i++)
+      {
+	  proj4text = results[(i * columns)];
+	  if (proj4text != NULL)
+	    {
+		len = strlen (proj4text);
+		*proj_params = malloc (len + 1);
+		strcpy (*proj_params, proj4text);
+	    }
+      }
+    if (*proj_params == NULL)
+	fprintf (stderr, "unknown SRID: %d\n", srid);
+    sqlite3_free_table (results);
+}
+
+static gaiaGeomCollPtr
+reproject (gaiaGeomCollPtr geom, int srid, sqlite3 * sqlite)
+{
+/* attempting to reproject into a different CRS */
+    char *proj_from;
+    char *proj_to;
+    gaiaGeomCollPtr g2 = NULL;
+    getProjParams (sqlite, geom->Srid, &proj_from);
+    getProjParams (sqlite, srid, &proj_to);
+    if (proj_to == NULL || proj_from == NULL)
+	;
+    else
+	g2 = gaiaTransform (geom, proj_from, proj_to);
+    if (proj_from)
+	free (proj_from);
+    if (proj_to)
+	free (proj_to);
+    return g2;
+}
+
 RL2_DECLARE void
 wms_feature_collection_parse_geometries (rl2WmsFeatureCollectionPtr
-					 handle, sqlite3 * sqlite)
+					 handle, int srid, double point_x,
+					 double point_y, sqlite3 * sqlite)
 {
 /* attempting to parse any GML Geometry contained within a Feature Collection object */
     wmsFeatureMemberPtr member;
@@ -6533,7 +6671,38 @@ wms_feature_collection_parse_geometries (rl2WmsFeatureCollectionPtr
 			  gaiaParseGml ((const unsigned char *) (attr->value),
 					sqlite);
 		      if (geom != NULL)
-			  attr->geometry = geom;
+			{
+			    if (geom->Srid > 0 && srid > 0
+				&& geom->Srid != srid)
+			      {
+				  /* attempting to reproject into the Map CRS */
+				  gaiaGeomCollPtr g2 =
+				      reproject (geom, srid, sqlite);
+				  if (g2 != NULL)
+				    {
+					if (check_swap (g2, point_x, point_y))
+					  {
+					      gaiaFreeGeomColl (g2);
+					      gaiaSwapCoords (geom);
+					      g2 = reproject (geom, srid,
+							      sqlite);
+					      attr->geometry = g2;
+					      gaiaFreeGeomColl (geom);
+					  }
+					else
+					  {
+					      attr->geometry = g2;
+					      gaiaFreeGeomColl (geom);
+					  }
+				    }
+			      }
+			    else
+			      {
+				  if (check_swap (geom, point_x, point_y))
+				      gaiaSwapCoords (geom);
+				  attr->geometry = geom;
+			      }
+			}
 		  }
 		attr = attr->next;
 	    }

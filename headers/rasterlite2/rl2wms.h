@@ -1732,8 +1732,8 @@ extern "C"
  \param maxy BoundingBox: Y max coordinate.
  \param width horizontal dimension (in pixels) of the requested image.
  \param height vertical dimension (in pixels) of the requested image.
- \param img_x X coordinate (in pixels) of the point to be queryied.
- \param img_y Y coordinate (in pixels) of the point to be queryied.
+ \param img_x X coordinate (in pixels) of the point to be queried.
+ \param img_y Y coordinate (in pixels) of the point to be queried.
  \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to a WMS-FeatureCollection object:
@@ -1785,6 +1785,9 @@ extern "C"
 
  \param handle the pointer to a valid WMS-FeatureCollection returned by a previous call
  to do_wms_GetFeatureInfo_get() or do_wms_GetFeatureInfo_post()
+ \param srid the SRID value of the current Map
+ \param point_x X coordinate (in the Map CRS) identifying the queried Point.
+ \param point_y Y coordinate (in the Map CRS) identifying the queried Point.
  \param sqlite handle to a valid SQLite connection - required in order to support
  coordinate re-projections based on ST_Transform().
  
@@ -1796,7 +1799,9 @@ extern "C"
  */
     RL2_DECLARE void
 	wms_feature_collection_parse_geometries (rl2WmsFeatureCollectionPtr
-						 handle, sqlite3 * sqlite);
+						 handle, int srid,
+						 double point_x, double point_y,
+						 sqlite3 * sqlite);
 
 /**
  Return the total count of WMS-FeatureMembers from within a WMS_FeatureCollection object

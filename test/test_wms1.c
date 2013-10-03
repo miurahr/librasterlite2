@@ -840,6 +840,9 @@ test_GetFeatureInfo_gml()
     int count;
     const char *str;
     int ret;
+    double mx;
+    double my;
+    double ratio;
     sqlite3 *sqlite;
     gaiaGeomCollPtr geom;
     void *cache = spatialite_alloc_connection();
@@ -862,7 +865,10 @@ test_GetFeatureInfo_gml()
 	  return -201;
       }
 /* preparing Geometries */
-    wms_feature_collection_parse_geometries(coll, sqlite);
+    ratio = (1618469.603808 - 1590122.238032) / (double)437;
+    mx = 1590122.238032 + ((double)396 * ratio);
+    my = 4752914.550184 - ((double)219 * ratio);
+    wms_feature_collection_parse_geometries(coll, 3003, mx, my, sqlite);
 
 /* testing Feature Member */
     count = get_wms_feature_members_count(coll);
@@ -951,6 +957,9 @@ test_GetFeatureInfo_xml()
     int count;
     const char *str;
     int ret;
+    double mx;
+    double my;
+    double ratio;
     sqlite3 *sqlite;
     gaiaGeomCollPtr geom;
     void *cache = spatialite_alloc_connection();
@@ -973,7 +982,10 @@ test_GetFeatureInfo_xml()
 	  return -301;
       }
 /* preparing Geometries */
-    wms_feature_collection_parse_geometries(coll, sqlite);
+    ratio = (13.015085 - 9.018668) / (double)437;
+    mx = 9.018668 + ((double)254 * ratio);
+    my = 46.237264 - ((double)182 * ratio);
+    wms_feature_collection_parse_geometries(coll, 4326, mx, my, sqlite);
 
 /* testing Feature Member */
     count = get_wms_feature_members_count(coll);
@@ -1206,7 +1218,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
    dblval = get_wms_total_download_size(cache);
-    if (dblval != 46426)
+    if (dblval != 46443)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n", dblval);
 	  return -96;

@@ -154,6 +154,12 @@ extern "C"
 #define RL2_COMPRESSION_LOSSY_WEBP	0x27
 /** RasterLite2 constant: Compression WEBP (lossless mode) */
 #define RL2_COMPRESSION_LOSSLESS_WEBP	0x28
+/** RasterLite2 constant: Compression CCITTFAX3 */
+#define RL2_COMPRESSION_CCITTFAX3	0x29
+/** RasterLite2 constant: Compression CCITTFAX4 */
+#define RL2_COMPRESSION_CCITTFAX4	0x30
+/** RasterLite2 constant: Compression LZW */
+#define RL2_COMPRESSION_LZW	0x31
 
 /** RasterLite2 constant: UNKNOWN number of Bands */
 #define RL2_BANDS_UNKNOWN	0x00
@@ -265,6 +271,19 @@ extern "C"
  \sa rl2TiffOrigin
  */
     typedef rl2TiffOrigin *rl2TiffOriginPtr;
+
+/**
+ Typedef for RL2 TIFF Destination object (opaque, hidden)
+
+ \sa rl2TiffDestinationPtr
+ */
+    typedef struct rl2_tiff_destination rl2TiffDestination;
+/**
+ Typedef for RL2 TIFF Destination object pointer (opaque, hidden)
+
+ \sa rl2TiffDestination
+ */
+    typedef rl2TiffDestination *rl2TiffDestinationPtr;
 
 /**
  Releases (frees) dynamic memory allocated by RasterLite2
@@ -2495,6 +2514,10 @@ rl2_get_coverage_srid
 				  unsigned char *pixel_type,
 				  unsigned char *num_bands);
 
+    RL2_DECLARE int rl2_get_tiff_origin_compression (rl2TiffOriginPtr tiff,
+						     unsigned char
+						     *compression);
+
     RL2_DECLARE int rl2_get_tiff_origin_srid (rl2TiffOriginPtr tiff, int *srid);
 
     RL2_DECLARE int
@@ -2515,6 +2538,151 @@ rl2_get_coverage_srid
 				       rl2TiffOriginPtr tiff,
 				       unsigned int startRow,
 				       unsigned int startCol);
+
+    RL2_DECLARE rl2TiffDestinationPtr rl2_create_tiff_destination (const char
+								   *path,
+								   unsigned
+								   short width,
+								   unsigned
+								   short height,
+								   unsigned char
+								   sample_type,
+								   unsigned char
+								   pixel_type,
+								   unsigned char
+								   num_bands,
+								   rl2PalettePtr
+								   plt,
+								   unsigned char
+								   tiff_compression,
+								   int tiled,
+								   int
+								   tile_size);
+
+    RL2_DECLARE rl2TiffDestinationPtr rl2_create_geotiff_destination (const char
+								      *path,
+								      sqlite3 *
+								      handle,
+								      unsigned
+								      short
+								      width,
+								      unsigned
+								      short
+								      height,
+								      unsigned
+								      char
+								      sample_type,
+								      unsigned
+								      char
+								      pixel_type,
+								      unsigned
+								      char
+								      num_bands,
+								      rl2PalettePtr
+								      plt,
+								      unsigned
+								      char
+								      tiff_compression,
+								      int tiles,
+								      int
+								      tile_size,
+								      int srid,
+								      double
+								      minX,
+								      double
+								      minY,
+								      double
+								      maxX,
+								      double
+								      maxY,
+								      double
+								      hResolution,
+								      double
+								      vResolution,
+								      int
+								      with_worldfile);
+
+    RL2_DECLARE rl2TiffDestinationPtr
+	rl2_create_tiff_worldfile_destination (const char *path,
+					       unsigned short width,
+					       unsigned short height,
+					       unsigned char sample_type,
+					       unsigned char pixel_type,
+					       unsigned char num_bands,
+					       rl2PalettePtr plt,
+					       unsigned char tiff_compression,
+					       int tiles, int tile_size,
+					       int srid, double minX,
+					       double minY, double maxX,
+					       double maxY, double hResolution,
+					       double vResolution);
+
+    RL2_DECLARE void rl2_destroy_tiff_destination (rl2TiffDestinationPtr tiff);
+
+    RL2_DECLARE int rl2_is_geotiff_destination (rl2TiffDestinationPtr tiff,
+						int *geotiff);
+
+    RL2_DECLARE int rl2_is_tiff_worldfile_destination (rl2TiffDestinationPtr
+						       tiff,
+						       int *tiff_worldfile);
+
+    RL2_DECLARE const char *rl2_get_tiff_destination_path (rl2TiffDestinationPtr
+							   tiff);
+
+    RL2_DECLARE const char
+	*rl2_get_tiff_destination_worldfile_path (rl2TiffDestinationPtr tiff);
+
+    RL2_DECLARE int
+	rl2_get_tiff_destination_size (rl2TiffDestinationPtr tiff,
+				       unsigned short *width,
+				       unsigned short *height);
+
+    RL2_DECLARE int
+	rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
+				       unsigned char *sample_type,
+				       unsigned char *pixel_type,
+				       unsigned char *num_bands);
+
+    RL2_DECLARE int rl2_set_tiff_destination_compression (rl2TiffDestinationPtr
+							  tiff,
+							  unsigned char
+							  compression);
+
+    RL2_DECLARE int rl2_get_tiff_destination_compression (rl2TiffDestinationPtr
+							  tiff,
+							  unsigned char
+							  *compression);
+
+    RL2_DECLARE int rl2_get_tiff_destination_srid (rl2TiffDestinationPtr tiff,
+						   int *srid);
+
+    RL2_DECLARE int
+	rl2_get_tiff_destination_extent (rl2TiffDestinationPtr tiff,
+					 double *minX, double *minY,
+					 double *maxX, double *maxY);
+
+    RL2_DECLARE int
+	rl2_get_tiff_destination_resolution (rl2TiffDestinationPtr tiff,
+					     double *hResolution,
+					     double *vResolution);
+
+    RL2_DECLARE int rl2_is_tiled_tiff_destination (rl2TiffDestinationPtr tiff);
+
+    RL2_DECLARE int
+	rl2_get_tiff_destination_tile_size (rl2TiffDestinationPtr tiff);
+
+    RL2_DECLARE int
+	rl2_get_tiff_destination_strip_size (rl2TiffDestinationPtr tiff);
+
+    RL2_DECLARE int
+	rl2_write_tiff_tile (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
+			     unsigned int startRow, unsigned int startCol);
+
+    RL2_DECLARE int
+	rl2_write_tiff_scanline (rl2TiffDestinationPtr tiff,
+				 rl2RasterPtr raster, unsigned int row);
+
+    RL2_DECLARE int rl2_write_tiff_worldfile (rl2TiffDestinationPtr tiff);
 
     RL2_DECLARE void
 	rl2_prime_void_tile (void *pixels, unsigned short width,

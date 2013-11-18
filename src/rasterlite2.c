@@ -125,6 +125,8 @@ check_coverage_self_consistency (unsigned char sample_type,
 	    {
 	    case RL2_COMPRESSION_NONE:
 	    case RL2_COMPRESSION_PNG:
+	    case RL2_COMPRESSION_CCITTFAX3:
+	    case RL2_COMPRESSION_CCITTFAX4:
 		break;
 	    default:
 		return 0;
@@ -857,7 +859,6 @@ rl2_create_raster (unsigned short width, unsigned short height,
 		  }
 	    }
       }
-
     if (palette != NULL)
       {
 	  /* checking the Palette for validity */

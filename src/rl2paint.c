@@ -52,6 +52,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <cairo/cairo-svg.h>
 #include <cairo/cairo-pdf.h>
 
+#define RL2_SURFACE_IMG 2671
+#define RL2_SURFACE_SVG 1267
+#define RL2_SURFACE_PDF	1276
+
 struct rl2_graphics_pen
 {
 /* a struct wrapping a Cairo Pen */
@@ -88,8 +92,11 @@ struct rl2_graphics_brush
 typedef struct rl2_graphics_context
 {
 /* a Cairo based painting context */
+    int type;
     cairo_surface_t *surface;
+    cairo_surface_t *clip_surface;
     cairo_t *cairo;
+    cairo_t *clip_cairo;
     struct rl2_graphics_pen current_pen;
     struct rl2_graphics_brush current_brush;
     double font_red;
@@ -147,6 +154,10 @@ rl2_graph_create_context (int width, int height)
     ctx = malloc (sizeof (RL2GraphContext));
     if (!ctx)
 	return NULL;
+
+    ctx->type = RL2_SURFACE_IMG;
+    ctx->clip_surface = NULL;
+    ctx->clip_cairo = NULL;
     ctx->surface =
 	cairo_image_surface_create (CAIRO_FORMAT_ARGB32, width, height);
     if (cairo_surface_status (ctx->surface) == CAIRO_STATUS_SUCCESS)
@@ -198,16 +209,59 @@ rl2_graph_create_context (int width, int height)
     return NULL;
 }
 
-RL2_DECLARE void
-rl2_graph_destroy_context (rl2GraphicsContextPtr context)
+static void
+destroy_context (RL2GraphContextPtr ctx)
 {
-/* memory cleanup - destroyin a Graphics Context */
-    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+/* memory cleanup - destroying a Graphics Context */
     if (ctx == NULL)
 	return;
     cairo_destroy (ctx->cairo);
     cairo_surface_destroy (ctx->surface);
     free (ctx);
+}
+
+static void
+destroy_svg_context (RL2GraphContextPtr ctx)
+{
+/* freeing an SVG Graphics Context */
+    if (ctx == NULL)
+	return;
+    cairo_surface_show_page (ctx->surface);
+    cairo_destroy (ctx->cairo);
+    cairo_surface_finish (ctx->surface);
+    cairo_surface_destroy (ctx->surface);
+    free (ctx);
+}
+
+static void
+destroy_pdf_context (RL2GraphContextPtr ctx)
+{
+/* freeing an PDF Graphics Context */
+    if (ctx == NULL)
+	return;
+    cairo_surface_finish (ctx->clip_surface);
+    cairo_surface_destroy (ctx->clip_surface);
+    cairo_destroy (ctx->clip_cairo);
+    cairo_surface_show_page (ctx->surface);
+    cairo_destroy (ctx->cairo);
+    cairo_surface_finish (ctx->surface);
+    cairo_surface_destroy (ctx->surface);
+    free (ctx);
+}
+
+RL2_DECLARE void
+rl2_graph_destroy_context (rl2GraphicsContextPtr context)
+{
+/* memory cleanup - destroying a Graphics Context */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return;
+    if (ctx->type == RL2_SURFACE_SVG)
+	destroy_svg_context (ctx);
+    else if (ctx->type == RL2_SURFACE_PDF)
+	destroy_pdf_context (ctx);
+    else
+	destroy_context (ctx);
 }
 
 RL2_DECLARE rl2GraphicsContextPtr
@@ -220,6 +274,9 @@ rl2_graph_create_svg_context (const char *path, int width, int height)
     if (!ctx)
 	return NULL;
 
+    ctx->type = RL2_SURFACE_SVG;
+    ctx->clip_surface = NULL;
+    ctx->clip_cairo = NULL;
     ctx->surface =
 	cairo_svg_surface_create (path, (double) width, (double) height);
 
@@ -272,40 +329,33 @@ rl2_graph_create_svg_context (const char *path, int width, int height)
     return NULL;
 }
 
-RL2_DECLARE void
-rl2_graph_destroy_svg_context (rl2GraphicsContextPtr context)
-{
-/* freeing an SVG Graphics Context */
-    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
-    if (ctx == NULL)
-	return;
-    cairo_surface_show_page (ctx->surface);
-    cairo_destroy (ctx->cairo);
-    cairo_surface_finish (ctx->surface);
-    cairo_surface_destroy (ctx->surface);
-    free (ctx);
-}
-
 RL2_DECLARE rl2GraphicsContextPtr
-rl2_graph_create_pdf_context (const char *path, int page_width, int page_height,
-			      int width, int height)
+rl2_graph_create_pdf_context (const char *path, int dpi, double page_width,
+			      double page_height, double margin_width,
+			      double margin_height)
 {
-/* creating an PDF Graphics Context */
-    int base_x = (page_width - width) / 2;
-    int base_y = (page_height - height) / 2;
+/* creating a PDF Graphics Context */
     RL2GraphContextPtr ctx;
-
-    if (base_x <= 0)
-	base_x = 100;
-    if (base_y <= 0)
-	base_y = 100;
+    double scale = 72.0 / (double) dpi;
+    double page2_width = page_width * 72.0;
+    double page2_height = page_height * 72.0;
+    double horz_margin_sz = margin_width * 72.0;
+    double vert_margin_sz = margin_height * 72.0;
+    double img_width = (page_width - (margin_width * 2.0)) * 72.0;
+    double img_height = (page_height - (margin_height * 2.0)) * 72.0;
+    double horz2_margin_sz = margin_width * (double) dpi;
+    double vert2_margin_sz = margin_height * (double) dpi;
+    double img2_width = (page_width - (margin_width * 2.0)) * (double) dpi;
+    double img2_height = (page_height - (margin_height * 2.0)) * (double) dpi;
 
     ctx = malloc (sizeof (RL2GraphContext));
     if (ctx == NULL)
 	return NULL;
-    ctx->surface =
-	cairo_pdf_surface_create (path, (double) page_width,
-				  (double) page_height);
+
+    ctx->type = RL2_SURFACE_PDF;
+    ctx->clip_surface = NULL;
+    ctx->clip_cairo = NULL;
+    ctx->surface = cairo_pdf_surface_create (path, page2_width, page2_height);
     if (cairo_surface_status (ctx->surface) == CAIRO_STATUS_SUCCESS)
 	;
     else
@@ -313,6 +363,24 @@ rl2_graph_create_pdf_context (const char *path, int page_width, int page_height,
     ctx->cairo = cairo_create (ctx->surface);
     if (cairo_status (ctx->cairo) == CAIRO_STATUS_NO_MEMORY)
 	goto error2;
+
+/* priming a transparent background */
+    cairo_rectangle (ctx->cairo, 0, 0, page2_width, page2_height);
+    cairo_set_source_rgba (ctx->cairo, 0.0, 0.0, 0.0, 0.0);
+    cairo_fill (ctx->cairo);
+
+/* clipped surface respecting free margins */
+    ctx->clip_surface =
+	cairo_surface_create_for_rectangle (ctx->surface, horz_margin_sz,
+					    vert_margin_sz, img_width,
+					    img_height);
+    if (cairo_surface_status (ctx->clip_surface) == CAIRO_STATUS_SUCCESS)
+	;
+    else
+	goto error3;
+    ctx->clip_cairo = cairo_create (ctx->clip_surface);
+    if (cairo_status (ctx->clip_cairo) == CAIRO_STATUS_NO_MEMORY)
+	goto error4;
 
 /* setting up a default Black Pen */
     ctx->current_pen.red = 0.0;
@@ -333,10 +401,8 @@ rl2_graph_create_pdf_context (const char *path, int page_width, int page_height,
     ctx->current_brush.alpha = 1.0;
     ctx->current_brush.pattern = NULL;
 
-/* priming a transparent background */
-    cairo_rectangle (ctx->cairo, 0, 0, width, height);
-    cairo_set_source_rgba (ctx->cairo, 0.0, 0.0, 0.0, 0.0);
-    cairo_fill (ctx->cairo);
+/* scaling accordingly to DPI resolution */
+    cairo_scale (ctx->clip_cairo, scale, scale);
 
 /* setting up default Font options */
     ctx->font_red = 0.0;
@@ -345,9 +411,18 @@ rl2_graph_create_pdf_context (const char *path, int page_width, int page_height,
     ctx->font_alpha = 1.0;
     ctx->is_font_outlined = 0;
     ctx->font_outline_width = 0.0;
-
-    cairo_translate (ctx->cairo, base_x, base_y);
     return (rl2GraphicsContextPtr) ctx;
+  error4:
+    cairo_destroy (ctx->clip_cairo);
+    cairo_surface_destroy (ctx->clip_surface);
+    cairo_destroy (ctx->cairo);
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+  error3:
+    cairo_surface_destroy (ctx->clip_surface);
+    cairo_destroy (ctx->cairo);
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
   error2:
     cairo_destroy (ctx->cairo);
     cairo_surface_destroy (ctx->surface);
@@ -355,20 +430,6 @@ rl2_graph_create_pdf_context (const char *path, int page_width, int page_height,
   error1:
     cairo_surface_destroy (ctx->surface);
     return NULL;
-}
-
-RL2_DECLARE void
-rl2_graph_destroy_pdf_context (rl2GraphicsContextPtr context)
-{
-/* freeing an PDF Graphics Context */
-    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
-    if (ctx == NULL)
-	return;
-    cairo_surface_show_page (ctx->surface);
-    cairo_destroy (ctx->cairo);
-    cairo_surface_finish (ctx->surface);
-    cairo_surface_destroy (ctx->surface);
-    free (ctx);
 }
 
 RL2_DECLARE int
@@ -510,6 +571,7 @@ RL2_DECLARE int
 rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 {
 /* setting up the current font */
+    cairo_t *cairo;
     int style = CAIRO_FONT_SLANT_NORMAL;
     int weight = CAIRO_FONT_WEIGHT_NORMAL;
     double size;
@@ -520,16 +582,20 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 	return 0;
     if (fnt == NULL)
 	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
 
     if (fnt->style == RL2_FONTSTYLE_ITALIC)
 	style = CAIRO_FONT_SLANT_ITALIC;
     if (fnt->weight == RL2_FONTWEIGHT_BOLD)
 	weight = CAIRO_FONT_WEIGHT_BOLD;
-    cairo_select_font_face (ctx->cairo, "monospace", style, weight);
+    cairo_select_font_face (cairo, "monospace", style, weight);
     size = fnt->size;
     if (fnt->is_outlined)
 	size += fnt->outline_width;
-    cairo_set_font_size (ctx->cairo, size);
+    cairo_set_font_size (cairo, size);
     ctx->font_red = fnt->red;
     ctx->font_green = fnt->green;
     ctx->font_blue = fnt->blue;
@@ -772,10 +838,15 @@ static void
 set_current_brush (RL2GraphContextPtr ctx)
 {
 /* setting up the current Brush */
+    cairo_t *cairo;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
     if (ctx->current_brush.is_solid_color)
       {
 	  /* using a Solid Color Brush */
-	  cairo_set_source_rgba (ctx->cairo, ctx->current_brush.red,
+	  cairo_set_source_rgba (cairo, ctx->current_brush.red,
 				 ctx->current_brush.green,
 				 ctx->current_brush.blue,
 				 ctx->current_brush.alpha);
@@ -798,13 +869,13 @@ set_current_brush (RL2GraphContextPtr ctx)
 					     ctx->current_brush.green2,
 					     ctx->current_brush.blue2,
 					     ctx->current_brush.alpha2);
-	  cairo_set_source (ctx->cairo, pattern);
+	  cairo_set_source (cairo, pattern);
 	  cairo_pattern_destroy (pattern);
       }
     else if (ctx->current_brush.is_pattern)
       {
 	  /* using a Pattern Brush */
-	  cairo_set_source (ctx->cairo, ctx->current_brush.pattern);
+	  cairo_set_source (cairo, ctx->current_brush.pattern);
       }
 }
 
@@ -812,13 +883,18 @@ static void
 set_current_pen (RL2GraphContextPtr ctx)
 {
 /* setting up the current Pen */
-    cairo_set_line_width (ctx->cairo, ctx->current_pen.width);
-    cairo_set_source_rgba (ctx->cairo, ctx->current_pen.red,
+    cairo_t *cairo;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    cairo_set_line_width (cairo, ctx->current_pen.width);
+    cairo_set_source_rgba (cairo, ctx->current_pen.red,
 			   ctx->current_pen.green, ctx->current_pen.blue,
 			   ctx->current_pen.alpha);
-    cairo_set_line_cap (ctx->cairo, CAIRO_LINE_CAP_BUTT);
-    cairo_set_line_join (ctx->cairo, CAIRO_LINE_JOIN_MITER);
-    cairo_set_dash (ctx->cairo, ctx->current_pen.lengths,
+    cairo_set_line_cap (cairo, CAIRO_LINE_CAP_BUTT);
+    cairo_set_line_join (cairo, CAIRO_LINE_JOIN_MITER);
+    cairo_set_dash (cairo, ctx->current_pen.lengths,
 		    ctx->current_pen.lengths_count, 0.0);
 }
 
@@ -827,14 +903,20 @@ rl2_graph_draw_rectangle (rl2GraphicsContextPtr context, double x, double y,
 			  double width, double height)
 {
 /* Drawing a filled rectangle */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_rectangle (ctx->cairo, x, y, width, height);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    cairo_rectangle (cairo, x, y, width, height);
     set_current_brush (ctx);
-    cairo_fill_preserve (ctx->cairo);
+    cairo_fill_preserve (cairo);
     set_current_pen (ctx);
-    cairo_stroke (ctx->cairo);
+    cairo_stroke (cairo);
     return 1;
 }
 
@@ -844,24 +926,30 @@ rl2_graph_draw_rounded_rectangle (rl2GraphicsContextPtr context, double x,
 				  double radius)
 {
 /* Drawing a filled rectangle with rounded corners */
+    cairo_t *cairo;
     double degrees = M_PI / 180.0;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_new_sub_path (ctx->cairo);
-    cairo_arc (ctx->cairo, x + width - radius, y + radius, radius,
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    cairo_new_sub_path (cairo);
+    cairo_arc (cairo, x + width - radius, y + radius, radius,
 	       -90 * degrees, 0 * degrees);
-    cairo_arc (ctx->cairo, x + width - radius, y + height - radius, radius,
+    cairo_arc (cairo, x + width - radius, y + height - radius, radius,
 	       0 * degrees, 90 * degrees);
-    cairo_arc (ctx->cairo, x + radius, y + height - radius, radius,
+    cairo_arc (cairo, x + radius, y + height - radius, radius,
 	       90 * degrees, 180 * degrees);
-    cairo_arc (ctx->cairo, x + radius, y + radius, radius, 180 * degrees,
+    cairo_arc (cairo, x + radius, y + radius, radius, 180 * degrees,
 	       270 * degrees);
-    cairo_close_path (ctx->cairo);
+    cairo_close_path (cairo);
     set_current_brush (ctx);
-    cairo_fill_preserve (ctx->cairo);
+    cairo_fill_preserve (cairo);
     set_current_pen (ctx);
-    cairo_stroke (ctx->cairo);
+    cairo_stroke (cairo);
     return 1;
 }
 
@@ -870,18 +958,24 @@ rl2_graph_draw_ellipse (rl2GraphicsContextPtr context, double x, double y,
 			double width, double height)
 {
 /* Drawing a filled ellipse */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_save (ctx->cairo);
-    cairo_translate (ctx->cairo, x + (width / 2.0), y + (height / 2.0));
-    cairo_scale (ctx->cairo, width / 2.0, height / 2.0);
-    cairo_arc (ctx->cairo, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
-    cairo_restore (ctx->cairo);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    cairo_save (cairo);
+    cairo_translate (cairo, x + (width / 2.0), y + (height / 2.0));
+    cairo_scale (cairo, width / 2.0, height / 2.0);
+    cairo_arc (cairo, 0.0, 0.0, 1.0, 0.0, 2.0 * M_PI);
+    cairo_restore (cairo);
     set_current_brush (ctx);
-    cairo_fill_preserve (ctx->cairo);
+    cairo_fill_preserve (cairo);
     set_current_pen (ctx);
-    cairo_stroke (ctx->cairo);
+    cairo_stroke (cairo);
     return 1;
 }
 
@@ -891,16 +985,22 @@ rl2_graph_draw_circle_sector (rl2GraphicsContextPtr context, double center_x,
 			      double to_angle)
 {
 /* drawing a filled circular sector */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_move_to (ctx->cairo, center_x, center_y);
-    cairo_arc (ctx->cairo, center_x, center_y, radius, from_angle, to_angle);
-    cairo_line_to (ctx->cairo, center_x, center_y);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    cairo_move_to (cairo, center_x, center_y);
+    cairo_arc (cairo, center_x, center_y, radius, from_angle, to_angle);
+    cairo_line_to (cairo, center_x, center_y);
     set_current_brush (ctx);
-    cairo_fill_preserve (ctx->cairo);
+    cairo_fill_preserve (cairo);
     set_current_pen (ctx);
-    cairo_stroke (ctx->cairo);
+    cairo_stroke (cairo);
     return 1;
 }
 
@@ -909,13 +1009,19 @@ rl2_graph_stroke_line (rl2GraphicsContextPtr context, double x0, double y0,
 		       double x1, double y1)
 {
 /* Stroking a line */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_move_to (ctx->cairo, x0, y0);
-    cairo_line_to (ctx->cairo, x1, y1);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    cairo_move_to (cairo, x0, y0);
+    cairo_line_to (cairo, x1, y1);
     set_current_pen (ctx);
-    cairo_stroke (ctx->cairo);
+    cairo_stroke (cairo);
     return 1;
 }
 
@@ -923,10 +1029,15 @@ RL2_DECLARE int
 rl2_graph_move_to_point (rl2GraphicsContextPtr context, double x, double y)
 {
 /* Moving to a Path Point */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_move_to (ctx->cairo, x, y);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    cairo_move_to (cairo, x, y);
     return 1;
 }
 
@@ -934,10 +1045,15 @@ RL2_DECLARE int
 rl2_graph_add_line_to_path (rl2GraphicsContextPtr context, double x, double y)
 {
 /* Adding a Line to a Path */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_line_to (ctx->cairo, x, y);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    cairo_line_to (cairo, x, y);
     return 1;
 }
 
@@ -945,10 +1061,15 @@ RL2_DECLARE int
 rl2_graph_close_subpath (rl2GraphicsContextPtr context)
 {
 /* Closing a SubPath */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
-    cairo_close_path (ctx->cairo);
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    cairo_close_path (cairo);
     return 1;
 }
 
@@ -956,15 +1077,20 @@ RL2_DECLARE int
 rl2_graph_stroke_path (rl2GraphicsContextPtr context, int preserve)
 {
 /* Stroking a path */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
 
     set_current_pen (ctx);
     if (preserve)
-	cairo_stroke_preserve (ctx->cairo);
+	cairo_stroke_preserve (cairo);
     else
-	cairo_stroke (ctx->cairo);
+	cairo_stroke (cairo);
     return 1;
 }
 
@@ -972,15 +1098,20 @@ RL2_DECLARE int
 rl2_graph_fill_path (rl2GraphicsContextPtr context, int preserve)
 {
 /* Filling a path */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     if (ctx == NULL)
 	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
 
     set_current_brush (ctx);
     if (preserve)
-	cairo_fill_preserve (ctx->cairo);
+	cairo_fill_preserve (cairo);
     else
-	cairo_fill (ctx->cairo);
+	cairo_fill (cairo);
     return 1;
 }
 
@@ -990,13 +1121,18 @@ rl2_graph_get_text_extent (rl2GraphicsContextPtr context, const char *text,
 			   double *height, double *post_x, double *post_y)
 {
 /* measuring the text extent (using the current font) */
+    cairo_t *cairo;
     cairo_text_extents_t extents;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)
 	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
 
-    cairo_text_extents (ctx->cairo, text, &extents);
+    cairo_text_extents (cairo, text, &extents);
     *pre_x = extents.x_bearing;
     *pre_y = extents.y_bearing;
     *width = extents.width;
@@ -1011,35 +1147,40 @@ rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text, double x,
 		     double y, double angle)
 {
 /* drawing a text string (using the current font) */
+    cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)
 	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
 
-    cairo_save (ctx->cairo);
-    cairo_translate (ctx->cairo, x, y);
-    cairo_rotate (ctx->cairo, angle);
+    cairo_save (cairo);
+    cairo_translate (cairo, x, y);
+    cairo_rotate (cairo, angle);
     if (ctx->is_font_outlined)
       {
 	  /* outlined font */
-	  cairo_move_to (ctx->cairo, 0.0, 0.0);
-	  cairo_text_path (ctx->cairo, text);
-	  cairo_set_source_rgba (ctx->cairo, ctx->font_red, ctx->font_green,
+	  cairo_move_to (cairo, 0.0, 0.0);
+	  cairo_text_path (cairo, text);
+	  cairo_set_source_rgba (cairo, ctx->font_red, ctx->font_green,
 				 ctx->font_blue, ctx->font_alpha);
-	  cairo_fill_preserve (ctx->cairo);
-	  cairo_set_source_rgba (ctx->cairo, 1.0, 1.0, 1.0, ctx->font_alpha);
-	  cairo_set_line_width (ctx->cairo, ctx->font_outline_width);
-	  cairo_stroke (ctx->cairo);
+	  cairo_fill_preserve (cairo);
+	  cairo_set_source_rgba (cairo, 1.0, 1.0, 1.0, ctx->font_alpha);
+	  cairo_set_line_width (cairo, ctx->font_outline_width);
+	  cairo_stroke (cairo);
       }
     else
       {
 	  /* no outline */
-	  cairo_set_source_rgba (ctx->cairo, ctx->font_red, ctx->font_green,
+	  cairo_set_source_rgba (cairo, ctx->font_red, ctx->font_green,
 				 ctx->font_blue, ctx->font_alpha);
-	  cairo_move_to (ctx->cairo, 0.0, 0.0);
-	  cairo_show_text (ctx->cairo, text);
+	  cairo_move_to (cairo, 0.0, 0.0);
+	  cairo_show_text (cairo, text);
       }
-    cairo_restore (ctx->cairo);
+    cairo_restore (cairo);
     return 1;
 }
 
@@ -1048,6 +1189,8 @@ rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
 		       rl2GraphicsBitmapPtr bitmap, int x, int y)
 {
 /* drawing a symbol bitmap */
+    cairo_t *cairo;
+    cairo_surface_t *surface;
     RL2GraphBitmapPtr bmp = (RL2GraphBitmapPtr) bitmap;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
@@ -1055,14 +1198,25 @@ rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
 	return 0;
     if (bmp == NULL)
 	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+      {
+	  surface = ctx->clip_surface;
+	  cairo = ctx->clip_cairo;
+      }
+    else
+      {
+	  surface = ctx->surface;
+	  cairo = ctx->cairo;
+      }
 
-    cairo_save (ctx->cairo);
-    cairo_scale (ctx->cairo, 1, 1);
-    cairo_translate (ctx->cairo, x, y);
-    cairo_set_source (ctx->cairo, bmp->pattern);
-    cairo_rectangle (ctx->cairo, 0, 0, bmp->width, bmp->height);
-    cairo_fill (ctx->cairo);
-    cairo_restore (ctx->cairo);
+    cairo_save (cairo);
+    cairo_scale (cairo, 1, 1);
+    cairo_translate (cairo, x, y);
+    cairo_set_source (cairo, bmp->pattern);
+    cairo_rectangle (cairo, 0, 0, bmp->width, bmp->height);
+    cairo_fill (cairo);
+    cairo_restore (cairo);
+    cairo_surface_flush (surface);
     return 1;
 }
 

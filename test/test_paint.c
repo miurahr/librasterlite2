@@ -451,11 +451,11 @@ main (int argc, char *argv[])
     ret = do_paint_test(svg);
     if (ret < 0)
         return ret;
-    rl2_graph_destroy_svg_context(svg);
+    rl2_graph_destroy_context(svg);
     unlink ("./test_paint.svg");
 
 /* testing the PDF backend */
-    pdf = rl2_graph_create_pdf_context ("./test_paint.pdf", 3509, 2490, 2048, 2048);
+    pdf = rl2_graph_create_pdf_context ("./test_paint.pdf", 300, 11.7, 8.3, 1.0, 1.0);
     if (pdf == NULL)
       {
 	  fprintf (stderr, "Unable to create a PDF backend\n");
@@ -464,7 +464,7 @@ main (int argc, char *argv[])
     ret = do_paint_test(pdf);
     if (ret < 0)
         return ret;
-    rl2_graph_destroy_pdf_context(pdf); 
+    rl2_graph_destroy_context(pdf); 
     unlink ("./test_paint.pdf"); 
 
 /* testing an ordinary graphics backend */

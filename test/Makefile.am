@@ -6,7 +6,8 @@ check_PROGRAMS = test_coverage test_palette \
 	test11 test12 test13 test14 \
 	test15 test16 test17 test18 \
 	test19 test20 test_tifin \
-	test_wms1 test_wms2 test_paint
+	test_wr_tiff test_wms1 test_wms2 \
+	test_paint
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \

@@ -98,7 +98,7 @@ test_GetCapabilities_tuscany(rl2WmsCachePtr cache)
 	  return -5;
       }
     str = get_wms_layer_title (layer);
-    if (strcmp(str, "Geoscopio_wms tematici") != 0)
+    if (strcmp(str, "Geoscopio_wms AMBITI_AMMINISTRATIVI") != 0)
       {
 	  fprintf (stderr, "GetWmsLayerTitle: unexpected result \"%s\"\n", str);
 	  return -6;
@@ -286,7 +286,7 @@ test_GetCapabilities_tuscany(rl2WmsCachePtr cache)
 	  return -35;
       }
     str = get_wms_title (catalog);
-    if (strcmp(str, "Geoscopio_wms tematici") != 0)
+    if (strcmp(str, "Geoscopio_wms AMBITI_AMMINISTRATIVI") != 0)
       {
 	  fprintf (stderr, "GetWmsTitle: unexpected result \"%s\"\n", str);
 	  return -36;
@@ -1218,7 +1218,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
    dblval = get_wms_total_download_size(cache);
-    if (dblval != 46443)
+    if (dblval != 46469.00)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n", dblval);
 	  return -96;

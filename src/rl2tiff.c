@@ -44,9 +44,9 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <float.h>
 
-#include <webp/decode.h>
-#include <webp/encode.h>
+#include <sqlite3.h>
 
 #include "config.h"
 
@@ -1126,4 +1126,1380 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     if (mask != NULL)
 	free (mask);
     return NULL;
+}
+
+static rl2PrivTiffDestinationPtr
+create_tiff_destination (const char *path, int is_geo_tiff)
+{
+/* creating an uninitialized TIFF destination */
+    int len;
+    rl2PrivTiffDestinationPtr destination;
+    if (path == NULL)
+	return NULL;
+    destination = malloc (sizeof (rl2PrivTiffDestination));
+    if (destination == NULL)
+	return NULL;
+
+    len = strlen (path);
+    destination->path = malloc (len + 1);
+    strcpy (destination->path, path);
+    destination->isGeoTiff = is_geo_tiff;
+    destination->out = (TIFF *) 0;
+    destination->gtif = (GTIF *) 0;
+    destination->tiffBuffer = NULL;
+    destination->tileWidth = 256;
+    destination->tileHeight = 256;
+    destination->maxPalette = 0;
+    destination->red = NULL;
+    destination->green = NULL;
+    destination->blue = NULL;
+    destination->Srid = -1;
+    destination->srsName = NULL;
+    destination->proj4text = NULL;
+    return destination;
+}
+
+RL2_DECLARE void
+rl2_destroy_tiff_destination (rl2TiffDestinationPtr tiff)
+{
+/* memory cleanup - destroying a TIFF destination */
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return;
+    if (destination->gtif)
+	GTIFFree (destination->gtif);
+    if (destination->isGeoTiff)
+      {
+	  /* it's a GeoTiff */
+	  if (destination->gtif != (GTIF *) 0)
+	      GTIFFree (destination->gtif);
+	  if (destination->out != (TIFF *) 0)
+	      XTIFFClose (destination->out);
+      }
+    else
+      {
+	  /* it's a plain ordinary Tiff */
+	  if (destination->out != (TIFF *) 0)
+	      TIFFClose (destination->out);
+      }
+    if (destination->path != NULL)
+	free (destination->path);
+    if (destination->tfw_path != NULL)
+	free (destination->tfw_path);
+    if (destination->tiffBuffer != NULL)
+	free (destination->tiffBuffer);
+    if (destination->red != NULL)
+	free (destination->red);
+    if (destination->green != NULL)
+	free (destination->green);
+    if (destination->blue != NULL)
+	free (destination->blue);
+    if (destination->srsName != NULL)
+	free (destination->srsName);
+    if (destination->proj4text != NULL)
+	free (destination->proj4text);
+    free (destination);
+}
+
+static int
+check_color_model (unsigned char sample_type, unsigned char pixel_type,
+		   unsigned char num_bands, rl2PalettePtr plt,
+		   unsigned char compression)
+{
+/* checking TIFF arguments for self consistency */
+    switch (pixel_type)
+      {
+      case RL2_PIXEL_MONOCHROME:
+	  if (sample_type != RL2_SAMPLE_1_BIT || num_bands != 1)
+	      return 0;
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_CCITTFAX3:
+	    case RL2_COMPRESSION_CCITTFAX4:
+		break;
+	    default:
+		return 0;
+	    };
+	  break;
+      case RL2_PIXEL_PALETTE:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_UINT8:
+		break;
+	    default:
+		return 0;
+	    };
+	  if (num_bands != 1)
+	      return 0;
+	  if (plt == NULL)
+	      return 0;
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZW:
+		break;
+	    default:
+		return 0;
+	    };
+	  break;
+      case RL2_PIXEL_GRAYSCALE:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_UINT8:
+		break;
+	    default:
+		return 0;
+	    };
+	  if (num_bands != 1)
+	      return 0;
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZW:
+	    case RL2_COMPRESSION_JPEG:
+		break;
+	    default:
+		return 0;
+	    };
+	  break;
+      case RL2_PIXEL_RGB:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_UINT8:
+		break;
+	    default:
+		return 0;
+	    };
+	  if (num_bands != 3)
+	      return 0;
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZW:
+	    case RL2_COMPRESSION_JPEG:
+		break;
+	    default:
+		return 0;
+	    };
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_INT8:
+	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+	    case RL2_SAMPLE_FLOAT:
+	    case RL2_SAMPLE_DOUBLE:
+		break;
+	    default:
+		return 0;
+	    };
+	  if (num_bands != 1)
+	      return 0;
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZW:
+		break;
+	    default:
+		return 0;
+	    };
+	  break;
+      };
+    return 1;
+}
+
+static int
+set_tiff_destination (rl2PrivTiffDestinationPtr destination,
+		      unsigned short width, unsigned short height,
+		      unsigned char sample_type, unsigned char pixel_type,
+		      rl2PalettePtr plt, unsigned char tiff_compression)
+{
+/* setting up the TIFF headers */
+    int i;
+    uint16 r_plt[256];
+    uint16 g_plt[256];
+    uint16 b_plt[256];
+    tsize_t buf_size;
+    void *tiff_buffer = NULL;
+
+    TIFFSetField (destination->out, TIFFTAG_SUBFILETYPE, 0);
+    TIFFSetField (destination->out, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField (destination->out, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField (destination->out, TIFFTAG_XRESOLUTION, 300.0);
+    TIFFSetField (destination->out, TIFFTAG_YRESOLUTION, 300.0);
+    TIFFSetField (destination->out, TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH);
+    TIFFSetField (destination->out, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField (destination->out, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    if (pixel_type == RL2_PIXEL_MONOCHROME)
+      {
+	  /* MONOCHROME */
+	  destination->sampleFormat = SAMPLEFORMAT_UINT;
+	  destination->bitsPerSample = 1;
+	  destination->samplesPerPixel = 1;
+	  destination->photometric = PHOTOMETRIC_MINISWHITE;
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			SAMPLEFORMAT_UINT);
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLESPERPIXEL, 1);
+	  TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 1);
+	  TIFFSetField (destination->out, TIFFTAG_FILLORDER, FILLORDER_MSB2LSB);
+	  TIFFSetField (destination->out, TIFFTAG_PHOTOMETRIC,
+			PHOTOMETRIC_MINISWHITE);
+	  if (tiff_compression == RL2_COMPRESSION_CCITTFAX3)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_CCITTFAX3);
+	  else if (tiff_compression == RL2_COMPRESSION_CCITTFAX4)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_CCITTFAX4);
+	  else
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_NONE);
+	  goto header_done;
+      }
+    if (pixel_type == RL2_PIXEL_PALETTE)
+      {
+	  /* PALETTE */
+	  int max_palette;
+	  unsigned char *red;
+	  unsigned char *green;
+	  unsigned char *blue;
+	  unsigned char *alpha;
+	  if (rl2_get_palette_colors
+	      (plt, &max_palette, &red, &green, &blue, &alpha) == RL2_ERROR)
+	    {
+		fprintf (stderr, "RL2-TIFF writer: invalid Palette\n");
+		goto error;
+	    }
+	  for (i = 0; i < max_palette; i++)
+	    {
+		r_plt[i] = red[i] * 256;
+		g_plt[i] = green[i] * 256;
+		b_plt[i] = blue[i] * 256;
+	    }
+	  rl2_free (red);
+	  rl2_free (green);
+	  rl2_free (blue);
+	  rl2_free (alpha);
+	  destination->sampleFormat = SAMPLEFORMAT_UINT;
+	  destination->bitsPerSample = 8;
+	  destination->samplesPerPixel = 1;
+	  destination->photometric = PHOTOMETRIC_PALETTE;
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			SAMPLEFORMAT_UINT);
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLESPERPIXEL, 1);
+	  TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 8);
+	  TIFFSetField (destination->out, TIFFTAG_PHOTOMETRIC,
+			PHOTOMETRIC_PALETTE);
+	  TIFFSetField (destination->out, TIFFTAG_COLORMAP, r_plt, g_plt,
+			b_plt);
+	  if (tiff_compression == RL2_COMPRESSION_LZW)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZW);
+	  else if (tiff_compression == RL2_COMPRESSION_DEFLATE)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_DEFLATE);
+	  else if (tiff_compression == RL2_COMPRESSION_LZMA)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZMA);
+	  else
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_NONE);
+	  goto header_done;
+      }
+    if (pixel_type == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* GRAYSCALE */
+	  destination->sampleFormat = SAMPLEFORMAT_UINT;
+	  destination->bitsPerSample = 8;
+	  destination->samplesPerPixel = 1;
+	  destination->photometric = PHOTOMETRIC_MINISBLACK;
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			SAMPLEFORMAT_UINT);
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLESPERPIXEL, 1);
+	  TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 8);
+	  TIFFSetField (destination->out, TIFFTAG_PHOTOMETRIC,
+			PHOTOMETRIC_MINISBLACK);
+	  if (tiff_compression == RL2_COMPRESSION_LZW)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZW);
+	  else if (tiff_compression == RL2_COMPRESSION_DEFLATE)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_DEFLATE);
+	  else if (tiff_compression == RL2_COMPRESSION_LZMA)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZMA);
+	  else if (tiff_compression == RL2_COMPRESSION_JPEG)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_JPEG);
+	  else
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_NONE);
+	  goto header_done;
+      }
+    if (pixel_type == RL2_PIXEL_RGB)
+      {
+	  /* RGB */
+	  destination->sampleFormat = SAMPLEFORMAT_UINT;
+	  destination->bitsPerSample = 8;
+	  destination->samplesPerPixel = 3;
+	  destination->photometric = PHOTOMETRIC_RGB;
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			SAMPLEFORMAT_UINT);
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLESPERPIXEL, 3);
+	  TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 8);
+	  TIFFSetField (destination->out, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+	  if (tiff_compression == RL2_COMPRESSION_LZW)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZW);
+	  else if (tiff_compression == RL2_COMPRESSION_DEFLATE)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_DEFLATE);
+	  else if (tiff_compression == RL2_COMPRESSION_LZMA)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZMA);
+	  else if (tiff_compression == RL2_COMPRESSION_JPEG)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_JPEG);
+	  else
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_NONE);
+	  goto header_done;
+      }
+    if (pixel_type == RL2_PIXEL_DATAGRID)
+      {
+	  /* GRID data */
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_INT8:
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_INT32:
+		destination->sampleFormat = SAMPLEFORMAT_INT;
+		TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			      SAMPLEFORMAT_INT);
+		break;
+	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_UINT16:
+	    case RL2_SAMPLE_UINT32:
+		destination->sampleFormat = SAMPLEFORMAT_UINT;
+		TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			      SAMPLEFORMAT_UINT);
+		break;
+	    case RL2_SAMPLE_FLOAT:
+	    case RL2_SAMPLE_DOUBLE:
+		destination->sampleFormat = SAMPLEFORMAT_IEEEFP;
+		TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
+			      SAMPLEFORMAT_IEEEFP);
+		break;
+	    };
+	  destination->samplesPerPixel = 1;
+	  TIFFSetField (destination->out, TIFFTAG_SAMPLESPERPIXEL, 1);
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_INT8:
+	    case RL2_SAMPLE_UINT8:
+		destination->bitsPerSample = 8;
+		TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 8);
+		break;
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+		destination->bitsPerSample = 16;
+		TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 16);
+		break;
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+		destination->bitsPerSample = 32;
+		TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 32);
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		destination->bitsPerSample = 32;
+		TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 32);
+		break;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		destination->bitsPerSample = 64;
+		TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 64);
+		break;
+	    }
+	  destination->photometric = PHOTOMETRIC_MINISBLACK;
+	  TIFFSetField (destination->out, TIFFTAG_PHOTOMETRIC,
+			PHOTOMETRIC_MINISBLACK);
+	  if (tiff_compression == RL2_COMPRESSION_LZW)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZW);
+	  else if (tiff_compression == RL2_COMPRESSION_DEFLATE)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_DEFLATE);
+	  else if (tiff_compression == RL2_COMPRESSION_LZMA)
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_LZMA);
+	  else
+	      TIFFSetField (destination->out, TIFFTAG_COMPRESSION,
+			    COMPRESSION_NONE);
+      }
+
+  header_done:
+    TIFFSetField (destination->out, TIFFTAG_SOFTWARE, "RasterLite-2");
+    if (destination->isTiled)
+      {
+	  TIFFSetField (destination->out, TIFFTAG_TILEWIDTH,
+			destination->tileWidth);
+	  TIFFSetField (destination->out, TIFFTAG_TILELENGTH,
+			destination->tileHeight);
+      }
+    else
+      {
+	  if (tiff_compression == RL2_COMPRESSION_JPEG)
+	      TIFFSetField (destination->out, TIFFTAG_ROWSPERSTRIP, 8);
+	  else
+	      TIFFSetField (destination->out, TIFFTAG_ROWSPERSTRIP, 1);
+      }
+
+/* allocating the TIFF write buffer */
+    if (destination->isTiled)
+	buf_size = TIFFTileSize (destination->out);
+    else
+	buf_size = TIFFScanlineSize (destination->out);
+    tiff_buffer = malloc (buf_size);
+    if (!tiff_buffer)
+	goto error;
+    destination->tiffBuffer = tiff_buffer;
+
+/* NULL georeferencing */
+    destination->Srid = -1;
+    destination->hResolution = DBL_MAX;
+    destination->vResolution = DBL_MAX;
+    destination->srsName = NULL;
+    destination->proj4text = NULL;
+    destination->minX = DBL_MAX;
+    destination->minY = DBL_MAX;
+    destination->maxX = DBL_MAX;
+    destination->maxY = DBL_MAX;
+    destination->tfw_path = NULL;
+
+    return 1;
+  error:
+    return 0;
+}
+
+RL2_DECLARE rl2TiffDestinationPtr
+rl2_create_tiff_destination (const char *path, unsigned short width,
+			     unsigned short height, unsigned char sample_type,
+			     unsigned char pixel_type, unsigned char num_bands,
+			     rl2PalettePtr plt, unsigned char tiff_compression,
+			     int tiled, int tile_size)
+{
+/* attempting to create a file-based TIFF destination (no georeferencing) */
+    rl2PrivTiffDestinationPtr destination = NULL;
+    if (!check_color_model
+	(sample_type, pixel_type, num_bands, plt, tiff_compression))
+      {
+	  fprintf (stderr, "RL2-TIFF writer: unsupported pixel format\n");
+	  return NULL;
+      }
+
+    destination = create_tiff_destination (path, 0);
+    if (destination == NULL)
+	return NULL;
+
+    destination->width = width;
+    destination->height = height;
+    if (tiled)
+      {
+	  destination->isTiled = 1;
+	  destination->tileWidth = tile_size;
+	  destination->tileHeight = tile_size;
+      }
+    else
+      {
+	  destination->isTiled = 0;
+	  destination->rowsPerStrip = 1;
+      }
+
+/* suppressing TIFF messages */
+    TIFFSetErrorHandler (NULL);
+    TIFFSetWarningHandler (NULL);
+
+/* creating a TIFF files */
+    destination->out = TIFFOpen (destination->path, "w");
+    if (destination->out == NULL)
+	goto error;
+
+    if (!set_tiff_destination
+	(destination, width, height, sample_type, pixel_type, plt,
+	 tiff_compression))
+	goto error;
+
+    return (rl2TiffDestinationPtr) destination;
+  error:
+    if (destination != NULL)
+	rl2_destroy_tiff_destination ((rl2TiffDestinationPtr) destination);
+    return NULL;
+}
+
+static int
+is_projected_srs (const char *proj4text)
+{
+/* checks if this one is a PCS SRS */
+    if (proj4text == NULL)
+	return 0;
+    if (strstr (proj4text, "+proj=longlat ") != NULL)
+	return 0;
+    return 1;
+}
+
+static void
+fetch_crs_params (sqlite3 * handle, int srid, char **srs_name, char **proj4text)
+{
+    int ret;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    char *sql = sqlite3_mprintf ("SELECT ref_sys_name, proj4text "
+				 "FROM spatial_ref_sys WHERE srid = %d\n",
+				 srid);
+    *srs_name = NULL;
+    *proj4text = NULL;
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return;
+    for (i = 1; i <= rows; i++)
+      {
+	  int len;
+	  const char *name = results[(i * columns) + 0];
+	  const char *proj4 = results[(i * columns) + 1];
+	  if (name != NULL)
+	    {
+		len = strlen (name);
+		*srs_name = malloc (len + 1);
+		strcpy (*srs_name, name);
+	    }
+	  if (proj4 != NULL)
+	    {
+		len = strlen (proj4);
+		*proj4text = malloc (len + 1);
+		strcpy (*proj4text, proj4);
+	    }
+      }
+    sqlite3_free_table (results);
+}
+
+static void
+set_tfw_path (const char *path, rl2PrivTiffDestinationPtr destination)
+{
+/* building the TFW path (WorldFile) */
+    char *tfw;
+    const char *x = NULL;
+    const char *p = path;
+    int len = strlen (path);
+    len -= 1;
+    while (*p != '\0')
+      {
+	  if (*p == '.')
+	      x = p;
+	  p++;
+      }
+    if (x > path)
+	len = x - path;
+    tfw = malloc (len + 5);
+    memcpy (tfw, path, len);
+    memcpy (tfw + len, ".tfw", 4);
+    *(tfw + len + 4) = '\0';
+    destination->tfw_path = tfw;
+}
+
+RL2_DECLARE rl2TiffDestinationPtr
+rl2_create_geotiff_destination (const char *path, sqlite3 * handle,
+				unsigned short width, unsigned short height,
+				unsigned char sample_type,
+				unsigned char pixel_type,
+				unsigned char num_bands, rl2PalettePtr plt,
+				unsigned char tiff_compression, int tiled,
+				int tile_size, int srid, double minX,
+				double minY, double maxX, double maxY,
+				double hResolution, double vResolution,
+				int with_worldfile)
+{
+/* attempting to create a file-based GeoTIFF destination */
+    rl2PrivTiffDestinationPtr destination = NULL;
+    double tiepoint[6];
+    double pixsize[3];
+    char *srs_name = NULL;
+    char *proj4text = NULL;
+    if (!check_color_model
+	(sample_type, pixel_type, num_bands, plt, tiff_compression))
+      {
+	  fprintf (stderr, "RL2-GeoTIFF writer: unsupported pixel format\n");
+	  return NULL;
+      }
+
+    destination = create_tiff_destination (path, 0);
+    if (destination == NULL)
+	return NULL;
+
+    destination->width = width;
+    destination->height = height;
+    if (tiled)
+      {
+	  destination->isTiled = 1;
+	  destination->tileWidth = tile_size;
+	  destination->tileHeight = tile_size;
+      }
+    else
+      {
+	  destination->isTiled = 0;
+	  destination->rowsPerStrip = 1;
+      }
+
+/* suppressing TIFF messages */
+    TIFFSetErrorHandler (NULL);
+    TIFFSetWarningHandler (NULL);
+
+/* creating a TIFF files */
+    destination->out = XTIFFOpen (destination->path, "w");
+    if (destination->out == NULL)
+	goto error;
+    destination->gtif = GTIFNew (destination->out);
+    if (destination->gtif == NULL)
+	goto error;
+
+    if (!set_tiff_destination
+	(destination, width, height, sample_type, pixel_type, plt,
+	 tiff_compression))
+	goto error;
+
+/* attempting to retrieve the CRS params */
+    fetch_crs_params (handle, srid, &srs_name, &proj4text);
+
+/* setting georeferencing infos */
+    destination->Srid = srid;
+    destination->hResolution = hResolution;
+    destination->vResolution = vResolution;
+    destination->srsName = srs_name;
+    destination->proj4text = proj4text;
+    destination->minX = minX;
+    destination->minY = minY;
+    destination->maxX = maxX;
+    destination->maxY = maxY;
+    destination->tfw_path = NULL;
+    if (with_worldfile)
+	set_tfw_path (path, destination);
+
+/* setting up the GeoTIFF Tags */
+    pixsize[0] = hResolution;
+    pixsize[1] = vResolution;
+    pixsize[2] = 0.0;
+    TIFFSetField (destination->out, GTIFF_PIXELSCALE, 3, pixsize);
+    tiepoint[0] = 0.0;
+    tiepoint[1] = 0.0;
+    tiepoint[2] = 0.0;
+    tiepoint[3] = minX;
+    tiepoint[4] = maxY;
+    tiepoint[5] = 0.0;
+    TIFFSetField (destination->out, GTIFF_TIEPOINTS, 6, tiepoint);
+    if (srs_name != NULL)
+	TIFFSetField (destination->out, GTIFF_ASCIIPARAMS, srs_name);
+    if (proj4text != NULL)
+	GTIFSetFromProj4 (destination->gtif, proj4text);
+    if (srs_name != NULL)
+	GTIFKeySet (destination->gtif, GTCitationGeoKey, TYPE_ASCII, 0,
+		    srs_name);
+    if (is_projected_srs (proj4text))
+	GTIFKeySet (destination->gtif, ProjectedCSTypeGeoKey, TYPE_SHORT, 1,
+		    srid);
+    GTIFWriteKeys (destination->gtif);
+
+    return (rl2TiffDestinationPtr) destination;
+  error:
+    if (destination != NULL)
+	rl2_destroy_tiff_destination ((rl2TiffDestinationPtr) destination);
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
+    return NULL;
+}
+
+RL2_DECLARE rl2TiffDestinationPtr
+rl2_create_tiff_worldfile_destination (const char *path, unsigned short width,
+				       unsigned short height,
+				       unsigned char sample_type,
+				       unsigned char pixel_type,
+				       unsigned char num_bands,
+				       rl2PalettePtr plt,
+				       unsigned char tiff_compression,
+				       int tiled, int tile_size, int srid,
+				       double minX, double minY, double maxX,
+				       double maxY, double hResolution,
+				       double vResolution)
+{
+/* attempting to create a file-based TIFF destination (with worldfile) */
+    rl2TiffDestinationPtr destination =
+	rl2_create_tiff_destination (path, width, height, sample_type,
+				     pixel_type, num_bands,
+				     plt, tiff_compression, tiled, tile_size);
+    rl2PrivTiffDestinationPtr tiff = (rl2PrivTiffDestinationPtr) destination;
+    if (tiff == NULL)
+	return NULL;
+/* setting georeferencing infos */
+    tiff->Srid = srid;
+    tiff->hResolution = hResolution;
+    tiff->vResolution = vResolution;
+    tiff->srsName = NULL;
+    tiff->proj4text = NULL;
+    tiff->minX = minX;
+    tiff->minY = minY;
+    tiff->maxX = maxX;
+    tiff->maxY = maxY;
+    tiff->tfw_path = NULL;
+    set_tfw_path (path, tiff);
+    return destination;
+}
+
+RL2_DECLARE const char *
+rl2_get_tiff_destination_path (rl2TiffDestinationPtr tiff)
+{
+/* retrieving the output path from a TIFF destination */
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return NULL;
+
+    return destination->path;
+}
+
+RL2_DECLARE int
+rl2_get_tiff_destination_size (rl2TiffDestinationPtr tiff,
+			       unsigned short *width, unsigned short *height)
+{
+/* retrieving Width and Height from a TIFF destination */
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return RL2_ERROR;
+
+    *width = destination->width;
+    *height = destination->height;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_tiff_destination_srid (rl2TiffDestinationPtr tiff, int *srid)
+{
+/* retrieving the SRID from a TIFF destination */
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return RL2_ERROR;
+
+    *srid = destination->Srid;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_tiff_destination_extent (rl2TiffDestinationPtr tiff, double *minX,
+				 double *minY, double *maxX, double *maxY)
+{
+/* retrieving the Extent from a TIFF destination */
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return RL2_ERROR;
+
+    *minX = destination->minX;
+    *minY = destination->minY;
+    *maxX = destination->maxX;
+    *maxY = destination->maxY;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_tiff_destination_resolution (rl2TiffDestinationPtr tiff,
+				     double *hResolution, double *vResolution)
+{
+/* retrieving the Pixel Resolution from a TIFF destination */
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return RL2_ERROR;
+
+    *hResolution = destination->hResolution;
+    *vResolution = destination->vResolution;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
+			       unsigned char *sample_type,
+			       unsigned char *pixel_type,
+			       unsigned char *num_bands)
+{
+/* retrieving the sample/pixel type from a TIFF destination */
+    int ok = 0;
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return RL2_ERROR;
+
+    if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	&& destination->samplesPerPixel == 1 && destination->photometric < 2)
+      {
+	  /* could be some kind of MONOCHROME */
+	  if (destination->bitsPerSample == 1)
+	    {
+		*sample_type = RL2_SAMPLE_1_BIT;
+		ok = 1;
+	    }
+	  if (ok)
+	    {
+		*pixel_type = RL2_PIXEL_MONOCHROME;
+		*num_bands = 1;
+		return RL2_OK;
+	    }
+      }
+    if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	&& destination->samplesPerPixel == 1 && destination->photometric < 2)
+      {
+	  /* could be some kind of GRAYSCALE */
+	  if (destination->bitsPerSample == 2)
+	    {
+		*sample_type = RL2_SAMPLE_2_BIT;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 4)
+	    {
+		*sample_type = RL2_SAMPLE_4_BIT;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 8)
+	    {
+		*sample_type = RL2_SAMPLE_UINT8;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 16)
+	    {
+		*sample_type = RL2_SAMPLE_UINT16;
+		ok = 1;
+	    }
+	  if (ok)
+	    {
+		*pixel_type = RL2_PIXEL_GRAYSCALE;
+		*num_bands = 1;
+		return RL2_OK;
+	    }
+      }
+    if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	&& destination->samplesPerPixel == 1 && destination->photometric == 3)
+      {
+	  /* could be some kind of PALETTE */
+	  if (destination->bitsPerSample == 1)
+	    {
+		*sample_type = RL2_SAMPLE_1_BIT;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 2)
+	    {
+		*sample_type = RL2_SAMPLE_2_BIT;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 4)
+	    {
+		*sample_type = RL2_SAMPLE_4_BIT;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 8)
+	    {
+		*sample_type = RL2_SAMPLE_UINT8;
+		ok = 1;
+	    }
+	  if (ok)
+	    {
+		*pixel_type = RL2_PIXEL_PALETTE;
+		*num_bands = 1;
+		return RL2_OK;
+	    }
+      }
+    if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	&& destination->samplesPerPixel == 3 && destination->photometric == 2)
+      {
+	  /* could be some kind of RGB */
+	  if (destination->bitsPerSample == 8)
+	    {
+		*sample_type = RL2_SAMPLE_UINT8;
+		ok = 1;
+	    }
+	  else if (destination->bitsPerSample == 16)
+	    {
+		*sample_type = RL2_SAMPLE_UINT16;
+		ok = 1;
+	    }
+	  if (ok)
+	    {
+		*pixel_type = RL2_PIXEL_RGB;
+		*num_bands = 3;
+		return RL2_OK;
+	    }
+      }
+    if (destination->samplesPerPixel == 1 && destination->photometric < 2)
+      {
+	  /* could be some kind of DATA-GRID */
+	  if (destination->sampleFormat == SAMPLEFORMAT_INT)
+	    {
+		/* Signed Integer */
+		if (destination->bitsPerSample == 8)
+		  {
+		      *sample_type = RL2_SAMPLE_INT8;
+		      ok = 1;
+		  }
+		else if (destination->bitsPerSample == 16)
+		  {
+		      *sample_type = RL2_SAMPLE_INT16;
+		      ok = 1;
+		  }
+		else if (destination->bitsPerSample == 32)
+		  {
+		      *sample_type = RL2_SAMPLE_INT32;
+		      ok = 1;
+		  }
+	    }
+	  if (destination->sampleFormat == SAMPLEFORMAT_UINT)
+	    {
+		/* Unsigned Integer */
+		if (destination->bitsPerSample == 8)
+		  {
+		      *sample_type = RL2_SAMPLE_UINT8;
+		      ok = 1;
+		  }
+		else if (destination->bitsPerSample == 16)
+		  {
+		      *sample_type = RL2_SAMPLE_UINT16;
+		      ok = 1;
+		  }
+		else if (destination->bitsPerSample == 32)
+		  {
+		      *sample_type = RL2_SAMPLE_UINT32;
+		      ok = 1;
+		  }
+	    }
+	  if (destination->sampleFormat == SAMPLEFORMAT_IEEEFP)
+	    {
+		/* Floating-Point */
+		if (destination->bitsPerSample == 32)
+		  {
+		      *sample_type = RL2_SAMPLE_FLOAT;
+		      ok = 1;
+		  }
+		else if (destination->bitsPerSample == 64)
+		  {
+		      *sample_type = RL2_SAMPLE_DOUBLE;
+		      ok = 1;
+		  }
+	    }
+	  if (ok)
+	    {
+		*pixel_type = RL2_PIXEL_DATAGRID;
+		*num_bands = 1;
+		return RL2_OK;
+	    }
+      }
+    return RL2_ERROR;
+}
+
+static int
+tiff_write_strip_rgb (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
+		      int row)
+{
+/* writing a TIFF RGB scanline */
+    int x;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    for (x = 0; x < raster->width; x++)
+      {
+	  *p_out++ = *p_in++;
+	  *p_out++ = *p_in++;
+	  *p_out++ = *p_in++;
+	  if (raster->nBands == 4)
+	      p_in++;
+      }
+    if (TIFFWriteScanline (tiff->out, tiff->tiffBuffer, row, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_strip_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
+		       int row)
+{
+/* writing a TIFF Grayscale scanline */
+    int x;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    for (x = 0; x < raster->width; x++)
+	*p_out++ = *p_in++;
+    if (TIFFWriteScanline (tiff->out, tiff->tiffBuffer, row, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_strip_palette (rl2PrivTiffDestinationPtr tiff,
+			  rl2PrivRasterPtr raster, int row)
+{
+/* writing a TIFF Palette scanline */
+    int x;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    for (x = 0; x < raster->width; x++)
+	*p_out++ = *p_in++;
+    if (TIFFWriteScanline (tiff->out, tiff->tiffBuffer, row, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_strip_monochrome (rl2PrivTiffDestinationPtr tiff,
+			     rl2PrivRasterPtr raster, int row)
+{
+/* writing a TIFF Monochrome */
+    int x;
+    unsigned char byte;
+    unsigned char pixel;
+    int pos;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+/* priming a White scanline */
+    for (x = 0; x < TIFFScanlineSize (tiff->out); x++)
+	*p_out++ = 0x00;
+
+/* inserting pixels */
+    pos = 0;
+    byte = 0x00;
+    p_out = tiff->tiffBuffer;
+    for (x = 0; x < raster->width; x++)
+      {
+	  pixel = *p_in++;
+	  if (pixel == 1)
+	    {
+		/* handling a black pixel */
+		switch (pos)
+		  {
+		  case 0:
+		      byte |= 0x80;
+		      break;
+		  case 1:
+		      byte |= 0x40;
+		      break;
+		  case 2:
+		      byte |= 0x20;
+		      break;
+		  case 3:
+		      byte |= 0x10;
+		      break;
+		  case 4:
+		      byte |= 0x08;
+		      break;
+		  case 5:
+		      byte |= 0x04;
+		      break;
+		  case 6:
+		      byte |= 0x02;
+		      break;
+		  case 7:
+		      byte |= 0x01;
+		      break;
+		  };
+	    }
+	  pos++;
+	  if (pos > 7)
+	    {
+		/* exporting an octet */
+		*p_out++ = byte;
+		byte = 0x00;
+		pos = 0;
+	    }
+      }
+    if (TIFFWriteScanline (tiff->out, tiff->tiffBuffer, row, 0) < 0)
+	return 0;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_write_tiff_scanline (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
+			 unsigned int row)
+{
+/* writing a TIFF scanline */
+    int ret = 0;
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+    if (tiff == NULL)
+	return RL2_ERROR;
+    if (rst == NULL)
+	return RL2_ERROR;
+
+    if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	&& destination->samplesPerPixel == 3 && destination->photometric == 2
+	&& rst->sampleType == RL2_SAMPLE_UINT8
+	&& rst->pixelType == RL2_PIXEL_RGB && (rst->nBands == 3
+					       || rst->nBands == 4)
+	&& destination->width == rst->width)
+	ret = tiff_write_strip_rgb (destination, rst, row);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 1
+	     && destination->photometric < 2
+	     && rst->sampleType == RL2_SAMPLE_UINT8
+	     && rst->pixelType == RL2_PIXEL_GRAYSCALE && rst->nBands == 1
+	     && destination->width == rst->width)
+	ret = tiff_write_strip_gray (destination, rst, row);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 1
+	     && destination->photometric == 3
+	     && rst->sampleType == RL2_SAMPLE_UINT8
+	     && rst->pixelType == RL2_PIXEL_PALETTE && rst->nBands == 1
+	     && destination->width == rst->width)
+	ret = tiff_write_strip_palette (destination, rst, row);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 1
+	     && destination->photometric < 2
+	     && rst->sampleType == RL2_SAMPLE_1_BIT
+	     && rst->pixelType == RL2_PIXEL_MONOCHROME && rst->nBands == 1
+	     && destination->width == rst->width)
+	ret = tiff_write_strip_monochrome (destination, rst, row);
+
+    if (ret)
+	return RL2_OK;
+    return RL2_ERROR;
+}
+
+static int
+tiff_write_tile_rgb (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
+		     int row, int col)
+{
+/* writing a TIFF RGB tile */
+    int y;
+    int x;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    for (y = 0; y < raster->height; y++)
+      {
+	  for (x = 0; x < raster->width; x++)
+	    {
+		*p_out++ = *p_in++;
+		*p_out++ = *p_in++;
+		*p_out++ = *p_in++;
+		if (raster->nBands == 4)
+		    p_in++;
+	    }
+      }
+    if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_tile_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
+		      int row, int col)
+{
+/* writing a TIFF Grayscale tile */
+    int y;
+    int x;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    for (y = 0; y < raster->height; y++)
+      {
+	  for (x = 0; x < raster->width; x++)
+	      *p_out++ = *p_in++;
+      }
+    if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_tile_palette (rl2PrivTiffDestinationPtr tiff,
+			 rl2PrivRasterPtr raster, int row, int col)
+{
+/* writing a TIFF Palette tile */
+    int y;
+    int x;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    for (y = 0; y < raster->height; y++)
+      {
+	  for (x = 0; x < raster->width; x++)
+	      *p_out++ = *p_in++;
+      }
+    if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_tile_monochrome (rl2PrivTiffDestinationPtr tiff,
+			    rl2PrivRasterPtr raster, int row, int col)
+{
+/* writing a TIFF Monochrome tile */
+    int y;
+    int x;
+    unsigned char byte;
+    unsigned char pixel;
+    int pos;
+    unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_out = tiff->tiffBuffer;
+
+    /* priming a White tile */
+    for (x = 0; x < TIFFTileSize (tiff->out); x++)
+	*p_out++ = 0x00;
+    p_out = tiff->tiffBuffer;
+    for (y = 0; y < raster->height; y++)
+      {
+	  /* inserting pixels */
+	  pos = 0;
+	  byte = 0x00;
+	  for (x = 0; x < raster->width; x++)
+	    {
+		pixel = *p_in++;
+		if (pixel == 1)
+		  {
+		      /* handling a black pixel */
+		      switch (pos)
+			{
+			case 0:
+			    byte |= 0x80;
+			    break;
+			case 1:
+			    byte |= 0x40;
+			    break;
+			case 2:
+			    byte |= 0x20;
+			    break;
+			case 3:
+			    byte |= 0x10;
+			    break;
+			case 4:
+			    byte |= 0x08;
+			    break;
+			case 5:
+			    byte |= 0x04;
+			    break;
+			case 6:
+			    byte |= 0x02;
+			    break;
+			case 7:
+			    byte |= 0x01;
+			    break;
+			};
+		  }
+		pos++;
+		if (pos > 7)
+		  {
+		      /* exporting an octet */
+		      *p_out++ = byte;
+		      byte = 0x00;
+		      pos = 0;
+		  }
+	    }
+      }
+    if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
+	return 0;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_write_tiff_tile (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
+		     unsigned int startRow, unsigned int startCol)
+{
+/* writing a TIFF tile */
+    int ret = 0;
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+    if (tiff == NULL)
+	return RL2_ERROR;
+    if (rst == NULL)
+	return RL2_ERROR;
+
+    if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	&& destination->samplesPerPixel == 3 && destination->photometric == 2
+	&& rst->sampleType == RL2_SAMPLE_UINT8
+	&& rst->pixelType == RL2_PIXEL_RGB && (rst->nBands == 3
+					       || rst->nBands == 4)
+	&& destination->tileWidth == rst->width
+	&& destination->tileHeight == rst->height)
+	ret = tiff_write_tile_rgb (destination, rst, startRow, startCol);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 1
+	     && destination->photometric < 2
+	     && rst->sampleType == RL2_SAMPLE_UINT8
+	     && rst->pixelType == RL2_PIXEL_GRAYSCALE && rst->nBands == 1
+	     && destination->tileWidth == rst->width
+	     && destination->tileHeight == rst->height)
+	ret = tiff_write_tile_gray (destination, rst, startRow, startCol);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 1
+	     && destination->photometric == 3
+	     && rst->sampleType == RL2_SAMPLE_UINT8
+	     && rst->pixelType == RL2_PIXEL_PALETTE && rst->nBands == 1
+	     && destination->tileWidth == rst->width
+	     && destination->tileHeight == rst->height)
+	ret = tiff_write_tile_palette (destination, rst, startRow, startCol);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 1
+	     && destination->photometric < 2
+	     && rst->sampleType == RL2_SAMPLE_1_BIT
+	     && rst->pixelType == RL2_PIXEL_MONOCHROME && rst->nBands == 1
+	     && destination->tileWidth == rst->width
+	     && destination->tileHeight == rst->height)
+	ret = tiff_write_tile_monochrome (destination, rst, startRow, startCol);
+
+    if (ret)
+	return RL2_OK;
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_write_tiff_worldfile (rl2TiffDestinationPtr tiff)
+{
+/* writing a Worldfile supporting a TIFF destination */
+    FILE *tfw;
+    rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
+    if (destination == NULL)
+	return RL2_ERROR;
+    if (destination->tfw_path == NULL)
+	return RL2_ERROR;
+
+    tfw = fopen (destination->tfw_path, "w");
+    if (tfw == NULL)
+      {
+	  fprintf (stderr, "RL2-TIFF writer: unable to open Worldfile \"%s\"\n",
+		   destination->tfw_path);
+	  return RL2_ERROR;
+      }
+    fprintf (tfw, "        %1.16f\n", destination->hResolution);
+    fprintf (tfw, "        0.0\n");
+    fprintf (tfw, "        0.0\n");
+    fprintf (tfw, "        -%1.16f\n", destination->vResolution);
+    fprintf (tfw, "        %1.16f\n", destination->minX);
+    fprintf (tfw, "        %1.16f\n", destination->maxY);
+    fclose (tfw);
+    return RL2_OK;
+
 }

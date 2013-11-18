@@ -86,7 +86,8 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test13$(EXEEXT) test14$(EXEEXT) test15$(EXEEXT) \
 	test16$(EXEEXT) test17$(EXEEXT) test18$(EXEEXT) \
 	test19$(EXEEXT) test20$(EXEEXT) test_tifin$(EXEEXT) \
-	test_wms1$(EXEEXT) test_wms2$(EXEEXT) test_paint$(EXEEXT)
+	test_wr_tiff$(EXEEXT) test_wms1$(EXEEXT) test_wms2$(EXEEXT) \
+	test_paint$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -198,6 +199,9 @@ test_wms1_LDADD = $(LDADD)
 test_wms2_SOURCES = test_wms2.c
 test_wms2_OBJECTS = test_wms2.$(OBJEXT)
 test_wms2_LDADD = $(LDADD)
+test_wr_tiff_SOURCES = test_wr_tiff.c
+test_wr_tiff_OBJECTS = test_wr_tiff.$(OBJEXT)
+test_wr_tiff_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -237,13 +241,13 @@ SOURCES = test1.c test10.c test11.c test12.c test13.c test14.c \
 	test3.c test4.c test5.c test6.c test7.c test8.c test9.c \
 	test_coverage.c test_gif.c test_mask.c test_paint.c \
 	test_palette.c test_raster.c test_section.c test_tifin.c \
-	test_webp.c test_wms1.c test_wms2.c
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = test1.c test10.c test11.c test12.c test13.c test14.c \
 	test15.c test16.c test17.c test18.c test19.c test2.c test20.c \
 	test3.c test4.c test5.c test6.c test7.c test8.c test9.c \
 	test_coverage.c test_gif.c test_mask.c test_paint.c \
 	test_palette.c test_raster.c test_section.c test_tifin.c \
-	test_webp.c test_wms1.c test_wms2.c
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -792,6 +796,10 @@ test_wms2$(EXEEXT): $(test_wms2_OBJECTS) $(test_wms2_DEPENDENCIES) $(EXTRA_test_
 	@rm -f test_wms2$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_wms2_OBJECTS) $(test_wms2_LDADD) $(LIBS)
 
+test_wr_tiff$(EXEEXT): $(test_wr_tiff_OBJECTS) $(test_wr_tiff_DEPENDENCIES) $(EXTRA_test_wr_tiff_DEPENDENCIES) 
+	@rm -f test_wr_tiff$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_wr_tiff_OBJECTS) $(test_wr_tiff_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -829,6 +837,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_webp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms1.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wr_tiff.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -1242,6 +1251,13 @@ test20.log: test20$(EXEEXT)
 test_tifin.log: test_tifin$(EXEEXT)
 	@p='test_tifin$(EXEEXT)'; \
 	b='test_tifin'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_wr_tiff.log: test_wr_tiff$(EXEEXT)
+	@p='test_wr_tiff$(EXEEXT)'; \
+	b='test_wr_tiff'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

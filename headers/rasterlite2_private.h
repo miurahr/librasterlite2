@@ -240,6 +240,41 @@ extern "C"
     } rl2PrivTiffOrigin;
     typedef rl2PrivTiffOrigin *rl2PrivTiffOriginPtr;
 
+    typedef struct rl2_priv_tiff_destination
+    {
+	char *path;
+	char *tfw_path;
+	int isGeoTiff;
+	TIFF *out;
+	GTIF *gtif;
+	void *tiffBuffer;
+	uint32 width;
+	uint32 height;
+	int isTiled;
+	uint32 tileWidth;
+	uint32 tileHeight;
+	uint32 rowsPerStrip;
+	uint16 bitsPerSample;
+	uint16 samplesPerPixel;
+	uint16 photometric;
+	uint16 compression;
+	uint16 sampleFormat;
+	unsigned short maxPalette;
+	unsigned char *red;
+	unsigned char *green;
+	unsigned char *blue;
+	int Srid;
+	double hResolution;
+	double vResolution;
+	char *srsName;
+	char *proj4text;
+	double minX;
+	double minY;
+	double maxX;
+	double maxY;
+    } rl2PrivTiffDestination;
+    typedef rl2PrivTiffDestination *rl2PrivTiffDestinationPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);

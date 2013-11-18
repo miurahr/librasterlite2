@@ -100,7 +100,8 @@ extern "C"
  \note you are responsible to destroy (before or after) any Graphics Context
  returned by rl2_graph_create_context() by invoking rl2_graph_destroy_context().
  */
-    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_context (int width, int height);
+    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_context (int width,
+								int height);
 
 /**
  Destroys a Graphics Context object freeing any allocated resource 
@@ -121,55 +122,45 @@ extern "C"
 
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
- \sa rl2_graph_create_context, rl2_graph_destroy_svg_context,
- rl2_graph_create_pdf_context
+ \sa rl2_graph_create_context, rl2_graph_destroy_context, rl2_graph_create_pdf_context
  
  \note you are responsible to destroy (before or after) any SVG Graphics Context
- returned by rl2_graph_create_svg_context() by invoking rl2_graph_destroy_svg_context().
+ returned by rl2_graph_create_svg_context() by invoking rl2_graph_destroy_context().
  */
-    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_svg_context (const char *path, int width,
-					       int height);
-
-/**
- Destroys an SVG Graphics Context object freeing any allocated resource 
-
- \param handle the pointer to a valid Graphics Context returned by a previous call
- to rl2_graph_create_svg_context()
- 
- \sa rl2_graph_create_svg_context
- */
-    RL2_DECLARE void rl2_graph_destroy_svg_context (rl2GraphicsContextPtr context);
+    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_svg_context (const char
+								    *path,
+								    int width,
+								    int height);
 
 /**
  Creates a PDF Graphics Context 
 
  \param path pathname of the target PDF output file
- \param page_width total page width (in pixels) including any margin
- \param page_height total page height (in pixels) including any margin
- \param width canvass width (in pixels)
- \param height canvass height (in pixels)
+ \param dpi the PDF printing resolution measured in DPI 
+ \param page_width total page width (in inches) including any margin
+ \param page_height total page height (in inches) including any margin
+ \param margin_width horizontal margin width (in inches)
+ \param margin_height vertical margin height (in inches)
 
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
- rl2_graph_destroy_svg_context
+ rl2_graph_destroy_context
  
  \note you are responsible to destroy (before or after) any PDF Graphics Context
- returned by rl2_graph_create_pdf_context() by invoking rl2_graph_destroy_pdf_context().
+ returned by rl2_graph_create_pdf_context() by invoking rl2_graph_destroy_context().
  */
-    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_pdf_context (const char *path, int page_width,
-					       int page_height, int width,
-					       int height);
-
-/**
- Destroys a PDF Graphics Context object freeing any allocated resource 
-
- \param handle the pointer to a valid Graphics Context returned by a previous call
- to rl2_graph_create_pdf_context()
- 
- \sa rl2_graph_create_pdf_context
- */
-    RL2_DECLARE void rl2_graph_destroy_pdf_context (rl2GraphicsContextPtr context);
+    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_pdf_context (const char
+								    *path,
+								    int dpi,
+								    double
+								    page_width,
+								    double
+								    page_height,
+								    double
+								    margin_width,
+								    double
+								    margin_height);
 
 /**
  Selects the currently set Pen for a Graphics Context
@@ -192,10 +183,10 @@ extern "C"
  rl2_graph_set_linear_gradient_brush, rl2_graph_set_pattern_brush,
  rl2_graph_set_font
  */
-    RL2_DECLARE int rl2_graph_set_pen (rl2GraphicsContextPtr context, unsigned char red,
-				     unsigned char green, unsigned char blue,
-				     unsigned char alpha, double width,
-				     int style);
+    RL2_DECLARE int rl2_graph_set_pen (rl2GraphicsContextPtr context,
+				       unsigned char red, unsigned char green,
+				       unsigned char blue, unsigned char alpha,
+				       double width, int style);
 
 /**
  Selects the currently set Brush for a Graphics Context
@@ -218,9 +209,10 @@ extern "C"
  \note a Brush created by this function always is a solid Brush, may be
  supporting transparency.
  */
-    RL2_DECLARE int rl2_graph_set_brush (rl2GraphicsContextPtr context, unsigned char red,
-				       unsigned char green, unsigned char blue,
-				       unsigned char alpha);
+    RL2_DECLARE int rl2_graph_set_brush (rl2GraphicsContextPtr context,
+					 unsigned char red, unsigned char green,
+					 unsigned char blue,
+					 unsigned char alpha);
 
 /**
  Selects the currently set Brush for a Graphics Context
@@ -251,17 +243,17 @@ extern "C"
  \note a Brush created by this function always is a Linear Gradient Brush.
  */
     RL2_DECLARE int rl2_graph_set_linear_gradient_brush (rl2GraphicsContextPtr,
-						     double x, double y,
-						     double width,
-						     double height,
-						     unsigned char red1,
-						     unsigned char green1,
-						     unsigned char blue1,
-						     unsigned char alpha1,
-						     unsigned char red2,
-						     unsigned char green2,
-						     unsigned char blue2,
-						     unsigned char alpha2);
+							 double x, double y,
+							 double width,
+							 double height,
+							 unsigned char red1,
+							 unsigned char green1,
+							 unsigned char blue1,
+							 unsigned char alpha1,
+							 unsigned char red2,
+							 unsigned char green2,
+							 unsigned char blue2,
+							 unsigned char alpha2);
 
 /**
  Selects the currently set Brush for a Graphics Context
@@ -283,7 +275,7 @@ extern "C"
  i.e. a Brush repeatedly using a small bitmap as a filling source.
  */
     RL2_DECLARE int rl2_graph_set_pattern_brush (rl2GraphicsContextPtr context,
-					      rl2GraphicsPatternPtr brush);
+						 rl2GraphicsPatternPtr brush);
 
 /**
  Selects the currently set Font for a Graphics Context
@@ -301,7 +293,8 @@ extern "C"
  rl2_graph_set_linear_gradient_brush, rl2_graph_set_pattern_brush,
  rl2_create_font
  */
-    RL2_DECLARE int rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font);
+    RL2_DECLARE int rl2_graph_set_font (rl2GraphicsContextPtr context,
+					rl2GraphicsFontPtr font);
 
 /**
  Creates a Pattern Brush 
@@ -318,8 +311,10 @@ extern "C"
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_graph_create_pattern() by invoking rl2_graph_destroy_pattern().
  */
-    RL2_DECLARE rl2GraphicsPatternPtr rl2_graph_create_pattern (unsigned char *rgbaArray, int width,
-					  int height);
+    RL2_DECLARE rl2GraphicsPatternPtr rl2_graph_create_pattern (unsigned char
+								*rgbaArray,
+								int width,
+								int height);
 
 /**
  Destroys a Pattern Brush object freeing any allocated resource 
@@ -346,7 +341,9 @@ extern "C"
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_graph_create_font() by invoking rl2_graph_destroy_font().
  */
-    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_font (double size, int style, int weight);
+    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_font (double size,
+							  int style,
+							  int weight);
 
 /**
  Destroys a Graphics Font object freeing any allocated resource 
@@ -373,10 +370,11 @@ extern "C"
  \sa rl2_graph_create_font, rl2_graph_font_set_outline,
  rl2_graph_set_font
  */
-    RL2_DECLARE int rl2_graph_font_set_color (rl2GraphicsFontPtr font, unsigned char red,
-					   unsigned char green,
-					   unsigned char blue,
-					   unsigned char alpha);
+    RL2_DECLARE int rl2_graph_font_set_color (rl2GraphicsFontPtr font,
+					      unsigned char red,
+					      unsigned char green,
+					      unsigned char blue,
+					      unsigned char alpha);
 
 /**
  Selects the currently set Outline for a Graphics Font
@@ -391,7 +389,8 @@ extern "C"
  \sa rl2_graph_create_font, rl2_graph_font_set_color,
  rl2_graph_set_font
  */
-    RL2_DECLARE int rl2_graph_font_set_outline (rl2GraphicsFontPtr font, double width);
+    RL2_DECLARE int rl2_graph_font_set_outline (rl2GraphicsFontPtr font,
+						double width);
 
 /**
  Creates a Graphics Bitmap 
@@ -407,8 +406,10 @@ extern "C"
  \note you are responsible to destroy (before or after) any Graphics Bitmap
  returned by rl2_graph_create_bitmap() by invoking rl2_graph_destroy_bitmap().
  */
-    RL2_DECLARE rl2GraphicsBitmapPtr rl2_graph_create_bitmap (unsigned char *rgbaArray, int width,
-					   int height);
+    RL2_DECLARE rl2GraphicsBitmapPtr rl2_graph_create_bitmap (unsigned char
+							      *rgbaArray,
+							      int width,
+							      int height);
 
 /**
  Destroys a Graphics Bitmap object freeing any allocated resource 
@@ -438,9 +439,9 @@ extern "C"
  \note the rectangle will be stroked using the current Pen and will
  be filled using the current Brush.
  */
-    RL2_DECLARE int rl2_graph_draw_rectangle (rl2GraphicsContextPtr context, double x,
-					    double y, double width,
-					    double height);
+    RL2_DECLARE int rl2_graph_draw_rectangle (rl2GraphicsContextPtr context,
+					      double x, double y, double width,
+					      double height);
 
 /**
  Drawing a Rectangle with rounded corners into a canvass
@@ -461,10 +462,11 @@ extern "C"
  \note the rectangle will be stroked using the current Pen and will
  be filled using the current Brush.
  */
-    RL2_DECLARE int rl2_graph_draw_rounded_rectangle (rl2GraphicsContextPtr context,
-						   double x, double y,
-						   double width, double height,
-						   double radius);
+    RL2_DECLARE int rl2_graph_draw_rounded_rectangle (rl2GraphicsContextPtr
+						      context, double x,
+						      double y, double width,
+						      double height,
+						      double radius);
 
 /**
  Drawing an Ellipse into a canvass
@@ -485,9 +487,9 @@ extern "C"
  \note the ellipse will be stroked using the current Pen and will
  be filled using the current Brush.
  */
-    RL2_DECLARE int rl2_graph_draw_ellipse (rl2GraphicsContextPtr context, double x,
-					  double y, double width,
-					  double height);
+    RL2_DECLARE int rl2_graph_draw_ellipse (rl2GraphicsContextPtr context,
+					    double x, double y, double width,
+					    double height);
 
 /**
  Drawing a Circular Sector into a canvass
@@ -509,9 +511,11 @@ extern "C"
  be filled using the current Brush.
  */
     RL2_DECLARE int rl2_graph_draw_circle_sector (rl2GraphicsContextPtr context,
-					       double center_x, double center_y,
-					       double radius, double from_angle,
-					       double to_angle);
+						  double center_x,
+						  double center_y,
+						  double radius,
+						  double from_angle,
+						  double to_angle);
 
 /**
  Drawing a straight Line into a canvass
@@ -531,8 +535,9 @@ extern "C"
  \note the Sector will be stroked using the current Pen and will
  be filled using the current Brush.
  */
-    RL2_DECLARE int rl2_graph_stroke_line (rl2GraphicsContextPtr context, double x0,
-					 double y0, double x1, double y1);
+    RL2_DECLARE int rl2_graph_stroke_line (rl2GraphicsContextPtr context,
+					   double x0, double y0, double x1,
+					   double y1);
 
 /**
  Begins a new SubPath
@@ -546,8 +551,8 @@ extern "C"
  \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_add_line_to_path,
  rl2_graph_close_subpath, rl2_graph_fill_path, rl2_graph_stroke_path
  */
-    RL2_DECLARE int rl2_graph_move_to_point (rl2GraphicsContextPtr context, double x,
-					  double y);
+    RL2_DECLARE int rl2_graph_move_to_point (rl2GraphicsContextPtr context,
+					     double x, double y);
 
 /**
  Add a line into the current SubPath
@@ -561,8 +566,8 @@ extern "C"
  \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
  rl2_graph_close_subpath, rl2_graph_fill_path, rl2_graph_stroke_path
  */
-    RL2_DECLARE int rl2_graph_add_line_to_path (rl2GraphicsContextPtr context, double x,
-					    double y);
+    RL2_DECLARE int rl2_graph_add_line_to_path (rl2GraphicsContextPtr context,
+						double x, double y);
 
 /**
  Terminates the current SubPath
@@ -588,7 +593,8 @@ extern "C"
  \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
  rl2_graph_add_line_to_path, rl2_graph_close_subpath, rl2_graph_stroke_path
  */
-    RL2_DECLARE int rl2_graph_fill_path (rl2GraphicsContextPtr context, int preserve);
+    RL2_DECLARE int rl2_graph_fill_path (rl2GraphicsContextPtr context,
+					 int preserve);
 
 /**
  Strokes the current Path using the currently set Pen
@@ -602,7 +608,8 @@ extern "C"
  \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
  rl2_graph_add_line_to_path, rl2_graph_close_subpath, rl2_graph_fill_path
  */
-    RL2_DECLARE int rl2_graph_stroke_path (rl2GraphicsContextPtr context, int preserve);
+    RL2_DECLARE int rl2_graph_stroke_path (rl2GraphicsContextPtr context,
+					   int preserve);
 
 /**
  Draws a text into the Canvass using the currently set Font
@@ -617,8 +624,9 @@ extern "C"
  
  \sa rl2_graph_set_font, rl2_graph_get_text_extent
  */
-    RL2_DECLARE int rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text,
-				       double x, double y, double angle);
+    RL2_DECLARE int rl2_graph_draw_text (rl2GraphicsContextPtr context,
+					 const char *text, double x, double y,
+					 double angle);
 
 /**
  Computes the extent corresponding to a text into the Canvass using the currently set Font
@@ -643,10 +651,10 @@ extern "C"
  \sa rl2_graph_set_font, rl2_graph_get_text_extent
  */
     RL2_DECLARE int rl2_graph_get_text_extent (rl2GraphicsContextPtr context,
-					    const char *text, double *pre_x,
-					    double *pre_y, double *width,
-					    double *height, double *post_x,
-					    double *post_y);
+					       const char *text, double *pre_x,
+					       double *pre_y, double *width,
+					       double *height, double *post_x,
+					       double *post_y);
 
 /**
  Draws a Bitmap into the Canvass
@@ -661,7 +669,8 @@ extern "C"
  \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap
  */
     RL2_DECLARE int rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
-					 rl2GraphicsBitmapPtr bitmap, int x, int y);
+					   rl2GraphicsBitmapPtr bitmap, int x,
+					   int y);
 
 /**
  Creates an RGB Array corresponding to the current Canvass
@@ -675,7 +684,8 @@ extern "C"
  \note you are responsible to destroy (before or after) any RGB Array
  returned by rl2_graph_get_context_rgb_array() by invoking free().
  */
-    RL2_DECLARE unsigned char * rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context);
+    RL2_DECLARE unsigned char
+	*rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context);
 
 /**
  Creates an Array of Alpha values corresponding to the current Canvass
@@ -689,7 +699,8 @@ extern "C"
  \note you are responsible to destroy (before or after) any RGB Array
  returned by rl2_graph_get_context_alpha_array() by invoking free().
  */
-    RL2_DECLARE unsigned char * rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context);
+    RL2_DECLARE unsigned char
+	*rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context);
 
 #ifdef __cplusplus
 }

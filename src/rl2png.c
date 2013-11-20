@@ -204,6 +204,8 @@ compress_palette_png (unsigned char *pixels, unsigned short width,
 	rl2_free (green);
     if (blue != NULL)
 	rl2_free (blue);
+    if (alpha != NULL)
+	rl2_free (alpha);
     *png = membuf.buffer;
     *png_size = membuf.size;
     return RL2_OK;
@@ -221,6 +223,8 @@ compress_palette_png (unsigned char *pixels, unsigned short width,
 	rl2_free (green);
     if (blue != NULL)
 	rl2_free (blue);
+    if (alpha != NULL)
+	rl2_free (alpha);
     if (alpha != NULL)
 	rl2_free (alpha);
     return RL2_ERROR;

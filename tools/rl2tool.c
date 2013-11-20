@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include <rasterlite2/rasterlite2.h>
+#include <rasterlite2/rl2tiff.h>
 
 #include <spatialite/gaiaaux.h>
 #include <spatialite.h>
@@ -890,7 +891,7 @@ exec_import (sqlite3 * handle, const char *src_path,
     compression = rl2_get_coverage_compression (cvg);
     quality = rl2_get_coverage_quality (cvg);
 
-    origin = rl2_create_tiff_origin (src_path);
+    origin = rl2_create_tiff_origin (src_path, RL2_TIFF_GEOTIFF);
     if (origin == NULL)
 	goto error;
 

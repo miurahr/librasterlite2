@@ -47,13 +47,13 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2graphics.h"
 
 static int
-do_paint_test(rl2GraphicsContextPtr ctx)
+do_paint_test (rl2GraphicsContextPtr ctx)
 {
     unsigned char *buffer;
     int buf_size;
     int width;
     int height;
-    rl2GraphicsBitmapPtr bmp; 
+    rl2GraphicsBitmapPtr bmp;
     rl2GraphicsPatternPtr pattern;
     rl2RasterPtr rst;
     rl2SectionPtr img;
@@ -89,13 +89,15 @@ do_paint_test(rl2GraphicsContextPtr ctx)
     width = rl2_get_raster_width (rst);
     if (width != 558)
       {
-	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg1.jpg", width);
+	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg1.jpg",
+		   width);
 	  return -12;
       }
     height = rl2_get_raster_height (rst);
     if (height != 543)
       {
-	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg1.jpg", height);
+	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg1.jpg",
+		   height);
 	  return -13;
       }
 
@@ -118,10 +120,11 @@ do_paint_test(rl2GraphicsContextPtr ctx)
 /* rendering the Bitmap */
     if (!rl2_graph_draw_bitmap (ctx, bmp, 256, 256))
       {
-	  fprintf (stderr, "Unable to render the Bitmap #1 into the Graphics backend\n");
+	  fprintf (stderr,
+		   "Unable to render the Bitmap #1 into the Graphics backend\n");
 	  return -16;
       }
-    rl2_graph_destroy_bitmap(bmp);
+    rl2_graph_destroy_bitmap (bmp);
 
 /* loading a sample Image (Grayscale) */
     img = rl2_section_from_jpeg ("./jpeg2.jpg");
@@ -139,13 +142,15 @@ do_paint_test(rl2GraphicsContextPtr ctx)
     width = rl2_get_raster_width (rst);
     if (width != 558)
       {
-	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg2.jpg", width);
+	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg2.jpg",
+		   width);
 	  return -19;
       }
     height = rl2_get_raster_height (rst);
     if (height != 543)
       {
-	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg2.jpg", height);
+	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg2.jpg",
+		   height);
 	  return -20;
       }
 
@@ -168,10 +173,11 @@ do_paint_test(rl2GraphicsContextPtr ctx)
 /* rendering the Bitmap */
     if (!rl2_graph_draw_bitmap (ctx, bmp, 700, 600))
       {
-	  fprintf (stderr, "Unable to render the Bitmap #2 into the Graphics backend\n");
+	  fprintf (stderr,
+		   "Unable to render the Bitmap #2 into the Graphics backend\n");
 	  return -23;
       }
-    rl2_graph_destroy_bitmap(bmp);
+    rl2_graph_destroy_bitmap (bmp);
 
 /* setting up a RED dotted pen */
     if (!rl2_graph_set_pen (ctx, 255, 0, 0, 255, 8.0, RL2_PENSTYLE_DOT))
@@ -188,14 +194,14 @@ do_paint_test(rl2GraphicsContextPtr ctx)
       }
 
 /* drawing a rectangle */
-    if (!rl2_graph_draw_rectangle(ctx, 650, 500, 200, 200))
+    if (!rl2_graph_draw_rectangle (ctx, 650, 500, 200, 200))
       {
 	  fprintf (stderr, "Unable to draw a rectangle\n");
 	  return -26;
       }
 
 /* drawing a rounded rectangle */
-    if (!rl2_graph_draw_rounded_rectangle(ctx, 650, 950, 300, 100, 30))
+    if (!rl2_graph_draw_rounded_rectangle (ctx, 650, 950, 300, 100, 30))
       {
 	  fprintf (stderr, "Unable to draw a rounded rectangle\n");
 	  return -27;
@@ -209,9 +215,11 @@ do_paint_test(rl2GraphicsContextPtr ctx)
       }
 
 /* setting up a Yellow/Blue linear gradient Brush */
-    if (!rl2_graph_set_linear_gradient_brush (ctx, 1024, 1500, 200, 100, 255, 255, 0, 255, 0, 0, 255, 255))
+    if (!rl2_graph_set_linear_gradient_brush
+	(ctx, 1024, 1500, 200, 100, 255, 255, 0, 255, 0, 0, 255, 255))
       {
-	  fprintf (stderr, "Unable to set a Yellow/Blue linear gradient Brush\n");
+	  fprintf (stderr,
+		   "Unable to set a Yellow/Blue linear gradient Brush\n");
 	  return -29;
       }
 
@@ -223,9 +231,11 @@ do_paint_test(rl2GraphicsContextPtr ctx)
       }
 
 /* setting up a Yellow/Red linear gradient Brush */
-    if (!rl2_graph_set_linear_gradient_brush (ctx, 1500, 1500, 200, 200, 255, 255, 0, 255, 255, 0, 0, 255))
+    if (!rl2_graph_set_linear_gradient_brush
+	(ctx, 1500, 1500, 200, 200, 255, 255, 0, 255, 255, 0, 0, 255))
       {
-	  fprintf (stderr, "Unable to set a Yellow/Red linear gradient Brush\n");
+	  fprintf (stderr,
+		   "Unable to set a Yellow/Red linear gradient Brush\n");
 	  return -31;
       }
 
@@ -244,52 +254,52 @@ do_paint_test(rl2GraphicsContextPtr ctx)
       }
 
 /* creating an RGBA buffer */
-    rgba = malloc(64 * 64 * 4);
+    rgba = malloc (64 * 64 * 4);
     p_rgba = rgba;
     for (row = 0; row < 64; row++)
-    {
-        for (col = 0; col < 64; col++)
-        {
-            if (row >= 32)
-            {
-                if (col >= 32)
-                {
-                    red = 0;
-                    green = 255;
-                    blue = 0;
-                    alpha = 128;
-                }
-                else
-                {
-                    red = 0;
-                    green = 255;
-                    blue = 255;
-                    alpha = 255;
-                }
-            }
-            else
-            {
-                if (col >= 32)
-                {
-                    red = 0;
-                    green = 0;
-                    blue = 0;
-                    alpha = 0;
-                }
-                else
-                {
-                    red = 255;
-                    green = 255;
-                    blue = 0;
-                    alpha = 255;
-                }
-            }
-            *p_rgba++ = red;
-            *p_rgba++ = green;
-            *p_rgba++ = blue;
-            *p_rgba++ = alpha;
-        }
-    }
+      {
+	  for (col = 0; col < 64; col++)
+	    {
+		if (row >= 32)
+		  {
+		      if (col >= 32)
+			{
+			    red = 0;
+			    green = 255;
+			    blue = 0;
+			    alpha = 128;
+			}
+		      else
+			{
+			    red = 0;
+			    green = 255;
+			    blue = 255;
+			    alpha = 255;
+			}
+		  }
+		else
+		  {
+		      if (col >= 32)
+			{
+			    red = 0;
+			    green = 0;
+			    blue = 0;
+			    alpha = 0;
+			}
+		      else
+			{
+			    red = 255;
+			    green = 255;
+			    blue = 0;
+			    alpha = 255;
+			}
+		  }
+		*p_rgba++ = red;
+		*p_rgba++ = green;
+		*p_rgba++ = blue;
+		*p_rgba++ = alpha;
+	    }
+      }
 
 /* creating and setting up a pattern brush */
     pattern = rl2_graph_create_pattern (rgba, 64, 64);
@@ -361,10 +371,11 @@ do_paint_test(rl2GraphicsContextPtr ctx)
 	  return -46;
       }
 
-    rl2_graph_destroy_pattern(pattern);
+    rl2_graph_destroy_pattern (pattern);
 
 /* creating and setting up a Green bold italic font */
-    font = rl2_graph_create_font (32, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
+    font =
+	rl2_graph_create_font (32, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font\n");
@@ -388,7 +399,8 @@ do_paint_test(rl2GraphicsContextPtr ctx)
     rl2_graph_destroy_font (font);
 
 /* creating and setting up a Black outlined font */
-    font = rl2_graph_create_font (32, RL2_FONTSTYLE_NORMAL, RL2_FONTWEIGHT_BOLD);
+    font =
+	rl2_graph_create_font (32, RL2_FONTSTYLE_NORMAL, RL2_FONTWEIGHT_BOLD);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font #2\n");
@@ -414,7 +426,8 @@ do_paint_test(rl2GraphicsContextPtr ctx)
 	  fprintf (stderr, "Unable to print text #2\n");
 	  return -55;
       }
-    if (!rl2_graph_get_text_extent (ctx, "Walhalla", &pre_x, &pre_y, &w, &h, &post_x, &post_y))
+    if (!rl2_graph_get_text_extent
+	(ctx, "Walhalla", &pre_x, &pre_y, &w, &h, &post_x, &post_y))
       {
 	  fprintf (stderr, "Unable to measure text\n");
 	  return -56;
@@ -429,10 +442,10 @@ do_paint_test(rl2GraphicsContextPtr ctx)
 int
 main (int argc, char *argv[])
 {
-    rl2GraphicsContextPtr svg; 
-    rl2GraphicsContextPtr pdf; 
+    rl2GraphicsContextPtr svg;
+    rl2GraphicsContextPtr pdf;
     rl2GraphicsContextPtr ctx;
-    rl2RasterPtr rst; 
+    rl2RasterPtr rst;
     rl2SectionPtr img;
     int ret;
     unsigned char *rgb;
@@ -448,24 +461,26 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to create an SVG backend\n");
 	  return -1;
       }
-    ret = do_paint_test(svg);
+    ret = do_paint_test (svg);
     if (ret < 0)
-        return ret;
-    rl2_graph_destroy_context(svg);
+	return ret;
+    rl2_graph_destroy_context (svg);
     unlink ("./test_paint.svg");
 
 /* testing the PDF backend */
-    pdf = rl2_graph_create_pdf_context ("./test_paint.pdf", 300, 11.7, 8.3, 1.0, 1.0);
+    pdf =
+	rl2_graph_create_pdf_context ("./test_paint.pdf", 300, 11.7, 8.3, 1.0,
+				      1.0);
     if (pdf == NULL)
       {
 	  fprintf (stderr, "Unable to create a PDF backend\n");
 	  return -2;
       }
-    ret = do_paint_test(pdf);
+    ret = do_paint_test (pdf);
     if (ret < 0)
-        return ret;
-    rl2_graph_destroy_context(pdf); 
-    unlink ("./test_paint.pdf"); 
+	return ret;
+    rl2_graph_destroy_context (pdf);
+    unlink ("./test_paint.pdf");
 
 /* testing an ordinary graphics backend */
     ctx = rl2_graph_create_context (2048, 2048);
@@ -474,34 +489,36 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to create an ordinary graphics backend\n");
 	  return -3;
       }
-    ret = do_paint_test(ctx);
+    ret = do_paint_test (ctx);
     if (ret < 0)
-        return ret;
-    rgb = rl2_graph_get_context_rgb_array(ctx);
+	return ret;
+    rgb = rl2_graph_get_context_rgb_array (ctx);
     if (rgb == NULL)
       {
 	  fprintf (stderr, "invalid RGB buffer from Graphics Context\n");
 	  return -4;
       }
-    alpha = rl2_graph_get_context_alpha_array(ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx);
     if (alpha == NULL)
       {
 	  fprintf (stderr, "invalid Alpha buffer from Graphics Context\n");
 	  return -5;
       }
-    free(alpha);
-    rl2_graph_destroy_context(ctx);  
+    free (alpha);
+    rl2_graph_destroy_context (ctx);
 
 /* exporting a PNG image */
     rst = rl2_create_raster (2048, 2048, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
-			     rgb, 2048*2048*3, NULL, NULL, 0, NULL);
+			     rgb, 2048 * 2048 * 3, NULL, NULL, 0, NULL);
     if (rst == NULL)
       {
 	  fprintf (stderr, "Unable to create the output raster+mask\n");
 	  return -6;
       }
-    img = rl2_create_section ("beta", RL2_COMPRESSION_NONE, RL2_TILESIZE_UNDEFINED,
-       RL2_TILESIZE_UNDEFINED, rst);
+    img =
+	rl2_create_section ("beta", RL2_COMPRESSION_NONE,
+			    RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
+			    rst);
     if (img == NULL)
       {
 	  fprintf (stderr, "Unable to create the output section+mask\n");

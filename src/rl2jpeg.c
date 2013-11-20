@@ -650,6 +650,8 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
 	free (green);
     if (blue != NULL)
 	free (blue);
+    if (alpha != NULL)
+	free (alpha);
     return RL2_ERROR;
 }
 

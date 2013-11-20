@@ -210,6 +210,8 @@ extern "C"
     typedef struct rl2_priv_tiff_origin
     {
 	char *path;
+	char *tfw_path;
+	int isGeoTiff;
 	TIFF *in;
 	int isTiled;
 	uint32 width;
@@ -228,6 +230,7 @@ extern "C"
 	unsigned char *green;
 	unsigned char *blue;
 	unsigned char *alpha;
+	int isGeoReferenced;
 	int Srid;
 	double hResolution;
 	double vResolution;
@@ -263,6 +266,7 @@ extern "C"
 	unsigned char *red;
 	unsigned char *green;
 	unsigned char *blue;
+	int isGeoReferenced;
 	int Srid;
 	double hResolution;
 	double vResolution;

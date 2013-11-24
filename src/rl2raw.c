@@ -173,7 +173,7 @@ rl2_raster_data_to_RGB (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
     int col;
     unsigned char *p_in;
     unsigned char *p_out;
-    int max_palette;
+    unsigned short max_palette;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
@@ -293,7 +293,7 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
     unsigned char *p_in;
     unsigned char *p_mask;
     unsigned char *p_out;
-    int max_palette;
+    unsigned short max_palette;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
@@ -476,7 +476,7 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
     unsigned char *p_in;
     unsigned char *p_mask;
     unsigned char *p_out;
-    int max_palette;
+    unsigned short max_palette;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
@@ -661,7 +661,7 @@ rl2_raster_data_to_BGR (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
     int col;
     unsigned char *p_in;
     unsigned char *p_out;
-    int max_palette;
+    unsigned short max_palette;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
@@ -769,7 +769,7 @@ rl2_raster_data_to_BGRA (rl2RasterPtr ptr, unsigned char **buffer,
     unsigned char *p_in;
     unsigned char *p_mask;
     unsigned char *p_out;
-    int max_palette;
+    unsigned short max_palette;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;

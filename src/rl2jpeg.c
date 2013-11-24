@@ -403,7 +403,7 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
     unsigned char *p_mask;
     int row;
     int col;
-    int num_entries;
+    unsigned short num_entries;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
@@ -759,9 +759,9 @@ rl2_raster_to_jpeg (rl2RasterPtr rst, unsigned char **jpeg, int *jpeg_size,
 
     if (rst == NULL)
 	return RL2_ERROR;
-    sample_type = rl2_get_raster_sample_type (rst);
-    pixel_type = rl2_get_raster_pixel_type (rst);
-    num_samples = rl2_get_raster_bands (rst);
+    if (rl2_get_raster_type (rst, &sample_type, &pixel_type, &num_samples) !=
+	RL2_OK)
+	return RL2_ERROR;
     if (check_jpeg_compatibility (sample_type, pixel_type, num_samples) !=
 	RL2_OK)
 	return RL2_ERROR;

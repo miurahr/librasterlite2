@@ -127,6 +127,10 @@ test_grid_float (rl2SectionPtr img)
     float *p_data1;
     float *p_data2;
     float sample;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int is_transparent;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
 
@@ -200,19 +204,26 @@ test_grid_float (rl2SectionPtr img)
 	  return 0;
       }
 
-    if (rl2_get_pixel_sample_type (pxl) != RL2_SAMPLE_FLOAT)
+    if (rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create get Pixel Type: GRID-FLT\n");
+	  return 0;
+      }
+
+    if (sample_type != RL2_SAMPLE_FLOAT)
       {
 	  fprintf (stderr, "Unexpected Pixel SampleType: GRID-FLT\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_type (pxl) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected Pixel Type: GRID-FLT\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_bands (pxl) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected Pixel # Bands: GRID-FLT\n");
 	  return 0;
@@ -232,13 +243,26 @@ test_grid_float (rl2SectionPtr img)
 	  return 0;
       }
 
-    if (rl2_is_pixel_transparent (pxl) != RL2_FALSE)
+    if (rl2_is_pixel_transparent (pxl, &is_transparent) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Pixel Transparency: GRID-FLT\n");
+	  return 0;
+      }
+
+    if (is_transparent != RL2_FALSE)
       {
 	  fprintf (stderr, "Unexpected Pixel Transparency: GRID-FLT\n");
 	  return 0;
       }
 
-    if (rl2_is_pixel_opaque (pxl) != RL2_TRUE)
+    if (rl2_is_pixel_opaque (pxl, &is_transparent) != RL2_OK)
+
+      {
+	  fprintf (stderr, "Unable to get Pixel Opacity: GRID-FLT\n");
+	  return 0;
+      }
+
+    if (is_transparent != RL2_TRUE)
 
       {
 	  fprintf (stderr, "Unexpected Pixel Opacity: GRID-FLT\n");

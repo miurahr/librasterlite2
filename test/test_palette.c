@@ -162,7 +162,7 @@ int
 main (int argc, char *argv[])
 {
     rl2PalettePtr palette;
-    int num_entries;
+    unsigned short num_entries;
     unsigned char *r;
     unsigned char *g;
     unsigned char *b;
@@ -210,27 +210,33 @@ main (int argc, char *argv[])
 	  return -6;
       }
 
-    if (rl2_get_palette_entries (palette) != 2)
+    if (rl2_get_palette_entries (palette, &num_entries) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get palette # entries\n");
+	  return -7;
+      }
+
+    if (num_entries != 2)
       {
 	  fprintf (stderr, "Unexpected palette # entries\n");
-	  return -7;
+	  return -8;
       }
 
     if (rl2_get_palette_colors (palette, &num_entries, &r, &g, &b, &a) !=
 	RL2_OK)
       {
 	  fprintf (stderr, "Unable to retrieve palette colors\n");
-	  return -8;
+	  return -9;
       }
     if (num_entries != 2)
       {
 	  fprintf (stderr, "Unexpected palette # colors\n");
-	  return -9;
+	  return -10;
       }
     if (*(r + 0) != 0 || *(g + 0) != 0 || *(b + 0) != 0 || *(a + 0) != 255)
       {
 	  fprintf (stderr, "Mismatching color #0\n");
-	  return -10;
+	  return -11;
       }
     if (*(r + 1) != 0xab || *(g + 1) != 0xcd || *(b + 1) != 0xef
 	|| *(a + 0) != 255)
@@ -321,7 +327,7 @@ main (int argc, char *argv[])
 
     rl2_destroy_palette (NULL);
 
-    if (rl2_get_palette_entries (NULL) != RL2_ERROR)
+    if (rl2_get_palette_entries (NULL, &num_entries) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL palette # entries\n");
 	  return -24;

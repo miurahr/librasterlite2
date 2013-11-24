@@ -65,6 +65,18 @@ main (int argc, char *argv[])
     rl2PixelPtr no_data;
     rl2PixelPtr pixel;
     rl2SectionPtr img;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned short width;
+    unsigned short height;
+    int srid;
+    double minX;
+    double minY;
+    double maxX;
+    double maxY;
+    double hResolution;
+    double vResolution;
     unsigned char sample;
     unsigned char *mask;
     unsigned char *bufpix = malloc (256 * 256);
@@ -125,71 +137,96 @@ main (int argc, char *argv[])
 	  return -7;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT8)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
       {
-	  fprintf (stderr, "Unexpected raster sample GRAYSCALE/256r\n");
+	  fprintf (stderr, "Unable to get raster type GRAYSCALE/256r\n");
 	  return -8;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_GRAYSCALE)
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
-	  fprintf (stderr, "Unexpected raster pixel GRAYSCALE/256\n");
+	  fprintf (stderr, "Unexpected raster sample GRAYSCALE/256r\n");
 	  return -9;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (pixel_type != RL2_PIXEL_GRAYSCALE)
       {
-	  fprintf (stderr, "Unexpected raster # bands GRAYSCALE/256\n");
+	  fprintf (stderr, "Unexpected raster pixel GRAYSCALE/256\n");
 	  return -10;
       }
 
-    if (rl2_get_raster_width (raster) != 256)
+    if (num_bands != 1)
       {
-	  fprintf (stderr, "Unexpected raster tile width\n");
+	  fprintf (stderr, "Unexpected raster # bands GRAYSCALE/256\n");
 	  return -11;
       }
 
-    if (rl2_get_raster_height (raster) != 256)
+    if (rl2_get_raster_size (raster, &width, &height) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster size\n");
+	  return -12;
+      }
+
+    if (width != 256)
+      {
+	  fprintf (stderr, "Unexpected raster tile width\n");
+	  return -13;
+      }
+
+    if (height != 256)
       {
 	  fprintf (stderr, "Unexpected raster tile height\n");
-	  return -12;
+	  return -14;
       }
 
     if (rl2_raster_georeference_center (raster, 4326, 0.5, 0.5, 11.5, 42.5) !=
 	RL2_OK)
       {
 	  fprintf (stderr, "Unable to georeference a raster (Center point)\n");
-	  return -13;
-      }
-
-    if (rl2_get_raster_srid (raster) != 4326)
-      {
-	  fprintf (stderr, "Unexpected raster SRID\n");
-	  return -14;
-      }
-
-    if (rl2_get_raster_minX (raster) != -52.5)
-      {
-	  fprintf (stderr, "Unexpected raster MinX (Center point)\n");
 	  return -15;
       }
 
-    if (rl2_get_raster_minY (raster) != -21.5)
+    if (rl2_get_raster_srid (raster, &srid) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected raster MinY (Center point)\n");
+	  fprintf (stderr, "Unable to get raster SRID\n");
 	  return -16;
       }
 
-    if (rl2_get_raster_maxX (raster) != 75.5)
+    if (srid != 4326)
       {
-	  fprintf (stderr, "Unexpected raster MaxX (Center point)\n");
+	  fprintf (stderr, "Unexpected raster SRID\n");
 	  return -17;
       }
 
-    if (rl2_get_raster_maxY (raster) != 106.5)
+    if (rl2_get_raster_extent (raster, &minX, &minY, &maxX, &maxY) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster extent (Center point)\n");
+	  return -18;
+      }
+
+    if (minX != -52.5)
+      {
+	  fprintf (stderr, "Unexpected raster MinX (Center point)\n");
+	  return -19;
+      }
+
+    if (minY != -21.5)
+      {
+	  fprintf (stderr, "Unexpected raster MinY (Center point)\n");
+	  return -20;
+      }
+
+    if (maxX != 75.5)
+      {
+	  fprintf (stderr, "Unexpected raster MaxX (Center point)\n");
+	  return -21;
+      }
+
+    if (maxY != 106.5)
       {
 	  fprintf (stderr, "Unexpected raster MaxY (Center point)\n");
-	  return -18;
+	  return -22;
       }
     rl2_destroy_raster (raster);
 
@@ -209,25 +246,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a MONOCHROME raster\n");
-	  return -19;
+	  return -23;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_1_BIT)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster sample MONOCHROME\n");
+	  return -24;
+      }
+
+    if (sample_type != RL2_SAMPLE_1_BIT)
       {
 	  fprintf (stderr, "Unexpected raster sample MONOCHROME\n");
-	  return -20;
+	  return -25;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_MONOCHROME)
+    if (pixel_type != RL2_PIXEL_MONOCHROME)
       {
 	  fprintf (stderr, "Unexpected raster pixel MONOCHROME\n");
-	  return -21;
+	  return -26;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands MONOCHROME\n");
-	  return -22;
+	  return -27;
       }
 
     if (rl2_raster_georeference_upper_left
@@ -235,57 +279,63 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unable to georeference a raster (UpperLeft corner)\n");
-	  return -23;
+	  return -28;
       }
 
-    if (rl2_get_raster_minX (raster) != -52.5)
+    if (rl2_get_raster_extent (raster, &minX, &minY, &maxX, &maxY) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster extent (UpperLeft corner)\n");
+	  return -29;
+      }
+
+    if (minX != -52.5)
       {
 	  fprintf (stderr, "Unexpected raster MinX (UpperLeft corner)\n");
-	  return -24;
+	  return -30;
       }
 
-    if (rl2_get_raster_minY (raster) != -21.5)
+    if (minY != -21.5)
       {
 	  fprintf (stderr, "Unexpected raster MinY (UpperLeft corner)\n");
-	  return -25;
+	  return -31;
       }
 
-    if (rl2_get_raster_maxX (raster) != 75.5)
+    if (maxX != 75.5)
       {
 	  fprintf (stderr, "Unexpected raster MaxX (UpperLeft corner)\n");
-	  return -26;
+	  return -32;
       }
 
-    if (rl2_get_raster_maxY (raster) != 106.5)
+    if (maxY != 106.5)
       {
 	  fprintf (stderr, "Unexpected raster MaxY (UpperLeft corner)\n");
-	  return -27;
+	  return -33;
       }
 
     img = rl2_create_section ("mono", RL2_COMPRESSION_NONE, 256, 256, raster);
     if (img == NULL)
       {
 	  fprintf (stderr, "Unable to create a Monochrome image\n");
-	  return -28;
+	  return -34;
       }
     if (rl2_section_to_gif (img, "./raster_mono.gif") != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_mono.gif\n");
-	  return -29;
+	  return -35;
       }
     unlink ("./raster_mono.gif");
 
     if (rl2_section_to_png (img, "./raster_mono.png") != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_mono.png\n");
-	  return -30;
+	  return -36;
       }
     unlink ("./raster_mono.png");
 
     if (rl2_section_to_jpeg (img, "./raster_mono.jpg", 60) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_mono.jpg\n");
-	  return -40;
+	  return -37;
       }
     unlink ("./raster_mono.jpg");
 
@@ -319,25 +369,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRAYSCALE/4 raster\n");
+	  return -38;
+      }
+
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster sample GRAYSCALE/4\n");
+	  return -39;
+      }
+
+    if (sample_type != RL2_SAMPLE_2_BIT)
+      {
+	  fprintf (stderr, "Unexpected raster sample GRAYSCALE/4\n");
+	  return -40;
+      }
+
+    if (pixel_type != RL2_PIXEL_GRAYSCALE)
+      {
+	  fprintf (stderr, "Unexpected raster pixel GRAYSCALE/4\n");
 	  return -41;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_2_BIT)
-      {
-	  fprintf (stderr, "Unexpected raster sample GRAYSCALE/4\n");
-	  return -42;
-      }
-
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_GRAYSCALE)
-      {
-	  fprintf (stderr, "Unexpected raster pixel GRAYSCALE/4\n");
-	  return -43;
-      }
-
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRAYSCALE/4\n");
-	  return -44;
+	  return -42;
       }
 
     if (rl2_raster_georeference_lower_left
@@ -345,58 +402,64 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unable to georeference a raster (LowerLeft corner)\n");
+	  return -43;
+      }
+
+    if (rl2_get_raster_extent (raster, &minX, &minY, &maxX, &maxY) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster extent (LowerLeft corner)\n");
+	  return -44;
+      }
+
+    if (minX != -52.5)
+      {
+	  fprintf (stderr, "Unexpected raster MinX (LowerLeft corner)\n");
 	  return -45;
       }
 
-    if (rl2_get_raster_minX (raster) != -52.5)
+    if (minY != -21.5)
       {
-	  fprintf (stderr, "Unexpected raster MinX (LowerLeft corner)\n");
+	  fprintf (stderr, "Unexpected raster MinY (LowerLeft corner)\n");
 	  return -46;
       }
 
-    if (rl2_get_raster_minY (raster) != -21.5)
+    if (maxX != 75.5)
       {
-	  fprintf (stderr, "Unexpected raster MinY (LowerLeft corner)\n");
+	  fprintf (stderr, "Unexpected raster MaxX (LowerLeft corner)\n");
 	  return -47;
       }
 
-    if (rl2_get_raster_maxX (raster) != 75.5)
-      {
-	  fprintf (stderr, "Unexpected raster MaxX (LowerLeft corner)\n");
-	  return -48;
-      }
-
-    if (rl2_get_raster_maxY (raster) != 106.5)
+    if (maxY != 106.5)
       {
 	  fprintf (stderr, "Unexpected raster MaxY (LowerLeft corner)\n");
-	  return -49;
+	  return -48;
       }
 
     img = rl2_create_section ("gray4", RL2_COMPRESSION_NONE, 256, 256, raster);
     if (img == NULL)
       {
 	  fprintf (stderr, "Unable to creat a Grayscale/4 image\n");
-	  return -50;
+	  return -49;
       }
 
     if (rl2_section_to_gif (img, "./raster_gray4.gif") != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_gray4.gif\n");
-	  return -51;
+	  return -50;
       }
     unlink ("./raster_gray4.gif");
 
     if (rl2_section_to_png (img, "./raster_gray4.png") != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_gray4.png\n");
-	  return -52;
+	  return -51;
       }
     unlink ("./raster_gray4.png");
 
     if (rl2_section_to_jpeg (img, "./raster_gray4.jpg", 60) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_gray4.jpg\n");
-	  return -53;
+	  return -52;
       }
     unlink ("./raster_gray4.jpg");
 
@@ -428,22 +491,29 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRAYSCALE/16 raster\n");
+	  return -53;
+      }
+
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRAYSCALE/16\n");
 	  return -54;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_4_BIT)
+    if (sample_type != RL2_SAMPLE_4_BIT)
       {
 	  fprintf (stderr, "Unexpected raster sample GRAYSCALE/16\n");
 	  return -55;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_GRAYSCALE)
+    if (pixel_type != RL2_PIXEL_GRAYSCALE)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRAYSCALE/16\n");
 	  return -56;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRAYSCALE/16\n");
 	  return -57;
@@ -457,55 +527,61 @@ main (int argc, char *argv[])
 	  return -58;
       }
 
-    if (rl2_get_raster_minX (raster) != -52.5)
+    if (rl2_get_raster_extent (raster, &minX, &minY, &maxX, &maxY) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected raster MinX (LowerRight corner)\n");
+	  fprintf (stderr, "Unable to get raster extent (LowerRight corner)\n");
 	  return -59;
       }
 
-    if (rl2_get_raster_minY (raster) != -21.5)
+    if (minX != -52.5)
       {
-	  fprintf (stderr, "Unexpected raster MinY (LowerRight corner)\n");
+	  fprintf (stderr, "Unexpected raster MinX (LowerRight corner)\n");
 	  return -60;
       }
 
-    if (rl2_get_raster_maxX (raster) != 75.5)
+    if (minY != -21.5)
       {
-	  fprintf (stderr, "Unexpected raster MaxX (LowerRight corner)\n");
+	  fprintf (stderr, "Unexpected raster MinY (LowerRight corner)\n");
 	  return -61;
       }
 
-    if (rl2_get_raster_maxY (raster) != 106.5)
+    if (maxX != 75.5)
+      {
+	  fprintf (stderr, "Unexpected raster MaxX (LowerRight corner)\n");
+	  return -62;
+      }
+
+    if (maxY != 106.5)
       {
 	  fprintf (stderr, "Unexpected raster MaxY (LowerRight corner)\n");
-	  return -62;
+	  return -63;
       }
 
     img = rl2_create_section ("gray16", RL2_COMPRESSION_NONE, 256, 256, raster);
     if (img == NULL)
       {
 	  fprintf (stderr, "Unable to creat a Grayscale/16 image\n");
-	  return -63;
+	  return -64;
       }
 
     if (rl2_section_to_gif (img, "./raster_gray16.gif") != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_gray16.gif\n");
-	  return -64;
+	  return -65;
       }
     unlink ("./raster_gray16.gif");
 
     if (rl2_section_to_png (img, "./raster_gray16.png") != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_gray16.png\n");
-	  return -65;
+	  return -66;
       }
     unlink ("./raster_gray16.png");
 
     if (rl2_section_to_jpeg (img, "./raster_gray16.jpg", 60) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to write: raster_gray16.jpg\n");
-	  return -66;
+	  return -67;
       }
     unlink ("./raster_gray16.jpg");
 
@@ -519,25 +595,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a RGB raster\n");
-	  return -67;
-      }
-
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT8)
-      {
-	  fprintf (stderr, "Unexpected raster sample RGB\n");
 	  return -68;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_RGB)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
       {
-	  fprintf (stderr, "Unexpected raster pixel RGB\n");
+	  fprintf (stderr, "Unable to get raster type RGB\n");
 	  return -69;
       }
 
-    if (rl2_get_raster_bands (raster) != 3)
+    if (sample_type != RL2_SAMPLE_UINT8)
+      {
+	  fprintf (stderr, "Unexpected raster sample RGB\n");
+	  return -70;
+      }
+
+    if (pixel_type != RL2_PIXEL_RGB)
+      {
+	  fprintf (stderr, "Unexpected raster pixel RGB\n");
+	  return -71;
+      }
+
+    if (num_bands != 3)
       {
 	  fprintf (stderr, "Unexpected raster # bands RGB\n");
-	  return -70;
+	  return -72;
       }
 
     if (rl2_raster_georeference_upper_right
@@ -545,31 +628,37 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unable to georeference a raster (UpperRight corner)\n");
-	  return -71;
-      }
-
-    if (rl2_get_raster_minX (raster) != -52.5)
-      {
-	  fprintf (stderr, "Unexpected raster MinX (UpperRight corner)\n");
-	  return -72;
-      }
-
-    if (rl2_get_raster_minY (raster) != -21.5)
-      {
-	  fprintf (stderr, "Unexpected raster MinY (UpperRight corner)\n");
 	  return -73;
       }
 
-    if (rl2_get_raster_maxX (raster) != 75.5)
+    if (rl2_get_raster_extent (raster, &minX, &minY, &maxX, &maxY) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected raster MaxX (UpperRight corner)\n");
+	  fprintf (stderr, "Unable to get raster extent (UpperRight corner)\n");
 	  return -74;
       }
 
-    if (rl2_get_raster_maxY (raster) != 106.5)
+    if (minX != -52.5)
+      {
+	  fprintf (stderr, "Unexpected raster MinX (UpperRight corner)\n");
+	  return -75;
+      }
+
+    if (minY != -21.5)
+      {
+	  fprintf (stderr, "Unexpected raster MinY (UpperRight corner)\n");
+	  return -76;
+      }
+
+    if (maxX != 75.5)
+      {
+	  fprintf (stderr, "Unexpected raster MaxX (UpperRight corner)\n");
+	  return -77;
+      }
+
+    if (maxY != 106.5)
       {
 	  fprintf (stderr, "Unexpected raster MaxY (UpperRight corner)\n");
-	  return -75;
+	  return -78;
       }
     rl2_destroy_raster (raster);
 
@@ -580,32 +669,39 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/U16 raster\n");
-	  return -77;
-      }
-
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT16)
-      {
-	  fprintf (stderr, "Unexpected raster sample GRID/U16\n");
-	  return -78;
-      }
-
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
-      {
-	  fprintf (stderr, "Unexpected raster pixel GRID/U16\n");
 	  return -79;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/U16\n");
+	  return -80;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT16)
+      {
+	  fprintf (stderr, "Unexpected raster sample GRID/U16\n");
+	  return -81;
+      }
+
+    if (pixel_type != RL2_PIXEL_DATAGRID)
+      {
+	  fprintf (stderr, "Unexpected raster pixel GRID/U16\n");
+	  return -82;
+      }
+
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/U16\n");
-	  return -80;
+	  return -83;
       }
 
     if (rl2_raster_georeference_frame (raster, 4326, -52.5, -21.5, 75.5, 106.5)
 	!= RL2_OK)
       {
 	  fprintf (stderr, "Unable to georeference a raster (frame)\n");
-	  return -81;
+	  return -84;
       }
 
     if (rl2_raster_georeference_frame (raster, 4326, 82.5, -21.5, 75.5, 106.5)
@@ -613,7 +709,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected: georeference a raster (invalid frame)\n");
-	  return -581;
+	  return -85;
       }
 
     if (rl2_raster_georeference_frame (raster, 4326, -52.5, 121.5, 75.5, 106.5)
@@ -621,19 +717,26 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected: georeference a raster (invalid frame)\n");
-	  return -681;
+	  return -86;
       }
 
-    if (rl2_get_raster_horizontal_resolution (raster) != 0.5)
+    if (rl2_get_raster_resolution (raster, &hResolution, &vResolution) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster resolution (frame)\n");
+	  return -87;
+      }
+
+    if (hResolution != 0.5)
       {
 	  fprintf (stderr, "Unexpected raster horizontal resolution (frame)\n");
-	  return -82;
+	  return -88;
       }
 
-    if (rl2_get_raster_vertical_resolution (raster) != 0.5)
+    if (vResolution != 0.5)
       {
 	  fprintf (stderr, "Unexpected raster vertical resolution (frame)\n");
-	  return -83;
+	  return -89;
       }
     rl2_destroy_raster (raster);
 
@@ -644,38 +747,39 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/32 raster\n");
-	  return -84;
+	  return -90;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_INT32)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/32\n");
+	  return -91;
+      }
+
+    if (sample_type != RL2_SAMPLE_INT32)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/32\n");
-	  return -85;
+	  return -92;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/32\n");
-	  return -86;
+	  return -93;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/32\n");
-	  return -87;
+	  return -94;
       }
 
-    if (rl2_get_raster_horizontal_resolution (raster) != DBL_MAX)
+    if (rl2_get_raster_resolution (raster, &hResolution, &vResolution) !=
+	RL2_ERROR)
       {
-	  fprintf (stderr,
-		   "Unexpected raster horizontal resolution (GRID/32)\n");
-	  return -88;
-      }
-
-    if (rl2_get_raster_vertical_resolution (raster) != DBL_MAX)
-      {
-	  fprintf (stderr, "Unexpected raster vertical resolution (GRID/32)\n");
-	  return -89;
+	  fprintf (stderr, "Unexpected raster resolution (GRID/32)\n");
+	  return -95;
       }
     rl2_destroy_raster (raster);
 
@@ -686,25 +790,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/16 raster\n");
-	  return -90;
+	  return -96;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_INT16)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/16\n");
+	  return -97;
+      }
+
+    if (sample_type != RL2_SAMPLE_INT16)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/16\n");
-	  return -91;
+	  return -98;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/16\n");
-	  return -92;
+	  return -99;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/16\n");
-	  return -93;
+	  return -100;
       }
     rl2_destroy_raster (raster);
 
@@ -715,25 +826,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/8 raster\n");
-	  return -94;
+	  return -101;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_INT8)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/8\n");
+	  return -102;
+      }
+
+    if (sample_type != RL2_SAMPLE_INT8)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/8\n");
-	  return -95;
+	  return -103;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/8\n");
-	  return -96;
+	  return -104;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/8\n");
-	  return -97;
+	  return -105;
       }
     rl2_destroy_raster (raster);
 
@@ -744,25 +862,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/U8 raster\n");
-	  return -98;
+	  return -106;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT8)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/U8\n");
+	  return -107;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/U8\n");
-	  return -99;
+	  return -108;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/U8\n");
-	  return -100;
+	  return -109;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/U8\n");
-	  return -101;
+	  return -110;
       }
     rl2_destroy_raster (raster);
 
@@ -773,25 +898,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/U32 raster\n");
-	  return -102;
+	  return -111;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT32)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/U32\n");
+	  return -112;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT32)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/U32\n");
-	  return -103;
+	  return -113;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/U32\n");
-	  return -104;
+	  return -114;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/U32\n");
-	  return -105;
+	  return -115;
       }
     rl2_destroy_raster (raster);
 
@@ -802,25 +934,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/FLT raster\n");
-	  return -106;
+	  return -116;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_FLOAT)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/FLT\n");
+	  return -117;
+      }
+
+    if (sample_type != RL2_SAMPLE_FLOAT)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/FLT\n");
-	  return -107;
+	  return -118;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/FLT\n");
-	  return -108;
+	  return -119;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/FLT\n");
-	  return -109;
+	  return -120;
       }
     rl2_destroy_raster (raster);
 
@@ -831,25 +970,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRID/DBL raster\n");
-	  return -110;
+	  return -121;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_DOUBLE)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type GRID/DBL\n");
+	  return -122;
+      }
+
+    if (sample_type != RL2_SAMPLE_DOUBLE)
       {
 	  fprintf (stderr, "Unexpected raster sample GRID/DBL\n");
-	  return -111;
+	  return -123;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_DATAGRID)
+    if (pixel_type != RL2_PIXEL_DATAGRID)
       {
 	  fprintf (stderr, "Unexpected raster pixel GRID/DBL\n");
-	  return -112;
+	  return -124;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands GRID/DBL\n");
-	  return -113;
+	  return -125;
       }
     rl2_destroy_raster (raster);
 
@@ -862,25 +1008,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a PALETTE/1 raster\n");
-	  return -114;
+	  return -126;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_1_BIT)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type PALETTE/1\n");
+	  return -127;
+      }
+
+    if (sample_type != RL2_SAMPLE_1_BIT)
       {
 	  fprintf (stderr, "Unexpected raster sample PALETTE/1\n");
-	  return -115;
+	  return -128;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_PALETTE)
+    if (pixel_type != RL2_PIXEL_PALETTE)
       {
 	  fprintf (stderr, "Unexpected raster pixel PALETTE/1\n");
-	  return -116;
+	  return -129;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands PALETTE/1\n");
-	  return -117;
+	  return -130;
       }
     rl2_destroy_raster (raster);
 
@@ -893,25 +1046,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a PALETTE/2 raster\n");
-	  return -118;
+	  return -131;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_2_BIT)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type PALETTE/2\n");
+	  return -132;
+      }
+
+    if (sample_type != RL2_SAMPLE_2_BIT)
       {
 	  fprintf (stderr, "Unexpected raster sample PALETTE/2\n");
-	  return -119;
+	  return -133;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_PALETTE)
+    if (pixel_type != RL2_PIXEL_PALETTE)
       {
 	  fprintf (stderr, "Unexpected raster pixel PALETTE/2\n");
-	  return -120;
+	  return -134;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands PALETTE/2\n");
-	  return -121;
+	  return -135;
       }
     rl2_destroy_raster (raster);
 
@@ -924,25 +1084,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a PALETTE/4 raster\n");
-	  return -122;
+	  return -136;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_4_BIT)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type PALETTE/4\n");
+	  return -137;
+      }
+
+    if (sample_type != RL2_SAMPLE_4_BIT)
       {
 	  fprintf (stderr, "Unexpected raster sample PALETTE/4\n");
-	  return -123;
+	  return -138;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_PALETTE)
+    if (pixel_type != RL2_PIXEL_PALETTE)
       {
 	  fprintf (stderr, "Unexpected raster pixel PALETTE/4\n");
-	  return -124;
+	  return -139;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands PALETTE/4\n");
-	  return -125;
+	  return -140;
       }
     rl2_destroy_raster (raster);
 
@@ -955,25 +1122,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a PALETTE/8 raster\n");
-	  return -126;
+	  return -141;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT8)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type PALETTE/8\n");
+	  return -142;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
 	  fprintf (stderr, "Unexpected raster sample PALETTE/8\n");
-	  return -127;
+	  return -143;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_PALETTE)
+    if (pixel_type != RL2_PIXEL_PALETTE)
       {
 	  fprintf (stderr, "Unexpected raster pixel PALETTE/8\n");
-	  return -128;
+	  return -144;
       }
 
-    if (rl2_get_raster_bands (raster) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected raster # bands PALETTE/8\n");
-	  return -129;
+	  return -145;
       }
     rl2_destroy_raster (raster);
 
@@ -984,25 +1158,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a MULTIBAND/5 raster\n");
-	  return -130;
+	  return -146;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT8)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type MULTIBAND/5\n");
+	  return -147;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
 	  fprintf (stderr, "Unexpected raster sample MULTIBAND/5\n");
-	  return -131;
+	  return -148;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_MULTIBAND)
+    if (pixel_type != RL2_PIXEL_MULTIBAND)
       {
 	  fprintf (stderr, "Unexpected raster pixel MULTIBAND/5\n");
-	  return -132;
+	  return -149;
       }
 
-    if (rl2_get_raster_bands (raster) != 5)
+    if (num_bands != 5)
       {
 	  fprintf (stderr, "Unexpected raster # bands MULTIBAND/5\n");
-	  return -133;
+	  return -150;
       }
     rl2_destroy_raster (raster);
 
@@ -1013,25 +1194,32 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a MULTIBAND/16 raster\n");
-	  return -134;
+	  return -151;
       }
 
-    if (rl2_get_raster_sample_type (raster) != RL2_SAMPLE_UINT16)
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get raster type MULTIBAND/16\n");
+	  return -152;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT16)
       {
 	  fprintf (stderr, "Unexpected raster sample MULTIBAND/16\n");
-	  return -135;
+	  return -153;
       }
 
-    if (rl2_get_raster_pixel_type (raster) != RL2_PIXEL_MULTIBAND)
+    if (pixel_type != RL2_PIXEL_MULTIBAND)
       {
 	  fprintf (stderr, "Unexpected raster pixel MULTIBAND/16\n");
-	  return -136;
+	  return -154;
       }
 
-    if (rl2_get_raster_bands (raster) != 3)
+    if (num_bands != 3)
       {
 	  fprintf (stderr, "Unexpected raster # bands MULTIBAND/16\n");
-	  return -137;
+	  return -155;
       }
     rl2_destroy_raster (raster);
 
@@ -1039,25 +1227,25 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -138;
+	  return -156;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Red NoData #1\n");
-	  return -139;
+	  return -157;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, 255) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Green NoData #1\n");
-	  return -140;
+	  return -158;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Blue NoData #1\n");
-	  return -141;
+	  return -159;
       }
 
     bufpix = malloc (256 * 256 * 3);
@@ -1068,125 +1256,125 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a valid raster\n");
-	  return -142;
+	  return -160;
       }
 
     no_data = rl2_get_raster_no_data (raster);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to get NoData from raster #1\n");
-	  return -143;
+	  return -161;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_RED_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get RED NoData from raster #1\n");
-	  return -144;
+	  return -162;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected RED NoData from raster #1\n");
-	  return -145;
+	  return -162;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get GREEN NoData from raster #1\n");
-	  return -146;
+	  return -162;
       }
 
     if (sample != 255)
       {
 	  fprintf (stderr, "Unexpected GREEN NoData from raster #1\n");
-	  return -147;
+	  return -165;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get BLUE NoData from raster #1\n");
-	  return -148;
+	  return -166;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected BLUE NoData from raster #1\n");
-	  return -149;
+	  return -167;
       }
 
     no_data = rl2_create_raster_pixel (raster);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a pixel for raster #1\n");
-	  return -150;
+	  return -168;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, 255) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Red NoData #2\n");
-	  return -151;
+	  return -169;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Green NoData #2\n");
-	  return -152;
+	  return -170;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, 255) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Blue NoData #2\n");
-	  return -153;
+	  return -171;
       }
 
     no_data = rl2_get_raster_no_data (raster);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to get NoData from raster #2\n");
-	  return -157;
+	  return -172;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_RED_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get RED NoData from raster #2\n");
-	  return -158;
+	  return -173;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected RED NoData from raster #2\n");
-	  return -159;
+	  return -174;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get GREEN NoData from raster #2\n");
-	  return -160;
+	  return -175;
       }
 
     if (sample != 255)
       {
 	  fprintf (stderr, "Unexpected GREEN NoData from raster #2\n");
-	  return -161;
+	  return -176;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get BLUE NoData from raster #2\n");
-	  return -162;
+	  return -177;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected BLUE NoData from raster #2\n");
-	  return -163;
+	  return -178;
       }
 
     no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -164;
+	  return -179;
       }
 
     bufpix = malloc (256 * 256 * 3);
@@ -1198,7 +1386,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create raster (invalid NoData)\n");
-	  return -166;
+	  return -180;
       }
     free (bufpix);
 
@@ -1209,13 +1397,13 @@ main (int argc, char *argv[])
     if (rl2_get_raster_no_data (NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: get NoData (NULL raster)\n");
-	  return -167;
+	  return -181;
       }
 
     if (rl2_create_raster_pixel (NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: get pixel (NULL raster)\n");
-	  return -168;
+	  return -182;
       }
 
     bufpix = malloc (256 * 256);
@@ -1223,70 +1411,70 @@ main (int argc, char *argv[])
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unable to create a MONOCHROME raster\n");
-	  return -170;
+	  return -183;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_2_BIT, RL2_PIXEL_MONOCHROME, 1,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL))
       {
 	  fprintf (stderr, "Unexpected result: create a MONOCHROME raster\n");
-	  return -171;
+	  return -184;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 2,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL))
       {
 	  fprintf (stderr, "Unexpected result: create a MONOCHROME raster\n");
-	  return -172;
+	  return -185;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_INT8, RL2_PIXEL_PALETTE, 1,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a MONOCHROME raster\n");
-	  return -173;
+	  return -186;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_4_BIT, RL2_PIXEL_GRAYSCALE, 2,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a GRAYSCALE raster\n");
-	  return -174;
+	  return -187;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_INT8, RL2_PIXEL_GRAYSCALE, 1,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a GRAYSCALE raster\n");
-	  return -175;
+	  return -188;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_UINT8, RL2_PIXEL_DATAGRID, 2,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a DATAGRID raster\n");
-	  return -176;
+	  return -189;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_4_BIT, RL2_PIXEL_DATAGRID, 1,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a DATAGRID raster\n");
-	  return -177;
+	  return -190;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_4_BIT, RL2_PIXEL_MULTIBAND, 1,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a MULTIBAND raster\n");
-	  return -178;
+	  return -191;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_UINT8, RL2_PIXEL_MULTIBAND, 1,
 			   bufpix, 256 * 256, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a MULTIBAND raster\n");
-	  return -179;
+	  return -192;
       }
     free (bufpix);
 
@@ -1295,21 +1483,21 @@ main (int argc, char *argv[])
 			   bufpix, 256 * 256 * 3, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a MULTIBAND raster\n");
-	  return -180;
+	  return -193;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_FLOAT, RL2_PIXEL_RGB, 3,
 			   bufpix, 256 * 256 * 3, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a MULTIBAND raster\n");
-	  return -181;
+	  return -194;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 2,
 			   bufpix, 256 * 256 * 3, NULL, NULL, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: create a MULTIBAND raster\n");
-	  return -182;
+	  return -195;
       }
     free (bufpix);
 
@@ -1321,14 +1509,14 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create raster (2 Bands)\n");
-	  return -183;
+	  return -196;
       }
 
     no_data = rl2_create_pixel (RL2_SAMPLE_UINT16, RL2_PIXEL_MULTIBAND, 2);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -184;
+	  return -197;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1,
@@ -1336,7 +1524,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Gray/16 raster with NoData\n");
-	  return -186;
+	  return -198;
       }
 
     rl2_destroy_pixel (no_data);
@@ -1345,7 +1533,7 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -187;
+	  return -199;
       }
 
     rl2_destroy_pixel (no_data);
@@ -1359,7 +1547,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a MONOCHROME raster with mask\n");
-	  return -189;
+	  return -200;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_4_BIT, RL2_PIXEL_GRAYSCALE, 1,
@@ -1368,7 +1556,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Gray/16 raster with mask\n");
-	  return -190;
+	  return -201;
       }
 
     palette = build_palette (2);
@@ -1378,7 +1566,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Palette raster with mask\n");
-	  return -191;
+	  return -202;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_1_BIT, RL2_PIXEL_GRAYSCALE, 1,
@@ -1386,7 +1574,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Grayscale raster with palette\n");
-	  return -192;
+	  return -203;
       }
 
     *bufpix = 2;
@@ -1395,7 +1583,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Palette raster [invalid buffer]\n");
-	  return -193;
+	  return -204;
       }
     rl2_destroy_palette (palette);
 
@@ -1405,7 +1593,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a MONOCHROME raster [invalid buffer]\n");
-	  return -194;
+	  return -205;
       }
 
     *bufpix = 4;
@@ -1414,7 +1602,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Gray/4 raster [invalid buffer]\n");
-	  return -195;
+	  return -206;
       }
 
     *bufpix = 16;
@@ -1423,7 +1611,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Gray/16 raster [invalid buffer]\n");
-	  return -196;
+	  return -207;
       }
 
     *mask = 2;
@@ -1433,7 +1621,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Gray/16 raster [invalid mask]\n");
-	  return -197;
+	  return -208;
       }
 
     if (rl2_create_raster (256, 256, RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1,
@@ -1442,93 +1630,53 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a Gray/16 raster with mask\n");
-	  return -198;
+	  return -209;
       }
     free (bufpix);
     free (mask);
 
-    if (rl2_get_raster_sample_type (NULL) != RL2_SAMPLE_UNKNOWN)
+    if (rl2_get_raster_type (NULL, &sample_type, &pixel_type, &num_bands) !=
+	RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: Raster Sample (NULL)\n");
-	  return -199;
+	  return -210;
       }
 
-    if (rl2_get_raster_pixel_type (NULL) != RL2_PIXEL_UNKNOWN)
-      {
-	  fprintf (stderr, "Unexpected result: Raster Pixel (NULL)\n");
-	  return -200;
-      }
-
-    if (rl2_get_raster_bands (NULL) != RL2_BANDS_UNKNOWN)
-      {
-	  fprintf (stderr, "Unexpected result: Raster Bands (NULL)\n");
-	  return -201;
-      }
-
-    if (rl2_get_raster_width (NULL) != RL2_ERROR)
+    if (rl2_get_raster_size (NULL, &width, &height) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: Raster Width (NULL)\n");
-	  return -202;
+	  return -211;
       }
 
-    if (rl2_get_raster_height (NULL) != RL2_ERROR)
-      {
-	  fprintf (stderr, "Unexpected result: Raster Height (NULL)\n");
-	  return -203;
-      }
-
-    if (rl2_get_raster_srid (NULL) != RL2_GEOREFERENCING_NONE)
+    if (rl2_get_raster_srid (NULL, &srid) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: Raster SRID (NULL)\n");
-	  return -204;
+	  return -212;
       }
 
-    if (rl2_get_raster_minX (NULL) != DBL_MAX)
+    if (rl2_get_raster_extent (NULL, &minX, &minY, &maxX, &maxY) != RL2_ERROR)
       {
-	  fprintf (stderr, "Unexpected result: Raster MinX (NULL)\n");
-	  return -205;
+	  fprintf (stderr, "Unexpected result: Raster extent (NULL)\n");
+	  return -213;
       }
 
-    if (rl2_get_raster_minY (NULL) != DBL_MAX)
+    if (rl2_get_raster_resolution (NULL, &hResolution, &vResolution) !=
+	RL2_ERROR)
       {
-	  fprintf (stderr, "Unexpected result: Raster MinY (NULL)\n");
-	  return -206;
-      }
-
-    if (rl2_get_raster_maxX (NULL) != DBL_MAX)
-      {
-	  fprintf (stderr, "Unexpected result: Raster MaxX (NULL)\n");
-	  return -207;
-      }
-
-    if (rl2_get_raster_maxY (NULL) != DBL_MAX)
-      {
-	  fprintf (stderr, "Unexpected result: Raster MaxY (NULL)\n");
-	  return -208;
-      }
-
-    if (rl2_get_raster_horizontal_resolution (NULL) != DBL_MAX)
-      {
-	  fprintf (stderr, "Unexpected result: Raster HorzRes (NULL)\n");
-	  return -209;
-      }
-
-    if (rl2_get_raster_vertical_resolution (NULL) != DBL_MAX)
-      {
-	  fprintf (stderr, "Unexpected result: Raster VertRes (NULL)\n");
-	  return -210;
+	  fprintf (stderr, "Unexpected result: Raster Resolution (NULL)\n");
+	  return -214;
       }
 
     if (rl2_get_raster_palette (NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Raster Palette (NULL)\n");
-	  return -211;
+	  return -215;
       }
 
     if (rl2_raster_georeference_center (NULL, 4326, 1, 1, 1, 1) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: Raster GeoRef Center (NULL)\n");
-	  return -212;
+	  return -216;
       }
 
     if (rl2_raster_georeference_upper_left (NULL, 4326, 1, 1, 1, 1) !=
@@ -1536,7 +1684,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: Raster GeoRef UpperLeft (NULL)\n");
-	  return -213;
+	  return -217;
       }
 
     if (rl2_raster_georeference_upper_right (NULL, 4326, 1, 1, 1, 1) !=
@@ -1544,7 +1692,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: Raster GeoRef UpperRight (NULL)\n");
-	  return -213;
+	  return -218;
       }
 
     if (rl2_raster_georeference_lower_left (NULL, 4326, 1, 1, 1, 1) !=
@@ -1552,7 +1700,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: Raster GeoRef LowerLeft (NULL)\n");
-	  return -214;
+	  return -219;
       }
 
     if (rl2_raster_georeference_lower_right (NULL, 4326, 1, 1, 1, 1) !=
@@ -1560,13 +1708,13 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: Raster GeoRef LowerRight (NULL)\n");
-	  return -215;
+	  return -220;
       }
 
     if (rl2_raster_georeference_frame (NULL, 4326, 1, 1, 1, 1) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: Raster GeoRef Frame (NULL)\n");
-	  return -215;
+	  return -221;
       }
 
     rl2_destroy_raster (NULL);
@@ -1579,62 +1727,62 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRAYSCALE/256\n");
-	  return -216;
+	  return -222;
       }
 
     pixel = rl2_create_pixel (RL2_SAMPLE_UINT16, RL2_PIXEL_DATAGRID, 1);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create UINT16 pixels for testing\n");
-	  return -217;
+	  return -223;
       }
 
     if (rl2_get_raster_pixel (NULL, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (NULL, NULL)\n");
-	  return -218;
+	  return -224;
       }
 
     if (rl2_set_raster_pixel (NULL, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (NULL, NULL)\n");
-	  return -218;
+	  return -225;
       }
 
     if (rl2_get_raster_pixel (raster, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (valid, NULL)\n");
-	  return -219;
+	  return -226;
       }
 
     if (rl2_set_raster_pixel (raster, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (valid, NULL)\n");
-	  return -220;
+	  return -227;
       }
 
     if (rl2_get_raster_pixel (NULL, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (NULL, valid)\n");
-	  return -221;
+	  return -228;
       }
 
     if (rl2_set_raster_pixel (NULL, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (NULL, valid)\n");
-	  return -222;
+	  return -229;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (mismatching sample)\n");
-	  return -223;
+	  return -230;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (mismatching sample)\n");
-	  return -224;
+	  return -231;
       }
     rl2_destroy_pixel (pixel);
 
@@ -1642,19 +1790,19 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create UINT8 pixels for testing\n");
-	  return -225;
+	  return -232;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (mismatching pixel)\n");
-	  return -226;
+	  return -233;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (mismatching pixel)\n");
-	  return -227;
+	  return -234;
       }
     rl2_destroy_pixel (pixel);
 
@@ -1662,31 +1810,31 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create Gray/256 pixels for testing\n");
-	  return -228;
+	  return -235;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 2000, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (invalid row)\n");
-	  return -229;
+	  return -236;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 2000, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (invalid row)\n");
-	  return -230;
+	  return -237;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 10, 2000) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (invalid col)\n");
-	  return -231;
+	  return -238;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 10, 2000) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (invalid col)\n");
-	  return -232;
+	  return -239;
       }
     rl2_destroy_pixel (pixel);
 

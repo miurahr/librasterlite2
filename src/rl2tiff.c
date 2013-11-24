@@ -2198,7 +2198,7 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
     if (pixel_type == RL2_PIXEL_PALETTE)
       {
 	  /* PALETTE */
-	  int max_palette;
+	  unsigned short max_palette;
 	  unsigned char *red;
 	  unsigned char *green;
 	  unsigned char *blue;

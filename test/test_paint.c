@@ -51,8 +51,8 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 {
     unsigned char *buffer;
     int buf_size;
-    int width;
-    int height;
+    unsigned short width;
+    unsigned short height;
     rl2GraphicsBitmapPtr bmp;
     rl2GraphicsPatternPtr pattern;
     rl2RasterPtr rst;
@@ -86,14 +86,13 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 	  fprintf (stderr, "\"%s\" invalid raster pointer\n", "./jpeg1.jpg");
 	  return -11;
       }
-    width = rl2_get_raster_width (rst);
+    rl2_get_raster_size (rst, &width, &height);
     if (width != 558)
       {
 	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg1.jpg",
 		   width);
 	  return -12;
       }
-    height = rl2_get_raster_height (rst);
     if (height != 543)
       {
 	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg1.jpg",
@@ -139,14 +138,13 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 	  fprintf (stderr, "\"%s\" invalid raster pointer\n", "./jpeg2.jpg");
 	  return -18;
       }
-    width = rl2_get_raster_width (rst);
+    rl2_get_raster_size (rst, &width, &height);
     if (width != 558)
       {
 	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg2.jpg",
 		   width);
 	  return -19;
       }
-    height = rl2_get_raster_height (rst);
     if (height != 543)
       {
 	  fprintf (stderr, "\"%s\" unexpected raster width %d\n", "./jpeg2.jpg",

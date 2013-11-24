@@ -49,6 +49,10 @@ main (int argc, char *argv[])
 {
     rl2RasterPtr raster;
     rl2SectionPtr section;
+    unsigned char compression;
+    int is_compressed;
+    unsigned short tile_width;
+    unsigned short tile_height;
     unsigned char *bufpix = malloc (256 * 256);
 
     if (argc > 1 || argv[0] == NULL)
@@ -119,16 +123,23 @@ main (int argc, char *argv[])
 	  return -9;
       }
 
-    if (rl2_get_section_tile_width (section) != 256)
+    if (rl2_get_section_tile_size (section, &tile_width, &tile_height) !=
+	RL2_OK)
       {
-	  fprintf (stderr, "Unexpected section tile width (256)\n");
+	  fprintf (stderr, "Unable to get Section Tile Size\n");
 	  return -10;
       }
 
-    if (rl2_get_section_tile_height (section) != 512)
+    if (tile_width != 256)
+      {
+	  fprintf (stderr, "Unexpected section tile width (256)\n");
+	  return -11;
+      }
+
+    if (tile_height != 512)
       {
 	  fprintf (stderr, "Unexpected section tile height (512)\n");
-	  return -11;
+	  return -12;
       }
 
     rl2_destroy_section (section);
@@ -141,7 +152,7 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a raster (take two)\n");
-	  return -12;
+	  return -13;
       }
 
     section =
@@ -151,49 +162,78 @@ main (int argc, char *argv[])
     if (section == NULL)
       {
 	  fprintf (stderr, "Unable to create a valid section (untiled)\n");
-	  return -13;
+	  return -14;
       }
 
     if (rl2_get_section_name (section) == NULL)
       {
 	  fprintf (stderr, "Unable to retrieve the section name\n");
-	  return -14;
-      }
-
-    if (rl2_get_section_compression (section) != RL2_COMPRESSION_NONE)
-      {
-	  fprintf (stderr, "Unexpected section compression\n");
 	  return -15;
       }
 
-    if (rl2_is_section_uncompressed (section) != RL2_TRUE)
+    if (rl2_get_section_compression (section, &compression) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected section not compressed\n");
+	  fprintf (stderr, "Unable to get section compression\n");
 	  return -16;
       }
 
-    if (rl2_is_section_compression_lossless (section) != RL2_FALSE)
+    if (compression != RL2_COMPRESSION_NONE)
       {
-	  fprintf (stderr, "Unexpected section compression lossless\n");
+	  fprintf (stderr, "Unexpected section compression\n");
 	  return -17;
       }
 
-    if (rl2_is_section_compression_lossy (section) != RL2_FALSE)
+    if (rl2_is_section_uncompressed (section, &is_compressed) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected section compression lossy\n");
+	  fprintf (stderr, "Unable to get section not compressed\n");
 	  return -18;
       }
 
-    if (rl2_get_section_tile_width (section) != RL2_TILESIZE_UNDEFINED)
+    if (is_compressed != RL2_TRUE)
       {
-	  fprintf (stderr, "Unexpected section tile width (untiled)\n");
+	  fprintf (stderr, "Unexpected section not compressed\n");
 	  return -19;
       }
 
-    if (rl2_get_section_tile_height (section) != RL2_TILESIZE_UNDEFINED)
+    if (rl2_is_section_compression_lossless (section, &is_compressed) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected section tile height (untiled)\n");
+	  fprintf (stderr, "Unable to get section compression lossless\n");
 	  return -20;
+      }
+
+    if (is_compressed != RL2_FALSE)
+      {
+	  fprintf (stderr, "Unexpected section compression lossless\n");
+	  return -21;
+      }
+
+    if (rl2_is_section_compression_lossy (section, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get section compression lossy\n");
+	  return -22;
+      }
+
+    if (is_compressed != RL2_FALSE)
+      {
+	  fprintf (stderr, "Unexpected section compression lossy\n");
+	  return -23;
+      }
+
+    if (rl2_get_section_tile_size (section, &tile_width, &tile_height) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get tile size (untiled)\n");
+	  return -24;
+      }
+    if (tile_width != RL2_TILESIZE_UNDEFINED)
+      {
+	  fprintf (stderr, "Unexpected section tile width (untiled)\n");
+	  return -25;
+      }
+    if (tile_height != RL2_TILESIZE_UNDEFINED)
+      {
+	  fprintf (stderr, "Unexpected section tile width (untiled)\n");
+	  return -26;
       }
 
     rl2_destroy_section (section);
@@ -201,43 +241,38 @@ main (int argc, char *argv[])
     if (rl2_get_section_name (NULL) != NULL)
       {
 	  fprintf (stderr, "ERROR: NULL section name\n");
-	  return -21;
+	  return -27;
       }
 
-    if (rl2_get_section_compression (NULL) != RL2_COMPRESSION_UNKNOWN)
+    if (rl2_get_section_compression (NULL, &compression) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL section compression\n");
-	  return -22;
+	  return -28;
       }
 
-    if (rl2_is_section_uncompressed (NULL) != RL2_ERROR)
+    if (rl2_is_section_uncompressed (NULL, &is_compressed) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL section not compressed\n");
-	  return -23;
+	  return -29;
       }
 
-    if (rl2_is_section_compression_lossless (NULL) != RL2_ERROR)
+    if (rl2_is_section_compression_lossless (NULL, &is_compressed) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL section compression lossless\n");
-	  return -24;
+	  return -30;
       }
 
-    if (rl2_is_section_compression_lossy (NULL) != RL2_ERROR)
+    if (rl2_is_section_compression_lossy (NULL, &is_compressed) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL section compression lossy\n");
-	  return -25;
+	  return -31;
       }
 
-    if (rl2_get_section_tile_width (NULL) != RL2_ERROR)
+    if (rl2_get_section_tile_size (NULL, &tile_width, &tile_height) !=
+	RL2_ERROR)
       {
-	  fprintf (stderr, "ERROR: NULL section tile width\n");
-	  return -26;
-      }
-
-    if (rl2_get_section_tile_height (NULL) != RL2_ERROR)
-      {
-	  fprintf (stderr, "ERROR: NULL section tile height\n");
-	  return -27;
+	  fprintf (stderr, "ERROR: NULL section tile size\n");
+	  return -32;
       }
 
 /* re-creating another raster */
@@ -248,7 +283,7 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a raster (take three)\n");
-	  return -28;
+	  return -33;
       }
 
     if (rl2_create_section ("alpha", RL2_COMPRESSION_NONE,
@@ -256,7 +291,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a valid section (bad tile width)\n");
-	  return -29;
+	  return -34;
       }
 
     if (rl2_create_section ("alpha", RL2_COMPRESSION_NONE,
@@ -264,7 +299,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a valid section (bad tile height)\n");
-	  return -30;
+	  return -35;
       }
 
     if (rl2_create_section ("alpha", RL2_COMPRESSION_NONE,
@@ -272,7 +307,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a valid section (bad tile width)\n");
-	  return -31;
+	  return -36;
       }
 
     if (rl2_create_section ("alpha", RL2_COMPRESSION_NONE,
@@ -280,7 +315,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a valid section (bad tile height)\n");
-	  return -32;
+	  return -37;
       }
 
     if (rl2_create_section ("alpha", RL2_COMPRESSION_NONE,
@@ -288,7 +323,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a valid section (bad tile width)\n");
-	  return -33;
+	  return -38;
       }
 
     if (rl2_create_section ("alpha", RL2_COMPRESSION_NONE,
@@ -296,7 +331,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create a valid section (bad tile height)\n");
-	  return -34;
+	  return -39;
       }
 
     rl2_destroy_raster (raster);

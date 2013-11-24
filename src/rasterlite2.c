@@ -465,70 +465,49 @@ rl2_get_coverage_name (rl2CoveragePtr ptr)
     return cvg->coverageName;
 }
 
-RL2_DECLARE unsigned char
-rl2_get_coverage_sample_type (rl2CoveragePtr ptr)
+RL2_DECLARE int
+rl2_get_coverage_type (rl2CoveragePtr ptr, unsigned char *sample_type,
+		       unsigned char *pixel_type, unsigned char *num_bands)
 {
-/* return the Coverage sample type */
+/* return the Coverage type */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
     if (cvg == NULL)
-	return RL2_SAMPLE_UNKNOWN;
-    return cvg->sampleType;
+	return RL2_ERROR;
+    *sample_type = cvg->sampleType;
+    *pixel_type = cvg->pixelType;
+    *num_bands = cvg->nBands;
+    return RL2_OK;
 }
 
-RL2_DECLARE unsigned char
-rl2_get_coverage_pixel_type (rl2CoveragePtr ptr)
-{
-/* return the Coverage pixel type */
-    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
-    if (cvg == NULL)
-	return RL2_PIXEL_UNKNOWN;
-    return cvg->pixelType;
-}
-
-RL2_DECLARE unsigned char
-rl2_get_coverage_bands (rl2CoveragePtr ptr)
-{
-/* return the Coverage # bands */
-    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
-    if (cvg == NULL)
-	return RL2_BANDS_UNKNOWN;
-    return cvg->nBands;
-}
-
-RL2_DECLARE unsigned char
-rl2_get_coverage_compression (rl2CoveragePtr ptr)
+RL2_DECLARE int
+rl2_get_coverage_compression (rl2CoveragePtr ptr, unsigned char *compression,
+			      int *quality)
 {
 /* return the Coverage compression */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
     if (cvg == NULL)
-	return RL2_COMPRESSION_UNKNOWN;
-    return cvg->Compression;
+	return RL2_ERROR;
+    *compression = cvg->Compression;
+    *quality = cvg->Quality;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_get_coverage_quality (rl2CoveragePtr ptr)
-{
-/* return the Coverage quality */
-    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
-    if (cvg == NULL)
-	return -1;
-    return cvg->Quality;
-}
-
-RL2_DECLARE int
-rl2_is_coverage_uncompressed (rl2CoveragePtr ptr)
+rl2_is_coverage_uncompressed (rl2CoveragePtr ptr, int *is_uncompressed)
 {
 /* tests if Coverage is compressed */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
     if (cvg == NULL)
 	return RL2_ERROR;
     if (cvg->Compression == RL2_COMPRESSION_NONE)
-	return RL2_TRUE;
-    return RL2_FALSE;
+	*is_uncompressed = RL2_TRUE;
+    else
+	*is_uncompressed = RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_is_coverage_compression_lossless (rl2CoveragePtr ptr)
+rl2_is_coverage_compression_lossless (rl2CoveragePtr ptr, int *is_lossless)
 {
 /* tests if Coverage is lossless compressed */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
@@ -540,13 +519,17 @@ rl2_is_coverage_compression_lossless (rl2CoveragePtr ptr)
       case RL2_COMPRESSION_LZMA:
       case RL2_COMPRESSION_GIF:
       case RL2_COMPRESSION_PNG:
-	  return RL2_TRUE;
+	  *is_lossless = RL2_TRUE;
+	  break;
+      default:
+	  *is_lossless = RL2_FALSE;
+	  break;
       };
-    return RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_is_coverage_compression_lossy (rl2CoveragePtr ptr)
+rl2_is_coverage_compression_lossy (rl2CoveragePtr ptr, int *is_lossy)
 {
 /* tests if Coverage is lossy compressed */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
@@ -556,29 +539,26 @@ rl2_is_coverage_compression_lossy (rl2CoveragePtr ptr)
       {
       case RL2_COMPRESSION_JPEG:
       case RL2_COMPRESSION_LOSSY_WEBP:
-	  return RL2_TRUE;
+	  *is_lossy = RL2_TRUE;
+	  break;
+      default:
+	  *is_lossy = RL2_FALSE;
+	  break;
       };
-    return RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_get_coverage_tile_width (rl2CoveragePtr ptr)
+rl2_get_coverage_tile_size (rl2CoveragePtr ptr, unsigned short *tile_width,
+			    unsigned short *tile_height)
 {
 /* return the Coverage tile width */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
     if (cvg == NULL)
 	return RL2_ERROR;
-    return cvg->tileWidth;
-}
-
-RL2_DECLARE int
-rl2_get_coverage_tile_height (rl2CoveragePtr ptr)
-{
-/* return the Coverage tile height */
-    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
-    if (cvg == NULL)
-	return RL2_ERROR;
-    return cvg->tileHeight;
+    *tile_width = cvg->tileWidth;
+    *tile_height = cvg->tileHeight;
+    return RL2_OK;
 }
 
 RL2_DECLARE rl2PixelPtr
@@ -602,13 +582,14 @@ rl2_create_coverage_pixel (rl2CoveragePtr ptr)
 }
 
 RL2_DECLARE int
-rl2_get_coverage_srid (rl2CoveragePtr ptr)
+rl2_get_coverage_srid (rl2CoveragePtr ptr, int *srid)
 {
 /* return the Coverage SRID */
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
     if (cvg == NULL)
-	return RL2_GEOREFERENCING_NONE;
-    return cvg->Srid;
+	return RL2_ERROR;
+    *srid = cvg->Srid;
+    return RL2_OK;
 }
 
 RL2_DECLARE rl2SectionPtr
@@ -679,30 +660,33 @@ rl2_get_section_name (rl2SectionPtr ptr)
     return scn->sectionName;
 }
 
-RL2_DECLARE unsigned char
-rl2_get_section_compression (rl2SectionPtr ptr)
+RL2_DECLARE int
+rl2_get_section_compression (rl2SectionPtr ptr, unsigned char *compression)
 {
 /* return the Section compression */
     rl2PrivSectionPtr scn = (rl2PrivSectionPtr) ptr;
     if (scn == NULL)
-	return RL2_COMPRESSION_UNKNOWN;
-    return scn->Compression;
+	return RL2_ERROR;
+    *compression = scn->Compression;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_is_section_uncompressed (rl2SectionPtr ptr)
+rl2_is_section_uncompressed (rl2SectionPtr ptr, int *is_uncompressed)
 {
 /* tests if Section is compressed */
     rl2PrivSectionPtr scn = (rl2PrivSectionPtr) ptr;
     if (scn == NULL)
 	return RL2_ERROR;
     if (scn->Compression == RL2_COMPRESSION_NONE)
-	return RL2_TRUE;
-    return RL2_FALSE;
+	*is_uncompressed = RL2_TRUE;
+    else
+	*is_uncompressed = RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_is_section_compression_lossless (rl2SectionPtr ptr)
+rl2_is_section_compression_lossless (rl2SectionPtr ptr, int *is_lossless)
 {
 /* tests if Section is lossless compressed */
     rl2PrivSectionPtr scn = (rl2PrivSectionPtr) ptr;
@@ -715,13 +699,17 @@ rl2_is_section_compression_lossless (rl2SectionPtr ptr)
       case RL2_COMPRESSION_GIF:
       case RL2_COMPRESSION_PNG:
       case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  return RL2_TRUE;
+	  *is_lossless = RL2_TRUE;
+	  break;
+      default:
+	  *is_lossless = RL2_FALSE;
+	  break;
       };
-    return RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_is_section_compression_lossy (rl2SectionPtr ptr)
+rl2_is_section_compression_lossy (rl2SectionPtr ptr, int *is_lossy)
 {
 /* tests if Section is lossy compressed */
     rl2PrivSectionPtr scn = (rl2PrivSectionPtr) ptr;
@@ -731,29 +719,26 @@ rl2_is_section_compression_lossy (rl2SectionPtr ptr)
       {
       case RL2_COMPRESSION_JPEG:
       case RL2_COMPRESSION_LOSSY_WEBP:
-	  return RL2_TRUE;
+	  *is_lossy = RL2_TRUE;
+	  break;
+      default:
+	  *is_lossy = RL2_FALSE;
+	  break;
       };
-    return RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_get_section_tile_width (rl2SectionPtr ptr)
+rl2_get_section_tile_size (rl2SectionPtr ptr, unsigned short *tile_width,
+			   unsigned short *tile_height)
 {
 /* return the Section tile width */
     rl2PrivSectionPtr scn = (rl2PrivSectionPtr) ptr;
     if (scn == NULL)
 	return RL2_ERROR;
-    return scn->tileWidth;
-}
-
-RL2_DECLARE int
-rl2_get_section_tile_height (rl2SectionPtr ptr)
-{
-/* return the Section tile height */
-    rl2PrivSectionPtr scn = (rl2PrivSectionPtr) ptr;
-    if (scn == NULL)
-	return RL2_ERROR;
-    return scn->tileHeight;
+    *tile_width = scn->tileWidth;
+    *tile_height = scn->tileHeight;
+    return RL2_OK;
 }
 
 RL2_DECLARE rl2RasterPtr
@@ -862,7 +847,8 @@ rl2_create_raster (unsigned short width, unsigned short height,
     if (palette != NULL)
       {
 	  /* checking the Palette for validity */
-	  int max_palette = rl2_get_palette_entries (palette);
+	  unsigned short max_palette;
+	  rl2_get_palette_entries (palette, &max_palette);
 	  p = bufpix;
 	  for (row = 0; row < height; row++)
 	    {
@@ -959,104 +945,65 @@ rl2_get_raster_no_data (rl2RasterPtr ptr)
     return (rl2PixelPtr) (rst->noData);
 }
 
-RL2_DECLARE unsigned char
-rl2_get_raster_sample_type (rl2RasterPtr ptr)
+RL2_DECLARE int
+rl2_get_raster_type (rl2RasterPtr ptr, unsigned char *sample_type,
+		     unsigned char *pixel_type, unsigned char *num_bands)
 {
-/* return the Raster sample type */
+/* return the Raster type */
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
-	return RL2_SAMPLE_UNKNOWN;
-    return rst->sampleType;
-}
-
-RL2_DECLARE unsigned char
-rl2_get_raster_pixel_type (rl2RasterPtr ptr)
-{
-/* return the Raster pixel type */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return RL2_PIXEL_UNKNOWN;
-    return rst->pixelType;
-}
-
-RL2_DECLARE unsigned char
-rl2_get_raster_bands (rl2RasterPtr ptr)
-{
-/* return the Raster # bands */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return RL2_BANDS_UNKNOWN;
-    return rst->nBands;
+	return RL2_ERROR;
+    *sample_type = rst->sampleType;
+    *pixel_type = rst->pixelType;
+    *num_bands = rst->nBands;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_get_raster_width (rl2RasterPtr ptr)
+rl2_get_raster_size (rl2RasterPtr ptr, unsigned short *width,
+		     unsigned short *height)
 {
 /* return the Raster width */
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
 	return RL2_ERROR;
-    return rst->width;
+    *width = rst->width;
+    *height = rst->height;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_get_raster_height (rl2RasterPtr ptr)
-{
-/* return the Raster height */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return RL2_ERROR;
-    return rst->height;
-}
-
-RL2_DECLARE int
-rl2_get_raster_srid (rl2RasterPtr ptr)
+rl2_get_raster_srid (rl2RasterPtr ptr, int *srid)
 {
 /* return the Raster SRID */
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
-	return RL2_GEOREFERENCING_NONE;
-    return rst->Srid;
+	return RL2_ERROR;
+    *srid = rst->Srid;
+    return RL2_OK;
 }
 
-RL2_DECLARE double
-rl2_get_raster_minX (rl2RasterPtr ptr)
+RL2_DECLARE int
+rl2_get_raster_extent (rl2RasterPtr ptr, double *minX, double *minY,
+		       double *maxX, double *maxY)
 {
 /* return the Raster Min X coord */
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
-	return DBL_MAX;
-    return rst->minX;
-}
-
-RL2_DECLARE double
-rl2_get_raster_minY (rl2RasterPtr ptr)
-{
-/* return the Raster Min Y coord */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return DBL_MAX;
-    return rst->minY;
-}
-
-RL2_DECLARE double
-rl2_get_raster_maxX (rl2RasterPtr ptr)
-{
-/* return the Raster Max X coord */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return DBL_MAX;
-    return rst->maxX;
-}
-
-RL2_DECLARE double
-rl2_get_raster_maxY (rl2RasterPtr ptr)
-{
-/* return the Raster Max Y coord */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return DBL_MAX;
-    return rst->maxY;
+	return RL2_ERROR;
+    if (rst->Srid == RL2_GEOREFERENCING_NONE)
+      {
+	  *minX = 0.0;
+	  *minY = 0.0;
+	  *maxX = rst->width;
+	  *maxY = rst->height;
+	  return RL2_OK;
+      }
+    *minX = rst->minX;
+    *minY = rst->minY;
+    *maxX = rst->maxX;
+    *maxY = rst->maxY;
+    return RL2_OK;
 }
 
 RL2_DECLARE gaiaGeomCollPtr
@@ -1068,6 +1015,8 @@ rl2_get_raster_bbox (rl2RasterPtr ptr)
     gaiaRingPtr rng;
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
+	return NULL;
+    if (rst->Srid == RL2_GEOREFERENCING_NONE)
 	return NULL;
     geom = gaiaAllocGeomColl ();
     geom->Srid = rst->Srid;
@@ -1081,28 +1030,19 @@ rl2_get_raster_bbox (rl2RasterPtr ptr)
     return geom;
 }
 
-RL2_DECLARE double
-rl2_get_raster_horizontal_resolution (rl2RasterPtr ptr)
+RL2_DECLARE int
+rl2_get_raster_resolution (rl2RasterPtr ptr, double *hResolution,
+			   double *vResolution)
 {
-/* return the Raster horizontal resolution */
+/* return the Raster resolution */
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
-	return DBL_MAX;
+	return RL2_ERROR;
     if (rst->Srid == RL2_GEOREFERENCING_NONE)
-	return DBL_MAX;
-    return rst->hResolution;
-}
-
-RL2_DECLARE double
-rl2_get_raster_vertical_resolution (rl2RasterPtr ptr)
-{
-/* return the Raster vertical resolution */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return DBL_MAX;
-    if (rst->Srid == RL2_GEOREFERENCING_NONE)
-	return DBL_MAX;
-    return rst->vResolution;
+	return RL2_ERROR;
+    *hResolution = rst->hResolution;
+    *vResolution = rst->vResolution;
+    return RL2_OK;
 }
 
 RL2_DECLARE rl2PalettePtr
@@ -1661,17 +1601,18 @@ rl2_set_palette_hexrgb (rl2PalettePtr ptr, int index, const char *hex)
 }
 
 RL2_DECLARE int
-rl2_get_palette_entries (rl2PalettePtr ptr)
+rl2_get_palette_entries (rl2PalettePtr ptr, unsigned short *num_entries)
 {
 /* return the Palette entries count */
     rl2PrivPalettePtr plt = (rl2PrivPalettePtr) ptr;
     if (plt == NULL)
 	return RL2_ERROR;
-    return plt->nEntries;
+    *num_entries = plt->nEntries;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_get_palette_colors (rl2PalettePtr ptr, int *num_entries,
+rl2_get_palette_colors (rl2PalettePtr ptr, unsigned short *num_entries,
 			unsigned char **r, unsigned char **g, unsigned char **b,
 			unsigned char **a)
 {
@@ -1875,34 +1816,20 @@ rl2_compare_pixels (rl2PixelPtr pixel1, rl2PixelPtr pixel2)
     return RL2_TRUE;
 }
 
-RL2_DECLARE unsigned char
-rl2_get_pixel_sample_type (rl2PixelPtr ptr)
-{
-/* return the Pixel sample type */
-    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
-    if (pxl == NULL)
-	return RL2_SAMPLE_UNKNOWN;
-    return pxl->sampleType;
-}
 
-RL2_DECLARE unsigned char
-rl2_get_pixel_type (rl2PixelPtr ptr)
+RL2_DECLARE int
+rl2_get_pixel_type (rl2PixelPtr ptr,
+		    unsigned char *sample_type,
+		    unsigned char *pixel_type, unsigned char *num_bands)
 {
 /* return the Pixel pixel type */
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
-	return RL2_PIXEL_UNKNOWN;
-    return pxl->pixelType;
-}
-
-RL2_DECLARE unsigned char
-rl2_get_pixel_bands (rl2PixelPtr ptr)
-{
-/* return the Pixel # bands */
-    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
-    if (pxl == NULL)
-	return RL2_BANDS_UNKNOWN;
-    return pxl->nBands;
+	return RL2_ERROR;
+    *sample_type = pxl->sampleType;
+    *pixel_type = pxl->pixelType;
+    *num_bands = pxl->nBands;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
@@ -2218,27 +2145,31 @@ rl2_set_pixel_sample_double (rl2PixelPtr ptr, double sample)
 }
 
 RL2_DECLARE int
-rl2_is_pixel_transparent (rl2PixelPtr ptr)
+rl2_is_pixel_transparent (rl2PixelPtr ptr, int *is_transparent)
 {
 /* tests for a transparent pixel */
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
     if (pxl->isTransparent)
-	return RL2_TRUE;
-    return RL2_FALSE;
+	*is_transparent = RL2_TRUE;
+    else
+	*is_transparent = RL2_FALSE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_is_pixel_opaque (rl2PixelPtr ptr)
+rl2_is_pixel_opaque (rl2PixelPtr ptr, int *is_opaque)
 {
 /* tests for an opaque pixel */
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
     if (pxl->isTransparent)
-	return RL2_FALSE;
-    return RL2_TRUE;
+	*is_opaque = RL2_FALSE;
+    else
+	*is_opaque = RL2_TRUE;
+    return RL2_OK;
 }
 
 RL2_DECLARE int

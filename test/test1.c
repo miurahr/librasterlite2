@@ -50,7 +50,8 @@ test_rgb_jpeg (const char *path)
 {
     unsigned char *buffer;
     int buf_size;
-    int width = 558;
+    unsigned short width;
+    unsigned short height;
     unsigned char *p_data1;
     unsigned char *p_data2;
     rl2PixelPtr pxl;
@@ -62,6 +63,19 @@ test_rgb_jpeg (const char *path)
     unsigned int sample_u32;
     float sample_flt;
     double sample_dbl;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int is_transparent;
+    unsigned char compression;
+    int is_compressed;
+    unsigned short tile_width;
+    unsigned short tile_height;
+    int srid;
+    double minX;
+    double minY;
+    double maxX;
+    double maxY;
     rl2RasterPtr rst;
     rl2SectionPtr img = rl2_section_from_jpeg (path);
     if (img == NULL)
@@ -76,39 +90,55 @@ test_rgb_jpeg (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_section_compression (img) != RL2_COMPRESSION_JPEG)
+    if (rl2_get_section_compression (img, &compression) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" Unable to get compression mode\n", path);
+	  return 0;
+      }
+
+    if (compression != RL2_COMPRESSION_JPEG)
       {
 	  fprintf (stderr, "\"%s\" invalid compression mode\n", path);
 	  return 0;
       }
 
-    if (rl2_is_section_uncompressed (img) != RL2_FALSE)
+    if (rl2_is_section_uncompressed (img, &is_compressed) != RL2_OK)
       {
-	  fprintf (stderr, "\"%s\" invalid uncompressed\n", path);
+	  fprintf (stderr, "\"%s\" unable to get uncompressed\n", path);
 	  return 0;
       }
 
-    if (rl2_is_section_compression_lossless (img) != RL2_FALSE)
+    if (is_compressed != RL2_FALSE)
       {
 	  fprintf (stderr, "\"%s\" invalid compression lossless\n", path);
 	  return 0;
       }
 
-    if (rl2_is_section_compression_lossy (img) != RL2_TRUE)
+    if (rl2_is_section_compression_lossy (img, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get compression lossy\n", path);
+	  return 0;
+      }
+
+    if (is_compressed != RL2_TRUE)
       {
 	  fprintf (stderr, "\"%s\" invalid compression lossy\n", path);
 	  return 0;
       }
 
-    if (rl2_get_section_tile_width (img) != RL2_TILESIZE_UNDEFINED)
+    if (rl2_get_section_tile_size (img, &tile_width, &tile_height) != RL2_OK)
       {
-	  fprintf (stderr, "\"%s\" invalid tile width\n", path);
+	  fprintf (stderr, "\"%s\" unable to get tile size\n", path);
 	  return 0;
       }
-
-    if (rl2_get_section_tile_height (img) != RL2_TILESIZE_UNDEFINED)
+    if (tile_width != RL2_TILESIZE_UNDEFINED)
       {
-	  fprintf (stderr, "\"%s\" invalid tile height\n", path);
+	  fprintf (stderr, "\"%s\" invalid tile section tile width\n", path);
+	  return 0;
+      }
+    if (tile_height != RL2_TILESIZE_UNDEFINED)
+      {
+	  fprintf (stderr, "\"%s\" invalid tile section tile height\n", path);
 	  return 0;
       }
 
@@ -119,43 +149,61 @@ test_rgb_jpeg (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_raster_width (rst) != 558)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get image size\n", path);
+	  return 0;
+      }
+
+    if (width != 558)
       {
 	  fprintf (stderr, "\"%s\" invalid image width\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_height (rst) != 543)
+    if (height != 543)
       {
 	  fprintf (stderr, "\"%s\" invalid image height\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_srid (rst) != RL2_GEOREFERENCING_NONE)
+    if (rl2_get_raster_srid (rst, &srid) != RL2_OK)
       {
-	  fprintf (stderr, "\"%s\" invalid image SRID\n", path);
+	  fprintf (stderr, "\"%s\" unable to get image SRID\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_minX (rst) != 0.0)
+    if (srid != RL2_GEOREFERENCING_NONE)
+      {
+	  fprintf (stderr, "\"%s\" mismatiching image SRID\n", path);
+	  return 0;
+      }
+
+    if (rl2_get_raster_extent (rst, &minX, &minY, &maxX, &maxY) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get image extent\n", path);
+	  return 0;
+      }
+
+    if (minX != 0.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MinX\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_minY (rst) != 0.0)
+    if (minY != 0.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MinX\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_maxX (rst) != 558.0)
+    if (maxX != 558.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MaxX\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_maxY (rst) != 543.0)
+    if (maxY != 543.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MaxX\n", path);
 	  return 0;
@@ -369,19 +417,26 @@ test_rgb_jpeg (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_pixel_sample_type (pxl) != RL2_SAMPLE_UINT8)
+    if (rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to create get Pixel Type: from_palette_jpeg.png\n");
+	  return 0;
+      }
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
 	  fprintf (stderr, "Unexpected Pixel SampleType: from_rgb_jpeg.png\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_type (pxl) != RL2_PIXEL_RGB)
+    if (pixel_type != RL2_PIXEL_RGB)
       {
 	  fprintf (stderr, "Unexpected Pixel Type: from_rgb_jpeg.png\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_bands (pxl) != 3)
+    if (num_bands != 3)
       {
 	  fprintf (stderr, "Unexpected Pixel # Bands: from_rgb_jpeg.png\n");
 	  return 0;
@@ -537,14 +592,27 @@ test_rgb_jpeg (const char *path)
 	  return 0;
       }
 
-    if (rl2_is_pixel_transparent (pxl) != RL2_FALSE)
+    if (rl2_is_pixel_transparent (pxl, &is_transparent) != RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Pixel IsTransparent: from_rgb_jpeg.png\n");
+	  return 0;
+      }
+
+    if (is_transparent != RL2_FALSE)
       {
 	  fprintf (stderr,
 		   "Unexpected Pixel IsTransparent: from_rgb_jpeg.png\n");
 	  return 0;
       }
 
-    if (rl2_is_pixel_opaque (pxl) != RL2_TRUE)
+    if (rl2_is_pixel_opaque (pxl, &is_transparent) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Pixel IsOpaque: from_rgb_jpeg.png\n");
+	  return 0;
+      }
+
+    if (is_transparent != RL2_TRUE)
       {
 	  fprintf (stderr, "Unexpected Pixel IsOpaque: from_rgb_jpeg.png\n");
 	  return 0;
@@ -601,6 +669,9 @@ test_gray_jpeg (const char *path)
     unsigned char *p_data1;
     unsigned char *p_data2;
     unsigned char sample;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
     rl2SectionPtr img = rl2_section_from_jpeg (path);
@@ -780,19 +851,27 @@ test_gray_jpeg (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_pixel_sample_type (pxl) != RL2_SAMPLE_UINT8)
+    if (rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to create get Pixel Type: from_gray_jpeg.png\n");
+	  return 0;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
 	  fprintf (stderr, "Unexpected Pixel SampleType: from_gray_jpeg.png\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_type (pxl) != RL2_PIXEL_GRAYSCALE)
+    if (pixel_type != RL2_PIXEL_GRAYSCALE)
       {
 	  fprintf (stderr, "Unexpected Pixel Type: from_gray_jpeg.png\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_bands (pxl) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected Pixel # Bands: from_gray_jpeg.png\n");
 	  return 0;
@@ -854,10 +933,24 @@ test_palette_png (const char *path)
 {
     unsigned char *buffer;
     int buf_size;
-    int width = 558;
+    unsigned short width;
+    unsigned short height;
     unsigned char *p_data1;
     unsigned char *p_data2;
     unsigned char sample;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned short num_entries;
+    unsigned char compression;
+    int is_compressed;
+    unsigned short tile_width;
+    unsigned short tile_height;
+    int srid;
+    double minX;
+    double minY;
+    double maxX;
+    double maxY;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
     rl2SectionPtr img = rl2_section_from_png (path);
@@ -873,39 +966,67 @@ test_palette_png (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_section_compression (img) != RL2_COMPRESSION_PNG)
+    if (rl2_get_section_compression (img, &compression) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get compression mode\n", path);
+	  return 0;
+      }
+
+    if (compression != RL2_COMPRESSION_PNG)
       {
 	  fprintf (stderr, "\"%s\" invalid compression mode\n", path);
 	  return 0;
       }
 
-    if (rl2_is_section_uncompressed (img) != RL2_FALSE)
+    if (rl2_is_section_uncompressed (img, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get invalid uncompressed\n", path);
+	  return 0;
+      }
+
+    if (is_compressed != RL2_FALSE)
       {
 	  fprintf (stderr, "\"%s\" invalid uncompressed\n", path);
 	  return 0;
       }
 
-    if (rl2_is_section_compression_lossless (img) != RL2_TRUE)
+    if (rl2_is_section_compression_lossless (img, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get compression lossless\n", path);
+	  return 0;
+      }
+
+    if (is_compressed != RL2_TRUE)
       {
 	  fprintf (stderr, "\"%s\" invalid compression lossless\n", path);
 	  return 0;
       }
 
-    if (rl2_is_section_compression_lossy (img) != RL2_FALSE)
+    if (rl2_is_section_compression_lossy (img, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get compression lossy\n", path);
+	  return 0;
+      }
+
+    if (is_compressed != RL2_FALSE)
       {
 	  fprintf (stderr, "\"%s\" invalid compression lossy\n", path);
 	  return 0;
       }
 
-    if (rl2_get_section_tile_width (img) != RL2_TILESIZE_UNDEFINED)
+    if (rl2_get_section_tile_size (img, &tile_width, &tile_height) != RL2_OK)
       {
-	  fprintf (stderr, "\"%s\" invalid tile width\n", path);
+	  fprintf (stderr, "\"%s\" unable to get tile size\n", path);
 	  return 0;
       }
-
-    if (rl2_get_section_tile_height (img) != RL2_TILESIZE_UNDEFINED)
+    if (tile_width != RL2_TILESIZE_UNDEFINED)
       {
-	  fprintf (stderr, "\"%s\" invalid tile height\n", path);
+	  fprintf (stderr, "\"%s\" invalid tile section tile width\n", path);
+	  return 0;
+      }
+    if (tile_height != RL2_TILESIZE_UNDEFINED)
+      {
+	  fprintf (stderr, "\"%s\" invalid tile section tile height\n", path);
 	  return 0;
       }
 
@@ -916,43 +1037,61 @@ test_palette_png (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_raster_width (rst) != 563)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get image size\n", path);
+	  return 0;
+      }
+
+    if (width != 563)
       {
 	  fprintf (stderr, "\"%s\" invalid image width\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_height (rst) != 408)
+    if (height != 408)
       {
 	  fprintf (stderr, "\"%s\" invalid image height\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_srid (rst) != RL2_GEOREFERENCING_NONE)
+    if (rl2_get_raster_srid (rst, &srid) != RL2_OK)
       {
-	  fprintf (stderr, "\"%s\" invalid image SRID\n", path);
+	  fprintf (stderr, "\"%s\" unable to get image SRID\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_minX (rst) != 0.0)
+    if (srid != RL2_GEOREFERENCING_NONE)
+      {
+	  fprintf (stderr, "\"%s\" mismatching image SRID\n", path);
+	  return 0;
+      }
+
+    if (rl2_get_raster_extent (rst, &minX, &minY, &maxX, &maxY) != RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" unable to get image extent\n", path);
+	  return 0;
+      }
+
+    if (minX != 0.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MinX\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_minY (rst) != 0.0)
+    if (minY != 0.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MinX\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_maxX (rst) != 563.0)
+    if (maxX != 563.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MaxX\n", path);
 	  return 0;
       }
 
-    if (rl2_get_raster_maxY (rst) != 408.0)
+    if (maxY != 408.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MaxX\n", path);
 	  return 0;
@@ -964,7 +1103,14 @@ test_palette_png (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_palette_entries (rl2_get_raster_palette (rst)) != 30)
+    if (rl2_get_palette_entries (rl2_get_raster_palette (rst), &num_entries) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "\"%s\" Unable to get palette # entries\n", path);
+	  return 0;
+      }
+
+    if (num_entries != 30)
       {
 	  fprintf (stderr, "\"%s\" invalid palette # entries\n", path);
 	  return 0;
@@ -981,10 +1127,10 @@ test_palette_png (const char *path)
 	  fprintf (stderr, "Unable to get RGB data: from_palette_png.png\n");
 	  return 0;
       }
-    p_data1 = buffer + (20 * width * 3) + (20 * 3);
+    p_data1 = buffer + (19 * width * 3) + (20 * 3);
     p_data2 = buffer + (120 * width * 3) + (120 * 3);
     if (*(p_data1 + 0) != 237 || *(p_data1 + 1) != 28 || *(p_data1 + 2) != 36)
-      {
+      {;
 	  fprintf (stderr, "Unexpected RGB pixel #1: from_palette_png.png\n");
 	  return 0;
       }
@@ -1000,7 +1146,7 @@ test_palette_png (const char *path)
 	  fprintf (stderr, "Unable to get RGBA data: from_palette_png.png\n");
 	  return 0;
       }
-    p_data1 = buffer + (20 * width * 4) + (20 * 4);
+    p_data1 = buffer + (19 * width * 4) + (20 * 4);
     p_data2 = buffer + (120 * width * 4) + (120 * 4);
     if (*(p_data1 + 0) != 237 || *(p_data1 + 1) != 28 || *(p_data1 + 2) != 36
 	|| *(p_data1 + 3) != 255)
@@ -1021,7 +1167,7 @@ test_palette_png (const char *path)
 	  fprintf (stderr, "Unable to get ARGB data: from_palette_png.png\n");
 	  return 0;
       }
-    p_data1 = buffer + (20 * width * 4) + (20 * 4);
+    p_data1 = buffer + (19 * width * 4) + (20 * 4);
     p_data2 = buffer + (120 * width * 4) + (120 * 4);
     if (*(p_data1 + 0) != 255 || *(p_data1 + 1) != 237 || *(p_data1 + 2) != 28
 	|| *(p_data1 + 3) != 36)
@@ -1042,7 +1188,7 @@ test_palette_png (const char *path)
 	  fprintf (stderr, "Unable to get BGR data: from_palette_png.png\n");
 	  return 0;
       }
-    p_data1 = buffer + (20 * width * 3) + (20 * 3);
+    p_data1 = buffer + (19 * width * 3) + (20 * 3);
     p_data2 = buffer + (120 * width * 3) + (120 * 3);
     if (*(p_data1 + 0) != 36 || *(p_data1 + 1) != 28 || *(p_data1 + 2) != 237)
       {
@@ -1061,7 +1207,7 @@ test_palette_png (const char *path)
 	  fprintf (stderr, "Unable to get BGRA data: from_palette_png.png\n");
 	  return 0;
       }
-    p_data1 = buffer + (20 * width * 4) + (20 * 4);
+    p_data1 = buffer + (19 * width * 4) + (20 * 4);
     p_data2 = buffer + (120 * width * 4) + (120 * 4);
     if (*(p_data1 + 0) != 36 || *(p_data1 + 1) != 28 || *(p_data1 + 2) != 237
 	|| *(p_data1 + 3) != 255)
@@ -1092,25 +1238,35 @@ test_palette_png (const char *path)
 	  return 0;
       }
 
-    if (rl2_get_pixel_sample_type (pxl) != RL2_SAMPLE_UINT8)
+    if (rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to create get Pixel Type: from_palette_png.png\n");
+	  return 0;
+      }
+
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
 	  fprintf (stderr,
 		   "Unexpected Pixel SampleType: from_palette_png.png\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_type (pxl) != RL2_PIXEL_PALETTE)
+    if (pixel_type != RL2_PIXEL_PALETTE)
       {
 	  fprintf (stderr, "Unexpected Pixel Type: from_palette_png.png\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_bands (pxl) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected Pixel # Bands: from_palette_png.png\n");
 	  return 0;
       }
 
+
+    rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands);
     if (rl2_get_pixel_sample_uint8 (pxl, RL2_PALETTE_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr,

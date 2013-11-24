@@ -406,6 +406,9 @@ test_monochrome (rl2SectionPtr img)
     unsigned char *p_data1;
     unsigned char *p_data2;
     unsigned char sample;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
 
@@ -550,19 +553,26 @@ test_monochrome (rl2SectionPtr img)
 	  return 0;
       }
 
-    if (rl2_get_pixel_sample_type (pxl) != RL2_SAMPLE_1_BIT)
+    if (rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create get Pixel Type: MONOCHROME\n");
+	  return 0;
+      }
+
+    if (sample_type != RL2_SAMPLE_1_BIT)
       {
 	  fprintf (stderr, "Unexpected Pixel SampleType: MONOCHROME\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_type (pxl) != RL2_PIXEL_MONOCHROME)
+    if (pixel_type != RL2_PIXEL_MONOCHROME)
       {
 	  fprintf (stderr, "Unexpected Pixel Type: MONOCHROME\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_bands (pxl) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected Pixel # Bands: MONOCHROME\n");
 	  return 0;

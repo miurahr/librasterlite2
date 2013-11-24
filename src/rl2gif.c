@@ -186,9 +186,9 @@ compress_gif (rl2RasterPtr rst, unsigned char **gif, int *gif_size)
     int blob_size;
     if (rst == NULL)
 	return RL2_ERROR;
-    sample_type = rl2_get_raster_sample_type (rst);
-    pixel_type = rl2_get_raster_pixel_type (rst);
-    num_samples = rl2_get_raster_bands (rst);
+    if (rl2_get_raster_type (rst, &sample_type, &pixel_type, &num_samples) !=
+	RL2_OK)
+	return RL2_ERROR;
     if (check_gif_compatibility (sample_type, pixel_type, num_samples) !=
 	RL2_OK)
 	return RL2_ERROR;

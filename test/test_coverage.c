@@ -59,6 +59,16 @@ main (int argc, char *argv[])
     float flt32;
     double flt64;
     unsigned char sample;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int is_transparent;
+    unsigned char compression;
+    int is_compressed;
+    int srid;
+    int quality;
+    unsigned short tileWidth;
+    unsigned short tileHeight;
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
@@ -266,64 +276,110 @@ main (int argc, char *argv[])
 	  return -29;
       }
 
-    if (rl2_get_coverage_sample_type (coverage) != RL2_SAMPLE_UINT8)
+    if (rl2_get_coverage_type (coverage, &sample_type, &pixel_type, &num_bands)
+	!= RL2_OK)
       {
-	  fprintf (stderr, "Unexpected coverage sample\n");
+	  fprintf (stderr, "Unable to get coverage type\n");
 	  return -30;
       }
 
-    if (rl2_get_coverage_pixel_type (coverage) != RL2_PIXEL_RGB)
+    if (sample_type != RL2_SAMPLE_UINT8)
       {
-	  fprintf (stderr, "Unexpected coverage pixel\n");
-	  return -21;
+	  fprintf (stderr, "Unexpected coverage sample\n");
+	  return -31;
       }
 
-    if (rl2_get_coverage_bands (coverage) != 3)
+    if (pixel_type != RL2_PIXEL_RGB)
       {
-	  fprintf (stderr, "Unexpected coverage # bands\n");
+	  fprintf (stderr, "Unexpected coverage pixel\n");
 	  return -32;
       }
 
-    if (rl2_get_coverage_compression (coverage) != RL2_COMPRESSION_JPEG)
+    if (num_bands != 3)
       {
-	  fprintf (stderr, "Unexpected coverage compression\n");
+	  fprintf (stderr, "Unexpected coverage # bands\n");
 	  return -33;
       }
 
-    if (rl2_is_coverage_uncompressed (coverage) != RL2_FALSE)
+    if (rl2_get_coverage_compression (coverage, &compression, &quality) !=
+	RL2_OK)
       {
-	  fprintf (stderr, "Unexpected coverage not compressed\n");
+	  fprintf (stderr, "Unable to get coverage compression\n");
 	  return -34;
       }
 
-    if (rl2_is_coverage_compression_lossless (coverage) != RL2_FALSE)
+    if (compression != RL2_COMPRESSION_JPEG)
       {
-	  fprintf (stderr, "Unexpected coverage compression lossless\n");
+	  fprintf (stderr, "Unexpected coverage compression\n");
 	  return -35;
       }
 
-    if (rl2_is_coverage_compression_lossy (coverage) != RL2_TRUE)
+    if (rl2_is_coverage_uncompressed (coverage, &is_compressed) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected coverage compression lossy\n");
+	  fprintf (stderr, "Unable to get coverage not compressed\n");
 	  return -36;
       }
 
-    if (rl2_get_coverage_tile_width (coverage) != 1024)
+    if (is_compressed != RL2_FALSE)
       {
-	  fprintf (stderr, "Unexpected coverage tile width\n");
+	  fprintf (stderr, "Unexpected coverage not compressed\n");
 	  return -37;
       }
 
-    if (rl2_get_coverage_tile_height (coverage) != 1024)
+    if (rl2_is_coverage_compression_lossless (coverage, &is_compressed) !=
+	RL2_OK)
       {
-	  fprintf (stderr, "Unexpected coverage tile height\n");
+	  fprintf (stderr, "Unable to get coverage compression lossless\n");
 	  return -38;
       }
 
-    if (rl2_get_coverage_srid (coverage) != 4326)
+    if (is_compressed != RL2_FALSE)
+      {
+	  fprintf (stderr, "Unexpected coverage compression lossless\n");
+	  return -39;
+      }
+
+    if (rl2_is_coverage_compression_lossy (coverage, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get coverage compression lossy\n");
+	  return -40;
+      }
+
+    if (is_compressed != RL2_TRUE)
+      {
+	  fprintf (stderr, "Unexpected coverage compression lossy\n");
+	  return -41;
+      }
+
+    if (rl2_get_coverage_tile_size (coverage, &tileWidth, &tileHeight) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get coverage tile size\n");
+	  return -42;
+      }
+
+    if (tileWidth != 1024)
+      {
+	  fprintf (stderr, "Unexpected coverage tile width\n");
+	  return -43;
+      }
+
+    if (tileHeight != 1024)
+      {
+	  fprintf (stderr, "Unexpected coverage tile height\n");
+	  return -44;
+      }
+
+    if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get coverage SRID\n");
+	  return -45;
+      }
+
+    if (srid != 4326)
       {
 	  fprintf (stderr, "Unexpected coverage SRID\n");
-	  return -39;
+	  return -46;
       }
 
     rl2_destroy_coverage (coverage);
@@ -333,104 +389,89 @@ main (int argc, char *argv[])
     if (rl2_coverage_georeference (NULL, 4326, 0.5, 0.5) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: georeferencing NULL coverage\n");
-	  return -40;
+	  return -47;
       }
 
     if (rl2_get_coverage_name (NULL) != NULL)
       {
 	  fprintf (stderr, "ERROR: NULL coverage name\n");
-	  return -41;
-      }
-
-    if (rl2_get_coverage_sample_type (NULL) != RL2_SAMPLE_UNKNOWN)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage sample\n");
-	  return -42;
-      }
-
-    if (rl2_get_coverage_pixel_type (NULL) != RL2_PIXEL_UNKNOWN)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage pixel\n");
-	  return -43;
-      }
-
-    if (rl2_get_coverage_bands (NULL) != 0)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage # bands\n");
-	  return -44;
-      }
-
-    if (rl2_get_coverage_compression (NULL) != RL2_COMPRESSION_UNKNOWN)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage compression\n");
-	  return -45;
-      }
-
-    if (rl2_is_coverage_uncompressed (NULL) != RL2_ERROR)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage not compressed\n");
-	  return -46;
-      }
-
-    if (rl2_is_coverage_compression_lossless (NULL) != RL2_ERROR)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage compression lossless\n");
-	  return -47;
-      }
-
-    if (rl2_is_coverage_compression_lossy (NULL) != RL2_ERROR)
-      {
-	  fprintf (stderr, "ERROR: NULL coverage compression lossy\n");
 	  return -48;
       }
 
-    if (rl2_get_coverage_tile_width (NULL) != RL2_ERROR)
+    if (rl2_get_coverage_type (NULL, &sample_type, &pixel_type, &num_bands) !=
+	RL2_ERROR)
       {
-	  fprintf (stderr, "ERROR: NULL coverage tile width\n");
+	  fprintf (stderr, "ERROR: NULL coverage type\n");
 	  return -49;
       }
 
-    if (rl2_get_coverage_tile_height (NULL) != RL2_ERROR)
+    if (rl2_get_coverage_compression (NULL, &compression, &quality) !=
+	RL2_ERROR)
       {
-	  fprintf (stderr, "ERROR: NULL coverage tile height\n");
+	  fprintf (stderr, "ERROR: NULL coverage compression\n");
 	  return -50;
       }
 
-    if (rl2_get_coverage_srid (NULL) != RL2_GEOREFERENCING_NONE)
+    if (rl2_is_coverage_uncompressed (NULL, &is_compressed) != RL2_ERROR)
+      {
+	  fprintf (stderr, "ERROR: NULL coverage not compressed\n");
+	  return -51;
+      }
+
+    if (rl2_is_coverage_compression_lossless (NULL, &is_compressed) !=
+	RL2_ERROR)
+      {
+	  fprintf (stderr, "ERROR: NULL coverage compression lossless\n");
+	  return -52;
+      }
+
+    if (rl2_is_coverage_compression_lossy (NULL, &is_compressed) != RL2_ERROR)
+      {
+	  fprintf (stderr, "ERROR: NULL coverage compression lossy\n");
+	  return -53;
+      }
+
+    if (rl2_get_coverage_tile_size (NULL, &tileWidth, &tileHeight) != RL2_ERROR)
+      {
+	  fprintf (stderr, "ERROR: NULL coverage tile width\n");
+	  return -54;
+      }
+
+    if (rl2_get_coverage_srid (NULL, &srid) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL coverage SRID\n");
-	  return -51;
+	  return -56;
       }
 
     if (rl2_get_coverage_no_data (NULL) != NULL)
       {
 	  fprintf (stderr, "ERROR: NULL coverage NoData\n");
-	  return -52;
+	  return -57;
       }
 
     no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -53;
+	  return -58;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Red NoData #1\n");
-	  return -54;
+	  return -59;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, 255) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Green NoData #1\n");
-	  return -55;
+	  return -60;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Blue NoData #1\n");
-	  return -56;
+	  return -61;
       }
 
     coverage = rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
@@ -439,125 +480,125 @@ main (int argc, char *argv[])
     if (coverage == NULL)
       {
 	  fprintf (stderr, "Unable to create a valid coverage\n");
-	  return -57;
+	  return -62;
       }
 
     no_data = rl2_get_coverage_no_data (coverage);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to get NoData from coverage #1\n");
-	  return -58;
+	  return -63;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_RED_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get RED NoData from coverage #1\n");
-	  return -59;
+	  return -64;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected RED NoData from coverage #1\n");
-	  return -60;
+	  return -65;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get GREEN NoData from coverage #1\n");
-	  return -61;
+	  return -66;
       }
 
     if (sample != 255)
       {
 	  fprintf (stderr, "Unexpected GREEN NoData from coverage #1\n");
-	  return -62;
+	  return -67;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get BLUE NoData from coverage #1\n");
-	  return -63;
+	  return -68;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected BLUE NoData from coverage #1\n");
-	  return -64;
+	  return -69;
       }
 
     no_data = rl2_create_coverage_pixel (coverage);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a pixel for coverage #1\n");
-	  return -65;
+	  return -70;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, 255) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Red NoData #2\n");
-	  return -66;
+	  return -71;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Green NoData #2\n");
-	  return -67;
+	  return -72;
       }
 
     if (rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, 255) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set Blue NoData #2\n");
-	  return -68;
+	  return -73;
       }
 
     no_data = rl2_get_coverage_no_data (coverage);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to get NoData from coverage #2\n");
-	  return -72;
+	  return -74;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_RED_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get RED NoData from coverage #2\n");
-	  return -73;
+	  return -75;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected RED NoData from coverage #2\n");
-	  return -74;
+	  return -76;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get GREEN NoData from coverage #2\n");
-	  return -75;
+	  return -77;
       }
 
     if (sample != 255)
       {
 	  fprintf (stderr, "Unexpected GREEN NoData from coverage #2\n");
-	  return -76;
+	  return -78;
       }
 
     if (rl2_get_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, &sample) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get BLUE NoData from coverage #2\n");
-	  return -77;
+	  return -79;
       }
 
     if (sample != 0)
       {
 	  fprintf (stderr, "Unexpected BLUE NoData from coverage #2\n");
-	  return -78;
+	  return -80;
       }
 
     no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -79;
+	  return -81;
       }
 
     if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
@@ -566,7 +607,7 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr,
 		   "Unexpected result: create coverage (invalid NoData)\n");
-	  return -81;
+	  return -82;
       }
 
     rl2_destroy_pixel (no_data);
@@ -580,14 +621,14 @@ main (int argc, char *argv[])
     if (coverage == NULL)
       {
 	  fprintf (stderr, "Unable to create coverage (invalid NoData)\n");
-	  return -82;
+	  return -83;
       }
 
     no_data = rl2_create_pixel (RL2_SAMPLE_UINT16, RL2_PIXEL_MULTIBAND, 3);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
-	  return -83;
+	  return -84;
       }
 
     rl2_destroy_pixel (no_data);
@@ -605,13 +646,19 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
+	  return -86;
+      }
+
+    if (rl2_is_coverage_uncompressed (coverage, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get coverage not compressed\n");
 	  return -87;
       }
 
-    if (rl2_is_coverage_uncompressed (coverage) != RL2_TRUE)
+    if (is_compressed != RL2_TRUE)
       {
 	  fprintf (stderr, "Unexpected coverage not compressed\n");
-	  return -89;
+	  return -88;
       }
 
     rl2_destroy_coverage (coverage);
@@ -623,19 +670,32 @@ main (int argc, char *argv[])
     if (coverage == NULL)
       {
 	  fprintf (stderr, "Unable to create coverage (invalid NoData)\n");
+	  return -89;
+      }
+
+    if (rl2_is_coverage_compression_lossless (coverage, &is_compressed) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get coverage compression lossless\n");
 	  return -90;
       }
 
-    if (rl2_is_coverage_compression_lossless (coverage) != RL2_TRUE)
+    if (is_compressed != RL2_TRUE)
       {
 	  fprintf (stderr, "Unexpected coverage compression lossless\n");
 	  return -91;
       }
 
-    if (rl2_is_coverage_compression_lossy (coverage) != RL2_FALSE)
+    if (rl2_is_coverage_compression_lossy (coverage, &is_compressed) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get coverage compression lossy\n");
+	  return -92;
+      }
+
+    if (is_compressed != RL2_FALSE)
       {
 	  fprintf (stderr, "Unexpected coverage compression lossy\n");
-	  return -92;
+	  return -93;
       }
 
     rl2_destroy_coverage (coverage);
@@ -643,7 +703,7 @@ main (int argc, char *argv[])
     if (rl2_get_coverage_no_data (NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: get NoData (NULL coverage)\n");
-	  return -93;
+	  return -94;
       }
 
     if (rl2_create_coverage_pixel (NULL) != NULL)
@@ -927,22 +987,11 @@ main (int argc, char *argv[])
     rl2_destroy_pixel (pix2);
     rl2_destroy_pixel (no_data);
 
-    if (rl2_get_pixel_sample_type (NULL) != RL2_SAMPLE_UNKNOWN)
+    if (rl2_get_pixel_type (NULL, &sample_type, &pixel_type, &num_bands) ==
+	RL2_OK)
       {
 	  fprintf (stderr, "Unexpected result: pixel sample (NULL)\n");
 	  return -129;
-      }
-
-    if (rl2_get_pixel_type (NULL) != RL2_PIXEL_UNKNOWN)
-      {
-	  fprintf (stderr, "Unexpected result: pixel type (NULL)\n");
-	  return -130;
-      }
-
-    if (rl2_get_pixel_bands (NULL) != RL2_BANDS_UNKNOWN)
-      {
-	  fprintf (stderr, "Unexpected result: pixel Bands (NULL)\n");
-	  return -131;
       }
 
     if (rl2_get_pixel_sample_1bit (NULL, &uint8) != RL2_ERROR)
@@ -1108,13 +1157,13 @@ main (int argc, char *argv[])
 	  return -151;
       }
 
-    if (rl2_is_pixel_transparent (NULL) != RL2_ERROR)
+    if (rl2_is_pixel_transparent (NULL, &is_transparent) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: is pixel transparent (NULL)\n");
 	  return -152;
       }
 
-    if (rl2_is_pixel_opaque (NULL) != RL2_ERROR)
+    if (rl2_is_pixel_opaque (NULL, &is_transparent) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unexpected result: is pixel opaque (NULL)\n");
 	  return -153;

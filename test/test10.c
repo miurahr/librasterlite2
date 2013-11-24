@@ -183,6 +183,9 @@ test_4grays (rl2SectionPtr img)
     unsigned char *p_data1;
     unsigned char *p_data2;
     unsigned char sample;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
 
@@ -327,19 +330,26 @@ test_4grays (rl2SectionPtr img)
 	  return 0;
       }
 
-    if (rl2_get_pixel_sample_type (pxl) != RL2_SAMPLE_2_BIT)
+    if (rl2_get_pixel_type (pxl, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create get Pixel Type: 4-GRAYS\n");
+	  return 0;
+      }
+
+    if (sample_type != RL2_SAMPLE_2_BIT)
       {
 	  fprintf (stderr, "Unexpected Pixel SampleType: 4-GRAYS\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_type (pxl) != RL2_PIXEL_GRAYSCALE)
+    if (pixel_type != RL2_PIXEL_GRAYSCALE)
       {
 	  fprintf (stderr, "Unexpected Pixel Type: 4-GRAYS\n");
 	  return 0;
       }
 
-    if (rl2_get_pixel_bands (pxl) != 1)
+    if (num_bands != 1)
       {
 	  fprintf (stderr, "Unexpected Pixel # Bands: 4-GRAYS\n");
 	  return 0;

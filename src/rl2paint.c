@@ -343,10 +343,6 @@ rl2_graph_create_pdf_context (const char *path, int dpi, double page_width,
     double vert_margin_sz = margin_height * 72.0;
     double img_width = (page_width - (margin_width * 2.0)) * 72.0;
     double img_height = (page_height - (margin_height * 2.0)) * 72.0;
-    double horz2_margin_sz = margin_width * (double) dpi;
-    double vert2_margin_sz = margin_height * (double) dpi;
-    double img2_width = (page_width - (margin_width * 2.0)) * (double) dpi;
-    double img2_height = (page_height - (margin_height * 2.0)) * (double) dpi;
 
     ctx = malloc (sizeof (RL2GraphContext));
     if (ctx == NULL)

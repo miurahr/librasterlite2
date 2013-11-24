@@ -304,8 +304,8 @@ extern "C"
  
  \return the pointer to newly created Coverage Object: NULL on failure.
  
- \sa rl2_destroy_pixel, rl2_compare_pixels, rl2_get_pixel_sample_type, 
-		rl2_get_pixel_type, rl2_get_pixel_bands, rl2_get_pixel_sample_1bit,
+ \sa rl2_destroy_pixel, rl2_compare_pixels, rl2_get_pixel_type, 
+		rl2_get_pixel_sample_1bit,
 		rl2_set_pixel_sample_1bit, rl2_get_pixel_sample_2bit,
 		rl2_set_pixel_sample_2bit, rl2_get_pixel_sample_4bit,
 		rl2_set_pixel_sample_4bit, rl2_get_pixel_sample_int8,
@@ -349,34 +349,21 @@ extern "C"
  Retrieving the Sample Type from a Pixel Object
 
  \param pxl pointer to the Pixel Object.
+ \param sample_type on completion the variable referenced by this
+ pointer will contain the Sampe Type.
+ \param pixel_type on completion the variable referenced by this
+ pointer will contain the Pixel Type.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the Number of Bands.
  
- \return the Sample Type value; RL2_SAMPLE_UNKNOWN if any error is encountered.
+ \return  RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_pixel
  */
-    RL2_DECLARE unsigned char rl2_get_pixel_sample_type (rl2PixelPtr pxl);
-
-/**
- Retrieving the Pixel Type from a Pixel Object
-
- \param pxl pointer to the Pixel Object.
- 
- \return the Pixel Type value; RL2_PIXEL_UNKNOWN if any error is encountered.
-
- \sa rl2_create_pixel
- */
-    RL2_DECLARE unsigned char rl2_get_pixel_type (rl2PixelPtr pxl);
-
-/**
- Retrieving the Samples per Pixel from a Pixel Object
-
- \param pxl pointer to the Pixel Object.
- 
- \return the total number of Samples/Bands; RL2_BANDS_UNKNOWN if any error is encountered.
-
- \sa rl2_create_pixel
- */
-    RL2_DECLARE unsigned char rl2_get_pixel_bands (rl2PixelPtr pxl);
+    RL2_DECLARE int rl2_get_pixel_type (rl2PixelPtr pxl,
+					unsigned char *sample_type,
+					unsigned char *pixel_type,
+					unsigned char *num_bands);
 
 /**
  Retrieving the Pixel/Sample value from a Pixel Object [1 bit sample]
@@ -385,10 +372,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_1bit
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_1bit
  */
     RL2_DECLARE int rl2_get_pixel_sample_1bit (rl2PixelPtr pxl,
 					       unsigned char *sample);
@@ -399,10 +386,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_1bit
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_1bit
  */
     RL2_DECLARE int rl2_set_pixel_sample_1bit (rl2PixelPtr pxl,
 					       unsigned char sample);
@@ -414,10 +401,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_2bit
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_2bit
  */
     RL2_DECLARE int rl2_get_pixel_sample_2bit (rl2PixelPtr pxl,
 					       unsigned char *sample);
@@ -428,10 +415,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_2bit
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_2bit
  */
     RL2_DECLARE int rl2_set_pixel_sample_2bit (rl2PixelPtr pxl,
 					       unsigned char sample);
@@ -443,10 +430,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_4bit
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_4bit
  */
     RL2_DECLARE int rl2_get_pixel_sample_4bit (rl2PixelPtr pxl,
 					       unsigned char *sample);
@@ -457,10 +444,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_4bit
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_4bit
  */
     RL2_DECLARE int rl2_set_pixel_sample_4bit (rl2PixelPtr pxl,
 					       unsigned char sample);
@@ -472,10 +459,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_int8
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_int8
  */
     RL2_DECLARE int rl2_get_pixel_sample_int8 (rl2PixelPtr pxl, char *sample);
 
@@ -485,10 +472,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_int8
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_int8
  */
     RL2_DECLARE int rl2_set_pixel_sample_int8 (rl2PixelPtr pxl, char sample);
 
@@ -500,10 +487,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_uint8
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_uint8
  */
     RL2_DECLARE int rl2_get_pixel_sample_uint8 (rl2PixelPtr pxl, int band,
 						unsigned char *sample);
@@ -515,10 +502,10 @@ extern "C"
  \param band the Sample/Band index (the first sample corresponds to index ZERO).
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_uint8
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_uint8
  */
     RL2_DECLARE int rl2_set_pixel_sample_uint8 (rl2PixelPtr pxl, int band,
 						unsigned char sample);
@@ -530,10 +517,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_int16
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_int16
  */
     RL2_DECLARE int rl2_get_pixel_sample_int16 (rl2PixelPtr pxl, short *sample);
 
@@ -543,10 +530,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_int16
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_int16
  */
     RL2_DECLARE int rl2_set_pixel_sample_int16 (rl2PixelPtr pxl, short sample);
 
@@ -558,10 +545,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_uint16
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_uint16
  */
     RL2_DECLARE int rl2_get_pixel_sample_uint16 (rl2PixelPtr pxl, int band,
 						 unsigned short *sample);
@@ -573,10 +560,10 @@ extern "C"
  \param band the Sample/Band index (the first sample corresponds to index ZERO).
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_uint16
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_uint16
  */
     RL2_DECLARE int rl2_set_pixel_sample_uint16 (rl2PixelPtr pxl, int band,
 						 unsigned short sample);
@@ -588,10 +575,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_int32
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_int32
  */
     RL2_DECLARE int rl2_get_pixel_sample_int32 (rl2PixelPtr pxl, int *sample);
 
@@ -601,10 +588,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_int32
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_int32
  */
     RL2_DECLARE int rl2_set_pixel_sample_int32 (rl2PixelPtr pxl, int sample);
 
@@ -615,10 +602,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_uint32
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_uint32
  */
     RL2_DECLARE int rl2_get_pixel_sample_uint32 (rl2PixelPtr pxl,
 						 unsigned int *sample);
@@ -629,10 +616,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_uint32
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_uint32
  */
     RL2_DECLARE int rl2_set_pixel_sample_uint32 (rl2PixelPtr pxl,
 						 unsigned int sample);
@@ -644,10 +631,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_float
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_float
  */
     RL2_DECLARE int rl2_get_pixel_sample_float (rl2PixelPtr pxl, float *sample);
 
@@ -657,10 +644,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_float
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_float
  */
     RL2_DECLARE int rl2_set_pixel_sample_float (rl2PixelPtr pxl, float sample);
 
@@ -671,10 +658,10 @@ extern "C"
  \param sample on completion the variable referenced by this
  pointer will contain the Pixel/Sampe Value.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including querying a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_set_pixel_sample_double
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_set_pixel_sample_double
  */
     RL2_DECLARE int rl2_get_pixel_sample_double (rl2PixelPtr pxl,
 						 double *sample);
@@ -685,10 +672,10 @@ extern "C"
  \param pxl pointer to the Pixel Object.
  \param sample the Pixel/Sampe Value to be set.
  
- \return RL2_TRUE on success; RL2_ERROR if any error is encountered (this
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including referencing a Pixel of mismatching PixelType).
 
- \sa rl2_create_pixel, rl2_get_pixel_sample_type, rl2_get_pixel_sample_double
+ \sa rl2_create_pixel, rl2_get_pixel_type, rl2_get_pixel_sample_double
  */
     RL2_DECLARE int rl2_set_pixel_sample_double (rl2PixelPtr pxl,
 						 double sample);
@@ -697,25 +684,30 @@ extern "C"
  Testing if a Pixel Object is Transparent
 
  \param pxl pointer to the Pixel Object.
+ \param is_transparent on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_pixel, rl2_is_pixel_opaque, rl2_set_pixel_transparent, 
  rl2_set_pixel_opaque
  */
-    RL2_DECLARE int rl2_is_pixel_transparent (rl2PixelPtr pxl);
+    RL2_DECLARE int rl2_is_pixel_transparent (rl2PixelPtr pxl,
+					      int *is_transparent);
 
 /**
  Testing if a Pixel Object is Opaque
 
  \param pxl pointer to the Pixel Object.
+ \param is_opaque on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
  
  \sa rl2_create_pixel, rl2_is_pixel_transparent, rl2_set_pixel_transparent, 
  rl2_set_pixel_opaque
  */
-    RL2_DECLARE int rl2_is_pixel_opaque (rl2PixelPtr pxl);
+    RL2_DECLARE int rl2_is_pixel_opaque (rl2PixelPtr pxl, int *is_opaque);
 
 /**
  Forcing a Pixel Object to be Transparent
@@ -827,13 +819,16 @@ extern "C"
  Retrieving the total number of Palette Entries
 
  \param plt pointer to the Palette Object.
+ \param num_entries on completion the variable referenced by this
+ pointer will contain the total count of Colors.
  
- \return the number of Entries; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_palette, rl2_get_palette_colors, rl2_set_palette_color,
 	rl2_set_palette_hexrgb
  */
-    RL2_DECLARE int rl2_get_palette_entries (rl2PalettePtr plt);
+    RL2_DECLARE int rl2_get_palette_entries (rl2PalettePtr plt,
+					     unsigned short *num_entries);
 
 /**
  Exports all Palette Colors as separate arrays for each component
@@ -855,7 +850,7 @@ extern "C"
  created by rl2_get_palette_colors() by invoking rl2_free().
  */
     RL2_DECLARE int
-	rl2_get_palette_colors (rl2PalettePtr plt, int *num_entries,
+	rl2_get_palette_colors (rl2PalettePtr plt, unsigned short *num_entries,
 				unsigned char **r, unsigned char **g,
 				unsigned char **b, unsigned char **alpha);
 
@@ -902,13 +897,11 @@ extern "C"
  \return the pointer to newly created Coverage Object: NULL on failure.
  
  \sa rl2_destroy_coverage, rl2_coverage_georeference, rl2_get_coverage_name,
-		rl2_get_coverage_sample_type, rl2_get_coverage_pixel_type,
-		rl2_get_coverage_bands, rl2_get_coverage_compression, 
-		rl2_get_coverage_quality, rl2_is_coverage_uncompressed,
-		rl2_is_coverage_compression_lossless, rl2_is_coverage_compression_lossy,
-		rl2_get_coverage_tile_width, rl2_get_coverage_tile_height,
+		rl2_get_coverage_type, rl2_get_coverage_compression, 
+		rl2_is_coverage_uncompressed, rl2_is_coverage_compression_lossless, 
+		rl2_is_coverage_compression_lossy, rl2_get_coverage_tile_size,
 		rl2_get_coverage_no_data, rl2_create_coverage_pixel, 
-rl2_get_coverage_srid
+		rl2_get_coverage_srid
  
  \note you are responsible to destroy (before or after) any allocated 
  Coverage object.
@@ -963,115 +956,97 @@ rl2_get_coverage_srid
  Retrieving the Sample Type from a Coverage Object
 
  \param cvg pointer to the Coverage Object.
+ \param sample_type on completion the variable referenced by this
+ pointer will contain the Sampe Type.
+ \param pixel_type on completion the variable referenced by this
+ pointer will contain the Pixel Type.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the Number of Bands.
  
- \return the Sample Type value; RL2_SAMPLE_UNKNOWN if any error is encountered.
+ \return  RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE unsigned char rl2_get_coverage_sample_type (rl2CoveragePtr cvg);
-
-/**
- Retrieving the Pixel Type from a Coverage Object
-
- \param cvg pointer to the Coverage Object.
- 
- \return the Pixel Type value; RL2_PIXEL_UNKNOWN if any error is encountered.
-
- \sa rl2_create_coverage
- */
-    RL2_DECLARE unsigned char rl2_get_coverage_pixel_type (rl2CoveragePtr cvg);
-
-/**
- Retrieving the Samples per Pixel from a Coverage Object
-
- \param cvg pointer to the Coverage Object.
- 
- \return the total number of Samples/Bands; RL2_BANDS_UNKNOWN if any error is encountered.
-
- \sa rl2_create_coverage
- */
-    RL2_DECLARE unsigned char rl2_get_coverage_bands (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_get_coverage_type (rl2CoveragePtr cvg,
+					   unsigned char *sample_type,
+					   unsigned char *pixel_type,
+					   unsigned char *num_bands);
 
 /**
  Retrieving the Compression Type from a Coverage Object
 
  \param cvg pointer to the Coverage Object.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the Compression Type.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the Compression Quality.
  
- \return the Compression Type value; RL2_COMPRESSION_UNKNOWN if any error is encountered.
+ \return  RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE unsigned char rl2_get_coverage_compression (rl2CoveragePtr cvg);
-
-/**
- Retrieving the Compression Quality from a Coverage Object
-
- \param cvg pointer to the Coverage Object.
- 
- \return the Compression Quality value; a negative value if any error is encountered.
-
- \sa rl2_create_coverage
- 
- \note the returned value will be meaningfull only if the corresponding
-	Compression Type is one of JPEG or WEBP lossy compressions: otherwise
-	the Quality value should be completely ignored.
- */
-    RL2_DECLARE int rl2_get_coverage_quality (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_get_coverage_compression (rl2CoveragePtr cvg,
+						  unsigned char *compression,
+						  int *quality);
 
 /**
  Testing if a Coverage Object is uncompressed or compressed
 
  \param cvg pointer to the Coverage Object.
+ \param is_uncompressed on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE int rl2_is_coverage_uncompressed (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_is_coverage_uncompressed (rl2CoveragePtr cvg,
+						  int *is_uncompressed);
 
 /**
  Testing if a Coverage Object adopts a lossless compression
 
  \param cvg pointer to the Coverage Object.
+ \param is_lossless on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE int rl2_is_coverage_compression_lossless (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_is_coverage_compression_lossless (rl2CoveragePtr cvg,
+							  int *is_lossless);
 
 /**
  Testing if a Coverage Object adopts a lossy compression
 
  \param cvg pointer to the Coverage Object.
+ \param is_lossy on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE int rl2_is_coverage_compression_lossy (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_is_coverage_compression_lossy (rl2CoveragePtr cvg,
+						       int *is_lossy);
 
 /**
- Retrieving the Tile Width from a Coverage Object
+ Retrieving the Tile Size from a Coverage Object
 
  \param cvg pointer to the Coverage Object.
+ \param tile_width on completion the variable referenced by this
+ pointer will contain the coverage's Tile Width.
+ \param tile_height on completion the variable referenced by this
+ pointer will contain the coverage's Tile Height.
  
- \return the Tile Width (in pixels); RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE int rl2_get_coverage_tile_width (rl2CoveragePtr cvg);
-
-/**
- Retrieving the Tile Height from a Coverage Object
-
- \param cvg pointer to the Coverage Object.
- 
- \return the Tile Height (in pixels); RL2_ERROR if any error is encountered.
-
- \sa rl2_create_coverage
- */
-    RL2_DECLARE int rl2_get_coverage_tile_height (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_get_coverage_tile_size (rl2CoveragePtr cvg,
+						unsigned short *tile_width,
+						unsigned short *tile_height);
 
 /**
  Retrieving the NO-DATA Pixel value from a Coverage Object
@@ -1103,13 +1078,14 @@ rl2_get_coverage_srid
  Retrieving the SRID from a Coverage Object
 
  \param cvg pointer to the Coverage Object.
+ \param srid on completion the variable referenced by this
+ pointer will contain the coverage's SRID.
  
- \return the SRID value; RL2_GEOREFERENCING_NONE if any error is encountered
-	or if the Coverage doesn't support any GeoReferencing.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_coverage
  */
-    RL2_DECLARE int rl2_get_coverage_srid (rl2CoveragePtr cvg);
+    RL2_DECLARE int rl2_get_coverage_srid (rl2CoveragePtr cvg, int *srid);
 
 /**
  Allocates and initializes a new Section object
@@ -1288,67 +1264,74 @@ rl2_get_coverage_srid
  Retrieving the Compression Type from a Section Object
 
  \param scn pointer to the Section Object.
+ \param compression on completion the variable referenced by this
+ pointer will contain the section's Compression Type.
  
- \return the Compression Type value; RL2_COMPRESSION_UNKNOWN if any error is encountered.
+ \return  RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_section
  */
-    RL2_DECLARE unsigned char rl2_get_section_compression (rl2SectionPtr scn);
+    RL2_DECLARE int rl2_get_section_compression (rl2SectionPtr scn,
+						 unsigned char *compression);
 
 /**
  Testing if a Section Object is uncompressed or compressed
 
  \param scn pointer to the Section Object.
+ \param is_uncompressed on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_section
  */
-    RL2_DECLARE int rl2_is_section_uncompressed (rl2SectionPtr scn);
+    RL2_DECLARE int rl2_is_section_uncompressed (rl2SectionPtr scn,
+						 int *is_uncompressed);
 
 /**
  Testing if a Section Object adopts a lossless compression
 
  \param scn pointer to the Section Object.
+ \param is_lossless on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_section
  */
-    RL2_DECLARE int rl2_is_section_compression_lossless (rl2SectionPtr scn);
+    RL2_DECLARE int rl2_is_section_compression_lossless (rl2SectionPtr scn,
+							 int *is_lossless);
 
 /**
  Testing if a Section Object adopts a lossy compression
 
  \param scn pointer to the Section Object.
+ \param is_lossy on completion the variable referenced by this
+ pointer will contain RL2_TRUE or RL2_FALSE.
  
- \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_section
  */
-    RL2_DECLARE int rl2_is_section_compression_lossy (rl2SectionPtr scn);
+    RL2_DECLARE int rl2_is_section_compression_lossy (rl2SectionPtr scn,
+						      int *is_lossy);
 
 /**
- Retrieving the Tile Width from a Section Object
+ Retrieving the Tile Size from a Section Object
 
  \param scn pointer to the Section Object.
+ \param tile_width on completion the variable referenced by this
+ pointer will contain the section's Tile Width.
+ \param tile_height on completion the variable referenced by this
+ pointer will contain the section's Tile Height.
  
- \return the Tile Width (in pixels); RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_section
  */
-    RL2_DECLARE int rl2_get_section_tile_width (rl2SectionPtr scn);
-
-/**
- Retrieving the Tile Height from a Section Object
-
- \param scn pointer to the Section Object.
- 
- \return the Tile Height (in pixels); RL2_ERROR if any error is encountered.
-
- \sa rl2_create_section
- */
-    RL2_DECLARE int rl2_get_section_tile_height (rl2SectionPtr scn);
+    RL2_DECLARE int rl2_get_section_tile_size (rl2SectionPtr scn,
+					       unsigned short *tile_width,
+					       unsigned short *tile_height);
 
 /**
  Return a reference to the Raster Object encapsulated within a Section Object
@@ -1426,56 +1409,38 @@ rl2_get_coverage_srid
  Retrieving the Width dimension from a Raster Object
 
  \param rst pointer to the Raster Object.
+ \param width on completion the variable referenced by this
+ pointer will contain the raster's Width.
+ \param height on completion the variable referenced by this
+ pointer will contain the raster's THeight.
  
- \return the Width dimension (in pixels); RL2_ERROR if any error is encountered.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster
  */
-    RL2_DECLARE int rl2_get_raster_width (rl2RasterPtr rst);
-
-/**
- Retrieving the Height dimension from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the Height dimension (in pixels); RL2_ERROR if any error is encountered.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE int rl2_get_raster_height (rl2RasterPtr rst);
+    RL2_DECLARE int rl2_get_raster_size (rl2RasterPtr rst,
+					 unsigned short *width,
+					 unsigned short *height);
 
 /**
  Retrieving the Sample Type from a Raster Object
 
  \param cvg pointer to the Raster Object.
+ \param sample_type on completion the variable referenced by this
+ pointer will contain the Sampe Type.
+ \param pixel_type on completion the variable referenced by this
+ pointer will contain the Pixel Type.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the Number of Bands.
  
- \return the Sample Type value; RL2_SAMPLE_UNKNOWN if any error is encountered.
+ \return  RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster
  */
-    RL2_DECLARE unsigned char rl2_get_raster_sample_type (rl2RasterPtr rst);
-
-/**
- Retrieving the Pixel Type from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the Pixel Type value; RL2_PIXEL_UNKNOWN if any error is encountered.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE unsigned char rl2_get_raster_pixel_type (rl2RasterPtr rst);
-
-/**
- Retrieving the Samples per Pixel from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the total number of Samples/Bands; RL2_BANDS_UNKNOWN if any error is encountered.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE unsigned char rl2_get_raster_bands (rl2RasterPtr rst);
+    RL2_DECLARE int rl2_get_raster_type (rl2RasterPtr rst,
+					 unsigned char *sample_type,
+					 unsigned char *pixel_type,
+					 unsigned char *num_bands);
 
 /**
  Retrieving the NO-DATA Pixel value from a Raster Object
@@ -1493,87 +1458,52 @@ rl2_get_coverage_srid
  Retrieving the SRID from a Raster Object
 
  \param rst pointer to the Raster Object.
+ \param srid on completion the variable referenced by this
+ pointer will contain the raster's SRID.
  
- \return the SRID value; RL2_GEOREFERENCING_NONE if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster
  */
-    RL2_DECLARE int rl2_get_raster_srid (rl2RasterPtr rst);
+    RL2_DECLARE int rl2_get_raster_srid (rl2RasterPtr rst, int *srid);
 
 /**
- Retrieving the Horizontal Pixel resolution from a Raster Object
+ Retrieving the Pixel resolution from a Raster Object
 
  \param rst pointer to the Raster Object.
+ \param hResolution on completion the variable referenced by this
+ pointer will contain the raster's Horizontal Resolution.
+ \param vResolution on completion the variable referenced by this
+ pointer will contain the raster's Vertical Resolution.
  
- \return the Raster's horizontal pixel resolution: i.e. the size (measured
-	in map units) corresponding to a single Pixel; DBL_MAX if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster
  */
-    RL2_DECLARE double rl2_get_raster_horizontal_resolution (rl2RasterPtr rst);
+    RL2_DECLARE int rl2_get_raster_resolution (rl2RasterPtr rst,
+					       double *hResolution,
+					       double *vResolution);
 
 /**
- Retrieving the Vertical Pixel resolution from a Raster Object
+ Retrieving the full extent from a Raster Object
 
  \param rst pointer to the Raster Object.
+ \param minX on completion the variable referenced by this
+ pointer will contain the raster's minimum X coordinate.
+ \param minY on completion the variable referenced by this
+ pointer will contain the raster's minimum Y coordinate.
+ \param maxX on completion the variable referenced by this
+ pointer will contain the raster's maximum X coordinate.
+ \param maxY on completion the variable referenced by this
+ pointer will contain the raster's maximum Y coordinate.
  
- \return the Raster's vertical pixel resolution: i.e. the size (measured
-	in map units) corresponding to a single Pixel; DBL_MAX if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster
  */
-    RL2_DECLARE double rl2_get_raster_vertical_resolution (rl2RasterPtr rst);
-
-/**
- Retrieving the minimum X Coordinate from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the minimum X coordinate; DBL_MAX if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE double rl2_get_raster_minX (rl2RasterPtr rst);
-
-/**
- Retrieving the minimum Y Coordinate from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the minimum Y coordinate; DBL_MAX if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE double rl2_get_raster_minY (rl2RasterPtr rst);
-
-/**
- Retrieving the maximum X Coordinate from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the maximum X coordinate; DBL_MAX if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE double rl2_get_raster_maxX (rl2RasterPtr rst);
-
-/**
- Retrieving the maximum Y Coordinate from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return the maximum Y coordinate; DBL_MAX if any error is encountered
-	or if the Raster doesn't support any GeoReferencing.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE double rl2_get_raster_maxY (rl2RasterPtr rst);
+    RL2_DECLARE int rl2_get_raster_extent (rl2RasterPtr rst,
+					   double *minX, double *minY,
+					   double *maxX, double *maxY);
 
 /**
  Retrieving the bounding box from a Raster Object

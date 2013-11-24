@@ -50,8 +50,8 @@ static int
 test_no_alpha_webp (const char *path)
 {
     rl2RasterPtr rst;
-    int width;
-    int height;
+    unsigned short width;
+    unsigned short height;
     int row;
     int col;
     unsigned char *rgbbuf;
@@ -84,9 +84,7 @@ test_no_alpha_webp (const char *path)
 	  return 0;
       }
 
-    width = rl2_get_raster_width (rst);
-    height = rl2_get_raster_height (rst);
-    if (width == RL2_ERROR || height == RL2_ERROR)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", path);
 	  return 0;

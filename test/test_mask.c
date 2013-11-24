@@ -51,10 +51,10 @@ test_rgb_jpeg (const char *path, const char *mask_path)
     rl2RasterPtr rst;
     rl2RasterPtr mask;
     rl2SectionPtr mask_img;
-    int width;
-    int height;
-    int width2;
-    int height2;
+    unsigned short width;
+    unsigned short height;
+    unsigned short width2;
+    unsigned short height2;
     unsigned char *rgbbuf;
     int rgbbuf_sz;
     unsigned char *mskbuf;
@@ -90,9 +90,7 @@ test_rgb_jpeg (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width = rl2_get_raster_width (rst);
-    height = rl2_get_raster_height (rst);
-    if (width == RL2_ERROR || height == RL2_ERROR)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", path);
 	  return 0;
@@ -105,9 +103,7 @@ test_rgb_jpeg (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width2 = rl2_get_raster_width (mask);
-    height2 = rl2_get_raster_height (mask);
-    if (width2 == RL2_ERROR || height2 == RL2_ERROR)
+    if (rl2_get_raster_size (mask, &width2, &height2) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", mask_path);
 	  return 0;
@@ -275,7 +271,7 @@ test_rgb_jpeg (const char *path, const char *mask_path)
     rl2_get_pixel_sample_uint8 (pxl, RL2_RED_BAND, &red);
     rl2_get_pixel_sample_uint8 (pxl, RL2_GREEN_BAND, &green);
     rl2_get_pixel_sample_uint8 (pxl, RL2_BLUE_BAND, &blue);
-    transparent = rl2_is_pixel_transparent (pxl);
+    rl2_is_pixel_transparent (pxl, &transparent);
     if (red != 205 || green != 203 || blue != 204 || transparent != RL2_TRUE)
       {
 	  fprintf (stderr, "Unexpected pixel #1: masked_rgb.jpg\n");
@@ -299,7 +295,7 @@ test_rgb_jpeg (const char *path, const char *mask_path)
     rl2_get_pixel_sample_uint8 (pxl, RL2_RED_BAND, &red);
     rl2_get_pixel_sample_uint8 (pxl, RL2_GREEN_BAND, &green);
     rl2_get_pixel_sample_uint8 (pxl, RL2_BLUE_BAND, &blue);
-    transparent = rl2_is_pixel_transparent (pxl);
+    rl2_is_pixel_transparent (pxl, &transparent);
     if (red != 196 || green != 194 || blue != 197 || transparent != RL2_FALSE)
       {
 	  fprintf (stderr, "Unexpected pixel #2: masked_rgb.jpg\n");
@@ -346,10 +342,10 @@ test_gray_jpeg (const char *path, const char *mask_path)
     rl2RasterPtr rst;
     rl2RasterPtr mask;
     rl2SectionPtr mask_img;
-    int width;
-    int height;
-    int width2;
-    int height2;
+    unsigned short width;
+    unsigned short height;
+    unsigned short width2;
+    unsigned short height2;
     unsigned char *graybuf;
     int graybuf_sz;
     unsigned char *mskbuf;
@@ -376,9 +372,7 @@ test_gray_jpeg (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width = rl2_get_raster_width (rst);
-    height = rl2_get_raster_height (rst);
-    if (width == RL2_ERROR || height == RL2_ERROR)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", path);
 	  return 0;
@@ -391,9 +385,7 @@ test_gray_jpeg (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width2 = rl2_get_raster_width (mask);
-    height2 = rl2_get_raster_height (mask);
-    if (width2 == RL2_ERROR || height2 == RL2_ERROR)
+    if (rl2_get_raster_size (mask, &width2, &height2) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", mask_path);
 	  return 0;
@@ -474,10 +466,10 @@ test_rgb_png (const char *path, const char *mask_path)
     rl2RasterPtr rst;
     rl2RasterPtr mask;
     rl2SectionPtr mask_img;
-    int width;
-    int height;
-    int width2;
-    int height2;
+    unsigned short width;
+    unsigned short height;
+    unsigned short width2;
+    unsigned short height2;
     unsigned char *rgbbuf;
     int rgbbuf_sz;
     unsigned char *mskbuf;
@@ -504,9 +496,7 @@ test_rgb_png (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width = rl2_get_raster_width (rst);
-    height = rl2_get_raster_height (rst);
-    if (width == RL2_ERROR || height == RL2_ERROR)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", path);
 	  return 0;
@@ -519,9 +509,7 @@ test_rgb_png (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width2 = rl2_get_raster_width (mask);
-    height2 = rl2_get_raster_height (mask);
-    if (width2 == RL2_ERROR || height2 == RL2_ERROR)
+    if (rl2_get_raster_size (mask, &width2, &height2) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", mask_path);
 	  return 0;
@@ -601,10 +589,10 @@ test_gray_png (const char *path, const char *mask_path)
     rl2RasterPtr rst;
     rl2RasterPtr mask;
     rl2SectionPtr mask_img;
-    int width;
-    int height;
-    int width2;
-    int height2;
+    unsigned short width;
+    unsigned short height;
+    unsigned short width2;
+    unsigned short height2;
     unsigned char *graybuf;
     int graybuf_sz;
     unsigned char *mskbuf;
@@ -638,9 +626,7 @@ test_gray_png (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width = rl2_get_raster_width (rst);
-    height = rl2_get_raster_height (rst);
-    if (width == RL2_ERROR || height == RL2_ERROR)
+    if (rl2_get_raster_size (rst, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", path);
 	  return 0;
@@ -653,9 +639,7 @@ test_gray_png (const char *path, const char *mask_path)
 	  return 0;
       }
 
-    width2 = rl2_get_raster_width (mask);
-    height2 = rl2_get_raster_height (mask);
-    if (width2 == RL2_ERROR || height2 == RL2_ERROR)
+    if (rl2_get_raster_size (mask, &width2, &height2) != RL2_OK)
       {
 	  fprintf (stderr, "Invalid width/height: %s\n", mask_path);
 	  return 0;
@@ -827,7 +811,7 @@ test_gray_png (const char *path, const char *mask_path)
       }
 
     rl2_get_pixel_sample_uint8 (pxl, RL2_GRAYSCALE_BAND, &gray);
-    transparent = rl2_is_pixel_transparent (pxl);
+    rl2_is_pixel_transparent (pxl, &transparent);
     if (gray != 203 || transparent != RL2_TRUE)
       {
 	  fprintf (stderr, "Unexpected pixel #1: from_gray_jpeg.png\n");
@@ -849,7 +833,7 @@ test_gray_png (const char *path, const char *mask_path)
       }
 
     rl2_get_pixel_sample_uint8 (pxl, RL2_GRAYSCALE_BAND, &gray);
-    transparent = rl2_is_pixel_transparent (pxl);
+    rl2_is_pixel_transparent (pxl, &transparent);
     if (gray != 195 || transparent != RL2_FALSE)
       {
 	  fprintf (stderr, "Unexpected pixel #2: from_gray_jpeg.png\n");

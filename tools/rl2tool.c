@@ -874,6 +874,8 @@ exec_import (sqlite3 * handle, const char *src_path,
     gaiaGeomCollPtr geom;
     char *table;
     char *xtable;
+    unsigned short tileWidth;
+    unsigned short tileHeight;
     sqlite3_int64 section_id;
     sqlite3_int64 tile_id;
     sqlite3_stmt *stmt_data = NULL;
@@ -885,11 +887,13 @@ exec_import (sqlite3 * handle, const char *src_path,
     if (cvg == NULL)
 	goto error;
 
-    tile_w = rl2_get_coverage_tile_width (cvg);
-    tile_h = rl2_get_coverage_tile_height (cvg);
+    if (rl2_get_coverage_tile_size (cvg, &tileWidth, &tileHeight) != RL2_OK)
+	goto error;
+
+    tile_w = tileWidth;
+    tile_h = tileHeight;
     fprintf (stderr, "tile_w=%d, tile_h=%d\n", tile_w, tile_h);
-    compression = rl2_get_coverage_compression (cvg);
-    quality = rl2_get_coverage_quality (cvg);
+    rl2_get_coverage_compression (cvg, &compression, &quality);
 
     origin = rl2_create_tiff_origin (src_path, RL2_TIFF_GEOTIFF);
     if (origin == NULL)
@@ -1879,21 +1883,39 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
     char *xtable_levels;
     char *table_sections;
     char *xtable_sections;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned char compression;
+    int quality;
+    unsigned short tileWidth;
+    unsigned short tileHeight;
+    int srid;
     sqlite3_stmt *stmt = NULL;
 
     cvg = create_coverage_obj (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (rl2_get_coverage_compression (cvg, &compression, &quality) != RL2_OK)
+	goto error;
+    if (rl2_get_coverage_tile_size (cvg, &tileWidth, &tileHeight) != RL2_OK)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+
     params.coverage = coverage;
-    params.sample_type = rl2_get_coverage_sample_type (cvg);
-    params.pixel_type = rl2_get_coverage_pixel_type (cvg);
-    params.bands = rl2_get_coverage_bands (cvg);
-    params.compression = rl2_get_coverage_compression (cvg);
-    params.quality = rl2_get_coverage_quality (cvg);
-    params.tile_width = rl2_get_coverage_tile_width (cvg);
-    params.tile_height = rl2_get_coverage_tile_height (cvg);
-    params.srid = rl2_get_coverage_srid (cvg);
+    params.sample_type = sample_type;
+    params.pixel_type = pixel_type;
+    params.bands = num_bands;
+    params.compression = compression;
+    params.quality = quality;
+    params.tile_width = tileWidth;
+    params.tile_height = tileHeight;
+    params.srid = srid;
     params.bufpix = NULL;
     params.mask = NULL;
     params.query_stmt = NULL;

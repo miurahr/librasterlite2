@@ -2431,6 +2431,20 @@ extern "C"
     RL2_DECLARE rl2PixelPtr
 	rl2_rescale_block (rl2RasterPtr rst, int row, int col, int size);
 
+    RL2_DECLARE rl2CoveragePtr
+	rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage);
+
+    RL2_DECLARE int
+	rl2_find_matching_resolution (sqlite3 * handle, const char *coverage,
+				      double *x_res, double *y_res, int *level,
+				      int *scale);
+
+    RL2_DECLARE int
+	rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+				 unsigned short width, unsigned short height,
+				 double minx, double miny, double maxx,
+				 double maxy, double x_res, double y_res,
+				 unsigned char **buffer, int *buf_size);
 
 #ifdef __cplusplus
 }

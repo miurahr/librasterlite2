@@ -1887,6 +1887,8 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	free (pixels_odd);
     if (pixels_even != NULL)
 	free (pixels_even);
+    if (mask_pix != NULL)
+	free (mask_pix);
     if (to_clean1 != NULL)
 	free (to_clean1);
     if (to_clean2 != NULL)

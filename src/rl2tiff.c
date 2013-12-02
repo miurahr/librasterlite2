@@ -1003,6 +1003,10 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff)
     unsigned char pixel_type;
     unsigned char alias_pixel_type;
     unsigned char num_bands;
+    int srid;
+    double hResolution;
+    double vResolution;
+    double confidence;
     rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
 
     if (coverage == NULL || tiff == NULL)
@@ -1018,6 +1022,26 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff)
 	&& coverage->pixelType != alias_pixel_type)
 	return RL2_FALSE;
     if (coverage->nBands != num_bands)
+	return RL2_FALSE;
+
+    if (coverage->Srid == RL2_GEOREFERENCING_NONE)
+	return RL2_TRUE;
+
+/* checking for resolution compatibility */
+    if (rl2_get_tiff_origin_srid (tiff, &srid) != RL2_OK)
+	return RL2_FALSE;
+    if (coverage->Srid != srid)
+	return RL2_FALSE;
+    if (rl2_get_tiff_origin_resolution (tiff, &hResolution, &vResolution) !=
+	RL2_OK)
+	return RL2_FALSE;
+    confidence = coverage->hResolution / 100.0;
+    if (hResolution < (coverage->hResolution - confidence)
+	|| hResolution > (coverage->hResolution + confidence))
+	return RL2_FALSE;
+    confidence = coverage->vResolution / 100.0;
+    if (vResolution < (coverage->vResolution - confidence)
+	|| vResolution > (coverage->vResolution + confidence))
 	return RL2_FALSE;
     return RL2_TRUE;
 }

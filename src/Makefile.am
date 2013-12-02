@@ -10,7 +10,7 @@ lib_LTLIBRARIES = librasterlite2.la
 
 librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
-	rl2paint.c
+	rl2paint.c rl2dbms.c
 
 librasterlite2_la_LDFLAGS = -version-info 1:0:0 -no-undefined
 

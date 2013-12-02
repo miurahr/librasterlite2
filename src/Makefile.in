@@ -124,7 +124,7 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 librasterlite2_la_DEPENDENCIES =
 am_librasterlite2_la_OBJECTS = rasterlite2.lo rl2raw.lo rl2codec.lo \
 	rl2jpeg.lo rl2png.lo rl2gif.lo rl2webp.lo rl2tiff.lo rl2wms.lo \
-	rl2paint.lo
+	rl2paint.lo rl2dbms.lo
 librasterlite2_la_OBJECTS = $(am_librasterlite2_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -341,7 +341,7 @@ AM_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers
 lib_LTLIBRARIES = librasterlite2.la 
 librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
-	rl2paint.c
+	rl2paint.c rl2dbms.c
 
 librasterlite2_la_LDFLAGS = -version-info 1:0:0 -no-undefined
 librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
@@ -430,6 +430,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2codec.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2dbms.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2gif.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2jpeg.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2paint.Plo@am__quote@

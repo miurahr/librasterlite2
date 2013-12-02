@@ -27,6 +27,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <float.h>
+#include <limits.h>
 
 #include <rasterlite2/rasterlite2.h>
 #include <rasterlite2/rl2tiff.h>
@@ -38,28 +40,38 @@
 #define ARG_MODE_CREATE		1
 #define ARG_MODE_DROP		2
 #define ARG_MODE_IMPORT		3
-#define ARG_MODE_DELETE		4
-#define ARG_MODE_PYRAMIDIZE	5
-#define ARG_MODE_LIST		6
-#define ARG_MODE_CATALOG	7
-#define ARG_MODE_CHECK		8
+#define ARG_MODE_EXPORT		4
+#define ARG_MODE_DELETE		5
+#define ARG_MODE_PYRAMIDIZE	6
+#define ARG_MODE_LIST		7
+#define ARG_MODE_CATALOG	8
+#define ARG_MODE_CHECK		9
 
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
-#define ARG_WF_PATH		12
-#define ARG_COVERAGE		13
-#define ARG_SECTION		14
-#define ARG_SAMPLE		15
-#define ARG_PIXEL		16
-#define ARG_NUM_BANDS		17
-#define ARG_COMPRESSION		18
-#define ARG_QUALITY		19
-#define ARG_TILE_WIDTH		20
-#define ARG_TILE_HEIGHT		21
-#define ARG_SRID		22
-#define ARG_RESOLUTION		23
-#define ARG_X_RESOLUTION	24
-#define ARG_Y_RESOLUTION	25
+#define ARG_DST_PATH		12
+#define ARG_WF_PATH		13
+#define ARG_COVERAGE		14
+#define ARG_SECTION		15
+#define ARG_SAMPLE		16
+#define ARG_PIXEL		17
+#define ARG_NUM_BANDS		18
+#define ARG_COMPRESSION		19
+#define ARG_QUALITY		20
+#define ARG_TILE_WIDTH		21
+#define ARG_TILE_HEIGHT		22
+#define ARG_IMG_WIDTH		23
+#define ARG_IMG_HEIGHT		24
+#define ARG_SRID		25
+#define ARG_RESOLUTION		26
+#define ARG_X_RESOLUTION	27
+#define ARG_Y_RESOLUTION	28
+#define ARG_MINX	29
+#define ARG_MINY	30
+#define ARG_MAXX	31
+#define ARG_MAXY	32
+#define ARG_CX	33
+#define ARG_CY	34
 
 #define ARG_CACHE_SIZE		99
 
@@ -574,267 +586,6 @@ exec_create (sqlite3 * handle, const char *coverage,
     return 1;
 }
 
-static rl2CoveragePtr
-create_coverage_obj (sqlite3 * handle, const char *coverage)
-{
-/* attempting to create a Coverage Object */
-    char *sql;
-    int ret;
-    sqlite3_stmt *stmt;
-    int sample;
-    int pixel;
-    int num_bands;
-    int compression;
-    int quality;
-    int tile_width;
-    int tile_height;
-    double x_res;
-    double y_res;
-    int srid;
-    int ok = 0;
-    const char *value;
-    rl2CoveragePtr cvg;
-
-/* querying the Coverage metadata defs */
-    sql =
-	"SELECT sample_type, pixel_type, num_bands, compression, quality, tile_width, "
-	"tile_height, horz_resolution, vert_resolution, srid, nodata_pixel "
-	"FROM raster_coverages WHERE Lower(coverage_name) = Lower(?)";
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
-	  return NULL;
-      }
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
-    while (1)
-      {
-	  /* scrolling the result set rows */
-	  ret = sqlite3_step (stmt);
-	  if (ret == SQLITE_DONE)
-	      break;		/* end of result set */
-	  if (ret == SQLITE_ROW)
-	    {
-		int ok_sample = 0;
-		int ok_pixel = 0;
-		int ok_num_bands = 0;
-		int ok_compression = 0;
-		int ok_quality = 0;
-		int ok_tile_width = 0;
-		int ok_tile_height = 0;
-		int ok_x_res = 0;
-		int ok_y_res = 0;
-		int ok_srid = 0;
-		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
-		  {
-		      value = (const char *) sqlite3_column_text (stmt, 0);
-		      if (strcasecmp (value, "1-BIT") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_1_BIT;
-			}
-		      if (strcasecmp (value, "2-BIT") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_2_BIT;
-			}
-		      if (strcasecmp (value, "4-BIT") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_4_BIT;
-			}
-		      if (strcasecmp (value, "INT8") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_INT8;
-			}
-		      if (strcasecmp (value, "UINT8") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_UINT8;
-			}
-		      if (strcasecmp (value, "INT16") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_INT16;
-			}
-		      if (strcasecmp (value, "UINT16") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_UINT16;
-			}
-		      if (strcasecmp (value, "INT32") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_INT32;
-			}
-		      if (strcasecmp (value, "UINT32") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_UINT32;
-			}
-		      if (strcasecmp (value, "FLOAT") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_FLOAT;
-			}
-		      if (strcasecmp (value, "DOUBLE") == 0)
-			{
-			    ok_sample = 1;
-			    sample = RL2_SAMPLE_DOUBLE;
-			}
-		  }
-		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
-		  {
-		      value = (const char *) sqlite3_column_text (stmt, 1);
-		      if (strcasecmp (value, "MONOCHROME") == 0)
-			{
-			    ok_pixel = 1;
-			    pixel = RL2_PIXEL_MONOCHROME;
-			}
-		      if (strcasecmp (value, "PALETTE") == 0)
-			{
-			    ok_pixel = 1;
-			    pixel = RL2_PIXEL_PALETTE;
-			}
-		      if (strcasecmp (value, "GRAYSCALE") == 0)
-			{
-			    ok_pixel = 1;
-			    pixel = RL2_PIXEL_GRAYSCALE;
-			}
-		      if (strcasecmp (value, "RGB") == 0)
-			{
-			    ok_pixel = 1;
-			    pixel = RL2_PIXEL_RGB;
-			}
-		      if (strcasecmp (value, "MULTIBAND") == 0)
-			{
-			    ok_pixel = 1;
-			    pixel = RL2_PIXEL_MULTIBAND;
-			}
-		      if (strcasecmp (value, "DATAGRID") == 0)
-			{
-			    ok_pixel = 1;
-			    pixel = RL2_PIXEL_DATAGRID;
-			}
-		  }
-		if (sqlite3_column_type (stmt, 2) == SQLITE_INTEGER)
-		  {
-		      num_bands = sqlite3_column_int (stmt, 2);
-		      ok_num_bands = 1;
-		  }
-		if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
-		  {
-		      value = (const char *) sqlite3_column_text (stmt, 3);
-		      if (strcasecmp (value, "NONE") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_NONE;
-			}
-		      if (strcasecmp (value, "DEFLATE") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_DEFLATE;
-			}
-		      if (strcasecmp (value, "LZMA") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_LZMA;
-			}
-		      if (strcasecmp (value, "GIF") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_GIF;
-			}
-		      if (strcasecmp (value, "PNG") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_PNG;
-			}
-		      if (strcasecmp (value, "JPEG") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_JPEG;
-			}
-		      if (strcasecmp (value, "LOSSY_WEBP") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_LOSSY_WEBP;
-			}
-		      if (strcasecmp (value, "LOSSLESS_WEBP") == 0)
-			{
-			    ok_compression = 1;
-			    compression = RL2_COMPRESSION_LOSSLESS_WEBP;
-			}
-		  }
-		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
-		  {
-		      quality = sqlite3_column_int (stmt, 4);
-		      ok_quality = 1;
-		  }
-		if (sqlite3_column_type (stmt, 5) == SQLITE_INTEGER)
-		  {
-		      tile_width = sqlite3_column_int (stmt, 5);
-		      ok_tile_width = 1;
-		  }
-		if (sqlite3_column_type (stmt, 6) == SQLITE_INTEGER)
-		  {
-		      tile_height = sqlite3_column_int (stmt, 6);
-		      ok_tile_height = 1;
-		  }
-		if (sqlite3_column_type (stmt, 7) == SQLITE_FLOAT)
-		  {
-		      x_res = sqlite3_column_int (stmt, 7);
-		      ok_x_res = 1;
-		  }
-		if (sqlite3_column_type (stmt, 8) == SQLITE_FLOAT)
-		  {
-		      y_res = sqlite3_column_int (stmt, 8);
-		      ok_y_res = 1;
-		  }
-		if (sqlite3_column_type (stmt, 9) == SQLITE_INTEGER)
-		  {
-		      srid = sqlite3_column_int (stmt, 9);
-		      ok_srid = 1;
-		  }
-		if (ok_sample && ok_pixel && ok_num_bands && ok_compression
-		    && ok_quality && ok_tile_width && ok_tile_height && ok_x_res
-		    && ok_y_res && ok_srid)
-		    ok = 1;
-	    }
-      }
-    sqlite3_finalize (stmt);
-
-    if (!ok)
-      {
-	  fprintf (stderr, "ERROR: unable to find a Coverage named \"%s\"\n",
-		   coverage);
-	  return NULL;
-      }
-
-    cvg =
-	rl2_create_coverage (coverage, sample, pixel, num_bands, compression,
-			     quality, tile_width, tile_height, NULL);
-    if (coverage == NULL)
-      {
-	  fprintf (stderr,
-		   "ERROR: unable to create a Coverage Object supporting \"%s\"\n",
-		   coverage);
-	  return NULL;
-      }
-    if (rl2_coverage_georeference (cvg, srid, x_res, y_res) != RL2_OK)
-      {
-	  fprintf (stderr,
-		   "ERROR: unable to Georeference a Coverage Object supporting \"%s\"\n",
-		   coverage);
-	  rl2_destroy_coverage (cvg);
-	  return NULL;
-      }
-    return cvg;
-}
-
 static int
 exec_import (sqlite3 * handle, const char *src_path,
 	     const char *coverage, const char *section, const char *wf_path,
@@ -883,7 +634,7 @@ exec_import (sqlite3 * handle, const char *src_path,
     sqlite3_stmt *stmt_sect = NULL;
     sqlite3_stmt *stmt_levl = NULL;
 
-    cvg = create_coverage_obj (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -892,7 +643,6 @@ exec_import (sqlite3 * handle, const char *src_path,
 
     tile_w = tileWidth;
     tile_h = tileHeight;
-    fprintf (stderr, "tile_w=%d, tile_h=%d\n", tile_w, tile_h);
     rl2_get_coverage_compression (cvg, &compression, &quality);
 
     origin = rl2_create_tiff_origin (src_path, RL2_TIFF_GEOTIFF);
@@ -911,7 +661,7 @@ exec_import (sqlite3 * handle, const char *src_path,
 	fprintf (stderr, "%1.2f %1.2f %1.2f %1.2f\n", minx, miny, maxx, maxy);
     ret = rl2_get_tiff_origin_resolution (origin, &res_x, &res_y);
     if (ret == RL2_OK)
-	fprintf (stderr, "Hres=%1.6f Vres=%1.6f\n", res_x, res_y);
+	fprintf (stderr, "Hres=%1.12f Vres=%1.12f\n", res_x, res_y);
 
     if (rl2_eval_tiff_origin_compatibility (cvg, origin) != RL2_TRUE)
       {
@@ -1152,6 +902,151 @@ exec_import (sqlite3 * handle, const char *src_path,
     return 0;
 }
 
+static void
+copy_uint8_strip_to_tile (const unsigned char *strip, unsigned char *tile,
+			  unsigned char num_bands, unsigned short strip_width,
+			  unsigned short strip_height,
+			  unsigned short tile_width, int base_x)
+{
+/* copying UINT8 pixels from the strip into the tile */
+    int x;
+    int y;
+    int b;
+    const unsigned char *p_in;
+    unsigned char *p_out = tile;
+
+    for (y = 0; y < strip_height; y++)
+      {
+	  p_in = strip + (y * strip_width * num_bands) + (base_x * num_bands);
+	  for (x = 0; x < tile_width; x++)
+	    {
+		for (b = 0; b < num_bands; b++)
+		    *p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_from_stip_to_tile (const unsigned char *strip, unsigned char *tile,
+			unsigned char sample_type, unsigned char num_bands,
+			unsigned short strip_width, unsigned short strip_height,
+			unsigned short tile_width, int base_x)
+{
+/* copying pixels from the strip into the tile */
+    switch (sample_type)
+      {
+      default:
+	  copy_uint8_strip_to_tile ((unsigned char *) strip,
+				    (unsigned char *) tile, num_bands,
+				    strip_width, strip_height, tile_width,
+				    base_x);
+	  break;
+      };
+}
+
+static int
+exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
+	     double x_res, double y_res, double minx, double miny, double maxx,
+	     double maxy, unsigned short width, unsigned short height)
+{
+/* performing EXPORT */
+    rl2RasterPtr raster = NULL;
+    rl2CoveragePtr cvg = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    int level;
+    int scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *strip = NULL;
+    int strip_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int pix_sz = 1;
+    int base_x;
+    int base_y;
+    double MinY;
+    double MaxY;
+
+    if (rl2_find_matching_resolution
+	(handle, coverage, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return 0;
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    if (cvg == NULL)
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+
+    tiff =
+	rl2_create_geotiff_destination (dst_path, handle, width, height,
+					sample_type, pixel_type, num_bands,
+					NULL, RL2_COMPRESSION_NONE, 1, 256,
+					srid, minx, miny, maxx, maxy, xx_res,
+					yy_res, 0);
+    if (tiff == NULL)
+	goto error;
+
+    MaxY = maxy;
+    for (base_y = 0; base_y < height; base_y += 256)
+      {
+	  /* preparing a strip of 256 scanlines */
+	  MinY = MaxY - (256.0 * yy_res);
+	  if (rl2_get_raw_raster_data
+	      (handle, cvg, width, height, minx, MinY, maxx, MaxY, xx_res,
+	       yy_res, &strip, &strip_size) != RL2_OK)
+	      goto error;
+	  for (base_x = 0; base_x < width; base_x += 256)
+	    {
+		/* exporting all tiles from the strip */
+		bufpix_size = pix_sz * num_bands * 256 * 256;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		copy_from_stip_to_tile (strip, bufpix, sample_type, num_bands,
+					width, 256, 256, base_x);
+		raster =
+		    rl2_create_raster (256, 256, sample_type, pixel_type,
+				       num_bands, bufpix, bufpix_size, NULL,
+				       NULL, 0, NULL);
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+	  MaxY = MinY;
+      }
+
+    rl2_destroy_coverage (cvg);
+    rl2_destroy_tiff_destination (tiff);
+    free (strip);
+    return 1;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (cvg != NULL)
+	rl2_destroy_coverage (cvg);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (strip != NULL)
+	free (strip);
+    return 0;
+}
+
 static int
 exec_drop (sqlite3 * handle, const char *coverage)
 {
@@ -1163,7 +1058,7 @@ exec_drop (sqlite3 * handle, const char *coverage)
     char *table;
     char *xtable;
 
-    cvg = create_coverage_obj (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -1391,7 +1286,7 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section)
     char *xtable;
     sqlite3_stmt *stmt = NULL;
 
-    cvg = create_coverage_obj (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -1634,7 +1529,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 			}
 		      else
 			{
-			    fprintf (stderr, "SQL error: %s\n%s\n",
+			    fprintf (stderr, "SQL error: %s\n",
 				     sqlite3_errmsg (handle));
 			    return 0;
 			}
@@ -1893,7 +1788,7 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
     int srid;
     sqlite3_stmt *stmt = NULL;
 
-    cvg = create_coverage_obj (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -2057,6 +1952,69 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
     if (params.mask)
 	free (params.mask);
     return 0;
+}
+
+static int
+exec_catalog (sqlite3 * handle)
+{
+/* Rasterlite-2 datasources Catalog */
+    const char *sql;
+    int ret;
+    char *err_msg = NULL;
+    int count = 0;
+    int i;
+    char **results;
+    int rows;
+    int columns;
+
+    sql =
+	"SELECT coverage_name, sample_type, pixel_type, num_bands, compression, "
+	"quality, tile_width, tile_height, horz_resolution, vert_resolution, "
+	"nodata_pixel, srid, auth_name, auth_srid, ref_sys_name "
+	"FROM raster_coverages_ref_sys ORDER BY coverage_name";
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    if (ret != SQLITE_OK)
+	goto stop;
+    if (rows < 1)
+	;
+    else
+      {
+	  for (i = 1; i <= rows; i++)
+	    {
+		const char *name = results[(i * columns) + 0];
+		const char *sample = results[(i * columns) + 1];
+		const char *pixel = results[(i * columns) + 2];
+		int bands = atoi (results[(i * columns) + 3]);
+		const char *compression = results[(i * columns) + 4];
+		int quality = atoi (results[(i * columns) + 5]);
+		int tileW = atoi (results[(i * columns) + 6]);
+		int tileH = atoi (results[(i * columns) + 7]);
+		double hRes = atof (results[(i * columns) + 8]);
+		double vRes = atof (results[(i * columns) + 9]);
+		const char *nodata = "NONE";
+		int srid = atoi (results[(i * columns) + 11]);
+		const char *authName = results[(i * columns) + 12];
+		int authSrid = atoi (results[(i * columns) + 13]);
+		const char *crsName = results[(i * columns) + 14];
+		count++;
+		printf ("Coverage: %s\n", name);
+		printf ("\tsample: %s\tpixel: %s\tbands: %d\n", sample, pixel,
+			bands);
+		if (strcmp (compression, "JPEG") == 0
+		    || strcmp (compression, "LOSSY_WEBP") == 0)
+		    printf ("\ttile: %dX%d\tcompression: %s\tquality: %d\n",
+			    tileW, tileH, compression, quality);
+		else
+		    printf ("\ttile: %dX%d\tcompression: %s\n", tileW, tileH,
+			    compression);
+	    }
+      }
+    sqlite3_free_table (results);
+
+  stop:
+    if (count == 0)
+	printf ("no Rasterlite-2 datasources\n");
+    return 1;
 }
 
 static void
@@ -2386,18 +2344,18 @@ check_create_args (const char *db_path, const char *coverage, int sample,
       }
     else
 	fprintf (stderr, "Srid: %d\n", srid);
-    if (x_res <= 0.0)
+    if (x_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
 	  err = 1;
       }
-    if (y_res <= 0.0)
+    if (y_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
 	  err = 1;
       }
-    if (x_res > 0.0 && x_res > 0.0)
-	fprintf (stderr, "Pixel size: X=%1.8f Y=%1.8f\n", x_res, y_res);
+    if (x_res > 0.0 && y_res > 0.0)
+	fprintf (stderr, "Pixel size: X=%1.12f Y=%1.12f\n", x_res, y_res);
     fprintf (stderr,
 	     "===========================================================\n\n");
     return err;
@@ -2447,6 +2405,187 @@ check_import_args (const char *db_path, const char *src_path,
 	fprintf (stderr, "Immediately building Pyramid Levels\n");
     else
 	fprintf (stderr, "Ignoring Pyramid Levels for now\n");
+    fprintf (stderr,
+	     "===========================================================\n\n");
+    return err;
+}
+
+static int
+check_export_args (const char *db_path, const char *dst_path,
+		   const char *coverage, double x_res, double y_res,
+		   double *minx, double *miny, double *maxx, double *maxy,
+		   double *cx, double *cy, unsigned short *width,
+		   unsigned short *height)
+{
+/* checking/printing EXPORT args */
+    double ext_x;
+    double ext_y;
+    int err = 0;
+    int err_bbox = 0;
+    fprintf (stderr, "\n\nrl2_tool; request is EXPORT\n");
+    fprintf (stderr,
+	     "===========================================================\n");
+    if (db_path == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "DB path: %s\n", db_path);
+    if (dst_path == NULL)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** no output Destination path was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "output Destination path: %s\n", dst_path);
+    if (coverage == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "Coverage: %s\n", coverage);
+    if (x_res == DBL_MAX || y_res <= 0.0)
+      {
+	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
+	  err = 1;
+      }
+    if (y_res == DBL_MAX || y_res <= 0.0)
+      {
+	  fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
+	  err = 1;
+      }
+    if (x_res > 0.0 && y_res > 0.0)
+	fprintf (stderr, "Pixel size: X=%1.12f Y=%1.12f\n", x_res, y_res);
+    if (*cx == DBL_MAX && *cy == DBL_MAX && *width == 0 && *height == 0)
+      {
+	  /* computing the image center, width and height */
+	  if (*minx == DBL_MAX)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** undeclared Min-X (lower-left corner)\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxx == DBL_MAX)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** undeclared Max-X (upper-right corner)\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*miny == DBL_MAX)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** undeclared Min-Y (lower-left corner)\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxy == DBL_MAX)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** undeclared Max-Y (upper-right corner)\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxx <= *minx)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** negative or NULL horizontal extent\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxy <= *miny)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** negative or NULL vertical extent\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (!err_bbox)
+	    {
+		fprintf (stderr, "Lower-Left  Corner: %1.6f %1.6f\n", *minx,
+			 *miny);
+		fprintf (stderr, "Upper-Right Corner: %1.6f %1.6f\n", *maxx,
+			 *maxy);
+		ext_x = *maxx - *minx;
+		ext_y = *maxy - *miny;
+		*cx = *minx + (ext_x / 2.0);
+		*cy = *miny + (ext_y / 2.0);
+		fprintf (stderr, "Center: %1.6f %1.6f\n", *cx, *cy);
+		if ((ext_x / x_res) > USHRT_MAX)
+		  {
+		      fprintf (stderr,
+			       "*** ERROR *** exceeding max image Width\n");
+		      err = 1;
+		      err_bbox = 1;
+		  }
+		else
+		    *width = (unsigned short) (ext_x / x_res);
+		if ((ext_y / y_res) > USHRT_MAX)
+		  {
+		      fprintf (stderr,
+			       "*** ERROR *** exceeding max image Height\n");
+		      err = 1;
+		      err_bbox = 1;
+		  }
+		else
+		    *height = (unsigned short) (ext_y / y_res);
+		if (!err_bbox)
+		    fprintf (stderr, "Image Size: %uX%u\n", *width, *height);
+	    }
+      }
+    else if (*minx == DBL_MAX && *miny == DBL_MAX && *maxx == DBL_MAX
+	     && *maxy == DBL_MAX)
+      {
+	  if (*cx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Center-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*cy == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Center-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*width == 0)
+	    {
+		fprintf (stderr, "*** ERROR *** NULL/ZERO image Width\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*height == 0)
+	    {
+		fprintf (stderr, "*** ERROR *** NULL/ZERO image Height\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (!err_bbox)
+	    {
+		ext_x = (double) (*width) * x_res;
+		ext_y = (double) (*height) * y_res;
+		*minx = *cx - (ext_x / 2.0);
+		*maxx = *minx + ext_x;
+		*miny = *cy - (ext_y / 2.0);
+		*maxy = *miny + ext_y;
+		fprintf (stderr, "Lower-Left  Corner: %1.6f %1.6f\n", *minx,
+			 *miny);
+		fprintf (stderr, "Upper-Right Corner: %1.6f %1.6f\n", *maxx,
+			 *maxy);
+		fprintf (stderr, "Center: %1.6f %1.6f\n", *cx, *cy);
+		fprintf (stderr, "Image Size: %uX%u\n", *width, *height);
+	    }
+      }
+    else
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** unable to determine the BBOX and image size\n");
+	  err = 1;
+      }
     fprintf (stderr,
 	     "===========================================================\n\n");
     return err;
@@ -2699,6 +2838,35 @@ do_help ()
 	     "-wf or --wf-path      pathname  optional: WorldFile path\n");
     fprintf (stderr,
 	     "-pyr or --pyramidize            immediately build Pyramid levels\n\n");
+/* MODE = EXPORT */
+    fprintf (stderr, "\nmode: EXPORT\n");
+    fprintf (stderr, "will export an external image from a Coverage\n");
+    fprintf (stderr,
+	     "==============================================================\n");
+    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
+    fprintf (stderr,
+	     "-dst or --dst-path    pathname  output Image/Raster path\n");
+    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+    fprintf (stderr,
+	     "-res or --resolution  number    pixel resolution(X and Y)\n");
+    fprintf (stderr,
+	     "-xres or --x-resol    number    pixel resolution(X specific)\n");
+    fprintf (stderr,
+	     "-yres or --y-resol    number    pixel resolution(Y specific)\n");
+    fprintf (stderr,
+	     "-minx or --min-x      number    X coordinate (lower-left corner)\n");
+    fprintf (stderr,
+	     "-miny or --min-y      number    Y coordinate (lower-left corner)\n");
+    fprintf (stderr,
+	     "-maxx or --max-x      number    X coordinate (upper-right corner)\n");
+    fprintf (stderr,
+	     "-maxy or --max-y      number    Y coordinate (upper-left corner)\n");
+    fprintf (stderr, "-cx or --center-x     number    X coordinate (center)\n");
+    fprintf (stderr, "-cy or --center-y     number    Y coordinate (center)\n");
+    fprintf (stderr,
+	     "-outw or --out-width  number    image width (in pixels)\n");
+    fprintf (stderr,
+	     "-outh or --out-height number    image height (in pixels)\n\n");
 /* MODE = DELETE */
     fprintf (stderr, "\nmode: DELETE\n");
     fprintf (stderr, "will delete a Raster Section\n");
@@ -2775,6 +2943,7 @@ main (int argc, char *argv[])
     int next_arg = ARG_NONE;
     const char *db_path = NULL;
     const char *src_path = NULL;
+    const char *dst_path = NULL;
     const char *wf_path = NULL;
     const char *coverage = NULL;
     const char *section = NULL;
@@ -2785,8 +2954,16 @@ main (int argc, char *argv[])
     int quality = 80;
     int tile_width = 256;
     int tile_height = 256;
-    double x_res = 0.0;
-    double y_res = 0.0;
+    double x_res = DBL_MAX;
+    double y_res = DBL_MAX;
+    double minx = DBL_MAX;
+    double miny = DBL_MAX;
+    double maxx = DBL_MAX;
+    double maxy = DBL_MAX;
+    double cx = DBL_MAX;
+    double cy = DBL_MAX;
+    unsigned short width = 0;
+    unsigned short height = 0;
     int srid = -1;
     int pyramidize = 0;
     int force_pyramid = 0;
@@ -2807,6 +2984,8 @@ main (int argc, char *argv[])
 	      mode = ARG_MODE_DROP;
 	  if (strcasecmp (argv[1], "IMPORT") == 0)
 	      mode = ARG_MODE_IMPORT;
+	  if (strcasecmp (argv[1], "EXPORT") == 0)
+	      mode = ARG_MODE_EXPORT;
 	  if (strcasecmp (argv[1], "DELETE") == 0)
 	      mode = ARG_MODE_DELETE;
 	  if (strcasecmp (argv[1], "PYRAMIDIZE") == 0)
@@ -2831,6 +3010,9 @@ main (int argc, char *argv[])
 		      break;
 		  case ARG_SRC_PATH:
 		      src_path = argv[i];
+		      break;
+		  case ARG_DST_PATH:
+		      dst_path = argv[i];
 		      break;
 		  case ARG_WF_PATH:
 		      wf_path = argv[i];
@@ -2926,6 +3108,30 @@ main (int argc, char *argv[])
 		  case ARG_Y_RESOLUTION:
 		      y_res = atof (argv[i]);
 		      break;
+		  case ARG_MINX:
+		      minx = atof (argv[i]);
+		      break;
+		  case ARG_MINY:
+		      miny = atof (argv[i]);
+		      break;
+		  case ARG_MAXX:
+		      maxx = atof (argv[i]);
+		      break;
+		  case ARG_MAXY:
+		      maxy = atof (argv[i]);
+		      break;
+		  case ARG_CX:
+		      cx = atof (argv[i]);
+		      break;
+		  case ARG_CY:
+		      cy = atof (argv[i]);
+		      break;
+		  case ARG_IMG_WIDTH:
+		      width = atoi (argv[i]);
+		      break;
+		  case ARG_IMG_HEIGHT:
+		      height = atoi (argv[i]);
+		      break;
 		  case ARG_CACHE_SIZE:
 		      cache_size = atoi (argv[i]);
 		      break;
@@ -2950,6 +3156,12 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--src-path") == 0)
 	    {
 		next_arg = ARG_SRC_PATH;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-dst") == 0
+	      || strcasecmp (argv[i], "--dst-path") == 0)
+	    {
+		next_arg = ARG_DST_PATH;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-wf") == 0
@@ -3012,6 +3224,18 @@ main (int argc, char *argv[])
 		next_arg = ARG_TILE_HEIGHT;
 		continue;
 	    }
+	  if (strcmp (argv[i], "-outw") == 0
+	      || strcasecmp (argv[i], "--out-width") == 0)
+	    {
+		next_arg = ARG_IMG_WIDTH;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-outh") == 0
+	      || strcasecmp (argv[i], "--out-height") == 0)
+	    {
+		next_arg = ARG_IMG_HEIGHT;
+		continue;
+	    }
 	  if (strcmp (argv[i], "-srid") == 0
 	      || strcasecmp (argv[i], "--srid") == 0)
 	    {
@@ -3034,6 +3258,42 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--y-resol") == 0)
 	    {
 		next_arg = ARG_Y_RESOLUTION;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-minx") == 0
+	      || strcasecmp (argv[i], "--min-x") == 0)
+	    {
+		next_arg = ARG_MINX;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-miny") == 0
+	      || strcasecmp (argv[i], "--min-y") == 0)
+	    {
+		next_arg = ARG_MINY;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-maxx") == 0
+	      || strcasecmp (argv[i], "--max-x") == 0)
+	    {
+		next_arg = ARG_MAXX;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-maxy") == 0
+	      || strcasecmp (argv[i], "--max-y") == 0)
+	    {
+		next_arg = ARG_MAXY;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-cx") == 0
+	      || strcasecmp (argv[i], "--center-x") == 0)
+	    {
+		next_arg = ARG_CX;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-cy") == 0
+	      || strcasecmp (argv[i], "--center-y") == 0)
+	    {
+		next_arg = ARG_CY;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-f") == 0
@@ -3093,6 +3353,12 @@ main (int argc, char *argv[])
 	  error =
 	      check_import_args (db_path, src_path, coverage, section, wf_path,
 				 pyramidize);
+	  break;
+      case ARG_MODE_EXPORT:
+	  error =
+	      check_export_args (db_path, dst_path, coverage, x_res, y_res,
+				 &minx, &miny, &maxx, &maxy, &cx, &cy, &width,
+				 &height);
 	  break;
       case ARG_MODE_DELETE:
 	  error = check_delete_args (db_path, coverage, section);
@@ -3199,18 +3465,23 @@ main (int argc, char *argv[])
 	      exec_import (handle, src_path, coverage, section,
 			   wf_path, pyramidize);
 	  break;
+      case ARG_MODE_EXPORT:
+	  ret =
+	      exec_export (handle, dst_path, coverage, x_res, y_res, minx, miny,
+			   maxx, maxy, width, height);
+	  break;
       case ARG_MODE_DELETE:
 	  ret = exec_delete (handle, coverage, section);
 	  break;
       case ARG_MODE_PYRAMIDIZE:
 	  ret = exec_pyramidize (handle, coverage, section, force_pyramid);
 	  break;
+      case ARG_MODE_CATALOG:
+	  ret = exec_catalog (handle);
+	  break;
 /*
 	     case ARG_MODE_LIST:
 	     ret = exec_list(handle, db_path, coverage, section);
-	     break;
-	     case ARG_MODE_CATALOG:
-	     ret = exec_catalog(handle, db_path);
 	     break;
 	     case ARG_MODE_CHECK:
 	     ret = exec_check(handle, db_path, coverage, section);
@@ -3238,6 +3509,9 @@ main (int argc, char *argv[])
 		break;
 	    case ARG_MODE_IMPORT:
 		op_name = "IMPORT";
+		break;
+	    case ARG_MODE_EXPORT:
+		op_name = "EXPORT";
 		break;
 	    case ARG_MODE_DELETE:
 		op_name = "DELETE";

@@ -55,7 +55,9 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2tiff.h"
 
 static rl2PrivTiffOriginPtr
-create_tiff_origin (const char *path)
+create_tiff_origin (const char *path, unsigned char force_sample_type,
+		    unsigned char force_pixel_type,
+		    unsigned char force_num_bands)
 {
 /* creating an uninitialized TIFF origin */
     int len;
@@ -84,6 +86,10 @@ create_tiff_origin (const char *path)
     origin->Srid = -1;
     origin->srsName = NULL;
     origin->proj4text = NULL;
+    origin->forced_sample_type = force_sample_type;
+    origin->forced_pixel_type = force_pixel_type;
+    origin->forced_num_bands = force_num_bands;
+    origin->forced_conversion = RL2_CONVERT_NO;
     return origin;
 }
 
@@ -244,7 +250,7 @@ is_valid_float (char *str)
 }
 
 static void
-worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
+worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int srid)
 {
 /* attempting to retrieve georeferencing from a TIFF+TFW origin */
     FILE *tfw;
@@ -314,6 +320,7 @@ worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 
     if (ok_res_x && ok_res_y && ok_x && ok_y)
       {
+	  origin->Srid = srid;
 	  origin->hResolution = res_x;
 	  origin->vResolution = res_y;
 	  origin->minX = x;
@@ -329,7 +336,7 @@ worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 }
 
 static void
-geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
+geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
 {
 /* attempting to retrieve georeferencing from a GeoTIFF origin */
     uint32 width = 0;
@@ -364,8 +371,12 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
       }
     else
 	origin->Srid = definition.PCS;
-    if (origin->Srid < 0)
-	goto error;
+    if (origin->Srid <= 0)
+      {
+	  origin->Srid = force_srid;
+	  if (origin->Srid <= 0)
+	      goto error;
+      }
     if (definition.PCS == 32767)
       {
 	  /* Get the GCS name if possible */
@@ -432,6 +443,265 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 	XTIFFClose (in);
     if (gtif != (GTIF *) 0)
 	GTIFFree (gtif);
+}
+
+static int
+check_grayscale_palette (rl2PrivTiffOriginPtr origin)
+{
+/* checking if a Palette actually is a Grayscale Palette */
+    int i;
+    if (origin->maxPalette == 0 || origin->maxPalette > 256)
+	return 0;
+    for (i = 0; i < origin->maxPalette; i++)
+      {
+	  if (origin->red[i] == origin->green[i]
+	      && origin->red[i] == origin->blue[i])
+	      ;
+	  else
+	      return 0;
+      }
+    return 1;
+}
+
+static int
+check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
+{
+/* check if the Color-Space conversion could be accepted */
+    if (origin->forced_sample_type == RL2_SAMPLE_UNKNOWN)
+      {
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT)
+	    {
+		if (origin->bitsPerSample == 8)
+		    origin->forced_sample_type = RL2_SAMPLE_INT8;
+		if (origin->bitsPerSample == 16)
+		    origin->forced_sample_type = RL2_SAMPLE_INT16;
+		if (origin->bitsPerSample == 32)
+		    origin->forced_sample_type = RL2_SAMPLE_INT32;
+	    }
+	  else if (origin->sampleFormat == SAMPLEFORMAT_UINT)
+	    {
+		if (origin->bitsPerSample == 1)
+		    origin->forced_sample_type = RL2_SAMPLE_1_BIT;
+		if (origin->bitsPerSample == 2)
+		    origin->forced_sample_type = RL2_SAMPLE_2_BIT;
+		if (origin->bitsPerSample == 4)
+		    origin->forced_sample_type = RL2_SAMPLE_4_BIT;
+		if (origin->bitsPerSample == 8)
+		    origin->forced_sample_type = RL2_SAMPLE_UINT8;
+		if (origin->bitsPerSample == 16)
+		    origin->forced_sample_type = RL2_SAMPLE_UINT16;
+		if (origin->bitsPerSample == 32)
+		    origin->forced_sample_type = RL2_SAMPLE_UINT32;
+	    }
+	  else if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP)
+	    {
+		if (origin->bitsPerSample == 32)
+		    origin->forced_sample_type = RL2_SAMPLE_FLOAT;
+		if (origin->bitsPerSample == 64)
+		    origin->forced_sample_type = RL2_SAMPLE_DOUBLE;
+	    }
+      }
+    if (origin->forced_pixel_type == RL2_PIXEL_UNKNOWN)
+      {
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      origin->forced_pixel_type = RL2_PIXEL_RGB;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample > 1)
+	      origin->forced_pixel_type = RL2_PIXEL_GRAYSCALE;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8)
+	      origin->forced_pixel_type = RL2_PIXEL_PALETTE;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric <= 2
+	      && origin->bitsPerSample == 1)
+	      origin->forced_pixel_type = RL2_PIXEL_MONOCHROME;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample == 8)
+	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample == 16)
+	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample == 32)
+	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample == 32)
+	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample == 32)
+	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample == 64)
+	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
+      }
+    if (origin->forced_num_bands == RL2_BANDS_UNKNOWN)
+	origin->forced_num_bands = origin->samplesPerPixel;
+
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT8
+	&& origin->forced_pixel_type == RL2_PIXEL_RGB
+	&& origin->forced_num_bands == 3)
+      {
+	  /* RGB color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT16
+	&& origin->forced_pixel_type == RL2_PIXEL_RGB
+	&& origin->forced_num_bands == 3)
+      {
+	  /* RGB color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT8
+	&& origin->forced_pixel_type == RL2_PIXEL_GRAYSCALE
+	&& origin->forced_num_bands == 1)
+      {
+	  /* GRAYSCALE color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample > 1)
+	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	    {
+		origin->forced_conversion = RL2_CONVERT_RGB_TO_GRAYSCALE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8 && check_grayscale_palette (origin))
+	    {
+		origin->forced_conversion = RL2_CONVERT_PALETTE_TO_GRAYSCALE;
+		return 1;
+	    }
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT16
+	&& origin->forced_pixel_type == RL2_PIXEL_GRAYSCALE
+	&& origin->forced_num_bands == 1)
+      {
+	  /* GRAYSCALE color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->bitsPerSample > 1)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT8
+	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE
+	&& origin->forced_num_bands == 1)
+      {
+	  /* PALETTE-256 color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_4_BIT
+	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE
+	&& origin->forced_num_bands == 1)
+      {
+	  /* PALETTE-16 color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_2_BIT
+	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE
+	&& origin->forced_num_bands == 1)
+      {
+	  /* PALETTE-4 color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_1_BIT
+	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE
+	&& origin->forced_num_bands == 1)
+      {
+	  /* PALETTE-2 color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_1_BIT
+	&& origin->forced_pixel_type == RL2_PIXEL_MONOCHROME
+	&& origin->forced_num_bands == 1)
+      {
+	  /* MONOCHROME color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric <= 2
+	      && origin->bitsPerSample == 1)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_INT8
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* INT8 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_INT16
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* INT16 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_INT32
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* INT32 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT32
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* UINT32 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_FLOAT
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* UINT32 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_DOUBLE
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* UINT32 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	      return 1;
+      }
+    return 0;
 }
 
 static int
@@ -565,6 +835,8 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		    origin->blue[i] = blue[i] / 256;
 	    }
       }
+    if (!check_tiff_origin_pixel_conversion (origin))
+	goto error;
 
     return 1;
   error:
@@ -572,7 +844,10 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 }
 
 RL2_DECLARE rl2TiffOriginPtr
-rl2_create_tiff_origin (const char *path, int georef_priority)
+rl2_create_tiff_origin (const char *path, int georef_priority, int srid,
+			unsigned char force_sample_type,
+			unsigned char force_pixel_type,
+			unsigned char force_num_bands)
 {
 /* attempting to create a file-based TIFF / GeoTIFF origin */
     rl2PrivTiffOriginPtr origin = NULL;
@@ -583,27 +858,29 @@ rl2_create_tiff_origin (const char *path, int georef_priority)
 	;
     else
 	return NULL;
-    origin = create_tiff_origin (path);
+    origin =
+	create_tiff_origin (path, force_sample_type, force_pixel_type,
+			    force_num_bands);
     if (origin == NULL)
 	return NULL;
     if (georef_priority == RL2_TIFF_GEOTIFF)
       {
 	  /* attempting first to retrieve GeoTIFF georeferencing */
-	  geo_tiff_origin (path, origin);
+	  geo_tiff_origin (path, origin, srid);
 	  if (origin->isGeoReferenced == 0)
 	    {
 		/* then attempting to retrieve WorldFile georeferencing */
-		worldfile_tiff_origin (path, origin);
+		worldfile_tiff_origin (path, origin, srid);
 	    }
       }
     else if (georef_priority == RL2_TIFF_WORLDFILE)
       {
 	  /* attempting first to retrieve Worldfile georeferencing */
-	  worldfile_tiff_origin (path, origin);
+	  worldfile_tiff_origin (path, origin, srid);
 	  if (origin->isGeoReferenced == 0)
 	    {
 		/* then attempting to retrieve GeoTIFF georeferencing */
-		geo_tiff_origin (path, origin);
+		geo_tiff_origin (path, origin, srid);
 	    }
       }
     if (!init_tiff_origin (path, origin))
@@ -617,17 +894,22 @@ rl2_create_tiff_origin (const char *path, int georef_priority)
 }
 
 RL2_DECLARE rl2TiffOriginPtr
-rl2_create_geotiff_origin (const char *path)
+rl2_create_geotiff_origin (const char *path, int force_srid,
+			   unsigned char force_sample_type,
+			   unsigned char force_pixel_type,
+			   unsigned char force_num_bands)
 {
 /* attempting to create a file-based GeoTIFF origin */
     rl2PrivTiffOriginPtr origin = NULL;
 
-    origin = create_tiff_origin (path);
+    origin =
+	create_tiff_origin (path, force_sample_type, force_pixel_type,
+			    force_num_bands);
     if (origin == NULL)
 	return NULL;
 
     /* attempting to retrieve GeoTIFF georeferencing */
-    geo_tiff_origin (path, origin);
+    geo_tiff_origin (path, origin, force_srid);
     if (origin->isGeoReferenced == 0)
 	goto error;
     if (!init_tiff_origin (path, origin))
@@ -641,20 +923,24 @@ rl2_create_geotiff_origin (const char *path)
 }
 
 RL2_DECLARE rl2TiffOriginPtr
-rl2_create_tiff_worldfile_origin (const char *path, int srid)
+rl2_create_tiff_worldfile_origin (const char *path, int srid,
+				  unsigned char force_sample_type,
+				  unsigned char force_pixel_type,
+				  unsigned char force_num_bands)
 {
 /* attempting to create a file-based TIFF+TFW origin */
     rl2PrivTiffOriginPtr origin = NULL;
 
-    origin = create_tiff_origin (path);
+    origin =
+	create_tiff_origin (path, force_sample_type, force_pixel_type,
+			    force_num_bands);
     if (origin == NULL)
 	return NULL;
 
 /* attempting to retrieve Worldfile georeferencing */
-    worldfile_tiff_origin (path, origin);
+    worldfile_tiff_origin (path, origin, srid);
     if (origin->isGeoReferenced == 0)
 	goto error;
-    origin->Srid = srid;
     if (!init_tiff_origin (path, origin))
 	goto error;
 
@@ -957,6 +1243,23 @@ rl2_get_tiff_origin_type (rl2TiffOriginPtr tiff, unsigned char *sample_type,
 }
 
 RL2_DECLARE int
+rl2_get_tiff_origin_forced_type (rl2TiffOriginPtr tiff,
+				 unsigned char *sample_type,
+				 unsigned char *pixel_type,
+				 unsigned char *num_bands)
+{
+/* retrieving the sample/pixel type (FORCED) from a TIFF origin */
+    rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
+    if (origin == NULL)
+	return RL2_ERROR;
+
+    *sample_type = origin->forced_sample_type;
+    *pixel_type = origin->forced_pixel_type;
+    *num_bands = origin->forced_num_bands;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
 rl2_get_tiff_origin_compression (rl2TiffOriginPtr tiff,
 				 unsigned char *compression)
 {
@@ -1001,7 +1304,6 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff)
 /* testing if a Coverage and a TIFF origin are mutually compatible */
     unsigned char sample_type;
     unsigned char pixel_type;
-    unsigned char alias_pixel_type;
     unsigned char num_bands;
     int srid;
     double hResolution;
@@ -1011,15 +1313,23 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff)
 
     if (coverage == NULL || tiff == NULL)
 	return RL2_ERROR;
-    if (rl2_get_tiff_origin_type
-	(tiff, &sample_type, &pixel_type, &alias_pixel_type,
-	 &num_bands) != RL2_OK)
+    if (rl2_get_tiff_origin_forced_type
+	(tiff, &sample_type, &pixel_type, &num_bands) != RL2_OK)
 	return RL2_ERROR;
+
+/* aliasing GRAYSCALE and DATAGRID for UINT8 AND UINT16 */
+    if (coverage->sampleType == RL2_SAMPLE_UINT8
+	&& coverage->pixelType == RL2_PIXEL_DATAGRID
+	&& pixel_type == RL2_PIXEL_GRAYSCALE)
+	pixel_type = RL2_PIXEL_DATAGRID;
+    if (coverage->sampleType == RL2_SAMPLE_UINT16
+	&& coverage->pixelType == RL2_PIXEL_DATAGRID
+	&& pixel_type == RL2_PIXEL_GRAYSCALE)
+	pixel_type = RL2_PIXEL_DATAGRID;
 
     if (coverage->sampleType != sample_type)
 	return RL2_FALSE;
-    if (coverage->pixelType != pixel_type
-	&& coverage->pixelType != alias_pixel_type)
+    if (coverage->pixelType != pixel_type)
 	return RL2_FALSE;
     if (coverage->nBands != num_bands)
 	return RL2_FALSE;
@@ -1551,7 +1861,39 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 			    green = TIFFGetG (pix);
 			    blue = TIFFGetB (pix);
 			    alpha = TIFFGetA (pix);
-			    if (pixel_type == RL2_PIXEL_PALETTE)
+			    if (origin->forced_conversion ==
+				RL2_CONVERT_RGB_TO_GRAYSCALE)
+			      {
+				  /* forced conversion: RGB -> GRAYSCALE */
+				  double gray;
+				  if (origin->photometric == 0)
+				    {
+					/* WhiteIsZero - inverting the grayscale */
+					gray =
+					    ((double) (255 - red) * 0.2126) +
+					    ((double) (255 - green) * 0.7152) +
+					    ((double) (255 - blue) * 0.0722);
+				    }
+				  else
+				      gray =
+					  ((double) red * 0.2126) +
+					  ((double) green * 0.7152) +
+					  ((double) blue * 0.0722);
+				  *p_out++ = (unsigned char) gray;
+			      }
+			    else if (origin->forced_conversion ==
+				     RL2_CONVERT_PALETTE_TO_GRAYSCALE)
+			      {
+				  /* forced conversion: PALETTE -> GRAYSCALE */
+				  index = red;
+				  if (origin->photometric == 0)
+				    {
+					/* WhiteIsZero - inverting the grayscale */
+					index = 255 - red;
+				    }
+				  *p_out++ = index;
+			      }
+			    else if (pixel_type == RL2_PIXEL_PALETTE)
 			      {
 				  /* PALETTE image */
 				  if (rl2_get_palette_index
@@ -1675,7 +2017,39 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 		      green = TIFFGetG (pix);
 		      blue = TIFFGetB (pix);
 		      alpha = TIFFGetA (pix);
-		      if (pixel_type == RL2_PIXEL_PALETTE)
+		      if (origin->forced_conversion ==
+			  RL2_CONVERT_RGB_TO_GRAYSCALE)
+			{
+			    /* forced conversion: RGB -> GRAYSCALE */
+			    double gray;
+			    if (origin->photometric == 0)
+			      {
+				  /* WhiteIsZero - inverting the grayscale */
+				  gray =
+				      ((double) (255 - red) * 0.2126) +
+				      ((double) (255 - green) * 0.7152) +
+				      ((double) (255 - blue) * 0.0722);
+			      }
+			    else
+				gray =
+				    ((double) red * 0.2126) +
+				    ((double) green * 0.7152) +
+				    ((double) blue * 0.0722);
+			    *p_out++ = (unsigned char) gray;
+			}
+		      else if (origin->forced_conversion ==
+			       RL2_CONVERT_PALETTE_TO_GRAYSCALE)
+			{
+			    /* forced conversion: PALETTE -> GRAYSCALE */
+			    index = red;
+			    if (origin->photometric == 0)
+			      {
+				  /* WhiteIsZero - inverting the grayscale */
+				  index = 255 - red;
+			      }
+			    *p_out++ = index;
+			}
+		      else if (pixel_type == RL2_PIXEL_PALETTE)
 			{
 			    /* PALETTE image */
 			    if (rl2_get_palette_index
@@ -1886,7 +2260,8 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     if ((x * coverage->tileHeight) != startRow)
 	return NULL;
 
-    if (origin->photometric == 3)
+    if (origin->photometric == 3
+	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE)
       {
 	  /* creating a Palette */
 	  palette = rl2_create_palette (origin->maxPalette);
@@ -3554,12 +3929,29 @@ tiff_write_tile_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
     int y;
     int x;
     unsigned char *p_in = raster->rasterBuffer;
+    unsigned char *p_msk = raster->maskBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
     for (y = 0; y < raster->height; y++)
       {
 	  for (x = 0; x < raster->width; x++)
-	      *p_out++ = *p_in++;
+	    {
+		if (p_msk == NULL)
+		  {
+		      /* there is no Transparency Mask - all opaque pixels */
+		      *p_out++ = *p_in++;
+		  }
+		else
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    /* transparent pixel */
+			    p_out++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
       }
     if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
 	return 0;

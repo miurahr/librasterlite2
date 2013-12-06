@@ -78,7 +78,9 @@ test_tiff (const char *name, unsigned char sample_type,
       }
 
     sprintf (path, "./%s.tif", name);
-    origin = rl2_create_tiff_origin (path, RL2_TIFF_GEOTIFF);
+    origin =
+	rl2_create_tiff_origin (path, RL2_TIFF_GEOTIFF, -1, RL2_SAMPLE_UNKNOWN,
+				RL2_PIXEL_UNKNOWN, RL2_BANDS_UNKNOWN);
     if (origin == NULL)
       {
 	  fprintf (stderr, "ERROR: unable to open %s\n", path);
@@ -232,7 +234,10 @@ test_null ()
     double hResolution;
     double vResolution;
 
-    origin = rl2_create_tiff_origin (NULL, RL2_TIFF_NO_GEOREF);
+    origin =
+	rl2_create_tiff_origin (NULL, RL2_TIFF_NO_GEOREF, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
@@ -240,14 +245,19 @@ test_null ()
 	  return -30;
       }
     origin =
-	rl2_create_tiff_origin ("not_existing_tiff.tif", RL2_TIFF_NO_GEOREF);
+	rl2_create_tiff_origin ("not_existing_tiff.tif", RL2_TIFF_NO_GEOREF, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: Create TIFF Origin - no georef\n");
 	  return -31;
       }
-    origin = rl2_create_tiff_origin ("not_existing_tiff.tif", RL2_TIFF_GEOTIFF);
+    origin =
+	rl2_create_tiff_origin ("not_existing_tiff.tif", RL2_TIFF_GEOTIFF, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
@@ -255,14 +265,19 @@ test_null ()
 	  return -32;
       }
     origin =
-	rl2_create_tiff_origin ("not_existing_tiff.tif", RL2_TIFF_WORLDFILE);
+	rl2_create_tiff_origin ("not_existing_tiff.tif", RL2_TIFF_WORLDFILE, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: Create TIFF Origin - Worldfile\n");
 	  return -33;
       }
-    origin = rl2_create_tiff_origin ("gray-striped.tif", RL2_TIFF_NO_GEOREF);
+    origin =
+	rl2_create_tiff_origin ("gray-striped.tif", RL2_TIFF_NO_GEOREF, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin == NULL)
       {
 	  fprintf (stderr, "Unexpected fail: Create TIFF Origin - no georef\n");
@@ -287,7 +302,10 @@ test_null ()
 	  return -37;
       }
     rl2_destroy_tiff_origin (origin);
-    origin = rl2_create_tiff_origin ("gray-striped.tif", RL2_TIFF_WORLDFILE);
+    origin =
+	rl2_create_tiff_origin ("gray-striped.tif", RL2_TIFF_WORLDFILE, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin == NULL)
       {
 	  fprintf (stderr, "Unexpected fail: Create TIFF Origin - Worldfile\n");
@@ -305,7 +323,10 @@ test_null ()
 	  return -40;
       }
     rl2_destroy_tiff_origin (origin);
-    origin = rl2_create_tiff_origin ("gray-tiled.tif", RL2_TIFF_GEOTIFF);
+    origin =
+	rl2_create_tiff_origin ("gray-tiled.tif", RL2_TIFF_GEOTIFF, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     if (origin == NULL)
       {
 	  fprintf (stderr, "Unexpected fail: Create TIFF Origin - Worldfile\n");
@@ -348,28 +369,39 @@ test_null ()
       }
     rl2_destroy_coverage (coverage);
     rl2_destroy_tiff_origin (origin);
-    origin = rl2_create_geotiff_origin ("not_existing_tiff.tif");
+    origin =
+	rl2_create_geotiff_origin ("not_existing_tiff.tif", -1,
+				   RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				   RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: Create GeoTIFF Origin - not existing\n");
 	  return -47;
       }
-    origin = rl2_create_geotiff_origin ("gray-striped.tif");
+    origin =
+	rl2_create_geotiff_origin ("gray-striped.tif", -1, RL2_SAMPLE_UNKNOWN,
+				   RL2_PIXEL_UNKNOWN, RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: Create GeoTIFF Origin - not a GeoTIFF\n");
 	  return -48;
       }
-    origin = rl2_create_tiff_worldfile_origin ("not_existing_tiff.tif", 4326);
+    origin =
+	rl2_create_tiff_worldfile_origin ("not_existing_tiff.tif", 4326,
+					  RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+					  RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: Create TIFF+TFW Origin - not existing\n");
 	  return -49;
       }
-    origin = rl2_create_tiff_worldfile_origin ("gray-striped.tif", 4326);
+    origin =
+	rl2_create_tiff_worldfile_origin ("gray-striped.tif", 4326,
+					  RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+					  RL2_BANDS_UNKNOWN);
     if (origin != NULL)
       {
 	  fprintf (stderr,
@@ -441,7 +473,10 @@ test_null ()
 	  return -61;
       }
 
-    origin = rl2_create_tiff_origin ("rgb-tiled.tif", RL2_TIFF_NO_GEOREF);
+    origin =
+	rl2_create_tiff_origin ("rgb-tiled.tif", RL2_TIFF_NO_GEOREF, -1,
+				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
+				RL2_BANDS_UNKNOWN);
     coverage =
 	rl2_create_coverage ("alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 1,
 			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);

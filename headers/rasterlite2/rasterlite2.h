@@ -2428,6 +2428,8 @@ extern "C"
 
     RL2_DECLARE rl2PalettePtr rl2_get_raster_palette (rl2RasterPtr raster);
 
+    RL2_DECLARE rl2PalettePtr rl2_clone_palette (rl2PalettePtr palette);
+
     RL2_DECLARE rl2PixelPtr
 	rl2_rescale_block (rl2RasterPtr rst, int row, int col, int size);
 
@@ -2436,15 +2438,38 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_find_matching_resolution (sqlite3 * handle, const char *coverage,
-				      double *x_res, double *y_res, int *level,
-				      int *scale);
+				      double *x_res, double *y_res,
+				      unsigned char *level,
+				      unsigned char *scale);
 
     RL2_DECLARE int
 	rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 				 unsigned short width, unsigned short height,
 				 double minx, double miny, double maxx,
 				 double maxy, double x_res, double y_res,
-				 unsigned char **buffer, int *buf_size);
+				 unsigned char **buffer, int *buf_size,
+				 rl2PalettePtr * palette);
+
+    RL2_DECLARE int
+	rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
+				  unsigned char sample, unsigned char pixel,
+				  unsigned char num_bands,
+				  unsigned char compression, int quality,
+				  unsigned short tile_width,
+				  unsigned short tile_height, int srid,
+				  double x_res, double y_res);
+
+    RL2_DECLARE int
+	rl2_delete_dbms_section (sqlite3 * handle, const char *coverage,
+				 sqlite3_int64 section_id);
+
+    RL2_DECLARE int
+	rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
+				 const char *section,
+				 sqlite3_int64 * section_id);
+
+    RL2_DECLARE int
+	rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage);
 
 #ifdef __cplusplus
 }

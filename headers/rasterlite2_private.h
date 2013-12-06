@@ -111,6 +111,11 @@ extern "C"
 #define RL2_MASK_START			0xb6
 #define RL2_MASK_END			0xb7
 
+/* internal ColorSpace forced conversions */
+#define RL2_CONVERT_NO			0x00
+#define RL2_CONVERT_RGB_TO_GRAYSCALE 		0x01
+#define RL2_CONVERT_PALETTE_TO_GRAYSCALE	0x02
+
     typedef union rl2_priv_sample
     {
 	char int8;
@@ -240,6 +245,10 @@ extern "C"
 	double minY;
 	double maxX;
 	double maxY;
+	unsigned char forced_sample_type;
+	unsigned char forced_pixel_type;
+	unsigned char forced_num_bands;
+	unsigned char forced_conversion;
     } rl2PrivTiffOrigin;
     typedef rl2PrivTiffOrigin *rl2PrivTiffOriginPtr;
 

@@ -1371,7 +1371,9 @@ check_origin (const char *path, const char *tfw_path, int srid, double minx,
 
     if (mode == RL2_TIFF_GEOTIFF)
       {
-	  origin = rl2_create_geotiff_origin (path);
+	  origin =
+	      rl2_create_geotiff_origin (path, -1, RL2_SAMPLE_UNKNOWN,
+					 RL2_PIXEL_UNKNOWN, RL2_BANDS_UNKNOWN);
 	  if (origin == NULL)
 	    {
 		fprintf (stderr, "ERROR: unable to open %s as GeoTIFF\n", path);
@@ -1380,7 +1382,10 @@ check_origin (const char *path, const char *tfw_path, int srid, double minx,
       }
     else if (mode == RL2_TIFF_WORLDFILE)
       {
-	  origin = rl2_create_tiff_worldfile_origin (path, 4326);
+	  origin =
+	      rl2_create_tiff_worldfile_origin (path, 4326, RL2_SAMPLE_UNKNOWN,
+						RL2_PIXEL_UNKNOWN,
+						RL2_BANDS_UNKNOWN);
 	  if (origin == NULL)
 	    {
 		fprintf (stderr, "ERROR: unable to open %s as TIFF+TFW\n",

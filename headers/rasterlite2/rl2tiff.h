@@ -65,13 +65,33 @@ extern "C"
 #define RL2_TIFF_WORLDFILE	0xf3
 
     RL2_DECLARE rl2TiffOriginPtr rl2_create_tiff_origin (const char *path,
-							 int georef_priority);
+							 int georef_priority,
+							 int srid,
+							 unsigned char
+							 force_sample_type,
+							 unsigned char
+							 force_pixel_type,
+							 unsigned char
+							 force_num_bands);
 
-    RL2_DECLARE rl2TiffOriginPtr rl2_create_geotiff_origin (const char *path);
+    RL2_DECLARE rl2TiffOriginPtr rl2_create_geotiff_origin (const char *path,
+							    int force_srid,
+							    unsigned char
+							    force_sample_type,
+							    unsigned char
+							    force_pixel_type,
+							    unsigned char
+							    force_num_bands);
 
     RL2_DECLARE rl2TiffOriginPtr rl2_create_tiff_worldfile_origin (const char
 								   *path,
-								   int srid);
+								   int srid,
+								   unsigned char
+								   force_sample_type,
+								   unsigned char
+								   force_pixel_type,
+								   unsigned char
+								   force_num_bands);
 
     RL2_DECLARE void rl2_destroy_tiff_origin (rl2TiffOriginPtr tiff);
 
@@ -95,6 +115,12 @@ extern "C"
 				  unsigned char *pixel_type,
 				  unsigned char *alias_pixel_type,
 				  unsigned char *num_bands);
+
+    RL2_DECLARE int
+	rl2_get_tiff_origin_forced_type (rl2TiffOriginPtr tiff,
+					 unsigned char *sample_type,
+					 unsigned char *pixel_type,
+					 unsigned char *num_bands);
 
     RL2_DECLARE int rl2_get_tiff_origin_compression (rl2TiffOriginPtr tiff,
 						     unsigned char

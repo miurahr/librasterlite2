@@ -1243,6 +1243,30 @@ rl2_destroy_palette (rl2PalettePtr ptr)
     free (plt);
 }
 
+RL2_DECLARE rl2PalettePtr
+rl2_clone_palette (rl2PalettePtr in)
+{
+/* cloning a Palette object */
+    rl2PrivPalettePtr plt_in = (rl2PrivPalettePtr) in;
+    rl2PalettePtr out;
+    rl2PrivPalettePtr plt_out;
+    int i;
+    if (in == NULL)
+	return NULL;
+    out = rl2_create_palette (plt_in->nEntries);
+    plt_out = (rl2PrivPalettePtr) out;
+    for (i = 0; i < plt_out->nEntries; i++)
+      {
+	  rl2PrivPaletteEntryPtr entry_in = plt_in->entries + i;
+	  rl2PrivPaletteEntryPtr entry_out = plt_out->entries + i;
+	  entry_out->red = entry_in->red;
+	  entry_out->green = entry_in->green;
+	  entry_out->blue = entry_in->blue;
+	  entry_out->alpha = entry_in->alpha;
+      }
+    return out;
+}
+
 static int
 check_monochrome (int max, unsigned char *red, unsigned char *green,
 		  unsigned char *blue)
@@ -2437,4 +2461,3 @@ rl2_set_raster_pixel (rl2RasterPtr ptr, rl2PixelPtr pixel, unsigned short row,
       }
     return RL2_OK;
 }
-

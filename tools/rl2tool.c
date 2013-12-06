@@ -30,6 +30,14 @@
 #include <float.h>
 #include <limits.h>
 
+#include <sys/types.h>
+#if defined(_WIN32) && !defined(__MINGW32__)
+#include <io.h>
+#include <direct.h>
+#else
+#include <dirent.h>
+#endif
+
 #include <rasterlite2/rasterlite2.h>
 #include <rasterlite2/rl2tiff.h>
 
@@ -50,28 +58,29 @@
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
 #define ARG_DST_PATH		12
-#define ARG_WF_PATH		13
-#define ARG_COVERAGE		14
-#define ARG_SECTION		15
-#define ARG_SAMPLE		16
-#define ARG_PIXEL		17
-#define ARG_NUM_BANDS		18
-#define ARG_COMPRESSION		19
-#define ARG_QUALITY		20
-#define ARG_TILE_WIDTH		21
-#define ARG_TILE_HEIGHT		22
-#define ARG_IMG_WIDTH		23
-#define ARG_IMG_HEIGHT		24
-#define ARG_SRID		25
-#define ARG_RESOLUTION		26
-#define ARG_X_RESOLUTION	27
-#define ARG_Y_RESOLUTION	28
-#define ARG_MINX	29
-#define ARG_MINY	30
-#define ARG_MAXX	31
-#define ARG_MAXY	32
-#define ARG_CX	33
-#define ARG_CY	34
+#define ARG_DIR_PATH		13
+#define ARG_FILE_EXT		14
+#define ARG_COVERAGE		15
+#define ARG_SECTION		16
+#define ARG_SAMPLE		17
+#define ARG_PIXEL		18
+#define ARG_NUM_BANDS		19
+#define ARG_COMPRESSION		20
+#define ARG_QUALITY		21
+#define ARG_TILE_WIDTH		22
+#define ARG_TILE_HEIGHT		23
+#define ARG_IMG_WIDTH		24
+#define ARG_IMG_HEIGHT		25
+#define ARG_SRID		26
+#define ARG_RESOLUTION		27
+#define ARG_X_RESOLUTION	28
+#define ARG_Y_RESOLUTION	29
+#define ARG_MINX	30
+#define ARG_MINY	31
+#define ARG_MAXX	32
+#define ARG_MAXY	33
+#define ARG_CX	34
+#define ARG_CY	35
 
 #define ARG_CACHE_SIZE		99
 
@@ -113,6 +122,27 @@ struct pyramid_params
     sqlite3_stmt *tiles_stmt;
     sqlite3_stmt *data_stmt;
 };
+
+static char *
+formatFloat (double value)
+{
+/* nicely formatting a float value */
+    int i;
+    int len;
+    char *fmt = sqlite3_mprintf ("%1.24f", value);
+    len = strlen (fmt);
+    for (i = len - 1; i >= 0; i--)
+      {
+	  if (fmt[i] == '0')
+	      fmt[i] = '\0';
+	  else
+	      break;
+      }
+    len = strlen (fmt);
+    if (fmt[len - 1] == '.')
+	fmt[len] = '0';
+    return fmt;
+}
 
 static char *
 get_section_name (const char *src_path)
@@ -201,414 +231,43 @@ set_connection (sqlite3 * handle, int journal_off)
 
 static int
 exec_create (sqlite3 * handle, const char *coverage,
-	     int sample, int pixel, int num_bands, int compression, int quality,
-	     int tile_width, int tile_height, int srid, double x_res,
-	     double y_res)
+	     unsigned char sample, unsigned char pixel, unsigned char num_bands,
+	     unsigned char compression, int quality, unsigned short tile_width,
+	     unsigned short tile_height, int srid, double x_res, double y_res)
 {
 /* performing CREATE */
-    int ret;
-    char *sql;
-    char *sql_err = NULL;
-    char *xcoverage;
-    char *xxcoverage;
-    char *xindex;
-    char *xxindex;
-    char *xfk;
-    char *xxfk;
-    char *xmother;
-    char *xxmother;
-    char *xfk2;
-    char *xxfk2;
-    char *xmother2;
-    char *xxmother2;
-    sqlite3_stmt *stmt;
-    const char *xsample = "UNKNOWN";
-    const char *xpixel = "UNKNOWN";
-    const char *xcompression = "UNKNOWN";
+    if (rl2_create_dbms_coverage
+	(handle, coverage, sample, pixel, num_bands, compression, quality,
+	 tile_width, tile_height, srid, x_res, y_res) != RL2_OK)
+	return 0;
 
-/* inserting into "raster_coverages" */
-    sql = "INSERT INTO raster_coverages (coverage_name, sample_type, "
-	"pixel_type, num_bands, compression, quality, tile_width, "
-	"tile_height, horz_resolution, vert_resolution, srid, "
-	"nodata_pixel) VALUES (Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)";
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
-	  return 0;
-      }
-    switch (sample)
-      {
-      case RL2_SAMPLE_1_BIT:
-	  xsample = "1-BIT";
-	  break;
-      case RL2_SAMPLE_2_BIT:
-	  xsample = "2-BIT";
-	  break;
-      case RL2_SAMPLE_4_BIT:
-	  xsample = "4-BIT";
-	  break;
-      case RL2_SAMPLE_INT8:
-	  xsample = "INT8";
-	  break;
-      case RL2_SAMPLE_UINT8:
-	  xsample = "UINT8";
-	  break;
-      case RL2_SAMPLE_INT16:
-	  xsample = "INT16";
-	  break;
-      case RL2_SAMPLE_UINT16:
-	  xsample = "UINT16";
-	  break;
-      case RL2_SAMPLE_INT32:
-	  xsample = "INT32";
-	  break;
-      case RL2_SAMPLE_UINT32:
-	  xsample = "UINT32";
-	  break;
-      case RL2_SAMPLE_FLOAT:
-	  xsample = "FLOAT";
-	  break;
-      case RL2_SAMPLE_DOUBLE:
-	  xsample = "DOUBLE";
-	  break;
-      };
-    switch (pixel)
-      {
-      case RL2_PIXEL_MONOCHROME:
-	  xpixel = "MONOCHROME";
-	  num_bands = 1;
-	  break;
-      case RL2_PIXEL_PALETTE:
-	  xpixel = "PALETTE";
-	  num_bands = 1;
-	  break;
-      case RL2_PIXEL_GRAYSCALE:
-	  xpixel = "GRAYSCALE";
-	  num_bands = 1;
-	  break;
-      case RL2_PIXEL_RGB:
-	  xpixel = "RGB";
-	  num_bands = 3;
-	  break;
-      case RL2_PIXEL_MULTIBAND:
-	  xpixel = "MULTIBAND";
-	  break;
-      case RL2_PIXEL_DATAGRID:
-	  xpixel = "DATAGRID";
-	  num_bands = 1;
-	  break;
-      };
-    switch (compression)
-      {
-      case RL2_COMPRESSION_NONE:
-	  xcompression = "NONE";
-	  break;
-      case RL2_COMPRESSION_DEFLATE:
-	  xcompression = "DEFLATE";
-	  break;
-      case RL2_COMPRESSION_LZMA:
-	  xcompression = "LZMA";
-	  break;
-      case RL2_COMPRESSION_GIF:
-	  xcompression = "GIF";
-	  break;
-      case RL2_COMPRESSION_PNG:
-	  xcompression = "PNG";
-	  break;
-      case RL2_COMPRESSION_JPEG:
-	  xcompression = "JPEG";
-	  break;
-      case RL2_COMPRESSION_LOSSY_WEBP:
-	  xcompression = "LOSSY_WEBP";
-	  break;
-      case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  xcompression = "LOSSLESS_WEBP";
-	  break;
-      };
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
-    sqlite3_bind_text (stmt, 2, xsample, strlen (xsample), SQLITE_STATIC);
-    sqlite3_bind_text (stmt, 3, xpixel, strlen (xpixel), SQLITE_STATIC);
-    sqlite3_bind_int (stmt, 4, num_bands);
-    sqlite3_bind_text (stmt, 5, xcompression, strlen (xcompression),
-		       SQLITE_STATIC);
-    sqlite3_bind_int (stmt, 6, quality);
-    sqlite3_bind_int (stmt, 7, tile_width);
-    sqlite3_bind_int (stmt, 8, tile_height);
-    sqlite3_bind_double (stmt, 9, x_res);
-    sqlite3_bind_double (stmt, 10, y_res);
-    sqlite3_bind_int (stmt, 11, srid);
-    ret = sqlite3_step (stmt);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	goto coverage_registered;
-    fprintf (stderr,
-	     "sqlite3_step() error: INSERT INTO raster_coverages \"%s\"\n",
-	     sqlite3_errmsg (handle));
-    sqlite3_finalize (stmt);
-    return 0;
-  coverage_registered:
-    sqlite3_finalize (stmt);
-
-/* creating the LEVELS table */
-    xcoverage = sqlite3_mprintf ("%s_levels", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
-			   "\tpyramid_level INTEGER PRIMARY KEY AUTOINCREMENT,\n"
-			   "\tx_resolution_1_1 DOUBLE NOT NULL,\n"
-			   "\ty_resolution_1_1 DOUBLE NOT NULL,\n"
-			   "\tx_resolution_1_2 DOUBLE,\n"
-			   "\ty_resolution_1_2 DOUBLE,\n"
-			   "\tx_resolution_1_4 DOUBLE,\n"
-			   "\ty_resolution_1_4 DOUBLE,\n"
-			   "\tx_resolution_1_8 DOUBLE,\n"
-			   "\ty_resolution_1_8 DOUBLE)\n", xxcoverage);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  free (xxcoverage);
-	  return 0;
-      }
-    free (xxcoverage);
-
-/* creating the SECTIONS table */
-    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
-			   "\tsection_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
-			   "\tsection_name TEXT NOT NULL,\n"
-			   "\twidth INTEGER NOT NULL,\n"
-			   "\theight INTEGER NOT NULL,\n"
-			   "\tfile_path TEXT)", xxcoverage);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  free (xxcoverage);
-	  return 0;
-      }
-    free (xxcoverage);
-
-/* creating the SECTIONS geometry */
-    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
-    sql = sqlite3_mprintf ("SELECT AddGeometryColumn("
-			   "%Q, 'geometry', %d, 'POLYGON', 'XY')", xcoverage,
-			   srid);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "AddGeometryColumn \"%s\" error: %s\n", xcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (xcoverage);
-	  return 0;
-      }
-    sqlite3_free (xcoverage);
-
-/* creating the SECTIONS spatial index */
-    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
-    sql = sqlite3_mprintf ("SELECT CreateSpatialIndex("
-			   "%Q, 'geometry')", xcoverage);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CreateSpatialIndex \"%s\" error: %s\n", xcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (xcoverage);
-	  return 0;
-      }
-    sqlite3_free (xcoverage);
-
-/* creating the SECTIONS index by name */
-    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    xindex = sqlite3_mprintf ("idx_%s_sections", coverage);
-    xxindex = gaiaDoubleQuotedSql (xindex);
-    sqlite3_free (xindex);
-    sql =
-	sqlite3_mprintf ("CREATE UNIQUE INDEX \"%s\" ON \"%s\" (section_name)",
-			 xxindex, xxcoverage);
-    free (xxcoverage);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE INDEX \"%s\" error: %s\n", xxindex, sql_err);
-	  sqlite3_free (sql_err);
-	  free (xxindex);
-	  return 0;
-      }
-    free (xxindex);
-
-/* creating the TILES table */
-    xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    xmother = sqlite3_mprintf ("%s_sections", coverage);
-    xxmother = gaiaDoubleQuotedSql (xmother);
-    sqlite3_free (xmother);
-    xfk = sqlite3_mprintf ("fk_%s_tiles_section", coverage);
-    xxfk = gaiaDoubleQuotedSql (xfk);
-    sqlite3_free (xfk);
-    xmother2 = sqlite3_mprintf ("%s_levels", coverage);
-    xxmother2 = gaiaDoubleQuotedSql (xmother2);
-    sqlite3_free (xmother2);
-    xfk2 = sqlite3_mprintf ("fk_%s_tiles_level", coverage);
-    xxfk2 = gaiaDoubleQuotedSql (xfk2);
-    sqlite3_free (xfk2);
-    sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
-			   "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
-			   "\tpyramid_level INTEGER NOT NULL,\n"
-			   "\tsection_id INTEGER NOT NULL,\n"
-			   "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
-			   "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
-			   "\tCONSTRAINT \"%s\" FOREIGN KEY (pyramid_level) "
-			   "REFERENCES \"%s\" (pyramid_level) ON DELETE CASCADE)",
-			   xxcoverage, xxfk, xxmother, xxfk2, xxmother2);
-    free (xxfk);
-    free (xxmother);
-    free (xxfk2);
-    free (xxmother2);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  free (xxcoverage);
-	  return 0;
-      }
-    free (xxcoverage);
-
-/* creating the TILES geometry */
-    xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
-    sql = sqlite3_mprintf ("SELECT AddGeometryColumn("
-			   "%Q, 'geometry', %d, 'POLYGON', 'XY')", xcoverage,
-			   srid);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "AddGeometryColumn \"%s\" error: %s\n", xcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (xcoverage);
-	  return 0;
-      }
-    sqlite3_free (xcoverage);
-
-/* creating the TILES spatial Index */
-    xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
-    sql = sqlite3_mprintf ("SELECT CreateSpatialIndex("
-			   "%Q, 'geometry')", xcoverage);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CreateSpatialIndex \"%s\" error: %s\n", xcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (xcoverage);
-	  return 0;
-      }
-    sqlite3_free (xcoverage);
-
-/* creating the TILES index by section */
-    xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    xindex = sqlite3_mprintf ("idx_%s_tiles", coverage);
-    xxindex = gaiaDoubleQuotedSql (xindex);
-    sqlite3_free (xindex);
-    sql =
-	sqlite3_mprintf ("CREATE INDEX \"%s\" ON \"%s\" (section_id)", xxindex,
-			 xxcoverage);
-    free (xxcoverage);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE INDEX \"%s\" error: %s\n", xxindex, sql_err);
-	  sqlite3_free (sql_err);
-	  free (xxindex);
-	  return 0;
-      }
-    free (xxindex);
-
-/* creating the TILE_DATA table */
-    xcoverage = sqlite3_mprintf ("%s_tile_data", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    xmother = sqlite3_mprintf ("%s_tiles", coverage);
-    xxmother = gaiaDoubleQuotedSql (xmother);
-    sqlite3_free (xmother);
-    xfk = sqlite3_mprintf ("fk_%s_tile_data", coverage);
-    xxfk = gaiaDoubleQuotedSql (xfk);
-    sqlite3_free (xfk);
-    sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
-			   "\ttile_id INTEGER NOT NULL PRIMARY KEY,\n"
-			   "\ttile_data_odd BLOB NOT NULL,\n"
-			   "\ttile_data_even BLOB,\n"
-			   "CONSTRAINT \"%s\" FOREIGN KEY (tile_id) "
-			   "REFERENCES \"%s\" (tile_id) ON DELETE CASCADE)",
-			   xxcoverage, xxfk, xxmother);
-    free (xxfk);
-    free (xxmother);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  free (xxcoverage);
-	  return 0;
-      }
-    free (xxcoverage);
-
-    fprintf (stderr, "\rRaster Coverage \"%s\" succesfully created\n",
+    fprintf (stderr, "\rRaster Coverage \"%s\" successfully created\n",
 	     coverage);
     return 1;
 }
 
 static int
-exec_import (sqlite3 * handle, const char *src_path,
-	     const char *coverage, const char *section, const char *wf_path,
-	     int pyramidize)
+do_import_file (sqlite3 * handle, const char *src_path,
+		rl2CoveragePtr cvg, const char *section, int worldfile,
+		int force_srid, int pyramidize, unsigned char sample_type,
+		unsigned char pixel_type, unsigned char num_bands,
+		unsigned short tile_w, unsigned short tile_h,
+		unsigned char compression, int quality,
+		sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
+		sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl)
 {
-/* performing IMPORT */
+/* importing a single Source file */
     int ret;
-    char *sql;
     rl2TiffOriginPtr origin = NULL;
-    rl2CoveragePtr cvg = NULL;
     rl2RasterPtr raster = NULL;
     int row;
     int col;
-    int tile_w;
-    int tile_h;
     unsigned short width;
     unsigned short height;
     unsigned char *blob_odd = NULL;
     unsigned char *blob_even = NULL;
     int blob_odd_sz;
     int blob_even_sz;
-    unsigned char compression;
-    int quality;
     int srid;
     double tile_minx;
     double tile_miny;
@@ -620,122 +279,60 @@ exec_import (sqlite3 * handle, const char *src_path,
     double maxy;
     double res_x;
     double res_y;
+    char *dumb1;
+    char *dumb2;
     unsigned char *blob;
     int blob_size;
     gaiaGeomCollPtr geom;
-    char *table;
-    char *xtable;
-    unsigned short tileWidth;
-    unsigned short tileHeight;
     sqlite3_int64 section_id;
     sqlite3_int64 tile_id;
-    sqlite3_stmt *stmt_data = NULL;
-    sqlite3_stmt *stmt_tils = NULL;
-    sqlite3_stmt *stmt_sect = NULL;
-    sqlite3_stmt *stmt_levl = NULL;
 
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
-    if (cvg == NULL)
-	goto error;
-
-    if (rl2_get_coverage_tile_size (cvg, &tileWidth, &tileHeight) != RL2_OK)
-	goto error;
-
-    tile_w = tileWidth;
-    tile_h = tileHeight;
-    rl2_get_coverage_compression (cvg, &compression, &quality);
-
-    origin = rl2_create_tiff_origin (src_path, RL2_TIFF_GEOTIFF);
+    if (worldfile)
+	origin =
+	    rl2_create_tiff_origin (src_path, RL2_TIFF_WORLDFILE, force_srid,
+				    sample_type, pixel_type, num_bands);
+    else
+	origin =
+	    rl2_create_tiff_origin (src_path, RL2_TIFF_GEOTIFF, force_srid,
+				    sample_type, pixel_type, num_bands);
     if (origin == NULL)
 	goto error;
 
-    fprintf (stderr, "TIFF path=%s\n", rl2_get_tiff_origin_path (origin));
+    printf ("Importing: %s\n", rl2_get_tiff_origin_path (origin));
+    printf ("------------------\n");
     ret = rl2_get_tiff_origin_size (origin, &width, &height);
     if (ret == RL2_OK)
-	fprintf (stderr, "width=%d height=%d\n", width, height);
+	printf ("    Image Size (pixels): %d x %d\n", width, height);
     ret = rl2_get_tiff_origin_srid (origin, &srid);
     if (ret == RL2_OK)
-	fprintf (stderr, "SRID=%d\n", srid);
+	printf ("                   SRID: %d\n", srid);
     ret = rl2_get_tiff_origin_extent (origin, &minx, &miny, &maxx, &maxy);
     if (ret == RL2_OK)
-	fprintf (stderr, "%1.2f %1.2f %1.2f %1.2f\n", minx, miny, maxx, maxy);
+      {
+	  dumb1 = formatFloat (minx);
+	  dumb2 = formatFloat (miny);
+	  printf ("       LowerLeft Corner: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatFloat (maxx);
+	  dumb2 = formatFloat (maxy);
+	  printf ("      UpperRight Corner: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
     ret = rl2_get_tiff_origin_resolution (origin, &res_x, &res_y);
     if (ret == RL2_OK)
-	fprintf (stderr, "Hres=%1.12f Vres=%1.12f\n", res_x, res_y);
+      {
+	  dumb1 = formatFloat (res_x);
+	  dumb2 = formatFloat (res_y);
+	  printf ("       Pixel resolution: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
 
     if (rl2_eval_tiff_origin_compatibility (cvg, origin) != RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/TIFF mismatch\n");
-	  goto error;
-      }
-
-    table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
-	 "width, height, geometry) VALUES (NULL, ?, ?, ?, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_sect, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO sections SQL error: %s\n",
-		  sqlite3_errmsg (handle));
-	  goto error;
-      }
-
-    table = sqlite3_mprintf ("%s_levels", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
-	 "x_resolution_1_1, y_resolution_1_1, "
-	 "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
-	 "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
-	 "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO levels SQL error: %s\n",
-		  sqlite3_errmsg (handle));
-	  goto error;
-      }
-
-    table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, 0, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO tiles SQL error: %s\n", sqlite3_errmsg (handle));
-	  goto error;
-      }
-
-    table = sqlite3_mprintf ("%s_tile_data", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
-	 "VALUES (?, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO tile_data SQL error: %s\n",
-		  sqlite3_errmsg (handle));
 	  goto error;
       }
 
@@ -752,7 +349,7 @@ exec_import (sqlite3 * handle, const char *src_path,
 	      sqlite3_bind_null (stmt_sect, 1);
 	  else
 	      sqlite3_bind_text (stmt_sect, 1, sect_name, strlen (sect_name),
-				 free);
+				 SQLITE_STATIC);
       }
     sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
 		       SQLITE_STATIC);
@@ -772,8 +369,6 @@ exec_import (sqlite3 * handle, const char *src_path,
 		   sqlite3_errmsg (handle));
 	  goto error;
       }
-    sqlite3_finalize (stmt_sect);
-    stmt_sect = NULL;
 
 /* INSERTing the base-levels */
     sqlite3_reset (stmt_levl);
@@ -796,8 +391,6 @@ exec_import (sqlite3 * handle, const char *src_path,
 		   sqlite3_errmsg (handle));
 	  goto error;
       }
-    sqlite3_finalize (stmt_levl);
-    stmt_levl = NULL;
 
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
@@ -873,11 +466,8 @@ exec_import (sqlite3 * handle, const char *src_path,
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
       }
-    sqlite3_finalize (stmt_tils);
-    sqlite3_finalize (stmt_data);
 
     rl2_destroy_tiff_origin (origin);
-    rl2_destroy_coverage (cvg);
     return 1;
 
   error:
@@ -885,6 +475,254 @@ exec_import (sqlite3 * handle, const char *src_path,
 	free (blob_odd);
     if (blob_even != NULL)
 	free (blob_even);
+    if (origin != NULL)
+	rl2_destroy_tiff_origin (origin);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    return 0;
+}
+
+static int
+check_extension_match (const char *file_name, const char *file_ext)
+{
+/* checks the file extension */
+    const char *mark = NULL;
+    const char *p = file_name;
+    while (*p != '\0')
+      {
+	  if (*p == '.')
+	      mark = p;
+	  p++;
+      }
+    if (mark == NULL)
+	return 0;
+    if (strcmp (mark, file_ext) == 0)
+	return 1;
+    return 0;
+}
+
+static int
+do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
+	       rl2CoveragePtr cvg, const char *section, int worldfile,
+	       int force_srid, int pyramidize, unsigned char sample_type,
+	       unsigned char pixel_type, unsigned char num_bands,
+	       unsigned short tile_w, unsigned short tile_h,
+	       unsigned char compression, int quality, sqlite3_stmt * stmt_data,
+	       sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
+	       sqlite3_stmt * stmt_levl)
+{
+/* importing a whole directory */
+#if defined(_WIN32) && !defined(__MINGW32__)
+/* Visual Studio .NET */
+    struct _finddata_t c_file;
+    intptr_t hFile;
+    int cnt = 0;
+    char *search;
+    char *path;
+    int ret;
+    if (_chdir (dir_path) < 0)
+	return 0;
+    search = sqlite3_mprintf ("*%s", file_ext);
+    if ((hFile = _findfirst (search, &c_file)) == -1L)
+	;
+    else
+      {
+	  while (1)
+	    {
+		if ((c_file.attrib & _A_RDONLY) == _A_RDONLY
+		    || (c_file.attrib & _A_NORMAL) == _A_NORMAL)
+		  {
+		      path = sqlite3_mprintf ("%s/%s", dir_path, c_file.name);
+		      ret =
+			  do_import_file (handle, path, cvg, section, worldfile,
+					  force_srid, pyramidize, sample_type,
+					  pixel_type, num_bands, tile_w, tile_h,
+					  compression, quality, stmt_data,
+					  stmt_tils, stmt_sect, stmt_levl);
+		      sqlite3_free (path);
+		      if (!ret)
+			  goto error;
+		      cnt++;
+		  }
+		if (_findnext (hFile, &c_file) != 0)
+		    break;
+	    };
+	error:
+	  _findclose (hFile);
+      }
+    sqlite3_free (search);
+    return cnt;
+#else
+/* not Visual Studio .NET */
+    int cnt = 0;
+    char *path;
+    struct dirent *entry;
+    int ret;
+    DIR *dir = opendir (dir_path);
+    if (!dir)
+	return 0;
+    while (1)
+      {
+	  /* scanning dir-entries */
+	  entry = readdir (dir);
+	  if (!entry)
+	      break;
+	  if (!check_extension_match (entry->d_name, file_ext))
+	      continue;
+	  path = sqlite3_mprintf ("%s/%s", dir_path, entry->d_name);
+	  ret =
+	      do_import_file (handle, path, cvg, section, worldfile, force_srid,
+			      pyramidize, sample_type, pixel_type, num_bands,
+			      tile_w, tile_h, compression, quality, stmt_data,
+			      stmt_tils, stmt_sect, stmt_levl);
+	  sqlite3_free (path);
+	  if (!ret)
+	      goto error;
+	  cnt++;
+      }
+  error:
+    closedir (dir);
+    return cnt;
+#endif
+}
+
+static int
+exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
+	     const char *file_ext, const char *coverage, const char *section,
+	     int worldfile, int force_srid, int pyramidize)
+{
+/* performing IMPORT */
+    int ret;
+    char *sql;
+    rl2CoveragePtr cvg = NULL;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned short tile_w;
+    unsigned short tile_h;
+    unsigned char compression;
+    int quality;
+    char *table;
+    char *xtable;
+    unsigned short tileWidth;
+    unsigned short tileHeight;
+    sqlite3_stmt *stmt_data = NULL;
+    sqlite3_stmt *stmt_tils = NULL;
+    sqlite3_stmt *stmt_sect = NULL;
+    sqlite3_stmt *stmt_levl = NULL;
+
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    if (cvg == NULL)
+	goto error;
+
+    if (rl2_get_coverage_tile_size (cvg, &tileWidth, &tileHeight) != RL2_OK)
+	goto error;
+
+    tile_w = tileWidth;
+    tile_h = tileHeight;
+    rl2_get_coverage_compression (cvg, &compression, &quality);
+    rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands);
+
+    table = sqlite3_mprintf ("%s_sections", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
+	 "width, height, geometry) VALUES (NULL, ?, ?, ?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_sect, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO sections SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_levels", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	 "x_resolution_1_1, y_resolution_1_1, "
+	 "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
+	 "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
+	 "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO levels SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_tiles", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	 "VALUES (NULL, 0, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO tiles SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	 "VALUES (?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO tile_data SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    if (dir_path == NULL)
+      {
+	  /* importing a single Image file */
+	  if (!do_import_file
+	      (handle, src_path, cvg, section, worldfile, force_srid,
+	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
+	       compression, quality, stmt_data, stmt_tils, stmt_sect,
+	       stmt_levl))
+	      goto error;
+      }
+    else
+      {
+	  /* importing all Image files from a whole directory */
+	  if (!do_import_dir
+	      (handle, dir_path, file_ext, cvg, section, worldfile, force_srid,
+	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
+	       compression, quality, stmt_data, stmt_tils, stmt_sect,
+	       stmt_levl))
+	      goto error;
+      }
+
+    sqlite3_finalize (stmt_sect);
+    sqlite3_finalize (stmt_levl);
+    sqlite3_finalize (stmt_tils);
+    sqlite3_finalize (stmt_data);
+
+    rl2_destroy_coverage (cvg);
+    return 1;
+
+  error:
     if (stmt_sect != NULL)
 	sqlite3_finalize (stmt_sect);
     if (stmt_levl != NULL)
@@ -893,33 +731,40 @@ exec_import (sqlite3 * handle, const char *src_path,
 	sqlite3_finalize (stmt_tils);
     if (stmt_data != NULL)
 	sqlite3_finalize (stmt_data);
-    if (origin != NULL)
-	rl2_destroy_tiff_origin (origin);
     if (cvg != NULL)
 	rl2_destroy_coverage (cvg);
-    if (raster != NULL)
-	rl2_destroy_raster (raster);
     return 0;
 }
 
 static void
-copy_uint8_strip_to_tile (const unsigned char *strip, unsigned char *tile,
-			  unsigned char num_bands, unsigned short strip_width,
-			  unsigned short strip_height,
-			  unsigned short tile_width, int base_x)
+copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
+			   unsigned char num_bands, unsigned short width,
+			   unsigned short height,
+			   unsigned short tile_width,
+			   unsigned short tile_height, int base_y, int base_x)
 {
-/* copying UINT8 pixels from the strip into the tile */
+/* copying UINT8 pixels from the output buffer into the tile */
     int x;
     int y;
     int b;
     const unsigned char *p_in;
     unsigned char *p_out = tile;
 
-    for (y = 0; y < strip_height; y++)
+    for (y = 0; y < tile_height; y++)
       {
-	  p_in = strip + (y * strip_width * num_bands) + (base_x * num_bands);
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in =
+	      outbuf + ((base_y + y) * width * num_bands) +
+	      (base_x * num_bands);
 	  for (x = 0; x < tile_width; x++)
 	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out += num_bands;
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (b = 0; b < num_bands; b++)
 		    *p_out++ = *p_in++;
 	    }
@@ -927,19 +772,20 @@ copy_uint8_strip_to_tile (const unsigned char *strip, unsigned char *tile,
 }
 
 static void
-copy_from_stip_to_tile (const unsigned char *strip, unsigned char *tile,
-			unsigned char sample_type, unsigned char num_bands,
-			unsigned short strip_width, unsigned short strip_height,
-			unsigned short tile_width, int base_x)
+copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
+			  unsigned char sample_type, unsigned char num_bands,
+			  unsigned short width, unsigned short height,
+			  unsigned short tile_width, unsigned short tile_height,
+			  int base_y, int base_x)
 {
-/* copying pixels from the strip into the tile */
+/* copying pixels from the output buffer into the tile */
     switch (sample_type)
       {
       default:
-	  copy_uint8_strip_to_tile ((unsigned char *) strip,
-				    (unsigned char *) tile, num_bands,
-				    strip_width, strip_height, tile_width,
-				    base_x);
+	  copy_uint8_outbuf_to_tile ((unsigned char *) outbuf,
+				     (unsigned char *) tile, num_bands,
+				     width, height, tile_width, tile_height,
+				     base_y, base_x);
 	  break;
       };
 }
@@ -952,24 +798,24 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 /* performing EXPORT */
     rl2RasterPtr raster = NULL;
     rl2CoveragePtr cvg = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2PalettePtr plt2 = NULL;
     rl2TiffDestinationPtr tiff = NULL;
-    int level;
-    int scale;
+    unsigned char level;
+    unsigned char scale;
     double xx_res = x_res;
     double yy_res = y_res;
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
     int srid;
-    unsigned char *strip = NULL;
-    int strip_size;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
     unsigned char *bufpix = NULL;
     int bufpix_size;
     int pix_sz = 1;
     int base_x;
     int base_y;
-    double MinY;
-    double MaxY;
 
     if (rl2_find_matching_resolution
 	(handle, coverage, &xx_res, &yy_res, &level, &scale) != RL2_OK)
@@ -984,27 +830,25 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
     if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
 	goto error;
 
+    if (rl2_get_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
+	goto error;
+
     tiff =
 	rl2_create_geotiff_destination (dst_path, handle, width, height,
 					sample_type, pixel_type, num_bands,
-					NULL, RL2_COMPRESSION_NONE, 1, 256,
+					palette, RL2_COMPRESSION_NONE, 1, 256,
 					srid, minx, miny, maxx, maxy, xx_res,
 					yy_res, 0);
     if (tiff == NULL)
 	goto error;
 
-    MaxY = maxy;
     for (base_y = 0; base_y < height; base_y += 256)
       {
-	  /* preparing a strip of 256 scanlines */
-	  MinY = MaxY - (256.0 * yy_res);
-	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, MinY, maxx, MaxY, xx_res,
-	       yy_res, &strip, &strip_size) != RL2_OK)
-	      goto error;
 	  for (base_x = 0; base_x < width; base_x += 256)
 	    {
-		/* exporting all tiles from the strip */
+		/* exporting all tiles from the output buffer */
 		bufpix_size = pix_sz * num_bands * 256 * 256;
 		bufpix = malloc (bufpix_size);
 		if (bufpix == NULL)
@@ -1013,11 +857,14 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 			       "rl2tool Export: Insufficient Memory !!!\n");
 		      goto error;
 		  }
-		copy_from_stip_to_tile (strip, bufpix, sample_type, num_bands,
-					width, 256, 256, base_x);
+		rl2_prime_void_tile (bufpix, 256, 256, sample_type, num_bands);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  num_bands, width, height, 256, 256,
+					  base_y, base_x);
+		plt2 = rl2_clone_palette (palette);
 		raster =
 		    rl2_create_raster (256, 256, sample_type, pixel_type,
-				       num_bands, bufpix, bufpix_size, NULL,
+				       num_bands, bufpix, bufpix_size, plt2,
 				       NULL, 0, NULL);
 		if (raster == NULL)
 		    goto error;
@@ -1027,12 +874,11 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 		rl2_destroy_raster (raster);
 		raster = NULL;
 	    }
-	  MaxY = MinY;
       }
 
     rl2_destroy_coverage (cvg);
     rl2_destroy_tiff_destination (tiff);
-    free (strip);
+    free (outbuf);
     return 1;
 
   error:
@@ -1042,8 +888,8 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	rl2_destroy_coverage (cvg);
     if (tiff != NULL)
 	rl2_destroy_tiff_destination (tiff);
-    if (strip != NULL)
-	free (strip);
+    if (outbuf != NULL)
+	free (outbuf);
     return 0;
 }
 
@@ -1051,158 +897,14 @@ static int
 exec_drop (sqlite3 * handle, const char *coverage)
 {
 /* performing DROP */
-    int ret;
-    char *sql;
-    char *sql_err = NULL;
     rl2CoveragePtr cvg = NULL;
-    char *table;
-    char *xtable;
 
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
-/* disabling the SECTIONS spatial index */
-    xtable = sqlite3_mprintf ("%s_sections", coverage);
-    sql = sqlite3_mprintf ("SELECT DisableSpatialIndex("
-			   "%Q, 'geometry')", xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DisableSpatialIndex \"%s\" error: %s\n", xtable,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (xtable);
-	  goto error;
-      }
-    sqlite3_free (xtable);
-
-/* dropping the SECTIONS spatial index */
-    table = sqlite3_mprintf ("idx_%s_sections_geometry", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
-    free (xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DROP TABLE \"%s\" error: %s\n", table, sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (table);
-	  goto error;
-      }
-    sqlite3_free (table);
-
-/* disabling the TILES spatial index */
-    xtable = sqlite3_mprintf ("%s_tiles", coverage);
-    sql = sqlite3_mprintf ("SELECT DisableSpatialIndex("
-			   "%Q, 'geometry')", xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DisableSpatialIndex \"%s\" error: %s\n", xtable,
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (xtable);
-	  goto error;
-      }
-    sqlite3_free (xtable);
-
-/* dropping the TILES spatial index */
-    table = sqlite3_mprintf ("idx_%s_tiles_geometry", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
-    free (xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DROP TABLE \"%s\" error: %s\n", table, sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (table);
-	  goto error;
-      }
-    sqlite3_free (table);
-
-/* dropping the TILE_DATA table */
-    table = sqlite3_mprintf ("%s_tile_data", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
-    free (xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DROP TABLE \"%s\" error: %s\n", table, sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (table);
-	  goto error;
-      }
-    sqlite3_free (table);
-
-/* dropping the TILES table */
-    table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
-    free (xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DROP TABLE \"%s\" error: %s\n", table, sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (table);
-	  goto error;
-      }
-    sqlite3_free (table);
-
-/* dropping the SECTIONS table */
-    table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
-    free (xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DROP TABLE \"%s\" error: %s\n", table, sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (table);
-	  goto error;
-      }
-    sqlite3_free (table);
-
-/* dropping the LEVELS table */
-    table = sqlite3_mprintf ("%s_levels", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
-    free (xtable);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DROP TABLE \"%s\" error: %s\n", table, sql_err);
-	  sqlite3_free (sql_err);
-	  sqlite3_free (table);
-	  goto error;
-      }
-    sqlite3_free (table);
-
-/* deleting the Raster Coverage definition */
-    sql = sqlite3_mprintf ("DELETE FROM raster_coverages "
-			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
-    fprintf (stderr, "%s\n", sql);
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DELETE raster_coverage \"%s\" error: %s\n",
-		   coverage, sql_err);
-	  sqlite3_free (sql_err);
-	  goto error;
-      }
+    if (rl2_drop_dbms_coverage (handle, coverage) != RL2_OK)
+	goto error;
 
     rl2_destroy_coverage (cvg);
     return 1;
@@ -1214,83 +916,18 @@ exec_drop (sqlite3 * handle, const char *coverage)
 }
 
 static int
-check_raster_section (sqlite3 * handle, const char *coverage,
-		      const char *section, sqlite3_int64 * section_id)
-{
-/* testing if the named Raster Section does exist */
-    int ret;
-    char *sql;
-    char *table;
-    char *xtable;
-    int found = 0;
-    sqlite3_stmt *stmt = NULL;
-
-    table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf ("SELECT section_id FROM \"%s\" WHERE section_name = ?",
-			 xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("SELECT section_name SQL error: %s\n",
-		  sqlite3_errmsg (handle));
-	  goto error;
-      }
-
-/* querying the section */
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, section, strlen (section), SQLITE_STATIC);
-    while (1)
-      {
-	  ret = sqlite3_step (stmt);
-	  if (ret == SQLITE_DONE)
-	      break;
-	  if (ret == SQLITE_ROW)
-	    {
-		*section_id = sqlite3_column_int64 (stmt, 0);
-		found++;
-	    }
-	  else
-	    {
-		fprintf (stderr,
-			 "SELECT section_name; sqlite3_step() error: %s\n",
-			 sqlite3_errmsg (handle));
-		goto error;
-	    }
-      }
-    sqlite3_finalize (stmt);
-    stmt = NULL;
-    if (found == 1)
-	return 1;
-
-  error:
-    if (stmt != NULL)
-	sqlite3_finalize (stmt);
-    return 0;
-}
-
-static int
 exec_delete (sqlite3 * handle, const char *coverage, const char *section)
 {
 /* deleting a Raster Section */
-    int ret;
-    char *sql;
     rl2CoveragePtr cvg = NULL;
     sqlite3_int64 section_id;
-    char *table;
-    char *xtable;
-    sqlite3_stmt *stmt = NULL;
 
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
-    if (!check_raster_section (handle, coverage, section, &section_id))
+    if (rl2_get_dbms_section_id (handle, coverage, section, &section_id) !=
+	RL2_OK)
       {
 	  fprintf (stderr,
 		   "Section \"%s\" does not exists in Coverage \"%s\"\n",
@@ -1298,41 +935,13 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section)
 	  goto error;
       }
 
-    table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql = sqlite3_mprintf ("DELETE FROM \"%s\" WHERE section_id = ?", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("DELETE sections SQL error: %s\n", sqlite3_errmsg (handle));
-	  goto error;
-      }
-
-/* DELETing the section */
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_int64 (stmt, 1, section_id);
-    ret = sqlite3_step (stmt);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	;
-    else
-      {
-	  fprintf (stderr,
-		   "DELETE sections; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  goto error;
-      }
-    sqlite3_finalize (stmt);
+    if (rl2_delete_dbms_section (handle, coverage, section_id) != RL2_OK)
+	goto error;
 
     rl2_destroy_coverage (cvg);
     return 1;
 
   error:
-    if (stmt != NULL)
-	sqlite3_finalize (stmt);
     if (cvg != NULL)
 	rl2_destroy_coverage (cvg);
     return 0;
@@ -1854,8 +1463,8 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
     if (section != NULL)
       {
 	  /* only a single selected Section */
-	  if (!check_raster_section
-	      (handle, coverage, section, &(params.section_id)))
+	  if (rl2_get_dbms_section_id
+	      (handle, coverage, section, &(params.section_id)) != RL2_OK)
 	    {
 		fprintf (stderr,
 			 "Section \"%s\" does not exists in Coverage \"%s\"\n",
@@ -1960,12 +1569,13 @@ exec_catalog (sqlite3 * handle)
 /* Rasterlite-2 datasources Catalog */
     const char *sql;
     int ret;
-    char *err_msg = NULL;
     int count = 0;
     int i;
     char **results;
     int rows;
     int columns;
+    char *hres;
+    char *vres;
 
     sql =
 	"SELECT coverage_name, sample_type, pixel_type, num_bands, compression, "
@@ -1989,24 +1599,155 @@ exec_catalog (sqlite3 * handle)
 		int quality = atoi (results[(i * columns) + 5]);
 		int tileW = atoi (results[(i * columns) + 6]);
 		int tileH = atoi (results[(i * columns) + 7]);
-		double hRes = atof (results[(i * columns) + 8]);
-		double vRes = atof (results[(i * columns) + 9]);
+		double x_res = atof (results[(i * columns) + 8]);
+		double y_res = atof (results[(i * columns) + 9]);
 		const char *nodata = "NONE";
 		int srid = atoi (results[(i * columns) + 11]);
 		const char *authName = results[(i * columns) + 12];
 		int authSrid = atoi (results[(i * columns) + 13]);
 		const char *crsName = results[(i * columns) + 14];
 		count++;
-		printf ("Coverage: %s\n", name);
-		printf ("\tsample: %s\tpixel: %s\tbands: %d\n", sample, pixel,
-			bands);
+		printf ("----------------------\n");
+		printf ("             Coverage: %s\n", name);
+		printf ("          Sample Type: %s\n", sample);
+		printf ("           Pixel Type: %s\n", pixel);
+		printf ("      Number of Bands: %d\n", bands);
+		if (strcmp (compression, "NONE") == 0)
+		    printf ("          Compression: NONE (uncompressed)\n");
+		else if (strcmp (compression, "DEFLATE") == 0)
+		    printf ("          Compression: DEFLATE (zip, lossless)\n");
+		else if (strcmp (compression, "LZMA") == 0)
+		    printf ("          Compression: LZMA (7-zip, lossless)\n");
+		else if (strcmp (compression, "GIF") == 0)
+		    printf ("          Compression: GIF, lossless\n");
+		else if (strcmp (compression, "PNG") == 0)
+		    printf ("          Compression: PNG, lossless\n");
+		else if (strcmp (compression, "JPEG") == 0)
+		    printf ("          Compression: JPEG (lossy)\n");
+		else if (strcmp (compression, "LOSSY_WEBP") == 0)
+		    printf ("          Compression: WEBP (lossy)\n");
+		else if (strcmp (compression, "LOSSLESS_WEBP") == 0)
+		    printf ("          Compression: WEBP, lossless\n");
 		if (strcmp (compression, "JPEG") == 0
 		    || strcmp (compression, "LOSSY_WEBP") == 0)
-		    printf ("\ttile: %dX%d\tcompression: %s\tquality: %d\n",
-			    tileW, tileH, compression, quality);
-		else
-		    printf ("\ttile: %dX%d\tcompression: %s\n", tileW, tileH,
-			    compression);
+		    printf ("  Compression Quality: %d\n", quality);
+		printf ("   Tile Size (pixels): %d x %d\n", tileW, tileH);
+		printf ("                 Srid: %d (%s,%d) %s\n", srid,
+			authName, authSrid, crsName);
+		hres = formatFloat (x_res);
+		vres = formatFloat (y_res);
+		printf ("Pixel base resolution: X=%s Y=%s\n", hres, vres);
+		sqlite3_free (hres);
+		sqlite3_free (vres);
+	    }
+      }
+    sqlite3_free_table (results);
+
+  stop:
+    if (count == 0)
+	printf ("no Rasterlite-2 datasources\n");
+    return 1;
+}
+
+static int
+exec_list (sqlite3 * handle, const char *coverage, const char *section)
+{
+/* Rasterlite-2 datasources Catalog */
+    char *sql;
+    int ret;
+    int count = 0;
+    int i;
+    char **results;
+    int rows;
+    int columns;
+    char *dumb1;
+    char *dumb2;
+    char *xsections;
+    char *xxsections;
+    char *xtiles;
+    char *xxtiles;
+
+    if (section == NULL)
+      {
+	  /* all sections */
+	  xsections = sqlite3_mprintf ("%s_sections", coverage);
+	  xxsections = gaiaDoubleQuotedSql (xsections);
+	  sqlite3_free (xsections);
+	  xtiles = sqlite3_mprintf ("%s_tiles", coverage);
+	  xxtiles = gaiaDoubleQuotedSql (xtiles);
+	  sqlite3_free (xtiles);
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT s.section_id, s.section_name, s.width, s.height, "
+	       "s.file_path, MbrMinX(s.geometry), MbrMinY(s.geometry), MbrMaxX(s.geometry), "
+	       "MbrMaxY(s.geometry), Count(*) FROM \"%s\" AS s "
+	       "JOIN \"%s\" AS t ON (s.section_id = t.section_id) "
+	       "GROUP BY s.section_id", xxsections, xxtiles);
+	  free (xxsections);
+	  free (xxtiles);
+      }
+    else
+      {
+	  /* single section */
+	  xsections = sqlite3_mprintf ("%s_sections", coverage);
+	  xxsections = gaiaDoubleQuotedSql (xsections);
+	  sqlite3_free (xsections);
+	  xtiles = sqlite3_mprintf ("%s_tiles", coverage);
+	  xxtiles = gaiaDoubleQuotedSql (xtiles);
+	  sqlite3_free (xtiles);
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT s.section_id, s.section_name, s.width, s.height, "
+	       "s.file_path, MbrMinX(s.geometry), MbrMinY(s.geometry), MbrMaxX(s.geometry), "
+	       "MbrMaxY(s.geometry), Count(*) FROM \"%s\" AS s "
+	       "JOIN \"%s\" AS t ON (s.section_id = t.section_id) "
+	       "WHERE s.section_name = %Q GROUP BY s.section_id", xxsections,
+	       xxtiles, section);
+	  free (xxsections);
+	  free (xxtiles);
+      }
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	goto stop;
+    if (rows < 1)
+	;
+    else
+      {
+	  printf ("************ Coverage: %s\n", coverage);
+	  for (i = 1; i <= rows; i++)
+	    {
+		int id = atoi (results[(i * columns) + 0]);
+		const char *name = results[(i * columns) + 1];
+		int width = atoi (results[(i * columns) + 2]);
+		int height = atoi (results[(i * columns) + 3]);
+		const char *path = results[(i * columns) + 4];
+		double minx = atof (results[(i * columns) + 5]);
+		double miny = atof (results[(i * columns) + 6]);
+		double maxx = atof (results[(i * columns) + 7]);
+		double maxy = atof (results[(i * columns) + 8]);
+		int tiles = atoi (results[(i * columns) + 9]);
+		count++;
+		printf ("\nSection: %d) %s\n", id, name);
+		printf ("    ------------------\n");
+		printf ("        Size (pixels): %d x %d\n", width, height);
+		printf ("           Input Path: %s\n", path);
+		dumb1 = formatFloat (minx);
+		dumb2 = formatFloat (miny);
+		printf ("     LowerLeft corner: X=%s Y=%s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		dumb1 = formatFloat (maxx);
+		dumb2 = formatFloat (maxy);
+		printf ("    UpperRight corner: X=%s Y=%s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		dumb1 = formatFloat (minx + ((maxx - minx) / 2.0));
+		dumb2 = formatFloat (miny + ((maxy - miny) / 2.0));
+		printf ("         Center Point: X=%s Y=%s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		printf ("          Tiles Count: %d\n", tiles);
 	    }
       }
     sqlite3_free_table (results);
@@ -2204,6 +1945,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 {
 /* checking/printing CREATE args */
     int err = 0;
+    int res_error = 0;
     fprintf (stderr, "\n\nrl2_tool: request is CREATE\n");
     fprintf (stderr,
 	     "===========================================================\n");
@@ -2213,48 +1955,48 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
+	fprintf (stderr, "              DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	fprintf (stderr, "             Coverage: %s\n", coverage);
     switch (sample)
       {
       case RL2_SAMPLE_1_BIT:
-	  fprintf (stderr, "Sample Type: 1-BIT\n");
+	  fprintf (stderr, "          Sample Type: 1-BIT\n");
 	  break;
       case RL2_SAMPLE_2_BIT:
-	  fprintf (stderr, "Sample Type: 2-BIT\n");
+	  fprintf (stderr, "          Sample Type: 2-BIT\n");
 	  break;
       case RL2_SAMPLE_4_BIT:
-	  fprintf (stderr, "Sample Type: 4-BIT\n");
+	  fprintf (stderr, "          Sample Type: 4-BIT\n");
 	  break;
       case RL2_SAMPLE_INT8:
-	  fprintf (stderr, "Sample Type: INT8\n");
+	  fprintf (stderr, "          Sample Type: INT8\n");
 	  break;
       case RL2_SAMPLE_UINT8:
-	  fprintf (stderr, "Sample Type: UINT8\n");
+	  fprintf (stderr, "          Sample Type: UINT8\n");
 	  break;
       case RL2_SAMPLE_INT16:
-	  fprintf (stderr, "Sample Type: INT16\n");
+	  fprintf (stderr, "          Sample Type: INT16\n");
 	  break;
       case RL2_SAMPLE_UINT16:
-	  fprintf (stderr, "Sample Type: UINT16\n");
+	  fprintf (stderr, "          Sample Type: UINT16\n");
 	  break;
       case RL2_SAMPLE_INT32:
-	  fprintf (stderr, "Sample Type: INT32\n");
+	  fprintf (stderr, "          Sample Type: INT32\n");
 	  break;
       case RL2_SAMPLE_UINT32:
-	  fprintf (stderr, "Sample Type: UINT32\n");
+	  fprintf (stderr, "          Sample Type: UINT32\n");
 	  break;
       case RL2_SAMPLE_FLOAT:
-	  fprintf (stderr, "Sample Type: FLOAT\n");
+	  fprintf (stderr, "          Sample Type: FLOAT\n");
 	  break;
       case RL2_SAMPLE_DOUBLE:
-	  fprintf (stderr, "Sample Type: DOUBLE\n");
+	  fprintf (stderr, "          Sample Type: DOUBLE\n");
 	  break;
       default:
 	  fprintf (stderr, "*** ERROR *** unknown sample type\n");
@@ -2264,26 +2006,26 @@ check_create_args (const char *db_path, const char *coverage, int sample,
     switch (pixel)
       {
       case RL2_PIXEL_MONOCHROME:
-	  fprintf (stderr, "Pixel Type: MONOCHROME\n");
+	  fprintf (stderr, "           Pixel Type: MONOCHROME\n");
 	  num_bands = 1;
 	  break;
       case RL2_PIXEL_PALETTE:
-	  fprintf (stderr, "Pixel Type: PALETTE\n");
+	  fprintf (stderr, "           Pixel Type: PALETTE\n");
 	  num_bands = 1;
 	  break;
       case RL2_PIXEL_GRAYSCALE:
-	  fprintf (stderr, "Pixel Type: GRAYSCALE\n");
+	  fprintf (stderr, "           Pixel Type: GRAYSCALE\n");
 	  num_bands = 1;
 	  break;
       case RL2_PIXEL_RGB:
-	  fprintf (stderr, "Pixel Type: RGB\n");
+	  fprintf (stderr, "           Pixel Type: RGB\n");
 	  num_bands = 3;
 	  break;
       case RL2_PIXEL_MULTIBAND:
-	  fprintf (stderr, "Pixel Type: MULTIBAND\n");
+	  fprintf (stderr, "           Pixel Type: MULTIBAND\n");
 	  break;
       case RL2_PIXEL_DATAGRID:
-	  fprintf (stderr, "Pixel Type: DATAGRID\n");
+	  fprintf (stderr, "           Pixel Type: DATAGRID\n");
 	  num_bands = 1;
 	  break;
       default:
@@ -2294,68 +2036,77 @@ check_create_args (const char *db_path, const char *coverage, int sample,
     if (num_bands == RL2_BANDS_UNKNOWN)
 	fprintf (stderr, "*** ERROR *** unkown number of Bands\n");
     else
-	fprintf (stderr, "Number of Bands: %d\n", num_bands);
+	fprintf (stderr, "      Number of Bands: %d\n", num_bands);
     switch (compression)
       {
       case RL2_COMPRESSION_NONE:
-	  fprintf (stderr, "Compression: NONE (uncompressed)\n");
+	  fprintf (stderr, "          Compression: NONE (uncompressed)\n");
 	  break;
       case RL2_COMPRESSION_DEFLATE:
-	  fprintf (stderr, "Compression: DEFLATE (zip, lossless)\n");
+	  fprintf (stderr, "          Compression: DEFLATE (zip, lossless)\n");
 	  break;
       case RL2_COMPRESSION_LZMA:
-	  fprintf (stderr, "Compression: LZMA (7-zip, lossless)\n");
+	  fprintf (stderr, "          Compression: LZMA (7-zip, lossless)\n");
 	  break;
       case RL2_COMPRESSION_GIF:
-	  fprintf (stderr, "Compression: GIF, lossless\n");
+	  fprintf (stderr, "          Compression: GIF, lossless\n");
 	  break;
       case RL2_COMPRESSION_PNG:
-	  fprintf (stderr, "Compression: PNG, lossless\n");
+	  fprintf (stderr, "          Compression: PNG, lossless\n");
 	  break;
       case RL2_COMPRESSION_JPEG:
-	  fprintf (stderr, "Compression: JPEG (lossy)\n");
+	  fprintf (stderr, "          Compression: JPEG (lossy)\n");
 	  if (quality < 0)
 	      quality = 0;
 	  if (quality > 100)
 	      quality = 100;
-	  fprintf (stderr, "Compression Quality: %d\n", quality);
+	  fprintf (stderr, "  Compression Quality: %d\n", quality);
 	  break;
       case RL2_COMPRESSION_LOSSY_WEBP:
-	  fprintf (stderr, "Compression: WEBP (lossy)\n");
+	  fprintf (stderr, "          Compression: WEBP (lossy)\n");
 	  if (quality < 0)
 	      quality = 0;
 	  if (quality > 100)
 	      quality = 100;
-	  fprintf (stderr, "Compression Quality: %d\n", quality);
+	  fprintf (stderr, "  Compression Quality: %d\n", quality);
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  fprintf (stderr, "Compression: WEBP, lossless\n");
+	  fprintf (stderr, "          Compression: WEBP, lossless\n");
 	  break;
       default:
 	  fprintf (stderr, "*** ERROR *** unknown compression\n");
 	  err = 1;
 	  break;
       };
-    fprintf (stderr, "Tile size (pixels): %d x %d\n", tile_width, tile_height);
+    fprintf (stderr, "   Tile size (pixels): %d x %d\n", tile_width,
+	     tile_height);
     if (srid <= 0)
       {
 	  fprintf (stderr, "*** ERROR *** undefined SRID\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Srid: %d\n", srid);
+	fprintf (stderr, "                 Srid: %d\n", srid);
     if (x_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
 	  err = 1;
+	  res_error = 1;
       }
     if (y_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
 	  err = 1;
+	  res_error = 1;
       }
-    if (x_res > 0.0 && y_res > 0.0)
-	fprintf (stderr, "Pixel size: X=%1.12f Y=%1.12f\n", x_res, y_res);
+    if (x_res > 0.0 && y_res > 0.0 && !res_error)
+      {
+	  char *hres = formatFloat (x_res);
+	  char *vres = formatFloat (y_res);
+	  fprintf (stderr, "Pixel base resolution: X=%s Y=%s\n", hres, vres);
+	  sqlite3_free (hres);
+	  sqlite3_free (vres);
+      }
     fprintf (stderr,
 	     "===========================================================\n\n");
     return err;
@@ -2363,8 +2114,9 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 
 static int
 check_import_args (const char *db_path, const char *src_path,
-		   const char *coverage, const char *section,
-		   const char *wf_path, int pyramidize)
+		   const char *dir_path, const char *file_ext,
+		   const char *coverage, const char *section, int worldfile,
+		   int srid, int pyramidize)
 {
 /* checking/printing IMPORT args */
     int err = 0;
@@ -2377,30 +2129,59 @@ check_import_args (const char *db_path, const char *src_path,
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
-    if (src_path == NULL)
+	fprintf (stderr, "              DB path: %s\n", db_path);
+
+    if (src_path != NULL && dir_path == NULL)
+	fprintf (stderr, "    Input Source path: %s\n", src_path);
+    else if (src_path == NULL && dir_path != NULL && file_ext != NULL)
       {
-	  fprintf (stderr,
-		   "*** ERROR *** no input Source path was specified\n");
-	  err = 1;
+	  fprintf (stderr, " Input Directory path: %s\n", dir_path);
+	  fprintf (stderr, "       File Extension: %s\n", file_ext);
       }
     else
-	fprintf (stderr, "input Source path: %s\n", src_path);
+      {
+	  if (src_path == NULL && dir_path == NULL)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** no input Source path was specified\n");
+		fprintf (stderr,
+			 "*** ERROR *** no input Directory path was specified\n");
+		err = 1;
+	    }
+	  if (dir_path != NULL && src_path != NULL)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** both input Source and Directory were specified (mutually exclusive)\n");
+		err = 1;
+	    }
+	  if (dir_path != NULL && file_ext == NULL)
+	    {
+		fprintf (stderr, "*** ERROR *** no File Extension specified\n");
+		err = 1;
+	    }
+      }
+
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	fprintf (stderr, "             Coverage: %s\n", coverage);
     if (section == NULL)
-	fprintf (stderr, "Section: from file name\n");
+	fprintf (stderr, "              Section: from file name\n");
     else
-	fprintf (stderr, "Section: %s\n", section);
-    if (wf_path == NULL)
-	fprintf (stderr, "WorldFile path: none specified\n");
-    else
-	fprintf (stderr, "WorldFile path: %s\n", wf_path);
+	fprintf (stderr, "              Section: %s\n", section);
+    if (worldfile)
+      {
+	  if (srid <= 0)
+	      fprintf (stderr,
+		       "*** ERROR *** WorldFile requires specifying some SRID\n");
+	  else
+	      fprintf (stderr, "Using the WorldFile\n");
+      }
+    if (srid > 0)
+	fprintf (stderr, "          Forced SRID: %d\n", srid);
     if (pyramidize)
 	fprintf (stderr, "Immediately building Pyramid Levels\n");
     else
@@ -2420,6 +2201,8 @@ check_export_args (const char *db_path, const char *dst_path,
 /* checking/printing EXPORT args */
     double ext_x;
     double ext_y;
+    char *dumb1;
+    char *dumb2;
     int err = 0;
     int err_bbox = 0;
     fprintf (stderr, "\n\nrl2_tool; request is EXPORT\n");
@@ -2431,22 +2214,14 @@ check_export_args (const char *db_path, const char *dst_path,
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
-    if (dst_path == NULL)
-      {
-	  fprintf (stderr,
-		   "*** ERROR *** no output Destination path was specified\n");
-	  err = 1;
-      }
-    else
-	fprintf (stderr, "output Destination path: %s\n", dst_path);
+	fprintf (stderr, "           DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	fprintf (stderr, "          Coverage: %s\n", coverage);
     if (x_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
@@ -2458,7 +2233,13 @@ check_export_args (const char *db_path, const char *dst_path,
 	  err = 1;
       }
     if (x_res > 0.0 && y_res > 0.0)
-	fprintf (stderr, "Pixel size: X=%1.12f Y=%1.12f\n", x_res, y_res);
+      {
+	  dumb1 = formatFloat (x_res);
+	  dumb2 = formatFloat (y_res);
+	  fprintf (stderr, "        Pixel size: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
     if (*cx == DBL_MAX && *cy == DBL_MAX && *width == 0 && *height == 0)
       {
 	  /* computing the image center, width and height */
@@ -2506,15 +2287,25 @@ check_export_args (const char *db_path, const char *dst_path,
 	    }
 	  if (!err_bbox)
 	    {
-		fprintf (stderr, "Lower-Left  Corner: %1.6f %1.6f\n", *minx,
-			 *miny);
-		fprintf (stderr, "Upper-Right Corner: %1.6f %1.6f\n", *maxx,
-			 *maxy);
+		dumb1 = formatFloat (*minx);
+		dumb2 = formatFloat (*miny);
+		fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		dumb1 = formatFloat (*maxx);
+		dumb2 = formatFloat (*maxy);
+		fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
 		ext_x = *maxx - *minx;
 		ext_y = *maxy - *miny;
 		*cx = *minx + (ext_x / 2.0);
 		*cy = *miny + (ext_y / 2.0);
-		fprintf (stderr, "Center: %1.6f %1.6f\n", *cx, *cy);
+		dumb1 = formatFloat (*cx);
+		dumb2 = formatFloat (*cy);
+		fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
 		if ((ext_x / x_res) > USHRT_MAX)
 		  {
 		      fprintf (stderr,
@@ -2534,7 +2325,8 @@ check_export_args (const char *db_path, const char *dst_path,
 		else
 		    *height = (unsigned short) (ext_y / y_res);
 		if (!err_bbox)
-		    fprintf (stderr, "Image Size: %uX%u\n", *width, *height);
+		    fprintf (stderr, "        Image Size: %u x %u\n", *width,
+			     *height);
 	    }
       }
     else if (*minx == DBL_MAX && *miny == DBL_MAX && *maxx == DBL_MAX
@@ -2572,13 +2364,32 @@ check_export_args (const char *db_path, const char *dst_path,
 		*maxx = *minx + ext_x;
 		*miny = *cy - (ext_y / 2.0);
 		*maxy = *miny + ext_y;
-		fprintf (stderr, "Lower-Left  Corner: %1.6f %1.6f\n", *minx,
-			 *miny);
-		fprintf (stderr, "Upper-Right Corner: %1.6f %1.6f\n", *maxx,
-			 *maxy);
-		fprintf (stderr, "Center: %1.6f %1.6f\n", *cx, *cy);
-		fprintf (stderr, "Image Size: %uX%u\n", *width, *height);
+		dumb1 = formatFloat (*minx);
+		dumb2 = formatFloat (*miny);
+		fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		dumb1 = formatFloat (*maxx);
+		dumb2 = formatFloat (*maxy);
+		fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		dumb1 = formatFloat (*cx);
+		dumb2 = formatFloat (*cy);
+		fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
+		sqlite3_free (dumb1);
+		sqlite3_free (dumb2);
+		fprintf (stderr, "        Image Size: %u x %u\n", *width,
+			 *height);
 	    }
+	  if (dst_path == NULL)
+	    {
+		fprintf (stderr,
+			 "*** ERROR *** no output Destination path was specified\n");
+		err = 1;
+	    }
+	  else
+	      fprintf (stderr, "  Destination Path: %s\n", dst_path);
       }
     else
       {
@@ -2770,7 +2581,7 @@ check_check_args (const char *db_path, const char *coverage,
 }
 
 static void
-do_help ()
+do_help (int mode)
 {
 /* printing the argument list */
     fprintf (stderr, "\n\nusage: rl2_tool MODE [ ARGLIST ]\n");
@@ -2778,158 +2589,213 @@ do_help ()
 	     "==============================================================\n");
     fprintf (stderr,
 	     "-h or --help                    print this help message\n");
-/* MODE = CREATE */
-    fprintf (stderr, "\nmode: CREATE\n");
-    fprintf (stderr, "will create a new RasterLite2 Raster Coverage\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
-    fprintf (stderr,
-	     "-smp or --sample-type keyword   Sample Type keyword (see list)\n");
-    fprintf (stderr,
-	     "-pxl or --pixel-type  keyword   Pixel Type keyword (see list)\n");
-    fprintf (stderr, "-bds or --num-bands   integer   Number of Bands\n");
-    fprintf (stderr,
-	     "-cpr or --compression keyword   Compression keyword (see list)\n");
-    fprintf (stderr,
-	     "-qty or --quality     integer   Compression Quality [0-100]\n");
-    fprintf (stderr, "-tlw or --tile-width  integer   Tile Width [pixels]\n");
-    fprintf (stderr, "-tlh or --tile-height integer   Tile Height [pixels]\n");
-    fprintf (stderr, "-srid or --srid       integer   SRID value\n");
-    fprintf (stderr,
-	     "-res or --resolution  number    pixel resolution(X and Y)\n");
-    fprintf (stderr,
-	     "-xres or --x-resol    number    pixel resolution(X specific)\n");
-    fprintf (stderr,
-	     "-yres or --y-resol    number    pixel resolution(Y specific)\n\n");
-    fprintf (stderr, "SampleType Keywords:\n");
-    fprintf (stderr, "----------------------------------\n");
-    fprintf (stderr,
-	     "1-BIT 2-BIT 4-BIT INT8 UINT8 INT16 UINT16\n"
-	     " INT32 UINT32 FLOAT DOUBLE\n\n");
-    fprintf (stderr, "PixelType Keywords:\n");
-    fprintf (stderr, "----------------------------------\n");
-    fprintf (stderr, "MONOCHROME PALETTE GRAYSCALE RGB MULTIBAND DATAGRID\n\n");
-    fprintf (stderr, "Compression Keywords:\n");
-    fprintf (stderr, "----------------------------------\n");
-    fprintf (stderr,
-	     "NONE DEFLATE LZMA GIF PNG JPEG LOSSY_WEBP LOSSLESS_WEBP\n\n");
-/* MODE = DROP */
-    fprintf (stderr, "\nmode: DROP\n");
-    fprintf (stderr, "will drop an existing RasterLite2 Raster Coverage\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n\n");
-/* MODE = IMPORT */
-    fprintf (stderr, "\nmode: IMPORT\n");
-    fprintf (stderr, "will create a new Raster Section by importing an\n");
-    fprintf (stderr, "external image or raster file\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr,
-	     "-src or --src-path    pathname  input Image/Raster path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
-    fprintf (stderr,
-	     "-sec or --section     string    optional: Section's name\n");
-    fprintf (stderr,
-	     "-wf or --wf-path      pathname  optional: WorldFile path\n");
-    fprintf (stderr,
-	     "-pyr or --pyramidize            immediately build Pyramid levels\n\n");
-/* MODE = EXPORT */
-    fprintf (stderr, "\nmode: EXPORT\n");
-    fprintf (stderr, "will export an external image from a Coverage\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr,
-	     "-dst or --dst-path    pathname  output Image/Raster path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
-    fprintf (stderr,
-	     "-res or --resolution  number    pixel resolution(X and Y)\n");
-    fprintf (stderr,
-	     "-xres or --x-resol    number    pixel resolution(X specific)\n");
-    fprintf (stderr,
-	     "-yres or --y-resol    number    pixel resolution(Y specific)\n");
-    fprintf (stderr,
-	     "-minx or --min-x      number    X coordinate (lower-left corner)\n");
-    fprintf (stderr,
-	     "-miny or --min-y      number    Y coordinate (lower-left corner)\n");
-    fprintf (stderr,
-	     "-maxx or --max-x      number    X coordinate (upper-right corner)\n");
-    fprintf (stderr,
-	     "-maxy or --max-y      number    Y coordinate (upper-left corner)\n");
-    fprintf (stderr, "-cx or --center-x     number    X coordinate (center)\n");
-    fprintf (stderr, "-cy or --center-y     number    Y coordinate (center)\n");
-    fprintf (stderr,
-	     "-outw or --out-width  number    image width (in pixels)\n");
-    fprintf (stderr,
-	     "-outh or --out-height number    image height (in pixels)\n\n");
-/* MODE = DELETE */
-    fprintf (stderr, "\nmode: DELETE\n");
-    fprintf (stderr, "will delete a Raster Section\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
-    fprintf (stderr, "-sec or --section     string    Section's name\n\n");
-/* MODE = PYRAMIDIZE */
-    fprintf (stderr, "\nmode: PYRAMIDIZE\n");
-    fprintf (stderr,
-	     "will (re)build all Pyramid levels supporting a Coverage\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
-    fprintf (stderr,
-	     "-sec or --section     string    optional: Section's name\n");
-    fprintf (stderr,
-	     "                                default is \"All Sections\"\n");
-    fprintf (stderr,
-	     "-f or --force                   optional: rebuilds from scratch\n\n");
-/* MODE = LIST */
-    fprintf (stderr, "\nmode: LIST\n");
-    fprintf (stderr, "will list Raster Sections within a Coverage\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
-    fprintf (stderr,
-	     "-sec or --section     string    optional: Section's name\n");
-    fprintf (stderr,
-	     "                                default is \"All Sections\"\n");
-/* MODE = CATALOG */
-    fprintf (stderr, "\nmode: CATALOG\n");
-    fprintf (stderr, "will list all Coverages from within a RasterLite2 DB\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n\n");
-/* MODE = CHECK */
-    fprintf (stderr, "\nmode: CHECK\n");
-    fprintf (stderr, "will check a RasterLite2 DB for validity\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
-    fprintf (stderr,
-	     "-cov or --coverage    string    optional: Coverage's name\n");
-    fprintf (stderr,
-	     "                                default is \"All Coverages\"\n");
-    fprintf (stderr,
-	     "-sec or --section     string    optional: Section's name\n");
-    fprintf (stderr,
-	     "                                default is \"All Sections\"\n\n");
-/* DB options */
-    fprintf (stderr, "\noptional DB specific settings:\n");
-    fprintf (stderr,
-	     "==============================================================\n");
-    fprintf (stderr,
-	     "-cs or --cache-size    num      DB cache size (how many pages)\n");
-    fprintf (stderr,
-	     "-m or --in-memory               using IN-MEMORY database\n");
-    fprintf (stderr,
-	     "-jo or --journal-off            unsafe [but faster] mode\n");
+    if (mode == ARG_NONE || mode == ARG_MODE_CREATE)
+      {
+	  /* MODE = CREATE */
+	  fprintf (stderr, "\nmode: CREATE\n");
+	  fprintf (stderr, "will create a new RasterLite2 Raster Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-smp or --sample-type keyword   Sample Type keyword (see list)\n");
+	  fprintf (stderr,
+		   "-pxl or --pixel-type  keyword   Pixel Type keyword (see list)\n");
+	  fprintf (stderr, "-bds or --num-bands   integer   Number of Bands\n");
+	  fprintf (stderr,
+		   "-cpr or --compression keyword   Compression keyword (see list)\n");
+	  fprintf (stderr,
+		   "-qty or --quality     integer   Compression Quality [0-100]\n");
+	  fprintf (stderr,
+		   "-tlw or --tile-width  integer   Tile Width [pixels]\n");
+	  fprintf (stderr,
+		   "-tlh or --tile-height integer   Tile Height [pixels]\n");
+	  fprintf (stderr, "-srid or --srid       integer   SRID value\n");
+	  fprintf (stderr,
+		   "-res or --resolution  number    pixel resolution(X and Y)\n");
+	  fprintf (stderr,
+		   "-xres or --x-resol    number    pixel resolution(X specific)\n");
+	  fprintf (stderr,
+		   "-yres or --y-resol    number    pixel resolution(Y specific)\n\n");
+	  fprintf (stderr, "SampleType Keywords:\n");
+	  fprintf (stderr, "----------------------------------\n");
+	  fprintf (stderr,
+		   "1-BIT 2-BIT 4-BIT INT8 UINT8 INT16 UINT16\n"
+		   " INT32 UINT32 FLOAT DOUBLE\n\n");
+	  fprintf (stderr, "PixelType Keywords:\n");
+	  fprintf (stderr, "----------------------------------\n");
+	  fprintf (stderr,
+		   "MONOCHROME PALETTE GRAYSCALE RGB MULTIBAND DATAGRID\n\n");
+	  fprintf (stderr, "Compression Keywords:\n");
+	  fprintf (stderr, "----------------------------------\n");
+	  fprintf (stderr,
+		   "NONE DEFLATE LZMA GIF PNG JPEG LOSSY_WEBP LOSSLESS_WEBP\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_DROP)
+      {
+	  /* MODE = DROP */
+	  fprintf (stderr, "\nmode: DROP\n");
+	  fprintf (stderr,
+		   "will drop an existing RasterLite2 Raster Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr,
+		   "-cov or --coverage    string    Coverage's name\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_IMPORT)
+      {
+	  /* MODE = IMPORT */
+	  fprintf (stderr, "\nmode: IMPORT\n");
+	  fprintf (stderr,
+		   "will create a new Raster Section by importing an\n");
+	  fprintf (stderr, "external image or raster file\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr,
+		   "-src or --src-path    pathname  input Image/Raster path\n");
+	  fprintf (stderr,
+		   "-dir or --dir-path    pathname  input directory path\n");
+	  fprintf (stderr,
+		   "-ext or --file-ext    extension file extension (e.g. .tif)\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    optional: Section's name\n");
+	  fprintf (stderr,
+		   "-srid or --srid       integer   optional: force SRID value\n");
+	  fprintf (stderr,
+		   "-wf or --worldfile              requires a Worldfile\n");
+	  fprintf (stderr,
+		   "-pyr or --pyramidize            immediately build Pyramid levels\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_EXPORT)
+      {
+	  /* MODE = EXPORT */
+	  fprintf (stderr, "\nmode: EXPORT\n");
+	  fprintf (stderr, "will export an external image from a Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr,
+		   "-dst or --dst-path    pathname  output Image/Raster path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-res or --resolution  number    pixel resolution(X and Y)\n");
+	  fprintf (stderr,
+		   "-xres or --x-resol    number    pixel resolution(X specific)\n");
+	  fprintf (stderr,
+		   "-yres or --y-resol    number    pixel resolution(Y specific)\n");
+	  fprintf (stderr,
+		   "-minx or --min-x      number    X coordinate (lower-left corner)\n");
+	  fprintf (stderr,
+		   "-miny or --min-y      number    Y coordinate (lower-left corner)\n");
+	  fprintf (stderr,
+		   "-maxx or --max-x      number    X coordinate (upper-right corner)\n");
+	  fprintf (stderr,
+		   "-maxy or --max-y      number    Y coordinate (upper-left corner)\n");
+	  fprintf (stderr,
+		   "-cx or --center-x     number    X coordinate (center)\n");
+	  fprintf (stderr,
+		   "-cy or --center-y     number    Y coordinate (center)\n");
+	  fprintf (stderr,
+		   "-outw or --out-width  number    image width (in pixels)\n");
+	  fprintf (stderr,
+		   "-outh or --out-height number    image height (in pixels)\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_DELETE)
+      {
+	  /* MODE = DELETE */
+	  fprintf (stderr, "\nmode: DELETE\n");
+	  fprintf (stderr, "will delete a Raster Section\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    Section's name\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_PYRAMIDIZE)
+      {
+	  /* MODE = PYRAMIDIZE */
+	  fprintf (stderr, "\nmode: PYRAMIDIZE\n");
+	  fprintf (stderr,
+		   "will (re)build all Pyramid levels supporting a Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    optional: Section's name\n");
+	  fprintf (stderr,
+		   "                                default is \"All Sections\"\n");
+	  fprintf (stderr,
+		   "-f or --force                   optional: rebuilds from scratch\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_LIST)
+      {
+	  /* MODE = LIST */
+	  fprintf (stderr, "\nmode: LIST\n");
+	  fprintf (stderr, "will list Raster Sections within a Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    optional: Section's name\n");
+	  fprintf (stderr,
+		   "                                default is \"All Sections\"\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_CATALOG)
+      {
+	  /* MODE = CATALOG */
+	  fprintf (stderr, "\nmode: CATALOG\n");
+	  fprintf (stderr,
+		   "will list all Coverages from within a RasterLite2 DB\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n\n");
+      }
+    if (mode == ARG_NONE || mode == ARG_MODE_CHECK)
+      {
+	  /* MODE = CHECK */
+	  fprintf (stderr, "\nmode: CHECK\n");
+	  fprintf (stderr, "will check a RasterLite2 DB for validity\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr,
+		   "-cov or --coverage    string    optional: Coverage's name\n");
+	  fprintf (stderr,
+		   "                                default is \"All Coverages\"\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    optional: Section's name\n");
+	  fprintf (stderr,
+		   "                                default is \"All Sections\"\n\n");
+      }
+    if (mode == ARG_NONE)
+      {
+	  /* DB options */
+	  fprintf (stderr, "\noptional DB specific settings:\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-cs or --cache-size    num      DB cache size (how many pages)\n");
+	  fprintf (stderr,
+		   "-m or --in-memory               using IN-MEMORY database\n");
+	  fprintf (stderr,
+		   "-jo or --journal-off            unsafe [but faster] mode\n");
+      }
 }
 
 int
@@ -2944,16 +2810,17 @@ main (int argc, char *argv[])
     const char *db_path = NULL;
     const char *src_path = NULL;
     const char *dst_path = NULL;
-    const char *wf_path = NULL;
+    const char *dir_path = NULL;
+    const char *file_ext = NULL;
     const char *coverage = NULL;
     const char *section = NULL;
-    int sample = RL2_SAMPLE_UNKNOWN;
-    int pixel = RL2_PIXEL_UNKNOWN;
-    int compression = RL2_COMPRESSION_NONE;
-    int num_bands = RL2_BANDS_UNKNOWN;
+    unsigned char sample = RL2_SAMPLE_UNKNOWN;
+    unsigned char pixel = RL2_PIXEL_UNKNOWN;
+    unsigned char compression = RL2_COMPRESSION_NONE;
+    unsigned char num_bands = RL2_BANDS_UNKNOWN;
     int quality = 80;
-    int tile_width = 256;
-    int tile_height = 256;
+    unsigned short tile_width = 256;
+    unsigned short tile_height = 256;
     double x_res = DBL_MAX;
     double y_res = DBL_MAX;
     double minx = DBL_MAX;
@@ -2965,6 +2832,7 @@ main (int argc, char *argv[])
     unsigned short width = 0;
     unsigned short height = 0;
     int srid = -1;
+    int worldfile = 0;
     int pyramidize = 0;
     int force_pyramid = 0;
     int in_memory = 0;
@@ -3014,8 +2882,11 @@ main (int argc, char *argv[])
 		  case ARG_DST_PATH:
 		      dst_path = argv[i];
 		      break;
-		  case ARG_WF_PATH:
-		      wf_path = argv[i];
+		  case ARG_DIR_PATH:
+		      dir_path = argv[i];
+		      break;
+		  case ARG_FILE_EXT:
+		      file_ext = argv[i];
 		      break;
 		  case ARG_COVERAGE:
 		      coverage = argv[i];
@@ -3143,7 +3014,7 @@ main (int argc, char *argv[])
 	  if (strcasecmp (argv[i], "--help") == 0
 	      || strcmp (argv[i], "-h") == 0)
 	    {
-		do_help ();
+		do_help (mode);
 		return -1;
 	    }
 	  if (strcmp (argv[i], "-db") == 0
@@ -3164,10 +3035,16 @@ main (int argc, char *argv[])
 		next_arg = ARG_DST_PATH;
 		continue;
 	    }
-	  if (strcmp (argv[i], "-wf") == 0
-	      || strcasecmp (argv[i], "--wf-path") == 0)
+	  if (strcmp (argv[i], "-dir") == 0
+	      || strcasecmp (argv[i], "--dir-path") == 0)
 	    {
-		next_arg = ARG_WF_PATH;
+		next_arg = ARG_DIR_PATH;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-ext") == 0
+	      || strcasecmp (argv[i], "--file-ext") == 0)
+	    {
+		next_arg = ARG_FILE_EXT;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-cov") == 0
@@ -3308,6 +3185,12 @@ main (int argc, char *argv[])
 		pyramidize = 1;
 		continue;
 	    }
+	  if (strcmp (argv[i], "-wf") == 0
+	      || strcasecmp (argv[i], "--worldfile") == 0)
+	    {
+		worldfile = 1;
+		continue;
+	    }
 	  if (strcasecmp (argv[i], "--cache-size") == 0
 	      || strcmp (argv[i], "-cs") == 0)
 	    {
@@ -3333,7 +3216,7 @@ main (int argc, char *argv[])
       }
     if (error)
       {
-	  do_help ();
+	  do_help (mode);
 	  return -1;
       }
 
@@ -3351,7 +3234,8 @@ main (int argc, char *argv[])
 	  break;
       case ARG_MODE_IMPORT:
 	  error =
-	      check_import_args (db_path, src_path, coverage, section, wf_path,
+	      check_import_args (db_path, src_path, dir_path, file_ext,
+				 coverage, section, worldfile, srid,
 				 pyramidize);
 	  break;
       case ARG_MODE_EXPORT:
@@ -3384,7 +3268,7 @@ main (int argc, char *argv[])
 
     if (error)
       {
-	  do_help ();
+	  do_help (mode);
 	  return -1;
       }
 
@@ -3462,8 +3346,8 @@ main (int argc, char *argv[])
 	  break;
       case ARG_MODE_IMPORT:
 	  ret =
-	      exec_import (handle, src_path, coverage, section,
-			   wf_path, pyramidize);
+	      exec_import (handle, src_path, dir_path, file_ext, coverage,
+			   section, worldfile, srid, pyramidize);
 	  break;
       case ARG_MODE_EXPORT:
 	  ret =
@@ -3479,10 +3363,10 @@ main (int argc, char *argv[])
       case ARG_MODE_CATALOG:
 	  ret = exec_catalog (handle);
 	  break;
+      case ARG_MODE_LIST:
+	  ret = exec_list (handle, coverage, section);
+	  break;
 /*
-	     case ARG_MODE_LIST:
-	     ret = exec_list(handle, db_path, coverage, section);
-	     break;
 	     case ARG_MODE_CHECK:
 	     ret = exec_check(handle, db_path, coverage, section);
 	     break;
@@ -3529,7 +3413,7 @@ main (int argc, char *argv[])
 		op_name = "CHECK";
 		break;
 	    };
-	  fprintf (stderr, "\nOperation %s succesfully completed\n", op_name);
+	  fprintf (stderr, "\nOperation %s successfully completed\n", op_name);
       }
     else
       {
@@ -3580,7 +3464,7 @@ main (int argc, char *argv[])
 	  sqlite3_close (handle);
 	  spatialite_cleanup_ex (cache_mem);
 	  handle = disk_db_handle;
-	  printf ("\tIN_MEMORY database succesfully exported\n");
+	  printf ("\tIN_MEMORY database successfully exported\n");
       }
 
   stop:

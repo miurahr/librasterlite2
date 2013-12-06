@@ -1663,7 +1663,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
       }
 
 /* preparing the OddBlock */
-    block_odd_size = 45 + compressed + compressed_mask + palette_size;
+    block_odd_size = 46 + compressed + compressed_mask + palette_size;
     block_odd = malloc (block_odd_size);
     if (block_odd == NULL)
 	goto error;
@@ -1679,9 +1679,10 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     *ptr++ = raster->pixelType;	/* pixel type marker */
     *ptr++ = raster->nBands;	/* # Bands marker */
     if (palette == NULL)
-	*ptr++ = 0;		/* empty Palette */
+	exportU16 (ptr, 0, little_endian, endian_arch);	/* no Palette entries */
     else
-	*ptr++ = palette->nEntries;	/* # Palette entries */
+	exportU16 (ptr, palette->nEntries, little_endian, endian_arch);	/* # Palette entries */
+    ptr += 2;
     exportU16 (ptr, raster->width, little_endian, endian_arch);	/* the raster width */
     ptr += 2;
     exportU16 (ptr, raster->height, little_endian, endian_arch);	/* the raster height */
@@ -1699,6 +1700,9 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     exportU32 (ptr, uncompressed_mask, little_endian, endian_arch);	/* uncompressed mask size in bytes */
     ptr += 4;
     exportU32 (ptr, compressed_mask, little_endian, endian_arch);	/* compressed mask size in bytes */
+    if (compressed_mask != 0)
+	fprintf (stderr, "ODD stride=%d sz=%d %d\n", row_stride_mask,
+		 uncompressed_mask, compressed_mask);
     ptr += 4;
     *ptr++ = RL2_PALETTE_START;
     if (palette != NULL)
@@ -1739,7 +1743,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    {
 		uncompressed = size_even;
 		compressed = size_even;
-		compr_mask = pixels_even;
+		compr_data = pixels_even;
 	    }
 	  else if (compression == RL2_COMPRESSION_DEFLATE)
 	    {
@@ -1931,7 +1935,7 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
-    unsigned char num_palette;
+    unsigned short num_palette;
     unsigned char compression;
     int compressed;
     int compressed_mask;
@@ -1940,7 +1944,7 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
     int endian;
     int endian_arch = endianArch ();
 
-    if (blob_sz < 46)
+    if (blob_sz < 47)
 	return 0;
     ptr = blob;
     if (*ptr++ != 0x00)
@@ -1999,16 +2003,17 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
 	  return 0;
       };
     num_bands = *ptr++;		/* # Bands */
-    num_palette = *ptr++;	/* # Palette entries */
+    num_palette = importU16 (ptr, endian, endian_arch);	/* # Palette entries */
+    ptr += 2;
     width = importU16 (ptr, endian, endian_arch);
     ptr += 2;
     height = importU16 (ptr, endian, endian_arch);
     ptr += 2;
     ptr += 6;			/* skipping row_stride etc */
-    ptr += 4;			/* skipping the uncompressd payload size */
+    ptr += 4;			/* skipping the uncompressed payload size */
     compressed = importU32 (ptr, endian, endian_arch);
     ptr += 4;
-    ptr += 4;			/* skipping the uncompressd mask size */
+    ptr += 4;			/* skipping the uncompressed mask size */
     compressed_mask = importU32 (ptr, endian, endian_arch);
     ptr += 4;
     if (*ptr++ != RL2_PALETTE_START)
@@ -2018,7 +2023,7 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
 	return 0;
     if (*ptr++ != RL2_DATA_START)
 	return 0;
-    if (blob_sz < 45 + compressed + compressed_mask)
+    if (blob_sz < 46 + compressed + compressed_mask)
 	return 0;
     ptr += compressed;
     if (*ptr++ != RL2_DATA_END)
@@ -2104,7 +2109,7 @@ check_blob_even (const unsigned char *blob, int blob_sz, unsigned short xwidth,
     ptr += 4;
     if (xcrc != crc)
 	return 0;
-    ptr += 4;			/* skipping the uncompressd payload size */
+    ptr += 4;			/* skipping the uncompressed payload size */
     compressed = importU32 (ptr, endian, endian_arch);
     ptr += 4;
     if (*ptr++ != RL2_DATA_START)
@@ -3315,12 +3320,142 @@ build_pixel_buffer (int swap, int scale, unsigned short *xwidth,
 }
 
 static int
+rescale_mask_2 (unsigned short *xwidth, unsigned short *xheight,
+		const unsigned char *mask_pix, unsigned char **mask,
+		int *mask_sz)
+{
+/* rescaling a transparency mask - scale 1:2 */
+    int row;
+    int col;
+    unsigned short width = *xwidth / 2.0;
+    unsigned short height = *xheight / 2.0;
+    unsigned char *p_out;
+    const unsigned char *p_in = mask_pix;
+
+    *mask_sz = width * height;
+    *mask = malloc (*mask_sz);
+    if (*mask == NULL)
+	return 0;
+    p_out = *mask;
+
+    for (row = 0; row < *xheight; row += 2)
+      {
+	  for (col = 0; col < *xwidth; col += 2)
+	    {
+		*p_out++ = *p_in++;
+		p_in++;
+	    }
+	  p_in += *xwidth;
+      }
+
+    *xwidth = width;
+    *xheight = height;
+    return 1;
+}
+
+static int
+rescale_mask_4 (unsigned short *xwidth, unsigned short *xheight,
+		const unsigned char *mask_pix, unsigned char **mask,
+		int *mask_sz)
+{
+/* rescaling a transparency mask - scale 1:4 */
+    int row;
+    int col;
+    unsigned short width = *xwidth / 4.0;
+    unsigned short height = *xheight / 4.0;
+    unsigned char *p_out;
+    const unsigned char *p_in = mask_pix;
+
+    *mask_sz = width * height;
+    *mask = malloc (*mask_sz);
+    if (*mask == NULL)
+	return 0;
+    p_out = *mask;
+
+    for (row = 0; row < *xheight; row += 4)
+      {
+	  for (col = 0; col < *xwidth; col += 4)
+	    {
+		*p_out++ = *p_in++;
+		p_in += 3;
+	    }
+	  p_in += *xwidth * 3;
+      }
+
+    *xwidth = width;
+    *xheight = height;
+    return 1;
+}
+
+static int
+rescale_mask_8 (unsigned short *xwidth, unsigned short *xheight,
+		const unsigned char *mask_pix, unsigned char **mask,
+		int *mask_sz)
+{
+/* rescaling a transparency mask - scale 1:8 */
+    int row;
+    int col;
+    unsigned short width = *xwidth / 8.0;
+    unsigned short height = *xheight / 8.0;
+    unsigned char *p_out;
+    const unsigned char *p_in = mask_pix;
+
+    *mask_sz = width * height;
+    *mask = malloc (*mask_sz);
+    if (*mask == NULL)
+	return 0;
+    p_out = *mask;
+
+    for (row = 0; row < *xheight; row += 8)
+      {
+	  for (col = 0; col < *xwidth; col += 8)
+	    {
+		*p_out++ = *p_in++;
+		p_in += 7;
+	    }
+	  p_in += *xwidth * 7;
+      }
+
+    *xwidth = width;
+    *xheight = height;
+    return 1;
+}
+
+static int
+rescale_mask (int scale, unsigned short *xwidth, unsigned short *xheight,
+	      unsigned char *mask_pix, unsigned char **mask, int *mask_sz)
+{
+/* rescaling the transparency mask */
+    unsigned short width = *xwidth;
+    unsigned short height = *xheight;
+    unsigned char *buf;
+    int buf_size;
+
+    if (scale == RL2_SCALE_2)
+	return rescale_mask_2 (xwidth, xheight, mask_pix, mask, mask_sz);
+    if (scale == RL2_SCALE_4)
+	return rescale_mask_4 (xwidth, xheight, mask_pix, mask, mask_sz);
+    if (scale == RL2_SCALE_8)
+	return rescale_mask_8 (xwidth, xheight, mask_pix, mask, mask_sz);
+
+    buf_size = width * height;
+    buf = malloc (buf_size);
+    if (buf == NULL)
+	return 0;
+
+    memcpy (buf, mask_pix, buf_size);
+    *mask = buf;
+    *mask_sz = buf_size;
+    return 1;
+}
+
+static int
 unpack_1bit (unsigned short width, unsigned short height,
 	     unsigned short row_stride, const unsigned char *pixels_in,
 	     unsigned char **pixels, int *pixels_sz)
 {
 /* unpacking a 1-BIT raster */
-    void *buf;
+    unsigned char *buf;
     int buf_size;
     int row;
     int col;
@@ -3659,10 +3794,12 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     rl2PalettePtr palette2 = NULL;
     unsigned short width;
     unsigned short height;
+    unsigned short mask_width;
+    unsigned short mask_height;
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
-    unsigned char num_palette;
+    unsigned short num_palette;
     unsigned char compression;
     unsigned short row_stride_odd;
     unsigned short odd_rows;
@@ -3677,6 +3814,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     uLong crc;
     const unsigned char *pixels_odd;
     const unsigned char *pixels_even;
+    const unsigned char *pixels_mask = NULL;
     unsigned char *pixels = NULL;
     int pixels_sz;
     unsigned char *mask = NULL;
@@ -3709,8 +3847,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 
     endian = *(blob_odd + 2);
     num_bands = *(blob_odd + 6);
-    num_palette = *(blob_odd + 7);
-    ptr = blob_odd + 12;
+    num_palette = importU16 (blob_odd + 7, endian, endian_arch);
+    ptr = blob_odd + 13;
     row_stride_odd = importU16 (ptr, endian, endian_arch);
     ptr += 2;
     odd_rows = importU16 (ptr, endian, endian_arch);
@@ -3747,6 +3885,21 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     if (*ptr++ != RL2_DATA_START)
 	return NULL;
     pixels_odd = ptr;
+    if (uncompressed_mask > 0)
+      {
+	  /* retrieving the mask */
+	  ptr += compressed_odd;
+	  if (*ptr++ != RL2_DATA_END)
+	      return NULL;
+	  if (*ptr++ != RL2_MASK_START)
+	      return NULL;
+	  pixels_mask = ptr;
+	  mask_width = width;
+	  mask_height = height;
+	  ptr += compressed_mask;
+	  if (*ptr++ != RL2_MASK_END)
+	      return NULL;
+      }
     if (blob_even != NULL)
       {
 	  ptr = blob_even + 11;
@@ -4023,6 +4176,24 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	       pixels_odd, even_rows, pixels_even, (void **) (&pixels),
 	       &pixels_sz))
 	      goto error;
+      }
+
+    if (pixels_mask != NULL)
+      {
+	  /* unpacking the mask */
+	  unsigned char *mask_pix;
+	  int mask_pix_sz;
+	  if (!unpack_1bit
+	      (mask_width, mask_height, row_stride_mask, pixels_mask, &mask_pix,
+	       &mask_pix_sz))
+	      goto error;
+	  if (!rescale_mask
+	      (scale, &mask_width, &mask_height, mask_pix, &mask, &mask_sz))
+	    {
+		free (mask_pix);
+		goto error;
+	    }
+	  free (mask_pix);
       }
 
   done:

@@ -82,6 +82,11 @@ create_tiff_origin (const char *path, unsigned char force_sample_type,
     origin->green = NULL;
     origin->blue = NULL;
     origin->alpha = NULL;
+    origin->remapMaxPalette = 0;
+    origin->remapRed = NULL;
+    origin->remapGreen = NULL;
+    origin->remapBlue = NULL;
+    origin->remapAlpha = NULL;
     origin->isGeoReferenced = 0;
     origin->Srid = -1;
     origin->srsName = NULL;
@@ -160,6 +165,14 @@ rl2_destroy_tiff_origin (rl2TiffOriginPtr tiff)
 	free (origin->blue);
     if (origin->alpha != NULL)
 	free (origin->alpha);
+    if (origin->remapRed != NULL)
+	free (origin->remapRed);
+    if (origin->remapGreen != NULL)
+	free (origin->remapGreen);
+    if (origin->remapBlue != NULL)
+	free (origin->remapBlue);
+    if (origin->remapAlpha != NULL)
+	free (origin->remapAlpha);
     if (origin->srsName != NULL)
 	free (origin->srsName);
     if (origin->proj4text != NULL)
@@ -833,6 +846,7 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		    origin->blue[i] = blue[i];
 		else
 		    origin->blue[i] = blue[i] / 256;
+		origin->alpha[i] = 255;
 	    }
       }
     if (!check_tiff_origin_pixel_conversion (origin))
@@ -2226,6 +2240,33 @@ rl2_get_tiff_origin_strip_size (rl2TiffOriginPtr tiff,
     return RL2_OK;
 }
 
+static void
+build_remap (rl2PrivTiffOriginPtr origin)
+{
+/* building a remapped palette identical to the natural one */
+    int j;
+    if (origin->remapRed != NULL)
+	free (origin->remapRed);
+    if (origin->remapGreen != NULL)
+	free (origin->remapGreen);
+    if (origin->remapBlue != NULL)
+	free (origin->remapBlue);
+    if (origin->remapAlpha != NULL)
+	free (origin->remapAlpha);
+    origin->remapMaxPalette = origin->maxPalette;
+    origin->remapRed = malloc (origin->remapMaxPalette);
+    origin->remapGreen = malloc (origin->remapMaxPalette);
+    origin->remapBlue = malloc (origin->remapMaxPalette);
+    origin->remapAlpha = malloc (origin->remapMaxPalette);
+    for (j = 0; j < origin->maxPalette; j++)
+      {
+	  origin->remapRed[j] = origin->red[j];
+	  origin->remapGreen[j] = origin->green[j];
+	  origin->remapBlue[j] = origin->blue[j];
+	  origin->remapAlpha[j] = origin->alpha[j];
+      }
+}
+
 RL2_DECLARE rl2RasterPtr
 rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 			       unsigned int startRow, unsigned int startCol)
@@ -2264,11 +2305,15 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE)
       {
 	  /* creating a Palette */
-	  palette = rl2_create_palette (origin->maxPalette);
-	  for (x = 0; x < origin->maxPalette; x++)
-	      rl2_set_palette_color (palette, x, origin->red[x],
-				     origin->green[x], origin->blue[x],
-				     origin->alpha[x]);
+	  if (origin->remapMaxPalette == 0 && origin->maxPalette > 0
+	      && origin->maxPalette <= 256)
+	      build_remap (origin);
+	  palette = rl2_create_palette (origin->remapMaxPalette);
+	  for (x = 0; x < origin->remapMaxPalette; x++)
+	      rl2_set_palette_color (palette, x, origin->remapRed[x],
+				     origin->remapGreen[x],
+				     origin->remapBlue[x],
+				     origin->remapAlpha[x]);
       }
 
 /* attempting to create the tile */
@@ -2607,6 +2652,12 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
 	    {
 		fprintf (stderr, "RL2-TIFF writer: invalid Palette\n");
 		goto error;
+	    }
+	  for (i = 0; i < 256; i++)
+	    {
+		r_plt[i] = 0;
+		g_plt[i] = 0;
+		b_plt[i] = 0;
 	    }
 	  for (i = 0; i < max_palette; i++)
 	    {
@@ -4244,7 +4295,10 @@ rl2_write_tiff_tile (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
 	     && destination->samplesPerPixel == 1
 	     && destination->photometric == 3
 	     && destination->bitsPerSample == 8
-	     && rst->sampleType == RL2_SAMPLE_UINT8
+	     && (rst->sampleType == RL2_SAMPLE_UINT8
+		 || rst->sampleType == RL2_SAMPLE_1_BIT
+		 || rst->sampleType == RL2_SAMPLE_2_BIT
+		 || rst->sampleType == RL2_SAMPLE_4_BIT)
 	     && rst->pixelType == RL2_PIXEL_PALETTE && rst->nBands == 1
 	     && destination->tileWidth == rst->width
 	     && destination->tileHeight == rst->height)

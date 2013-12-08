@@ -60,20 +60,11 @@ naturalEndian ()
     return 1;
 }
 
-static rl2SectionPtr
-create_256colors ()
+static rl2PalettePtr
+create_palette ()
 {
-/* creating a synthetic "256colors" image */
-    rl2SectionPtr scn;
-    rl2RasterPtr rst;
-    rl2PalettePtr palette;
-    int row;
-    int col;
-    int bufsize = 1024 * 1024;
+/* creating a "256colors" palette */
     int idx;
-    int max;
-    unsigned char *bufpix = malloc (bufsize);
-    unsigned char *p = bufpix;
     const char *rgb[] = {
 	"#FFB6C1", "#FFC0CB", "#DC143C", "#FFF0F5", "#DB7093", "#FF69B4",
 	"#FF1493", "#C71585", "#DA70D6", "#D8BFD8",
@@ -105,9 +96,7 @@ create_256colors ()
 	"#C0C0C0", "#A9A9A9", "#808080", "#696969", "#000000", NULL
     };
     const char *p_rgb;
-
-    if (bufpix == NULL)
-	return NULL;
+    rl2PalettePtr palette;
 
     idx = 0;
     while (1)
@@ -117,7 +106,6 @@ create_256colors ()
 	      break;
 	  idx++;
       }
-    max = idx - 1;
     palette = rl2_create_palette (idx);
     if (palette == NULL)
 	goto error;
@@ -131,7 +119,34 @@ create_256colors ()
 	      goto error;
 	  idx++;
       }
+    return palette;
+  error:
+    return NULL;
+}
 
+static rl2SectionPtr
+create_256colors ()
+{
+/* creating a synthetic "256colors" image */
+    rl2SectionPtr scn;
+    rl2RasterPtr rst;
+    rl2PalettePtr palette = create_palette ();
+    int row;
+    int col;
+    int bufsize = 1024 * 1024;
+    int idx;
+    unsigned short max;
+    unsigned char *bufpix = malloc (bufsize);
+    unsigned char *p = bufpix;
+
+    if (bufpix == NULL)
+	return NULL;
+
+    if (palette == NULL)
+	goto error;
+
+    rl2_get_palette_entries (palette, &max);
+    max--;
     idx = 0;
     for (row = 0; row < 256; row += 4)
       {
@@ -487,6 +502,7 @@ main (int argc, char *argv[])
     unsigned char *blob_even_gif;
     int blob_even_sz_gif;
     int endian = naturalEndian ();
+    rl2PalettePtr palette;
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
@@ -567,9 +583,10 @@ main (int argc, char *argv[])
 
     rl2_destroy_section (img);
 
+    palette = create_palette ();
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, palette);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - uncompressed\n");
@@ -594,9 +611,10 @@ main (int argc, char *argv[])
 
     unlink ("./256color_1_1_uncompressed.png");
 
+    palette = create_palette ();
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, palette);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - uncompressed\n");
@@ -621,9 +639,10 @@ main (int argc, char *argv[])
 
     unlink ("./256color_1_2_uncompressed.png");
 
+    palette = create_palette ();
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, palette);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - uncompressed\n");
@@ -648,9 +667,10 @@ main (int argc, char *argv[])
 
     unlink ("./256color_1_4_uncompressed.png");
 
+    palette = create_palette ();
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, palette);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - uncompressed\n");
@@ -679,7 +699,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - png\n");
@@ -706,7 +726,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - png\n");
@@ -733,7 +753,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - png\n");
@@ -760,7 +780,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - png\n");
@@ -790,7 +810,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
@@ -817,7 +837,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - gif\n");
@@ -844,7 +864,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - gif\n");
@@ -871,7 +891,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - gif\n");

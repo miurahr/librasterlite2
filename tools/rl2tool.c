@@ -40,6 +40,7 @@
 
 #include <rasterlite2/rasterlite2.h>
 #include <rasterlite2/rl2tiff.h>
+#include <rasterlite2/rl2graphics.h>
 
 #include <spatialite/gaiaaux.h>
 #include <spatialite.h>
@@ -53,7 +54,8 @@
 #define ARG_MODE_PYRAMIDIZE	6
 #define ARG_MODE_LIST		7
 #define ARG_MODE_CATALOG	8
-#define ARG_MODE_CHECK		9
+#define ARG_MODE_MAP		9
+#define ARG_MODE_CHECK		10
 
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
@@ -330,6 +332,16 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  sqlite3_free (dumb2);
       }
 
+    if (pixel_type == RL2_PIXEL_PALETTE)
+      {
+	  /* remapping the Palette */
+	  if (rl2_check_dbms_palette (handle, cvg, origin) != RL2_OK)
+	    {
+		fprintf (stderr, "Mismatching Palette !!!\n");
+		goto error;
+	    }
+      }
+
     if (rl2_eval_tiff_origin_compatibility (cvg, origin) != RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/TIFF mismatch\n");
@@ -349,7 +361,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	      sqlite3_bind_null (stmt_sect, 1);
 	  else
 	      sqlite3_bind_text (stmt_sect, 1, sect_name, strlen (sect_name),
-				 SQLITE_STATIC);
+				 free);
       }
     sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
 		       SQLITE_STATIC);
@@ -843,7 +855,6 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 					yy_res, 0);
     if (tiff == NULL)
 	goto error;
-
     for (base_y = 0; base_y < height; base_y += 256)
       {
 	  for (base_x = 0; base_x < width; base_x += 256)
@@ -878,6 +889,8 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 
     rl2_destroy_coverage (cvg);
     rl2_destroy_tiff_destination (tiff);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     free (outbuf);
     return 1;
 
@@ -890,6 +903,8 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	rl2_destroy_tiff_destination (tiff);
     if (outbuf != NULL)
 	free (outbuf);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     return 0;
 }
 
@@ -1063,7 +1078,7 @@ rescale_pixels (struct pyramid_params *params, int row, int col,
 static int
 build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 {
-/* building a single Pyramid tile */
+/* building a single Pyramid tile /
     int row;
     int col;
     int ret;
@@ -1088,7 +1103,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 	      params->tile_minx + ((params->tile_width * params->x_res) / 2.0);
 	  for (col = 0; col < 16; col++)
 	    {
-		/* retrieving lower-level tiles */
+		/ retrieving lower-level tiles /
 		int done = 0;
 		sqlite3_reset (stmt);
 		sqlite3_clear_bindings (stmt);
@@ -1099,10 +1114,10 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 		sqlite3_bind_double (stmt, 5, cy);
 		while (1)
 		  {
-		      /* scrolling the result set rows */
+		      / scrolling the result set rows /
 		      int ret = sqlite3_step (stmt);
 		      if (ret == SQLITE_DONE)
-			  break;	/* end of result set */
+			  break;	/ end of result set /
 		      if (ret == SQLITE_ROW)
 			{
 			    rl2RasterPtr rst;
@@ -1146,14 +1161,14 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 		cx += params->tile_width * params->x_res;
 		if (!done)
 		  {
-		      /* lower-level tile not found - updating the Mask */
+		      / lower-level tile not found - updating the Mask /
 		      do_transparent_mask (params, col, row);
 		  }
 	    }
 	  cy -= params->tile_height * params->y_res;
       }
 
-/* saving the current Pyramid Tile */
+/ saving the current Pyramid Tile /
     raster =
 	rl2_create_raster (params->tile_width, params->tile_height,
 			   params->sample_type, params->pixel_type,
@@ -1170,14 +1185,14 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
       }
     rl2_destroy_raster (raster);
     raster = NULL;
-/* INSERTing the tile */
+/ INSERTing the tile /
     sqlite3_reset (stmt_tils);
     sqlite3_clear_bindings (stmt_tils);
     sqlite3_bind_int64 (stmt_tils, 1, params->section_id);
-    /*
+    /
        tile_maxx = tile_minx + ((double) tile_w * res_x);
        tile_miny = tile_maxy - ((double) tile_h * res_y);
-     */
+     /
     geom =
 	build_extent (params->srid, params->tile_minx, params->tile_miny,
 		      params->tile_maxx, params->tile_maxy);
@@ -1195,7 +1210,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 	  return 0;
       }
     tile_id = sqlite3_last_insert_rowid (handle);
-/* INSERTing tile data */
+/ INSERTing tile data /
     sqlite3_reset (stmt_data);
     sqlite3_clear_bindings (stmt_data);
     tile_id = sqlite3_bind_int64 (stmt_data, 1, tile_id);
@@ -1218,6 +1233,8 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
     blob_even = NULL;
 
     return 1;
+	*/
+    return 0;
 }
 
 static int
@@ -1642,17 +1659,17 @@ exec_catalog (sqlite3 * handle)
 	    }
       }
     sqlite3_free_table (results);
+    return 1;
 
   stop:
-    if (count == 0)
-	printf ("no Rasterlite-2 datasources\n");
-    return 1;
+    printf ("no Rasterlite-2 datasources\n");
+    return 0;
 }
 
 static int
 exec_list (sqlite3 * handle, const char *coverage, const char *section)
 {
-/* Rasterlite-2 datasources Catalog */
+/* Rasterlite-2 datasource Sections list */
     char *sql;
     int ret;
     int count = 0;
@@ -1751,11 +1768,284 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 	    }
       }
     sqlite3_free_table (results);
+    return 1;
 
   stop:
-    if (count == 0)
-	printf ("no Rasterlite-2 datasources\n");
+    printf ("not existing or empty Rasterlite-2 datasource\n");
+    return 0;
+}
+
+static int
+exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
+	  unsigned short width, unsigned short height)
+{
+/* Rasterlite-2 datasource Map */
+    char *sql;
+    int ret;
+    char *xsections;
+    char *xxsections;
+    sqlite3_stmt *stmt = NULL;
+    int found = 0;
+    double minx = 0.0;
+    double maxx = 0.0;
+    double miny = 0.0;
+    double maxy = 0.0;
+    double ext_x;
+    double ext_y;
+    double ratio_x;
+    double ratio_y;
+    double ratio;
+    double cx;
+    double cy;
+    double base_x;
+    double base_y;
+    int row;
+    int col;
+    unsigned char *p_alpha;
+    rl2GraphicsContextPtr ctx = NULL;
+    rl2RasterPtr rst = NULL;
+    rl2SectionPtr img = NULL;
+    unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
+    rl2GraphicsFontPtr font = NULL;
+
+/* full extent */
+    xsections = sqlite3_mprintf ("%s_sections", coverage);
+    xxsections = gaiaDoubleQuotedSql (xsections);
+    sqlite3_free (xsections);
+    sql =
+	sqlite3_mprintf
+	("SELECT Min(MbrMinX(geometry)), Max(MbrMaxX(geometry)), "
+	 "Min(MbrMinY(geometry)), Max(MbrMaxY(geometry)) "
+	 "FROM \"%s\"", xxsections);
+    free (xxsections);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT Coverage full Extent SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		minx = sqlite3_column_double (stmt, 0);
+		maxx = sqlite3_column_double (stmt, 1);
+		miny = sqlite3_column_double (stmt, 2);
+		maxy = sqlite3_column_double (stmt, 3);
+		found++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT Coverage full Extent; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (!found)
+	goto error;
+
+/* computing the reproduction ratio */
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    ratio_x = (ext_x / 2.0) / (double) width;
+    ratio_y = (ext_y / 2.0) / (double) height;
+    if (ratio_x < ratio_y)
+	ratio = ratio_x;
+    else
+	ratio = ratio_y;
+    while (1)
+      {
+	  double w = ext_x / ratio;
+	  double h = ext_y / ratio;
+	  if (w < (double) (width - 20) && h < (double) (height - 20))
+	      break;
+	  ratio *= 1.001;
+      }
+    cx = minx + (ext_x / 2.0);
+    cy = miny + (ext_y / 2.0);
+    base_x = cx - ((double) (width / 2) * ratio);
+    base_y = cy + ((double) (height / 2) * ratio);
+
+/* creating a graphics context */
+    ctx = rl2_graph_create_context (width, height);
+    if (ctx == NULL)
+      {
+	  fprintf (stderr, "Unable to create a graphics backend\n");
+	  goto error;
+      }
+/* setting up a black Font */
+    font =
+	rl2_graph_create_font (16, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
+    if (font == NULL)
+      {
+	  fprintf (stderr, "Unable to create a Font\n");
+	  goto error;
+      }
+    if (!rl2_graph_font_set_color (font, 0, 0, 0, 255))
+      {
+	  fprintf (stderr, "Unable to set the font color\n");
+	  goto error;
+      }
+    if (!rl2_graph_set_font (ctx, font))
+      {
+	  fprintf (stderr, "Unable to set up a font\n");
+	  goto error;
+      }
+
+/* querying Sections */
+    xsections = sqlite3_mprintf ("%s_sections", coverage);
+    xxsections = gaiaDoubleQuotedSql (xsections);
+    sqlite3_free (xsections);
+    sql =
+	sqlite3_mprintf
+	("SELECT section_name, geometry " "FROM \"%s\"", xxsections);
+    free (xxsections);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT Coverage full Extent SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		const char *section_name =
+		    (const char *) sqlite3_column_text (stmt, 0);
+		const unsigned char *blob = sqlite3_column_blob (stmt, 1);
+		int blob_sz = sqlite3_column_bytes (stmt, 1);
+		gaiaGeomCollPtr geom =
+		    gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
+		if (geom != NULL)
+		  {
+		      double pre_x;
+		      double pre_y;
+		      double t_width;
+		      double t_height;
+		      double post_x;
+		      double post_y;
+		      double x = (geom->MinX - base_x) / ratio;
+		      double y = (base_y - geom->MaxY) / ratio;
+		      double w = (geom->MaxX - geom->MinX) / ratio;
+		      double h = (geom->MaxY - geom->MinY) / ratio;
+		      double cx = x + (w / 2.0);
+		      double cy = y + (h / 2.0);
+		      gaiaFreeGeomColl (geom);
+		      /* setting up a RED pen */
+		      rl2_graph_set_pen (ctx, 255, 0, 0, 255, 2.0,
+					 RL2_PENSTYLE_SOLID);
+		      /* setting up a Gray solid semi-transparent Brush */
+		      rl2_graph_set_brush (ctx, 255, 255, 255, 204);
+		      rl2_graph_draw_rectangle (ctx, x, y, w, h);
+		      rl2_graph_get_text_extent (ctx, section_name, &pre_x,
+						 &pre_y, &t_width, &t_height,
+						 &post_x, &post_y);
+		      /* setting up a white pen */
+		      rl2_graph_set_pen (ctx, 255, 255, 255, 255, 2.0,
+					 RL2_PENSTYLE_SOLID);
+		      /* setting up a white solid semi-transparent Brush */
+		      rl2_graph_set_brush (ctx, 255, 255, 255, 255);
+		      rl2_graph_draw_rectangle (ctx, cx - (t_width / 2.0),
+						cy - (t_height / 2.0),
+						t_width, t_height);
+		      rl2_graph_draw_text (ctx, section_name,
+					   cx - (t_width / 2.0),
+					   cy + (t_height / 2.0), 0.0);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT Coverage full Extent; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+/* exporting the Map as a PNG image */
+    rgb = rl2_graph_get_context_rgb_array (ctx);
+    if (rgb == NULL)
+      {
+	  fprintf (stderr, "invalid RGB buffer from Graphics Context\n");
+	  goto error;
+      }
+    alpha = rl2_graph_get_context_alpha_array (ctx);
+    if (alpha == NULL)
+      {
+	  fprintf (stderr, "invalid Alpha buffer from Graphics Context\n");
+	  goto error;
+      }
+    rl2_graph_destroy_context (ctx);
+    ctx = NULL;
+
+/* transforming ALPHA into a transparency mask */
+    p_alpha = alpha;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_alpha > 128)
+		    *p_alpha++ = 1;
+		else
+		    *p_alpha++ = 0;
+	    }
+      }
+    rst = rl2_create_raster (width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+			     rgb, width * height * 3, NULL, alpha,
+			     width * height, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to create the output raster+mask\n");
+	  goto error;
+      }
+    rgb = NULL;
+    alpha = NULL;
+    img =
+	rl2_create_section ("beta", RL2_COMPRESSION_NONE,
+			    RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
+			    rst);
+    if (img == NULL)
+      {
+	  fprintf (stderr, "Unable to create the output section+mask\n");
+	  goto error;
+      }
+    if (rl2_section_to_png (img, dst_path) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to write: test_paint.png\n");
+	  goto error;
+      }
+    rl2_destroy_section (img);
+    rl2_graph_destroy_font (font);
     return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (ctx != NULL)
+	rl2_graph_destroy_context (ctx);
+    if (font != NULL)
+	rl2_graph_destroy_font (font);
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    printf ("not existing or empty Rasterlite-2 datasource\n");
+    return 0;
 }
 
 static void
@@ -1939,7 +2229,7 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
 
 static int
 check_create_args (const char *db_path, const char *coverage, int sample,
-		   int pixel, int num_bands, int compression, int quality,
+		   int pixel, int num_bands, int compression, int *quality,
 		   int tile_width, int tile_height, int srid, double x_res,
 		   double y_res)
 {
@@ -2041,37 +2331,42 @@ check_create_args (const char *db_path, const char *coverage, int sample,
       {
       case RL2_COMPRESSION_NONE:
 	  fprintf (stderr, "          Compression: NONE (uncompressed)\n");
+	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_DEFLATE:
 	  fprintf (stderr, "          Compression: DEFLATE (zip, lossless)\n");
+	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_LZMA:
 	  fprintf (stderr, "          Compression: LZMA (7-zip, lossless)\n");
+	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_GIF:
 	  fprintf (stderr, "          Compression: GIF, lossless\n");
+	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_PNG:
 	  fprintf (stderr, "          Compression: PNG, lossless\n");
 	  break;
       case RL2_COMPRESSION_JPEG:
 	  fprintf (stderr, "          Compression: JPEG (lossy)\n");
-	  if (quality < 0)
-	      quality = 0;
-	  if (quality > 100)
-	      quality = 100;
+	  if (*quality < 0)
+	      *quality = 80;
+	  if (*quality > 100)
+	      *quality = 100;
 	  fprintf (stderr, "  Compression Quality: %d\n", quality);
 	  break;
       case RL2_COMPRESSION_LOSSY_WEBP:
 	  fprintf (stderr, "          Compression: WEBP (lossy)\n");
-	  if (quality < 0)
-	      quality = 0;
-	  if (quality > 100)
-	      quality = 100;
+	  if (*quality < 0)
+	      *quality = 80;
+	  if (*quality > 100)
+	      *quality = 100;
 	  fprintf (stderr, "  Compression Quality: %d\n", quality);
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  fprintf (stderr, "          Compression: WEBP, lossless\n");
+	  *quality = 100;
 	  break;
       default:
 	  fprintf (stderr, "*** ERROR *** unknown compression\n");
@@ -2514,7 +2809,7 @@ check_list_args (const char *db_path, const char *coverage, const char *section)
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
+	fprintf (stderr, " DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
@@ -2523,9 +2818,54 @@ check_list_args (const char *db_path, const char *coverage, const char *section)
     else
 	fprintf (stderr, "Coverage: %s\n", coverage);
     if (section == NULL)
-	fprintf (stderr, "Section: All Sections\n");
+	fprintf (stderr, " Section: All Sections\n");
     else
-	fprintf (stderr, "Section: %s\n", section);
+	fprintf (stderr, " Section: %s\n", section);
+    fprintf (stderr,
+	     "===========================================================\n\n");
+    return err;
+}
+
+static int
+check_map_args (const char *db_path, const char *coverage, const char *dst_path,
+		unsigned short *width, unsigned short *height)
+{
+/* checking/printing MAP args */
+    int err = 0;
+    fprintf (stderr, "\n\nrl2_tool; request is MAP\n");
+    fprintf (stderr,
+	     "===========================================================\n");
+    if (db_path == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "           DB path: %s\n", db_path);
+    if (coverage == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "          Coverage: %s\n", coverage);
+    if (dst_path == NULL)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** no output Destination path was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "  Destination Path: %s\n", dst_path);
+    if (*width < 512)
+	*width = 512;
+    if (*width > 4092)
+	*width = 4092;
+    if (*height < 512)
+	*height = 512;
+    if (*height > 4096)
+	*height = 4096;
+    fprintf (stderr, "        Image Size: %u x %u\n", *width, *height);
     fprintf (stderr,
 	     "===========================================================\n\n");
     return err;
@@ -2754,6 +3094,24 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "                                default is \"All Sections\"\n");
       }
+    if (mode == ARG_NONE || mode == ARG_MODE_MAP)
+      {
+	  /* MODE = MAP */
+	  fprintf (stderr, "\nmode: MAP\n");
+	  fprintf (stderr,
+		   "will output a PNG Map representing all Raster Sections\nwithin a Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-dst or --dst-path    pathname  output Image/Raster path\n");
+	  fprintf (stderr,
+		   "-outw or --out-width  number    image width (in pixels)\n");
+	  fprintf (stderr,
+		   "-outh or --out-height number    image height (in pixels)\n\n");
+      }
     if (mode == ARG_NONE || mode == ARG_MODE_CATALOG)
       {
 	  /* MODE = CATALOG */
@@ -2818,9 +3176,9 @@ main (int argc, char *argv[])
     unsigned char pixel = RL2_PIXEL_UNKNOWN;
     unsigned char compression = RL2_COMPRESSION_NONE;
     unsigned char num_bands = RL2_BANDS_UNKNOWN;
-    int quality = 80;
-    unsigned short tile_width = 256;
-    unsigned short tile_height = 256;
+    int quality = -1;
+    unsigned short tile_width = 512;
+    unsigned short tile_height = 512;
     double x_res = DBL_MAX;
     double y_res = DBL_MAX;
     double minx = DBL_MAX;
@@ -2860,6 +3218,8 @@ main (int argc, char *argv[])
 	      mode = ARG_MODE_PYRAMIDIZE;
 	  if (strcasecmp (argv[1], "LIST") == 0)
 	      mode = ARG_MODE_LIST;
+	  if (strcasecmp (argv[1], "MAP") == 0)
+	      mode = ARG_MODE_MAP;
 	  if (strcasecmp (argv[1], "CATALOG") == 0)
 	      mode = ARG_MODE_CATALOG;
 	  if (strcasecmp (argv[1], "CHECK") == 0)
@@ -3226,7 +3586,7 @@ main (int argc, char *argv[])
       case ARG_MODE_CREATE:
 	  error =
 	      check_create_args (db_path, coverage, sample, pixel, num_bands,
-				 compression, quality, tile_width, tile_height,
+				 compression, &quality, tile_width, tile_height,
 				 srid, x_res, y_res);
 	  break;
       case ARG_MODE_DROP:
@@ -3253,6 +3613,9 @@ main (int argc, char *argv[])
 	  break;
       case ARG_MODE_LIST:
 	  error = check_list_args (db_path, coverage, section);
+	  break;
+      case ARG_MODE_MAP:
+	  error = check_map_args (db_path, coverage, dst_path, &width, &height);
 	  break;
       case ARG_MODE_CATALOG:
 	  error = check_catalog_args (db_path);
@@ -3366,6 +3729,9 @@ main (int argc, char *argv[])
       case ARG_MODE_LIST:
 	  ret = exec_list (handle, coverage, section);
 	  break;
+      case ARG_MODE_MAP:
+	  ret = exec_map (handle, coverage, dst_path, width, height);
+	  break;
 /*
 	     case ARG_MODE_CHECK:
 	     ret = exec_check(handle, db_path, coverage, section);
@@ -3405,6 +3771,9 @@ main (int argc, char *argv[])
 		break;
 	    case ARG_MODE_LIST:
 		op_name = "LIST";
+		break;
+	    case ARG_MODE_MAP:
+		op_name = "MAP";
 		break;
 	    case ARG_MODE_CATALOG:
 		op_name = "CATALOG";
@@ -3470,5 +3839,6 @@ main (int argc, char *argv[])
   stop:
     sqlite3_close (handle);
     spatialite_cleanup_ex (cache);
+    spatialite_shutdown ();
     return 0;
 }

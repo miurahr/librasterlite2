@@ -67,7 +67,8 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned char compression, int quality,
 			      unsigned short tile_width,
 			      unsigned short tile_height, int srid,
-			      double x_res, double y_res)
+			      double x_res, double y_res, unsigned char *blob,
+			      int blob_sz)
 {
 /* inserting into "raster_coverages" */
     int ret;
@@ -80,7 +81,7 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     sql = "INSERT INTO raster_coverages (coverage_name, sample_type, "
 	"pixel_type, num_bands, compression, quality, tile_width, "
 	"tile_height, horz_resolution, vert_resolution, srid, "
-	"nodata_pixel) VALUES (Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)";
+	"nodata_pixel, palette) VALUES (Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -190,6 +191,10 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     sqlite3_bind_double (stmt, 9, x_res);
     sqlite3_bind_double (stmt, 10, y_res);
     sqlite3_bind_int (stmt, 11, srid);
+    if (blob == NULL)
+	sqlite3_bind_null (stmt, 12);
+    else
+	sqlite3_bind_blob (stmt, 12, blob, blob_sz, free);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	goto coverage_registered;
@@ -225,8 +230,7 @@ create_levels (sqlite3 * handle, const char *coverage)
 			   "\tx_resolution_1_4 DOUBLE,\n"
 			   "\ty_resolution_1_4 DOUBLE,\n"
 			   "\tx_resolution_1_8 DOUBLE,\n"
-			   "\ty_resolution_1_8 DOUBLE,\n"
-			   "\tpalette BLOB)\n", xxcoverage);
+			   "\ty_resolution_1_8 DOUBLE)\n", xxcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -489,9 +493,17 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 			  double y_res)
 {
 /* creating a DBMS-based Coverage */
+    unsigned char *blob = NULL;
+    int blob_size = 0;
+    if (pixel == RL2_PIXEL_PALETTE)
+      {
+	  /* installing a default (empty) Palette */
+	  if (rl2_create_default_dbms_palette (&blob, &blob_size) != RL2_OK)
+	      goto error;
+      }
     if (!insert_into_raster_coverages
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
-	 tile_width, tile_height, srid, x_res, y_res))
+	 tile_width, tile_height, srid, x_res, y_res, blob, blob_size))
 	goto error;
     if (!create_levels (handle, coverage))
 	goto error;
@@ -1717,14 +1729,14 @@ void_raw_buffer (unsigned char *buffer, unsigned short width,
 }
 
 static void
-copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
-		       unsigned char *outbuf, unsigned short width,
-		       unsigned short height, unsigned char num_bands,
-		       double x_res, double y_res, double minx, double maxy,
-		       double tile_minx, double tile_maxy,
-		       unsigned short tile_width, unsigned short tile_height)
+copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
+		      char *outbuf, unsigned short width,
+		      unsigned short height, unsigned char num_bands,
+		      double x_res, double y_res, double minx, double maxy,
+		      double tile_minx, double tile_maxy,
+		      unsigned short tile_width, unsigned short tile_height)
 {
-/* copying UINT8 raw pixels from the DBMS tile into the output image */
+/* copying INT8 raw pixels from the DBMS tile into the output image */
     int x;
     int y;
     int b;
@@ -1732,9 +1744,10 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
     int out_y;
     double geo_x;
     double geo_y;
-    const unsigned char *p_in = buffer;
+    const char *p_in = buffer;
     const unsigned char *p_msk = mask;
-    unsigned char *p_out;
+    char *p_out;
+    int transparent;
 
     for (y = 0; y < tile_height; y++)
       {
@@ -1756,21 +1769,456 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 		  }
 		p_out =
 		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
 		for (b = 0; b < num_bands; b++)
 		  {
-		      if (p_msk == NULL)
-			  *p_out++ = *p_in++;
-		      else
+		      if (transparent)
 			{
-			    if (*p_msk++ == 0)
-			      {
-				  /* skipping a transparent pixel */
-				  p_out++;
-				  p_in++;
-			      }
-			    else
-				*p_out++ = *p_in++;
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
 			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
+		       unsigned char *outbuf, unsigned short width,
+		       unsigned short height, unsigned char num_bands,
+		       double x_res, double y_res, double minx, double maxy,
+		       double tile_minx, double tile_maxy,
+		       unsigned short tile_width, unsigned short tile_height)
+{
+/* copying UINT8 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const unsigned char *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
+		       short *outbuf, unsigned short width,
+		       unsigned short height, unsigned char num_bands,
+		       double x_res, double y_res, double minx, double maxy,
+		       double tile_minx, double tile_maxy,
+		       unsigned short tile_width, unsigned short tile_height)
+{
+/* copying INT16 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const short *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    short *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_uint16_raw_pixels (const unsigned short *buffer, const unsigned char *mask,
+			unsigned short *outbuf, unsigned short width,
+			unsigned short height, unsigned char num_bands,
+			double x_res, double y_res, double minx, double maxy,
+			double tile_minx, double tile_maxy,
+			unsigned short tile_width, unsigned short tile_height)
+{
+/* copying UINT16 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const unsigned short *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned short *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
+		       int *outbuf, unsigned short width,
+		       unsigned short height, unsigned char num_bands,
+		       double x_res, double y_res, double minx, double maxy,
+		       double tile_minx, double tile_maxy,
+		       unsigned short tile_width, unsigned short tile_height)
+{
+/* copying INT32 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const int *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    int *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
+			unsigned int *outbuf, unsigned short width,
+			unsigned short height, unsigned char num_bands,
+			double x_res, double y_res, double minx, double maxy,
+			double tile_minx, double tile_maxy,
+			unsigned short tile_width, unsigned short tile_height)
+{
+/* copying UINT32 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const unsigned int *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned int *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
+		       float *outbuf, unsigned short width,
+		       unsigned short height, unsigned char num_bands,
+		       double x_res, double y_res, double minx, double maxy,
+		       double tile_minx, double tile_maxy,
+		       unsigned short tile_width, unsigned short tile_height)
+{
+/* copying FLOAT raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const float *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    float *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
+		  }
+	    }
+      }
+}
+
+static void
+copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
+			double *outbuf, unsigned short width,
+			unsigned short height, unsigned char num_bands,
+			double x_res, double y_res, double minx, double maxy,
+			double tile_minx, double tile_maxy,
+			unsigned short tile_width, unsigned short tile_height)
+{
+/* copying DOUBLE raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int b;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const double *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    double *p_out;
+    int transparent;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y = tile_maxy - ((double) y * y_res);
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		continue;
+	    }
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x = tile_minx + ((double) x * x_res);
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * num_bands) + (out_x * num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		for (b = 0; b < num_bands; b++)
+		  {
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out++;
+			    p_in++;
+			}
+		      else
+			  *p_out++ = *p_in++;
 		  }
 	    }
       }
@@ -1793,29 +2241,58 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 
     switch (sample_type)
       {
-	  /*
-	     case RL2_SAMPLE_INT8:
-	     return copy_int8_strip_pixels(raster, (char *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	     case RL2_SAMPLE_INT16:
-	     return copy_int16_strip_pixels(raster, (short *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	     case RL2_SAMPLE_UINT16:
-	     return copy_uint16_strip_pixels(raster, (unsigned short *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	     case RL2_SAMPLE_INT32:
-	     return copy_int32_strip_pixels(raster, (int *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	     case RL2_SAMPLE_UINT32:
-	     return copy_uint32_strip_pixels(raster, (unsigned int *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	     case RL2_SAMPLE_FLOAT:
-	     return copy_float_strip_pixels(raster, (float *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	     case RL2_SAMPLE_DOUBLE:
-	     return copy_double_strip_pixels(raster, (double *)strip, width, height, num_bands, x_res, y_res, 
-	     minx, miny, maxx, maxy, tile_minx, tile_miny, tile_maxx, tile_maxy); break;
-	   */
+      case RL2_SAMPLE_INT8:
+	  copy_int8_raw_pixels ((const char *) (rst->rasterBuffer),
+				(const unsigned char *) (rst->maskBuffer),
+				(char *) outbuf, width, height,
+				num_bands, x_res, y_res, minx, maxy, tile_minx,
+				tile_maxy, tile_width, tile_height);
+	  return 1;
+      case RL2_SAMPLE_INT16:
+	  copy_int16_raw_pixels ((const short *) (rst->rasterBuffer),
+				 (const unsigned char *) (rst->maskBuffer),
+				 (short *) outbuf, width, height,
+				 num_bands, x_res, y_res, minx, maxy, tile_minx,
+				 tile_maxy, tile_width, tile_height);
+	  return 1;
+      case RL2_SAMPLE_UINT16:
+	  copy_uint16_raw_pixels ((const unsigned short *) (rst->rasterBuffer),
+				  (const unsigned char *) (rst->maskBuffer),
+				  (unsigned short *) outbuf, width, height,
+				  num_bands, x_res, y_res, minx, maxy,
+				  tile_minx, tile_maxy, tile_width,
+				  tile_height);
+	  return 1;
+      case RL2_SAMPLE_INT32:
+	  copy_int32_raw_pixels ((const int *) (rst->rasterBuffer),
+				 (const unsigned char *) (rst->maskBuffer),
+				 (int *) outbuf, width, height,
+				 num_bands, x_res, y_res, minx, maxy, tile_minx,
+				 tile_maxy, tile_width, tile_height);
+	  return 1;
+      case RL2_SAMPLE_UINT32:
+	  copy_uint32_raw_pixels ((const unsigned int *) (rst->rasterBuffer),
+				  (const unsigned char *) (rst->maskBuffer),
+				  (unsigned int *) outbuf, width, height,
+				  num_bands, x_res, y_res, minx, maxy,
+				  tile_minx, tile_maxy, tile_width,
+				  tile_height);
+	  return 1;
+      case RL2_SAMPLE_FLOAT:
+	  copy_float_raw_pixels ((const float *) (rst->rasterBuffer),
+				 (const unsigned char *) (rst->maskBuffer),
+				 (float *) outbuf, width, height,
+				 num_bands, x_res, y_res, minx, maxy, tile_minx,
+				 tile_maxy, tile_width, tile_height);
+	  return 1;
+      case RL2_SAMPLE_DOUBLE:
+	  copy_double_raw_pixels ((const double *) (rst->rasterBuffer),
+				  (const unsigned char *) (rst->maskBuffer),
+				  (double *) outbuf, width, height,
+				  num_bands, x_res, y_res, minx, maxy,
+				  tile_minx, tile_maxy, tile_width,
+				  tile_height);
+	  return 1;
       default:
 	  copy_uint8_raw_pixels ((const unsigned char *) (rst->rasterBuffer),
 				 (const unsigned char *) (rst->maskBuffer),
@@ -1829,50 +2306,18 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 }
 
 static int
-check_palette (rl2PalettePtr basePalette, rl2PalettePtr plt)
-{
-/* check two Palettes for self-consistency */
-    if (basePalette == NULL && plt == NULL)
-	return 1;
-    if (basePalette != NULL && plt != NULL)
-      {
-	  unsigned short i;
-	  rl2PrivPalettePtr plt1 = (rl2PrivPalettePtr) basePalette;
-	  rl2PrivPalettePtr plt2 = (rl2PrivPalettePtr) plt;
-	  if (plt1->nEntries != plt2->nEntries)
-	      return 0;
-	  for (i = 0; i < plt1->nEntries; i++)
-	    {
-		rl2PrivPaletteEntryPtr entry1 = plt1->entries + i;
-		rl2PrivPaletteEntryPtr entry2 = plt2->entries + i;
-		if (entry1->red != entry2->red)
-		    return 0;
-		if (entry1->green != entry2->green)
-		    return 0;
-		if (entry1->blue != entry2->blue)
-		    return 0;
-		if (entry1->alpha != entry2->alpha)
-		    return 0;
-	    }
-	  return 1;
-      }
-    return 0;
-}
-
-static int
 load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		 sqlite3_stmt * stmt_data, unsigned char *outbuf,
 		 unsigned short width, unsigned short height,
 		 unsigned char sample_type, unsigned char num_bands,
 		 double x_res, double y_res, double minx, double miny,
 		 double maxx, double maxy, int level, int scale,
-		 rl2PalettePtr * palette)
+		 rl2PalettePtr palette)
 {
 /* retrieving a full image from DBMS tiles */
     rl2RasterPtr raster = NULL;
+    rl2PalettePtr plt = NULL;
     int ret;
-    int first_tile = 1;
-    rl2PalettePtr basePalette = NULL;
 
 /* querying the tiles */
     sqlite3_reset (stmt_tiles);
@@ -1930,32 +2375,16 @@ load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 			       sqlite3_errmsg (handle));
 		      goto error;
 		  }
+		plt = rl2_clone_palette (palette);
 		raster =
 		    rl2_raster_decode (scale, blob_odd, blob_odd_sz, blob_even,
-				       blob_even_sz);
+				       blob_even_sz, plt);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr, ERR_FRMT64, tile_id);
 		      goto error;
 		  }
-		if (first_tile)
-		  {
-		      rl2PalettePtr plt = rl2_get_raster_palette (raster);
-		      if (plt != NULL)
-			  basePalette = rl2_clone_palette (plt);
-		      first_tile = 0;
-		  }
-		else
-		  {
-		      rl2PalettePtr plt = rl2_get_raster_palette (raster);
-		      if (!check_palette (basePalette, plt))
-			{
-			    fprintf (stderr,
-				     "load_dbms_tiles: Mismatching palette !!!\n");
-			    goto error;
-			}
-		  }
-
+		plt = NULL;
 		if (!copy_raw_pixels
 		    (raster, outbuf, width, height, sample_type, num_bands,
 		     x_res, y_res, minx, maxy, tile_minx, tile_maxy))
@@ -1971,13 +2400,14 @@ load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		goto error;
 	    }
       }
-    *palette = basePalette;
 
     return 1;
 
   error:
     if (raster != NULL)
 	rl2_destroy_raster (raster);
+    if (plt != NULL)
+	rl2_destroy_palette (plt);
     return 0;
 }
 
@@ -2014,7 +2444,6 @@ rl2_find_matching_resolution (sqlite3 * handle, const char *coverage,
 	  goto error;
       }
     sqlite3_free (sql);
-
 
     while (1)
       {
@@ -2154,6 +2583,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 			 int *buf_size, rl2PalettePtr * palette)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
+    rl2PalettePtr plt = NULL;
     const char *coverage;
     unsigned char level;
     unsigned char scale;
@@ -2185,6 +2615,14 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
 	goto error;
+
+    if (pixel_type == RL2_PIXEL_PALETTE)
+      {
+	  /* attempting to retrieve the Coverage's Palette */
+	  plt = rl2_get_dbms_palette (handle, coverage);
+	  if (plt == NULL)
+	      goto error;
+      }
 
     switch (sample_type)
       {
@@ -2238,8 +2676,6 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 	  sqlite3_free (xdata);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
 				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
-	  sqlite3_free (xtiles);
-	  free (xxtiles);
 	  free (xxdata);
 	  ret =
 	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -2259,8 +2695,6 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 	  sqlite3_free (xdata);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd "
 				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
-	  sqlite3_free (xtiles);
-	  free (xxtiles);
 	  free (xxdata);
 	  ret =
 	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -2277,13 +2711,13 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
     void_raw_buffer (bufpix, width, height, sample_type, num_bands);
     if (!load_dbms_tiles
 	(handle, stmt_tiles, stmt_data, bufpix, width, height, sample_type,
-	 num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level, scale,
-	 palette))
+	 num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level, scale, plt))
 	goto error;
     sqlite3_finalize (stmt_tiles);
     sqlite3_finalize (stmt_data);
     *buffer = bufpix;
     *buf_size = bufpix_size;
+    *palette = plt;
     return RL2_OK;
 
   error:
@@ -2293,5 +2727,324 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 	sqlite3_finalize (stmt_data);
     if (bufpix != NULL)
 	free (bufpix);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE rl2PalettePtr
+rl2_get_dbms_palette (sqlite3 * handle, const char *coverage)
+{
+/* attempting to retrieve a Coverage's Palette from the DBMS */
+    rl2PalettePtr palette = NULL;
+    char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+
+    if (handle == NULL || coverage == NULL)
+	return NULL;
+
+    sql = sqlite3_mprintf ("SELECT palette FROM raster_coverages "
+			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      palette = rl2_deserialize_dbms_palette (blob, blob_sz);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+
+    if (palette == NULL)
+	goto error;
+    sqlite3_finalize (stmt);
+    return palette;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return NULL;
+}
+
+RL2_DECLARE int
+rl2_update_dbms_palette (sqlite3 * handle, const char *coverage,
+			 rl2PalettePtr palette)
+{
+/* attempting to update a Coverage's Palette into the DBMS */
+    unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
+    unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
+    unsigned short num_entries;
+    unsigned char *blob;
+    int blob_size;
+    sqlite3_stmt *stmt = NULL;
+    char *sql;
+    int ret;
+    if (handle == NULL || coverage == NULL || palette == NULL)
+	return RL2_ERROR;
+
+    sql =
+	sqlite3_mprintf ("SELECT sample_type, pixel_type FROM raster_coverages "
+			 "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		const char *sample =
+		    (const char *) sqlite3_column_text (stmt, 0);
+		const char *pixel =
+		    (const char *) sqlite3_column_text (stmt, 1);
+		if (strcmp (sample, "1-BIT") == 0)
+		    sample_type = RL2_SAMPLE_1_BIT;
+		if (strcmp (sample, "2-BIT") == 0)
+		    sample_type = RL2_SAMPLE_2_BIT;
+		if (strcmp (sample, "4-BIT") == 0)
+		    sample_type = RL2_SAMPLE_4_BIT;
+		if (strcmp (sample, "UINT8") == 0)
+		    sample_type = RL2_SAMPLE_UINT8;
+		if (strcmp (pixel, "PALETTE") == 0)
+		    pixel_type = RL2_PIXEL_PALETTE;
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+/* testing for self-consistency */
+    if (pixel_type != RL2_PIXEL_PALETTE)
+	goto error;
+    if (rl2_get_palette_entries (palette, &num_entries) != RL2_OK)
+	goto error;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_UINT8:
+	  if (num_entries > 256)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_1_BIT:
+	  if (num_entries > 2)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_2_BIT:
+	  if (num_entries > 4)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_4_BIT:
+	  if (num_entries > 16)
+	      goto error;
+	  break;
+      default:
+	  goto error;
+      };
+
+    if (rl2_serialize_dbms_palette (palette, &blob, &blob_size) != RL2_OK)
+	goto error;
+    sql = sqlite3_mprintf ("UPDATE raster_coverages SET palette = ? "
+			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_size, free);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  sqlite3_finalize (stmt);
+	  return RL2_OK;
+      }
+    fprintf (stderr,
+	     "sqlite3_step() error: UPDATE raster_coverages \"%s\"\n",
+	     sqlite3_errmsg (handle));
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+static void
+set_remapped_palette (rl2PrivTiffOriginPtr origin, rl2PalettePtr palette)
+{
+/* installing a remapped Palette into the TIFF origin */
+    int j;
+    rl2PrivPaletteEntryPtr entry;
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+
+    if (plt->nEntries != origin->remapMaxPalette)
+      {
+	  /* reallocating the remapped palette */
+	  if (origin->remapRed != NULL)
+	      free (origin->remapRed);
+	  if (origin->remapGreen != NULL)
+	      free (origin->remapGreen);
+	  if (origin->remapBlue != NULL)
+	      free (origin->remapBlue);
+	  if (origin->remapAlpha != NULL)
+	      free (origin->remapAlpha);
+	  origin->remapMaxPalette = plt->nEntries;
+	  origin->remapRed = malloc (origin->remapMaxPalette);
+	  origin->remapGreen = malloc (origin->remapMaxPalette);
+	  origin->remapBlue = malloc (origin->remapMaxPalette);
+	  origin->remapAlpha = malloc (origin->remapMaxPalette);
+      }
+    for (j = 0; j < plt->nEntries; j++)
+      {
+	  entry = plt->entries + j;
+	  origin->remapRed[j] = entry->red;
+	  origin->remapGreen[j] = entry->green;
+	  origin->remapBlue[j] = entry->blue;
+	  origin->remapAlpha[j] = entry->alpha;
+      }
+}
+
+RL2_DECLARE int
+rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
+			rl2TiffOriginPtr tiff)
+{
+/*attempting to merge/update a Coverage's Palette */
+    int i;
+    int j;
+    int changed = 0;
+    int maxPalette = 0;
+    unsigned char red[256];
+    unsigned char green[256];
+    unsigned char blue[256];
+    unsigned char alpha[256];
+    int ok;
+    rl2PalettePtr palette = NULL;
+    rl2PrivPaletteEntryPtr entry;
+    rl2PrivPalettePtr plt;
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+    rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
+    if (cvg == NULL || origin == NULL)
+	return RL2_ERROR;
+
+    palette = rl2_get_dbms_palette (handle, cvg->coverageName);
+    if (palette == NULL)
+	goto error;
+    plt = (rl2PrivPalettePtr) palette;
+    for (j = 0; j < plt->nEntries; j++)
+      {
+	  entry = plt->entries + j;
+	  ok = 0;
+	  for (i = 0; i < maxPalette; i++)
+	    {
+		if (red[i] == entry->red && green[i] == entry->green
+		    && blue[i] == entry->blue && alpha[i] == entry->alpha)
+		  {
+		      ok = 1;
+		      break;
+		  }
+	    }
+	  if (ok)
+	      continue;
+	  if (maxPalette == 256)
+	      goto error;
+	  red[maxPalette] = entry->red;
+	  green[maxPalette] = entry->green;
+	  blue[maxPalette] = entry->blue;
+	  alpha[maxPalette] = entry->alpha;
+	  maxPalette++;
+      }
+
+    for (i = 0; i < origin->maxPalette; i++)
+      {
+	  /* checking TIFF palette entries */
+	  unsigned char tiff_red = origin->red[i];
+	  unsigned char tiff_green = origin->green[i];
+	  unsigned char tiff_blue = origin->blue[i];
+	  unsigned char tiff_alpha = origin->alpha[i];
+	  ok = 0;
+	  for (j = 0; j < maxPalette; j++)
+	    {
+		if (tiff_red == red[j] && tiff_green == green[j]
+		    && tiff_blue == blue[j] && tiff_alpha == alpha[j])
+		  {
+		      /* found a matching color */
+		      ok = 1;
+		      break;
+		  }
+	    }
+	  if (!ok)
+	    {
+		/* attempting to insert a new color into the pseudo-Palette */
+		if (maxPalette == 256)
+		    goto error;
+		red[maxPalette] = tiff_red;
+		green[maxPalette] = tiff_green;
+		blue[maxPalette] = tiff_blue;
+		alpha[maxPalette] = tiff_alpha;
+		maxPalette++;
+		changed = 1;
+	    }
+      }
+    fprintf (stderr, "Palette Changed %d %d\n", changed, maxPalette);
+    if (changed)
+      {
+	  /* updating the DBMS Palette */
+	  rl2PalettePtr plt2 = rl2_create_palette (maxPalette);
+	  if (plt2 == NULL)
+	      goto error;
+	  rl2_destroy_palette (palette);
+	  palette = plt2;
+	  for (j = 0; j < maxPalette; j++)
+	    {
+		fprintf (stderr, "new %d) #%02x%02x%02x\n", j, red[j], green[j],
+			 blue[j]);
+		rl2_set_palette_color (palette, j, red[j], green[j], blue[j],
+				       alpha[j]);
+	    }
+	  if (rl2_update_dbms_palette (handle, cvg->coverageName, palette) !=
+	      RL2_OK)
+	      goto error;
+      }
+    set_remapped_palette (origin, palette);
+    rl2_destroy_palette (palette);
+    return RL2_OK;
+
+  error:
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     return RL2_ERROR;
 }

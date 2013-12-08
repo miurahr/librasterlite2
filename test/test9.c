@@ -494,7 +494,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - uncompressed\n");
@@ -520,21 +520,21 @@ main (int argc, char *argv[])
     unlink ("./16gray_1_1_uncompressed.png");
 
     if (rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz) != NULL)
+			   blob_even_sz, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:2 - uncompressed\n");
 	  return -14;
       }
 
     if (rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz) != NULL)
+			   blob_even_sz, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:4 - uncompressed\n");
 	  return -15;
       }
 
     if (rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz) != NULL)
+			   blob_even_sz, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:8 - uncompressed\n");
 	  return -16;
@@ -543,7 +543,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - png\n");
@@ -570,7 +570,7 @@ main (int argc, char *argv[])
 
     if (rl2_raster_decode
 	(RL2_SCALE_2, blob_odd_png, blob_odd_sz_png, blob_even_png,
-	 blob_even_sz_png) != NULL)
+	 blob_even_sz_png, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:2 - png\n");
 	  return -20;
@@ -579,7 +579,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
@@ -604,7 +604,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:2 - gif\n");

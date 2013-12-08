@@ -175,19 +175,21 @@ main (int argc, char *argv[])
 
     if (rl2_create_palette (-1) != NULL)
       {
-	  fprintf (stderr, "Invalid palette - negative # entries\n");
+	  fprintf (stderr, "Unexpected valid palette - negative # entries\n");
 	  return -1;
       }
 
-    if (rl2_create_palette (0) != NULL)
+    palette = rl2_create_palette (0);
+    if (palette == NULL)
       {
-	  fprintf (stderr, "Invalid palette - ZERO # entries\n");
+	  fprintf (stderr, "Unexpected invalid palette - ZERO # entries\n");
 	  return -2;
       }
+    rl2_destroy_palette (palette);
 
     if (rl2_create_palette (257) != NULL)
       {
-	  fprintf (stderr, "Invalid palette - 257 # entries\n");
+	  fprintf (stderr, "Unexpected valid palette - 257 # entries\n");
 	  return -3;
       }
 

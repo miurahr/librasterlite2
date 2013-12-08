@@ -806,6 +806,7 @@ rl2_create_raster (unsigned short width, unsigned short height,
     int col;
     int raster_size;
     rl2PrivRasterPtr rst = NULL;
+
     if (!is_valid_sample_type (sample_type))
 	return NULL;
     if (!is_valid_pixel_type (pixel_type))
@@ -829,7 +830,6 @@ rl2_create_raster (unsigned short width, unsigned short height,
 	return NULL;
     if (mask != NULL)
       {
-/* checking if a mask can be supported */
 	  /* checking the mask size */
 	  if (width * height != mask_size)
 	      return NULL;
@@ -1206,13 +1206,18 @@ rl2_create_palette (int num_entries)
 /* allocating and initializing a Palette object */
     int i;
     rl2PrivPalettePtr plt = NULL;
-    if (num_entries < 1 || num_entries > 256)
+    if (num_entries < 0 || num_entries > 256)
 	return NULL;
 
     plt = malloc (sizeof (rl2PrivPalette));
     if (plt == NULL)
 	return NULL;
     plt->nEntries = num_entries;
+    if (num_entries == 0)
+      {
+	  plt->entries = NULL;
+	  return (rl2PalettePtr) plt;
+      }
     plt->entries = malloc (sizeof (rl2PrivPaletteEntry) * num_entries);
     if (plt->entries == NULL)
       {

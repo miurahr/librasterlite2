@@ -1744,6 +1744,8 @@ extern "C"
  \param blob_odd_sz size (in bytes) of the "odd" BLOB.
  \param blob_even pointer to the encoded BLOB ("even" half): could be NULL.
  \param blob_even_sz size (in bytes) of the "even" BLOB: could be ZERO.
+ \param palette pointer to a Palette object (could be NULL, but it could
+ be strictly required by Palette-based tiles)
  
  \return the pointer to newly created Raster Object: NULL on failure.
 
@@ -1758,7 +1760,7 @@ extern "C"
     RL2_DECLARE rl2RasterPtr
 	rl2_raster_decode (int scale, const unsigned char *blob_odd,
 			   int blob_odd_sz, const unsigned char *blob_even,
-			   int blob_even_sz);
+			   int blob_even_sz, rl2PalettePtr palette);
 
 /**
  Creates an RGB pixel array from a Raster
@@ -2470,6 +2472,27 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage);
+
+    RL2_DECLARE int
+	rl2_create_default_dbms_palette (unsigned char **blob, int *blob_size);
+
+    RL2_DECLARE int
+	rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
+				    int *blob_size);
+
+    RL2_DECLARE rl2PalettePtr
+	rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size);
+
+    RL2_DECLARE rl2PalettePtr
+	rl2_get_dbms_palette (sqlite3 * handle, const char *coverage);
+
+    RL2_DECLARE int
+	rl2_update_dbms_palette (sqlite3 * handle, const char *coverage,
+				 rl2PalettePtr palette);
+
+    RL2_DECLARE int
+	rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr cvg,
+				rl2TiffOriginPtr tiff);
 
 #ifdef __cplusplus
 }

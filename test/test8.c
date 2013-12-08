@@ -60,24 +60,11 @@ antiEndian ()
     return 0;
 }
 
-static rl2SectionPtr
-create_16colors ()
+static rl2PalettePtr
+create_palette ()
 {
-/* creating a synthetic "16colors" image */
-    rl2SectionPtr scn;
-    rl2RasterPtr rst;
-    rl2PalettePtr palette;
-    int row;
-    int col;
-    int bufsize = 1024 * 1024;
-    int idx = 0;
-    unsigned char *bufpix = malloc (bufsize);
-    unsigned char *p = bufpix;
-
-    if (bufpix == NULL)
-	return NULL;
-
-    palette = rl2_create_palette (16);
+/* creating a "16colors" palette */
+    rl2PalettePtr palette = rl2_create_palette (16);
     if (palette == NULL)
 	goto error;
     if (rl2_set_palette_color (palette, 0, 0, 0, 0, 255) != RL2_OK)
@@ -111,6 +98,29 @@ create_16colors ()
     if (rl2_set_palette_color (palette, 14, 49, 162, 242, 255) != RL2_OK)
 	goto error;
     if (rl2_set_palette_color (palette, 15, 255, 0, 255, 255) != RL2_OK)
+	goto error;
+    return palette;
+  error:
+    return NULL;
+}
+
+static rl2SectionPtr
+create_16colors ()
+{
+/* creating a synthetic "16colors" image */
+    rl2SectionPtr scn;
+    rl2RasterPtr rst;
+    rl2PalettePtr palette = create_palette ();
+    int row;
+    int col;
+    int bufsize = 1024 * 1024;
+    int idx = 0;
+    unsigned char *bufpix = malloc (bufsize);
+    unsigned char *p = bufpix;
+
+    if (bufpix == NULL)
+	return NULL;
+    if (palette == NULL)
 	goto error;
 
     for (row = 0; row < 256; row += 4)
@@ -451,6 +461,7 @@ main (int argc, char *argv[])
     unsigned char *blob_even_gif;
     int blob_even_sz_gif;
     int anti_endian = antiEndian ();
+    rl2PalettePtr palette;
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
@@ -531,9 +542,10 @@ main (int argc, char *argv[])
 
     rl2_destroy_section (img);
 
+    palette = create_palette ();
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, palette);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - uncompressed\n");
@@ -559,21 +571,21 @@ main (int argc, char *argv[])
     unlink ("./16colors_1_1_uncompressed.png");
 
     if (rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz) != NULL)
+			   blob_even_sz, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:2 - uncompressed\n");
 	  return -14;
       }
 
     if (rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz) != NULL)
+			   blob_even_sz, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:4 - uncompressed\n");
 	  return -15;
       }
 
     if (rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz) != NULL)
+			   blob_even_sz, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:8 - uncompressed\n");
 	  return -16;
@@ -582,7 +594,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - png\n");
@@ -609,7 +621,7 @@ main (int argc, char *argv[])
 
     if (rl2_raster_decode
 	(RL2_SCALE_2, blob_odd_png, blob_odd_sz_png, blob_even_png,
-	 blob_even_sz_png) != NULL)
+	 blob_even_sz_png, NULL) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:2 - png\n");
 	  return -20;
@@ -618,7 +630,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
@@ -643,7 +655,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster != NULL)
       {
 	  fprintf (stderr, "Unexpected result: Decode 1:2 - gif\n");

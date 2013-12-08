@@ -339,7 +339,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - uncompressed\n");
@@ -349,7 +349,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - uncompressed\n");
@@ -359,7 +359,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - uncompressed\n");
@@ -369,7 +369,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - uncompressed\n");
@@ -381,7 +381,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, anti_odd, anti_odd_sz, anti_even,
-			   anti_even_sz);
+			   anti_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr,
@@ -392,7 +392,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, anti_odd, anti_odd_sz, anti_even,
-			   anti_even_sz);
+			   anti_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr,
@@ -403,7 +403,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, anti_odd, anti_odd_sz, anti_even,
-			   anti_even_sz);
+			   anti_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr,
@@ -414,7 +414,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, anti_odd, anti_odd_sz, anti_even,
-			   anti_even_sz);
+			   anti_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr,

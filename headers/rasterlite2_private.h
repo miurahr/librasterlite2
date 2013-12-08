@@ -235,6 +235,11 @@ extern "C"
 	unsigned char *green;
 	unsigned char *blue;
 	unsigned char *alpha;
+	unsigned short remapMaxPalette;
+	unsigned char *remapRed;
+	unsigned char *remapGreen;
+	unsigned char *remapBlue;
+	unsigned char *remapAlpha;
 	int isGeoReferenced;
 	int Srid;
 	double hResolution;

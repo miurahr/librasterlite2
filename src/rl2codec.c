@@ -1305,8 +1305,6 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 {
 /* encoding a Raster into the internal RL2 binary format */
     rl2PrivRasterPtr raster = (rl2PrivRasterPtr) rst;
-    rl2PrivPalettePtr palette;
-    int palette_size = 0;
     int odd_rows;
     unsigned char *pixels_odd = NULL;
     int size_odd;
@@ -1651,19 +1649,8 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    }
       }
 
-    if (compression == RL2_COMPRESSION_PNG
-	|| compression == RL2_COMPRESSION_GIF)
-	palette = NULL;
-    else
-      {
-	  /* supporting an eventual Palette for non-PNG and non-GIF */
-	  palette = raster->Palette;
-	  if (palette != NULL)
-	      palette_size = palette->nEntries * 4;
-      }
-
 /* preparing the OddBlock */
-    block_odd_size = 46 + compressed + compressed_mask + palette_size;
+    block_odd_size = 42 + compressed + compressed_mask;
     block_odd = malloc (block_odd_size);
     if (block_odd == NULL)
 	goto error;
@@ -1678,11 +1665,6 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     *ptr++ = raster->sampleType;	/* sample type marker */
     *ptr++ = raster->pixelType;	/* pixel type marker */
     *ptr++ = raster->nBands;	/* # Bands marker */
-    if (palette == NULL)
-	exportU16 (ptr, 0, little_endian, endian_arch);	/* no Palette entries */
-    else
-	exportU16 (ptr, palette->nEntries, little_endian, endian_arch);	/* # Palette entries */
-    ptr += 2;
     exportU16 (ptr, raster->width, little_endian, endian_arch);	/* the raster width */
     ptr += 2;
     exportU16 (ptr, raster->height, little_endian, endian_arch);	/* the raster height */
@@ -1700,25 +1682,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     exportU32 (ptr, uncompressed_mask, little_endian, endian_arch);	/* uncompressed mask size in bytes */
     ptr += 4;
     exportU32 (ptr, compressed_mask, little_endian, endian_arch);	/* compressed mask size in bytes */
-    if (compressed_mask != 0)
-	fprintf (stderr, "ODD stride=%d sz=%d %d\n", row_stride_mask,
-		 uncompressed_mask, compressed_mask);
     ptr += 4;
-    *ptr++ = RL2_PALETTE_START;
-    if (palette != NULL)
-      {
-	  int p;
-	  rl2PrivPaletteEntryPtr entry;
-	  for (p = 0; p < palette->nEntries; p++)
-	    {
-		entry = palette->entries + p;
-		*ptr++ = entry->red;
-		*ptr++ = entry->green;
-		*ptr++ = entry->blue;
-		*ptr++ = entry->alpha;
-	    }
-      }
-    *ptr++ = RL2_PALETTE_END;
     *ptr++ = RL2_DATA_START;
     memcpy (ptr, compr_data, compressed);	/* the payload */
     ptr += compressed;
@@ -1935,7 +1899,6 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
-    unsigned short num_palette;
     unsigned char compression;
     int compressed;
     int compressed_mask;
@@ -1944,7 +1907,7 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
     int endian;
     int endian_arch = endianArch ();
 
-    if (blob_sz < 47)
+    if (blob_sz < 43)
 	return 0;
     ptr = blob;
     if (*ptr++ != 0x00)
@@ -2003,8 +1966,6 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
 	  return 0;
       };
     num_bands = *ptr++;		/* # Bands */
-    num_palette = importU16 (ptr, endian, endian_arch);	/* # Palette entries */
-    ptr += 2;
     width = importU16 (ptr, endian, endian_arch);
     ptr += 2;
     height = importU16 (ptr, endian, endian_arch);
@@ -2016,14 +1977,9 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned short *xwidth,
     ptr += 4;			/* skipping the uncompressed mask size */
     compressed_mask = importU32 (ptr, endian, endian_arch);
     ptr += 4;
-    if (*ptr++ != RL2_PALETTE_START)
-	return 0;
-    ptr += num_palette * 4;
-    if (*ptr++ != RL2_PALETTE_END)
-	return 0;
     if (*ptr++ != RL2_DATA_START)
 	return 0;
-    if (blob_sz < 46 + compressed + compressed_mask)
+    if (blob_sz < 42 + compressed + compressed_mask)
 	return 0;
     ptr += compressed;
     if (*ptr++ != RL2_DATA_END)
@@ -3786,7 +3742,7 @@ unpack_4bit (unsigned short width, unsigned short height,
 RL2_DECLARE rl2RasterPtr
 rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		   int blob_odd_sz, const unsigned char *blob_even,
-		   int blob_even_sz)
+		   int blob_even_sz, rl2PalettePtr ext_palette)
 {
 /* decoding from internal RL2 binary format to Raster */
     rl2RasterPtr raster;
@@ -3799,7 +3755,6 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
-    unsigned short num_palette;
     unsigned char compression;
     unsigned short row_stride_odd;
     unsigned short odd_rows;
@@ -3847,8 +3802,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 
     endian = *(blob_odd + 2);
     num_bands = *(blob_odd + 6);
-    num_palette = importU16 (blob_odd + 7, endian, endian_arch);
-    ptr = blob_odd + 13;
+    ptr = blob_odd + 11;
     row_stride_odd = importU16 (ptr, endian, endian_arch);
     ptr += 2;
     odd_rows = importU16 (ptr, endian, endian_arch);
@@ -3863,25 +3817,6 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     ptr += 4;
     compressed_mask = importU32 (ptr, endian, endian_arch);
     ptr += 4;
-    if (*ptr++ != RL2_PALETTE_START)
-	return NULL;
-    if (num_palette > 0)
-      {
-	  int ip;
-	  palette = rl2_create_palette (num_palette);
-	  if (palette == NULL)
-	      return NULL;
-	  for (ip = 0; ip < num_palette; ip++)
-	    {
-		unsigned char r = *ptr++;
-		unsigned char g = *ptr++;
-		unsigned char b = *ptr++;
-		unsigned char a = *ptr++;
-		rl2_set_palette_color (palette, ip, r, g, b, a);
-	    }
-      }
-    if (*ptr++ != RL2_PALETTE_END)
-	return NULL;
     if (*ptr++ != RL2_DATA_START)
 	return NULL;
     pixels_odd = ptr;
@@ -4197,6 +4132,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
       }
 
   done:
+    if (palette == NULL)
+	palette = ext_palette;
     raster =
 	rl2_create_raster (width, height, sample_type, pixel_type, num_bands,
 			   pixels, pixels_sz, palette, mask, mask_sz, NULL);
@@ -4218,5 +4155,142 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	free (mask);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    return NULL;
+}
+
+RL2_DECLARE int
+rl2_create_default_dbms_palette (unsigned char **blob, int *blob_size)
+{
+/* creating a default empty Palette (DBMS serialized format) */
+    int sz = 12;
+    uLong crc;
+    int endian_arch = endianArch ();
+    unsigned char *p = malloc (sz);
+    unsigned char *ptr = p;
+    if (p == NULL)
+	return RL2_ERROR;
+
+    *ptr++ = 0x00;		/* start marker */
+    *ptr++ = RL2_DATA_START;
+    *ptr++ = RL2_LITTLE_ENDIAN;
+    exportU16 (ptr, 0, 1, endian_arch);	/* # Palette entries */
+    ptr += 2;
+    *ptr++ = RL2_PALETTE_START;
+    *ptr++ = RL2_PALETTE_END;
+/* computing the CRC32 */
+    crc = crc32 (0L, p, ptr - p);
+    exportU32 (ptr, crc, 1, endian_arch);	/* the Palette own CRC */
+    ptr += 4;
+    *ptr++ = RL2_DATA_END;
+    *blob = p;
+    *blob_size = sz;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
+			    int *blob_size)
+{
+/* creating a Palette (DBMS serialized format) */
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+    rl2PrivPaletteEntryPtr entry;
+    int sz = 12;
+    uLong crc;
+    int i;
+    int endian_arch = endianArch ();
+    unsigned char *p;
+    unsigned char *ptr;
+
+    if (plt == NULL)
+	return RL2_ERROR;
+
+    sz += plt->nEntries * 4;
+    p = malloc (sz);
+    if (p == NULL)
+	return RL2_ERROR;
+    ptr = p;
+
+    *ptr++ = 0x00;		/* start marker */
+    *ptr++ = RL2_DATA_START;
+    *ptr++ = RL2_LITTLE_ENDIAN;
+    exportU16 (ptr, plt->nEntries, 1, endian_arch);	/* # Palette entries */
+    ptr += 2;
+    *ptr++ = RL2_PALETTE_START;
+    for (i = 0; i < plt->nEntries; i++)
+      {
+	  entry = plt->entries + i;
+	  *ptr++ = entry->red;
+	  *ptr++ = entry->green;
+	  *ptr++ = entry->blue;
+	  *ptr++ = entry->alpha;
+      }
+    *ptr++ = RL2_PALETTE_END;
+/* computing the CRC32 */
+    crc = crc32 (0L, p, ptr - p);
+    exportU32 (ptr, crc, 1, endian_arch);	/* the Palette own CRC */
+    ptr += 4;
+    *ptr++ = RL2_DATA_END;
+    *blob = p;
+    *blob_size = sz;
+    return RL2_OK;
+}
+
+RL2_DECLARE rl2PalettePtr
+rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size)
+{
+/* attempting to deserialize a Palette from DBMS binary format */
+    rl2PalettePtr palette = NULL;
+    int ip;
+    uLong crc;
+    uLong oldCrc;
+    const unsigned char *ptr = blob;
+    int endian;
+    unsigned short nEntries;
+    int endian_arch = endianArch ();
+    if (blob == NULL)
+	return NULL;
+    if (blob_size < 12)
+	return NULL;
+
+    if (*ptr++ != 0x00)
+	return NULL;		/* invalid start signature */
+    if (*ptr++ != RL2_DATA_START)
+	return NULL;		/* invalid start signature */
+    endian = *ptr++;
+    if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
+	;
+    else
+	return NULL;		/* invalid endiannes */
+    nEntries = importU16 (ptr, endian, endian_arch);
+    ptr += 2;
+    if (blob_size != 12 + (nEntries * 4))
+	return NULL;		/* invalid size */
+    if (*ptr++ != RL2_PALETTE_START)
+	return NULL;		/* invalid start marker */
+    palette = rl2_create_palette (nEntries);
+    if (palette == NULL)
+	return NULL;
+    for (ip = 0; ip < nEntries; ip++)
+      {
+	  unsigned char r = *ptr++;
+	  unsigned char g = *ptr++;
+	  unsigned char b = *ptr++;
+	  unsigned char a = *ptr++;
+	  rl2_set_palette_color (palette, ip, r, g, b, a);
+      }
+    if (*ptr++ != RL2_PALETTE_END)
+	goto error;
+/* computing the CRC32 */
+    crc = crc32 (0L, blob, ptr - blob);
+    oldCrc = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    if (crc != oldCrc)
+	goto error;
+    if (*ptr != RL2_DATA_END)
+	goto error;		/* invalid end signature */
+    return (rl2PalettePtr) palette;
+
+  error:
+    rl2_destroy_palette ((rl2PalettePtr) palette);
     return NULL;
 }

@@ -260,7 +260,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - uncompressed\n");
@@ -287,7 +287,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - uncompressed\n");
@@ -314,7 +314,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - uncompressed\n");
@@ -341,7 +341,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz);
+			   blob_even_sz, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - uncompressed\n");
@@ -370,7 +370,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_jpeg, blob_odd_sz_jpeg,
-			   blob_even_jpeg, blob_even_sz_jpeg);
+			   blob_even_jpeg, blob_even_sz_jpeg, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - jpeg\n");
@@ -397,7 +397,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_jpeg, blob_odd_sz_jpeg,
-			   blob_even_jpeg, blob_even_sz_jpeg);
+			   blob_even_jpeg, blob_even_sz_jpeg, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - jpeg\n");
@@ -424,7 +424,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd_jpeg, blob_odd_sz_jpeg,
-			   blob_even_jpeg, blob_even_sz_jpeg);
+			   blob_even_jpeg, blob_even_sz_jpeg, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - jpeg\n");
@@ -451,7 +451,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd_jpeg, blob_odd_sz_jpeg,
-			   blob_even_jpeg, blob_even_sz_jpeg);
+			   blob_even_jpeg, blob_even_sz_jpeg, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - jpeg\n");
@@ -479,7 +479,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - png\n");
@@ -506,7 +506,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - png\n");
@@ -533,7 +533,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - png\n");
@@ -560,7 +560,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd_png, blob_odd_sz_png,
-			   blob_even_png, blob_even_sz_png);
+			   blob_even_png, blob_even_sz_png, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - png\n");
@@ -589,7 +589,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
@@ -616,7 +616,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:2 - gif\n");
@@ -643,7 +643,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_4, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:4 - gif\n");
@@ -670,7 +670,7 @@ main (int argc, char *argv[])
 
     raster =
 	rl2_raster_decode (RL2_SCALE_8, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif);
+			   blob_even_gif, blob_even_sz_gif, NULL);
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to Decode 1:8 - gif\n");

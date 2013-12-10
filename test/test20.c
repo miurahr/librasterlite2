@@ -421,6 +421,7 @@ main (int argc, char *argv[])
 {
     rl2SectionPtr img;
     rl2RasterPtr raster;
+    rl2RasterStatisticsPtr stats;
     unsigned char *blob_odd;
     int blob_odd_sz;
     unsigned char *blob_even;
@@ -429,6 +430,8 @@ main (int argc, char *argv[])
     int anti_odd_sz;
     unsigned char *anti_even;
     int anti_even_sz;
+    unsigned char *blob_stat;
+    int blob_stat_size;
     int anti_endian = antiEndian ();
 
     if (argc > 1 || argv[0] == NULL)
@@ -458,6 +461,30 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to Encode - uncompressed\n");
 	  return -4;
       }
+
+    stats =
+	rl2_get_raster_statistics (blob_odd, blob_odd_sz, blob_even,
+				   blob_even_sz, NULL);
+    if (stats == NULL)
+      {
+	  fprintf (stderr, "Unable to get Raster Statistics\n");
+	  return -100;
+      }
+    if (rl2_serialize_dbms_raster_statistics
+	(stats, &blob_stat, &blob_stat_size) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to serialize Raster Statistics\n");
+	  return -101;
+      }
+    rl2_destroy_raster_statistics (stats);
+    stats = rl2_deserialize_dbms_raster_statistics (blob_stat, blob_stat_size);
+    if (stats == NULL)
+      {
+	  fprintf (stderr, "Unable to deserialize Raster Statistics\n");
+	  return -102;
+      }
+    free (blob_stat);
+    rl2_destroy_raster_statistics (stats);
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_NONE, &anti_odd, &anti_odd_sz, &anti_even,

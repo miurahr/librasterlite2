@@ -278,12 +278,27 @@ extern "C"
  \sa rl2TiffDestinationPtr
  */
     typedef struct rl2_tiff_destination rl2TiffDestination;
+
 /**
  Typedef for RL2 TIFF Destination object pointer (opaque, hidden)
 
  \sa rl2TiffDestination
  */
     typedef rl2TiffDestination *rl2TiffDestinationPtr;
+
+/**
+ Typedef for RL2 Raster Statistics object (opaque, hidden)
+
+ \sa rl2RasterStatisticsPtr
+ */
+    typedef struct rl2_raster_statistics rl2RasterStatistics;
+
+/**
+ Typedef for RL2 Raster Statistics object pointer (opaque, hidden)
+
+ \sa rl2RasterStatistics
+ */
+    typedef rl2RasterStatistics *rl2RasterStatisticsPtr;
 
 /**
  Releases (frees) dynamic memory allocated by RasterLite2
@@ -1722,7 +1737,7 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_create_raster, rl2_raster_decode
+ \sa rl2_create_raster, rl2_raster_decode, rl2_get_raster_statistics
  
  \note both "odd" and "even" BLOB objects corresponds to dynamic memory;
  you are responsible for properly freeing such dynamic allocations in
@@ -1740,6 +1755,8 @@ extern "C"
 /**
  Decodes a Raster Object from the corresponding BLOB serialized format
 
+ \param scale image ratio: one of RL2_SCALE_1 (1:1), RL2_SCALE_2 (1:2),
+ RL2_SCALE_4 (1:4) or RL2_SCALE_8 (1:8)
  \param blob_odd pointer to the encoded BLOB ("odd" half).
  \param blob_odd_sz size (in bytes) of the "odd" BLOB.
  \param blob_even pointer to the encoded BLOB ("even" half): could be NULL.
@@ -1749,7 +1766,7 @@ extern "C"
  
  \return the pointer to newly created Raster Object: NULL on failure.
 
- \sa rl2_create_raster, rl2_raster_encode
+ \sa rl2_create_raster, rl2_raster_encode, rl2_get_raster_statistics
  
  \note you are responsible to destroy (before or after) any allocated 
  Raster object.
@@ -1761,6 +1778,102 @@ extern "C"
 	rl2_raster_decode (int scale, const unsigned char *blob_odd,
 			   int blob_odd_sz, const unsigned char *blob_even,
 			   int blob_even_sz, rl2PalettePtr palette);
+
+/**
+ Allocates and initializes a new Raster Statistics object
+
+ \param sample_type one of RL2_SAMPLE_1_BIT, RL2_SAMPLE_2_BIT, RL2_SAMPLE_4_BIT,
+        RL2_SAMPLE_INT8, RL2_SAMPLE_UINT8, RL2_SAMPLE_INT16, RL2_SAMPLE_UINT16,
+		RL2_SAMPLE_INT32, RL2_SAMPLE_UINT32, RL2_SAMPLE_FLOAT or RL2_SAMPLE_DOUBLE.
+ \param num_samples number of samples per pixel (aka Bands)
+ 
+ \return the pointer to newly created Raster Statistics Object: NULL on failure.
+ 
+ \sa rl2_destroy_raster_statistic, rl2_get_raster_statistics
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster Statistics object.
+ */
+    RL2_DECLARE rl2RasterStatisticsPtr rl2_create_raster_statistics (unsigned
+								     char
+								     sample_type,
+								     unsigned
+								     char
+								     num_samples);
+
+/**
+ Destroys a Raster Statistics Object
+
+ \param stats pointer to object to be destroyed
+
+ \sa rl2_create_raster_statistics
+ */
+    RL2_DECLARE void rl2_destroy_raster_statistics (rl2RasterStatisticsPtr
+						    stats);
+
+/**
+ Computes the Raster Statistics from BLOB serialized format
+
+ \param blob_odd pointer to the encoded BLOB ("odd" half).
+ \param blob_odd_sz size (in bytes) of the "odd" BLOB.
+ \param blob_even pointer to the encoded BLOB ("even" half): could be NULL.
+ \param blob_even_sz size (in bytes) of the "even" BLOB: could be ZERO.
+ \param palette pointer to a Palette object (could be NULL, but it could
+ be strictly required by Palette-based tiles)
+ 
+ \return the pointer to newly created Raster Statistics Object: NULL on failure.
+ 
+ \sa rl2_destroy_raster_statistics, rl2_serialize_dbms_raster_statistics, 
+ rl2_deserialize_dbms_raster_statistics
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster Statistics object.
+ */
+    RL2_DECLARE rl2RasterStatisticsPtr
+	rl2_get_raster_statistics (const unsigned char *blob_odd,
+				   int blob_odd_sz,
+				   const unsigned char *blob_even,
+				   int blob_even_sz, rl2PalettePtr palette);
+
+/**
+ Encodes a Raster Statistics Object into the corresponding BLOB serialized format
+
+ \param stats pointer to the Raster Statistics Object.
+ \param blob_odd on completion will point to the created encoded BLOB ("odd" half).
+ \param blob_odd_sz on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the "odd" BLOB.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster_statistics, rl2_serialize_dbms_raster_statistics,  
+ rl2_deserialize_dbms_raster_statistics
+ 
+ \note the returned BLOB object corresponds to dynamic memory;
+ you are responsible for properly freeing such dynamic allocation in
+ the most appropriate way.
+ */
+    RL2_DECLARE int
+	rl2_serialize_dbms_raster_statistics (rl2RasterStatisticsPtr stats,
+					      unsigned char **blob,
+					      int *blob_sz);
+
+/**
+ Decodes a Raster Statistics Object from the corresponding BLOB serialized format
+
+ \param blob pointer to the encoded BLOB encoded object.
+ \param blob_sz size (in bytes) of the BLOB encoded object.
+ 
+ \return the pointer to newly created Raster Statistics Object: NULL on failure.
+
+ \sa rl2_create_raster_statisrl2_serialize_dbms_raster_statistics, 
+ rl2_deserialize_dbms_raster_statistics
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster Statistics object.
+ */
+    RL2_DECLARE rl2RasterStatisticsPtr
+	rl2_deserialize_dbms_raster_statistics (const unsigned char *blob,
+						int blob_sz);
 
 /**
  Creates an RGB pixel array from a Raster

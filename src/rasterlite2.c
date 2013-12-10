@@ -2466,3 +2466,87 @@ rl2_set_raster_pixel (rl2RasterPtr ptr, rl2PixelPtr pixel, unsigned short row,
       }
     return RL2_OK;
 }
+
+RL2_DECLARE rl2RasterStatisticsPtr
+rl2_create_raster_statistics (unsigned char sample_type,
+			      unsigned char num_bands)
+{
+/* allocating and initializing a Raster Statistics object */
+    int i;
+    int j;
+    int nHistogram;
+    rl2PrivRasterStatisticsPtr stats = NULL;
+    if (num_bands == 0)
+	return NULL;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_1_BIT:
+	  nHistogram = 2;
+	  break;
+      case RL2_SAMPLE_2_BIT:
+	  nHistogram = 4;
+	  break;
+      case RL2_SAMPLE_4_BIT:
+	  nHistogram = 16;
+	  break;
+      default:
+	  nHistogram = 256;
+	  break;
+      };
+
+    stats = malloc (sizeof (rl2PrivRasterStatistics));
+    if (stats == NULL)
+	return NULL;
+    stats->no_data = 0.0;
+    stats->count = 0.0;
+    stats->sampleType = sample_type;
+    stats->nBands = num_bands;
+    stats->band_stats = malloc (sizeof (rl2PrivBandStatistics) * num_bands);
+    if (stats->band_stats == NULL)
+      {
+	  free (stats);
+	  return NULL;
+      }
+    for (i = 0; i < num_bands; i++)
+      {
+	  /* initializing the Bands Statistics */
+	  rl2PrivBandStatisticsPtr band = stats->band_stats + i;
+	  band->min = DBL_MAX;
+	  band->max = 0.0 - DBL_MAX;
+	  band->mean = 0.0;
+	  band->quot = 0.0;
+	  band->nHistogram = nHistogram;
+	  band->histogram = malloc (sizeof (double) * nHistogram);
+	  for (j = 0; j < nHistogram; j++)
+	      band->histogram[j] = 0.0;
+      }
+    return (rl2RasterStatisticsPtr) stats;
+}
+
+static void
+free_band_stats (rl2PrivBandStatisticsPtr band)
+{
+/* memory cleanup - destroying a Raster Band Statistics object */
+    if (band == NULL)
+	return;
+    if (band->histogram != NULL)
+	free (band->histogram);
+}
+
+RL2_DECLARE void
+rl2_destroy_raster_statistics (rl2RasterStatisticsPtr stats)
+{
+/* memory cleanup - destroying a Raster Statistics object */
+    int nb;
+    rl2PrivRasterStatisticsPtr st = (rl2PrivRasterStatisticsPtr) stats;
+    if (st == NULL)
+	return;
+    for (nb = 0; nb < st->nBands; nb++)
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + nb;
+	  free_band_stats (band);
+      }
+    if (st->band_stats != NULL)
+	free (st->band_stats);
+    free (st);
+}

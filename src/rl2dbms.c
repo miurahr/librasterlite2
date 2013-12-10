@@ -235,7 +235,7 @@ create_levels (sqlite3 * handle, const char *coverage)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
+	  fprintf (stderr, "CREATE TABLE \"%s_levels\" error: %s\n", xxcoverage,
 		   sql_err);
 	  sqlite3_free (sql_err);
 	  free (xxcoverage);
@@ -266,13 +266,14 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 			   "\tsection_name TEXT NOT NULL,\n"
 			   "\twidth INTEGER NOT NULL,\n"
 			   "\theight INTEGER NOT NULL,\n"
-			   "\tfile_path TEXT)", xxcoverage);
+			   "\tfile_path TEXT,\n"
+			   "\tstatistics BLOB)", xxcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
+	  fprintf (stderr, "CREATE TABLE \"%s_sections\" error: %s\n",
+		   xxcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  free (xxcoverage);
 	  return 0;
@@ -288,8 +289,8 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "AddGeometryColumn \"%s\" error: %s\n", xcoverage,
-		   sql_err);
+	  fprintf (stderr, "AddGeometryColumn \"%s_sections\" error: %s\n",
+		   xcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  sqlite3_free (xcoverage);
 	  return 0;
@@ -304,8 +305,8 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateSpatialIndex \"%s\" error: %s\n", xcoverage,
-		   sql_err);
+	  fprintf (stderr, "CreateSpatialIndex \"%s_sections\" error: %s\n",
+		   xcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  sqlite3_free (xcoverage);
 	  return 0;
@@ -375,6 +376,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
 			   "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
 			   "\tpyramid_level INTEGER NOT NULL,\n"
 			   "\tsection_id INTEGER NOT NULL,\n"
+			   "\tstatistics BLOB,\n"
 			   "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
 			   "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
 			   "\tCONSTRAINT \"%s\" FOREIGN KEY (pyramid_level) "
@@ -388,8 +390,8 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
+	  fprintf (stderr, "CREATE TABLE \"%s_tiles_level\" error: %s\n",
+		   xxcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  free (xxcoverage);
 	  return 0;
@@ -405,8 +407,8 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "AddGeometryColumn \"%s\" error: %s\n", xcoverage,
-		   sql_err);
+	  fprintf (stderr, "AddGeometryColumn \"%s_tiles\" error: %s\n",
+		   xcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  sqlite3_free (xcoverage);
 	  return 0;
@@ -421,8 +423,8 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateSpatialIndex \"%s\" error: %s\n", xcoverage,
-		   sql_err);
+	  fprintf (stderr, "CreateSpatialIndex \"%s_tiles\" error: %s\n",
+		   xcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  sqlite3_free (xcoverage);
 	  return 0;
@@ -474,8 +476,8 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n", xxcoverage,
-		   sql_err);
+	  fprintf (stderr, "CREATE TABLE \"%s_tile_data\" error: %s\n",
+		   xxcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  free (xxcoverage);
 	  return 0;

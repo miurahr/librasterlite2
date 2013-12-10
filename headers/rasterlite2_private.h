@@ -97,7 +97,7 @@ extern "C"
 {
 #endif
 
-/* internal binary fomat markers */
+/* internal binary format markers */
 #define RL2_ODD_BLOCK_START		0xfa
 #define RL2_ODD_BLOCK_END		0xf0
 #define RL2_EVEN_BLOCK_START	0xdb
@@ -110,6 +110,12 @@ extern "C"
 #define RL2_DATA_END			0xc9
 #define RL2_MASK_START			0xb6
 #define RL2_MASK_END			0xb7
+#define RL2_STATS_START			0x27
+#define RL2_STATS_END			0x2a
+#define RL2_BAND_STATS_START	0x37
+#define RL2_BAND_STATS_END		0x3a
+#define RL2_HISTOGRAM_START		0x47
+#define RL2_HISTOGRAM_END		0x4a
 
 /* internal ColorSpace forced conversions */
 #define RL2_CONVERT_NO			0x00
@@ -292,6 +298,27 @@ extern "C"
 	double maxY;
     } rl2PrivTiffDestination;
     typedef rl2PrivTiffDestination *rl2PrivTiffDestinationPtr;
+
+    typedef struct rl2_priv_band_statistics
+    {
+	double min;
+	double max;
+	double mean;
+	double quot;
+	unsigned short nHistogram;
+	double *histogram;
+    } rl2PrivBandStatistics;
+    typedef rl2PrivBandStatistics *rl2PrivBandStatisticsPtr;
+
+    typedef struct rl2_priv_raster_statistics
+    {
+	double no_data;
+	double count;
+	unsigned char sampleType;
+	unsigned char nBands;
+	rl2PrivBandStatisticsPtr band_stats;
+    } rl2PrivRasterStatistics;
+    typedef rl2PrivRasterStatistics *rl2PrivRasterStatisticsPtr;
 
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,

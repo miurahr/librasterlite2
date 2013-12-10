@@ -162,6 +162,7 @@ int
 main (int argc, char *argv[])
 {
     rl2PalettePtr palette;
+    rl2PalettePtr plt2;
     unsigned short num_entries;
     unsigned char *r;
     unsigned char *g;
@@ -169,6 +170,8 @@ main (int argc, char *argv[])
     unsigned char *a;
     unsigned char sample_type;
     unsigned char pixel_type;
+    unsigned char *blob;
+    int *blob_size;
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
@@ -518,7 +521,56 @@ main (int argc, char *argv[])
 		   pixel_type);
 	  return -48;
       }
+    if (rl2_serialize_dbms_palette (palette, &blob, &blob_size) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to serialize a palette\n");
+	  return -49;
+      }
     rl2_destroy_palette (palette);
+    palette = rl2_deserialize_dbms_palette (blob, blob_size);
+    free (blob);
+    if (palette == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to deserialize a palette\n");
+	  return -50;
+      }
+    plt2 = rl2_clone_palette (palette);
+    rl2_destroy_palette (palette);
+    if (plt2 == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to clone a palette\n");
+	  return 51;
+      }
+    rl2_destroy_palette (plt2);
+    if (rl2_create_default_dbms_palette (&blob, &blob_size) != RL2_OK)
+      {
+	  fprintf (stderr,
+		   "ERROR: unable to create a default serialized palette\n");
+	  return -52;
+      }
+    free (blob);
+    if (rl2_serialize_dbms_palette (NULL, &blob, &blob_size) == RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unexpected NULL palette serialization\n");
+	  return -53;
+      }
+    if (rl2_deserialize_dbms_palette (NULL, blob_size) != NULL)
+      {
+	  fprintf (stderr,
+		   "ERROR: unexpected palette deserialization from NULL BLOB\n");
+	  return -54;
+      }
+    if (rl2_deserialize_dbms_palette (blob, 0) != NULL)
+      {
+	  fprintf (stderr,
+		   "ERROR: unexpected palette deserialization from zero-length BLOB\n");
+	  return -55;
+      }
+    if (rl2_clone_palette (NULL) != NULL)
+      {
+	  fprintf (stderr, "ERROR: unexpected cloned NULL palette\n");
+	  return 56;
+      }
 
     return 0;
 }

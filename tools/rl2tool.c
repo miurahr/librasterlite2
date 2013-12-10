@@ -262,6 +262,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
     int ret;
     rl2TiffOriginPtr origin = NULL;
     rl2RasterPtr raster = NULL;
+    rl2PalettePtr aux_palette = NULL;
+    rl2RasterStatisticsPtr stats;
     int row;
     int col;
     unsigned short width;
@@ -270,6 +272,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
     unsigned char *blob_even = NULL;
     int blob_odd_sz;
     int blob_even_sz;
+    unsigned char *blob_stats;
+    int blob_stats_sz;
     int srid;
     double tile_minx;
     double tile_miny;
@@ -283,6 +287,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     double res_y;
     char *dumb1;
     char *dumb2;
+    int bnd;
     unsigned char *blob;
     int blob_size;
     gaiaGeomCollPtr geom;
@@ -427,20 +432,42 @@ do_import_file (sqlite3 * handle, const char *src_path,
 			       row, col);
 		      goto error;
 		  }
-		rl2_destroy_raster (raster);
-		raster = NULL;
 		/* INSERTing the tile */
+		aux_palette =
+		    rl2_clone_palette (rl2_get_raster_palette (raster));
+		stats = rl2_get_raster_statistics
+		    (blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     aux_palette);
+		if (stats == NULL)
+		  {
+		      fprintf (stderr,
+			       "Unable to compute Tile/Band Statistics\n");
+		      goto error;
+		  }
+		if (aux_palette != NULL)
+		    rl2_destroy_palette (aux_palette);
+		aux_palette = NULL;
 		sqlite3_reset (stmt_tils);
 		sqlite3_clear_bindings (stmt_tils);
 		sqlite3_bind_int64 (stmt_tils, 1, section_id);
 		tile_maxx = tile_minx + ((double) tile_w * res_x);
 		tile_miny = tile_maxy - ((double) tile_h * res_y);
+		if (rl2_serialize_dbms_raster_statistics
+		    (stats, &blob_stats, &blob_stats_sz) != RL2_OK)
+		  {
+		      fprintf (stderr, "SERIALIZE ERROR\n");
+		  }
+		if (rl2_deserialize_dbms_raster_statistics
+		    (blob_stats, blob_stats_sz) == NULL)
+		    fprintf (stderr, "DESERIALIZE ERROR\n");
+		sqlite3_bind_blob (stmt_tils, 2, blob_stats, blob_stats_sz,
+				   free);
 		geom =
 		    build_extent (srid, tile_minx, tile_miny, tile_maxx,
 				  tile_maxy);
 		gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
 		gaiaFreeGeomColl (geom);
-		sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
+		sqlite3_bind_blob (stmt_tils, 3, blob, blob_size, free);
 		ret = sqlite3_step (stmt_tils);
 		if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 		    ;
@@ -455,7 +482,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		/* INSERTing tile data */
 		sqlite3_reset (stmt_data);
 		sqlite3_clear_bindings (stmt_data);
-		tile_id = sqlite3_bind_int64 (stmt_data, 1, tile_id);
+		sqlite3_bind_int64 (stmt_data, 1, tile_id);
 		sqlite3_bind_blob (stmt_data, 2, blob_odd, blob_odd_sz, free);
 		if (blob_even == NULL)
 		    sqlite3_bind_null (stmt_data, 3);
@@ -474,12 +501,15 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		  }
 		blob_odd = NULL;
 		blob_even = NULL;
+		rl2_destroy_raster (raster);
+		raster = NULL;
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
       }
 
     rl2_destroy_tiff_origin (origin);
+
     return 1;
 
   error:
@@ -491,6 +521,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	rl2_destroy_tiff_origin (origin);
     if (raster != NULL)
 	rl2_destroy_raster (raster);
+    if (aux_palette != NULL)
+	rl2_destroy_palette (aux_palette);
     return 0;
 }
 
@@ -677,8 +709,8 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, 0, ?, ?)", xtable);
+	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, statistics, geometry) "
+	 "VALUES (NULL, 0, ?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
     sqlite3_free (sql);
@@ -2347,6 +2379,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  break;
       case RL2_COMPRESSION_PNG:
 	  fprintf (stderr, "          Compression: PNG, lossless\n");
+	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_JPEG:
 	  fprintf (stderr, "          Compression: JPEG (lossy)\n");
@@ -2354,7 +2387,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	      *quality = 80;
 	  if (*quality > 100)
 	      *quality = 100;
-	  fprintf (stderr, "  Compression Quality: %d\n", quality);
+	  fprintf (stderr, "  Compression Quality: %d\n", *quality);
 	  break;
       case RL2_COMPRESSION_LOSSY_WEBP:
 	  fprintf (stderr, "          Compression: WEBP (lossy)\n");
@@ -2362,7 +2395,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	      *quality = 80;
 	  if (*quality > 100)
 	      *quality = 100;
-	  fprintf (stderr, "  Compression Quality: %d\n", quality);
+	  fprintf (stderr, "  Compression Quality: %d\n", *quality);
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  fprintf (stderr, "          Compression: WEBP, lossless\n");

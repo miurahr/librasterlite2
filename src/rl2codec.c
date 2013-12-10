@@ -263,6 +263,143 @@ importU32 (const unsigned char *p, int little_endian, int little_endian_arch)
     return convert.int_value;
 }
 
+static void
+exportDouble (unsigned char *p, double value, int little_endian,
+	      int little_endian_arch)
+{
+/* stores a Double into a BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[8];
+	double dbl_value;
+    } convert;
+    convert.dbl_value = value;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 7) = convert.byte[0];
+		*(p + 6) = convert.byte[1];
+		*(p + 5) = convert.byte[2];
+		*(p + 4) = convert.byte[3];
+		*(p + 3) = convert.byte[4];
+		*(p + 2) = convert.byte[5];
+		*(p + 1) = convert.byte[6];
+		*(p + 0) = convert.byte[7];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+		*(p + 4) = convert.byte[4];
+		*(p + 5) = convert.byte[5];
+		*(p + 6) = convert.byte[6];
+		*(p + 7) = convert.byte[7];
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+		*(p + 4) = convert.byte[4];
+		*(p + 5) = convert.byte[5];
+		*(p + 6) = convert.byte[6];
+		*(p + 7) = convert.byte[7];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 7) = convert.byte[0];
+		*(p + 6) = convert.byte[1];
+		*(p + 5) = convert.byte[2];
+		*(p + 4) = convert.byte[3];
+		*(p + 3) = convert.byte[4];
+		*(p + 2) = convert.byte[5];
+		*(p + 1) = convert.byte[6];
+		*(p + 0) = convert.byte[7];
+	    }
+      }
+}
+
+static double
+importDouble (const unsigned char *p, int little_endian, int little_endian_arch)
+{
+/* fetches a Double from BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[8];
+	double dbl_value;
+    } convert;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 7);
+		convert.byte[1] = *(p + 6);
+		convert.byte[2] = *(p + 5);
+		convert.byte[3] = *(p + 4);
+		convert.byte[4] = *(p + 3);
+		convert.byte[5] = *(p + 2);
+		convert.byte[6] = *(p + 1);
+		convert.byte[7] = *(p + 0);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+		convert.byte[2] = *(p + 2);
+		convert.byte[3] = *(p + 3);
+		convert.byte[4] = *(p + 4);
+		convert.byte[5] = *(p + 5);
+		convert.byte[6] = *(p + 6);
+		convert.byte[7] = *(p + 7);
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+		convert.byte[2] = *(p + 2);
+		convert.byte[3] = *(p + 3);
+		convert.byte[4] = *(p + 4);
+		convert.byte[5] = *(p + 5);
+		convert.byte[6] = *(p + 6);
+		convert.byte[7] = *(p + 7);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 7);
+		convert.byte[1] = *(p + 6);
+		convert.byte[2] = *(p + 5);
+		convert.byte[3] = *(p + 4);
+		convert.byte[4] = *(p + 3);
+		convert.byte[5] = *(p + 2);
+		convert.byte[6] = *(p + 1);
+		convert.byte[7] = *(p + 0);
+	    }
+      }
+    return convert.dbl_value;
+}
+
 static short
 swapINT16 (short value)
 {
@@ -1425,6 +1562,10 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		     &mask_pix_size))
 		    return RL2_ERROR;
 	    }
+	  else if (compression == RL2_COMPRESSION_PNG ||
+		   compression == RL2_COMPRESSION_LOSSY_WEBP
+		   || compression == RL2_COMPRESSION_LOSSLESS_WEBP)
+	      ;
 	  else
 	      return RL2_ERROR;
       }
@@ -4155,6 +4296,436 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	free (mask);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    if (ext_palette != NULL)
+	rl2_destroy_palette (ext_palette);
+    return NULL;
+}
+
+static void
+update_no_data_stats (rl2PrivRasterStatisticsPtr st)
+{
+/* updating the NoData count */
+    st->no_data += 1.0;
+}
+
+static void
+update_stats (rl2PrivRasterStatisticsPtr st, int band, double value)
+{
+/* updating the Statistics */
+    rl2PrivBandStatisticsPtr band_st = st->band_stats + band;
+    if (st->count == 0.0)
+      {
+	  band_st->mean = value;
+	  band_st->quot = 0.0;
+      }
+    st->count += 1.0;
+    if (value < band_st->min)
+	band_st->min = value;
+    if (value > band_st->max)
+	band_st->max = value;
+    band_st->quot =
+	band_st->quot +
+	(((st->count -
+	   1.0) * ((value - band_st->mean) * (value -
+					      band_st->mean))) / st->count);
+    band_st->mean = band_st->mean + ((value - band_st->mean) / st->count);
+    if (st->sampleType == RL2_SAMPLE_INT8)
+      {
+	  int idx = value + 128;
+	  band_st->histogram[idx] += 1.0;
+      }
+    else if (st->sampleType == RL2_SAMPLE_1_BIT
+	     || st->sampleType == RL2_SAMPLE_2_BIT
+	     || st->sampleType == RL2_SAMPLE_4_BIT
+	     || st->sampleType == RL2_SAMPLE_UINT8)
+      {
+	  int idx = value;
+	  band_st->histogram[idx] += 1.0;
+      }
+}
+
+static void
+update_int8_stats (unsigned short width, unsigned short height,
+		   const char *pixels, const unsigned char *mask,
+		   rl2PrivRasterStatisticsPtr st)
+{
+/* computing INT8 tile statistics */
+    int x;
+    int y;
+    const char *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      p_in++;
+		  }
+		else
+		  {
+		      double value = *p_in++;
+		      update_stats (st, 0, value);
+		  }
+	    }
+      }
+}
+
+static void
+update_uint8_stats (unsigned short width, unsigned short height,
+		    unsigned char num_bands,
+		    const unsigned char *pixels, const unsigned char *mask,
+		    rl2PrivRasterStatisticsPtr st)
+{
+/* computing UINT8 tile statistics */
+    int x;
+    int y;
+    int ib;
+    const unsigned char *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      for (ib = 0; ib < num_bands; ib++)
+			  p_in++;
+		  }
+		else
+		  {
+		      for (ib = 0; ib < num_bands; ib++)
+			{
+			    double value = *p_in++;
+			    update_stats (st, ib, value);
+			}
+		  }
+	    }
+      }
+}
+
+static void
+update_int16_stats (unsigned short width, unsigned short height,
+		    const short *pixels, const unsigned char *mask,
+		    rl2PrivRasterStatisticsPtr st)
+{
+/* computing INT16 tile statistics */
+    int x;
+    int y;
+    const short *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      p_in++;
+		  }
+		else
+		  {
+		      double value = *p_in++;
+		      update_stats (st, 0, value);
+		  }
+	    }
+      }
+}
+
+static void
+update_uint16_stats (unsigned short width, unsigned short height,
+		     unsigned char num_bands,
+		     const unsigned short *pixels, const unsigned char *mask,
+		     rl2PrivRasterStatisticsPtr st)
+{
+/* computing UINT16 tile statistics */
+    int x;
+    int y;
+    int ib;
+    const unsigned short *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      for (ib = 0; ib < num_bands; ib++)
+			  p_in++;
+		  }
+		else
+		  {
+		      for (ib = 0; ib < num_bands; ib++)
+			{
+			    double value = *p_in++;
+			    update_stats (st, ib, value);
+			}
+		  }
+	    }
+      }
+}
+
+static void
+update_int32_stats (unsigned short width, unsigned short height,
+		    const int *pixels, const unsigned char *mask,
+		    rl2PrivRasterStatisticsPtr st)
+{
+/* computing INT32 tile statistics */
+    int x;
+    int y;
+    const int *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      p_in++;
+		  }
+		else
+		  {
+		      double value = *p_in++;
+		      update_stats (st, 0, value);
+		  }
+	    }
+      }
+}
+
+static void
+update_uint32_stats (unsigned short width, unsigned short height,
+		     const unsigned int *pixels, const unsigned char *mask,
+		     rl2PrivRasterStatisticsPtr st)
+{
+/* computing UINT32 tile statistics */
+    int x;
+    int y;
+    const unsigned int *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      p_in++;
+		  }
+		else
+		  {
+		      double value = *p_in++;
+		      update_stats (st, 0, value);
+		  }
+	    }
+      }
+}
+
+static void
+update_float_stats (unsigned short width, unsigned short height,
+		    const float *pixels, const unsigned char *mask,
+		    rl2PrivRasterStatisticsPtr st)
+{
+/* computing FLOAT tile statistics */
+    int x;
+    int y;
+    const float *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      p_in++;
+		  }
+		else
+		  {
+		      double value = *p_in++;
+		      update_stats (st, 0, value);
+		  }
+	    }
+      }
+}
+
+static void
+update_double_stats (unsigned short width, unsigned short height,
+		     const double *pixels, const unsigned char *mask,
+		     rl2PrivRasterStatisticsPtr st)
+{
+/* computing DOUBLE tile statistics */
+    int x;
+    int y;
+    const double *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      update_no_data_stats (st);
+		      p_in++;
+		  }
+		else
+		  {
+		      double value = *p_in++;
+		      update_stats (st, 0, value);
+		  }
+	    }
+      }
+}
+
+RL2_DECLARE rl2RasterStatisticsPtr
+rl2_get_raster_statistics (const unsigned char *blob_odd,
+			   int blob_odd_sz, const unsigned char *blob_even,
+			   int blob_even_sz, rl2PalettePtr palette)
+{
+/* 
+/ decoding from internal RL2 binary format to Raster and 
+/ building the corresponding statistics object
+*/
+    rl2PrivRasterStatisticsPtr st;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterPtr rst;
+    rl2RasterPtr raster =
+	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, palette);
+    if (raster == NULL)
+	goto error;
+    palette = NULL;
+    rst = (rl2PrivRasterPtr) raster;
+
+    stats = rl2_create_raster_statistics (rst->sampleType, rst->nBands);
+    if (stats == NULL)
+	goto error;
+    st = (rl2PrivRasterStatisticsPtr) stats;
+
+    switch (rst->sampleType)
+      {
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_UINT8:
+	  update_uint8_stats (rst->width, rst->height, rst->nBands,
+			      (const unsigned char *) (rst->rasterBuffer),
+			      rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_INT8:
+	  update_int8_stats (rst->width, rst->height,
+			     (const char *) (rst->rasterBuffer),
+			     rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  update_uint16_stats (rst->width, rst->height, rst->nBands,
+			       (const unsigned short *) (rst->rasterBuffer),
+			       rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  update_int16_stats (rst->width, rst->height,
+			      (const short *) (rst->rasterBuffer),
+			      rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  update_uint32_stats (rst->width, rst->height,
+			       (const unsigned int *) (rst->rasterBuffer),
+			       rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  update_int32_stats (rst->width, rst->height,
+			      (const int *) (rst->rasterBuffer),
+			      rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  update_float_stats (rst->width, rst->height,
+			      (const float *) (rst->rasterBuffer),
+			      rst->maskBuffer, st);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  update_double_stats (rst->width, rst->height,
+			       (const double *) (rst->rasterBuffer),
+			       rst->maskBuffer, st);
+	  break;
+      };
+
+    rl2_destroy_raster (raster);
+    return stats;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
     return NULL;
 }
 
@@ -4288,9 +4859,216 @@ rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size)
 	goto error;
     if (*ptr != RL2_DATA_END)
 	goto error;		/* invalid end signature */
-    return (rl2PalettePtr) palette;
+    return palette;
 
   error:
-    rl2_destroy_palette ((rl2PalettePtr) palette);
+    rl2_destroy_palette (palette);
+    return NULL;
+}
+
+RL2_DECLARE int
+rl2_serialize_dbms_raster_statistics (rl2RasterStatisticsPtr stats,
+				      unsigned char **blob, int *blob_size)
+{
+/* creating a Raster Statistics (DBMS serialized format) */
+    rl2PrivRasterStatisticsPtr st = (rl2PrivRasterStatisticsPtr) stats;
+    rl2PrivBandStatisticsPtr band;
+    int sz = 26;
+    uLong crc;
+    int ib;
+    int ih;
+    int endian_arch = endianArch ();
+    unsigned char *p;
+    unsigned char *ptr;
+
+    if (st == NULL)
+	return RL2_ERROR;
+
+    for (ib = 0; ib < st->nBands; ib++)
+      {
+	  band = st->band_stats + ib;
+	  sz += 38;
+	  sz += band->nHistogram * sizeof (double);
+      }
+    p = malloc (sz);
+    if (p == NULL)
+	return RL2_ERROR;
+    ptr = p;
+
+    *ptr++ = 0x00;		/* start marker */
+    *ptr++ = RL2_STATS_START;
+    *ptr++ = RL2_LITTLE_ENDIAN;
+    *ptr++ = st->sampleType;
+    *ptr++ = st->nBands;
+    exportDouble (ptr, st->no_data, 1, endian_arch);	/* # no_data values */
+    ptr += 8;
+    exportDouble (ptr, st->count, 1, endian_arch);	/* # count */
+    ptr += 8;
+    for (ib = 0; ib < st->nBands; ib++)
+      {
+	  *ptr++ = RL2_BAND_STATS_START;
+	  band = st->band_stats + ib;
+	  exportDouble (ptr, band->min, 1, endian_arch);	/* # Min values */
+	  ptr += 8;
+	  exportDouble (ptr, band->max, 1, endian_arch);	/* # Max values */
+	  ptr += 8;
+	  exportDouble (ptr, band->mean, 1, endian_arch);	/* # Mean */
+	  ptr += 8;
+	  exportDouble (ptr, band->quot, 1, endian_arch);	/* # Quot */
+	  ptr += 8;
+	  exportU16 (ptr, band->nHistogram, 1, endian_arch);	/* # Histogram entries */
+	  ptr += 2;
+	  *ptr++ = RL2_HISTOGRAM_START;
+	  for (ih = 0; ih < band->nHistogram; ih++)
+	    {
+		exportDouble (ptr, band->histogram[ih], 1, endian_arch);	/* # Histogram value */
+		ptr += 8;
+	    }
+	  *ptr++ = RL2_HISTOGRAM_END;
+	  *ptr++ = RL2_BAND_STATS_END;
+      }
+/* computing the CRC32 */
+    crc = crc32 (0L, p, ptr - p);
+    exportU32 (ptr, crc, 1, endian_arch);	/* the Raster Statistics own CRC */
+    ptr += 4;
+    *ptr++ = RL2_STATS_END;
+    *blob = p;
+    *blob_size = sz;
+    return RL2_OK;
+}
+
+static int
+check_raster_serialized_statistics (const unsigned char *blob, int blob_size)
+{
+/* checking a Raster Statistics serialized object from validity */
+    const unsigned char *ptr = blob;
+    int endian;
+    uLong crc;
+    uLong oldCrc;
+    int ib;
+    unsigned short nHistogram;
+    unsigned char sample_type;
+    unsigned char num_bands;
+    int endian_arch = endianArch ();
+
+    if (blob == NULL)
+	return 0;
+    if (blob_size < 27)
+	return 0;
+    if (*ptr++ != 0x00)
+	return 0;		/* invalid start signature */
+    if (*ptr++ != RL2_STATS_START)
+	return 0;		/* invalid start signature */
+    endian = *ptr++;
+    if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
+	;
+    else
+	return 0;		/* invalid endiannes */
+    sample_type = *ptr++;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_INT8:
+      case RL2_SAMPLE_UINT8:
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+      case RL2_SAMPLE_DOUBLE:
+	  break;
+      default:
+	  return 0;
+      };
+    num_bands = *ptr++;
+
+    ptr = blob + 21;
+    for (ib = 0; ib < num_bands; ib++)
+      {
+	  if (((ptr - blob) + 38) >= blob_size)
+	      return 0;
+	  if (*ptr++ != RL2_BAND_STATS_START)
+	      return 0;
+	  ptr += 32;
+	  nHistogram = importU16 (ptr, endian, endian_arch);
+	  ptr += 2;
+	  if (*ptr++ != RL2_HISTOGRAM_START)
+	      return 0;
+	  if (((ptr - blob) + 2 + (nHistogram * sizeof (double))) >= (unsigned int)blob_size)
+	      return 0;
+	  ptr += nHistogram * sizeof (double);
+	  if (*ptr++ != RL2_HISTOGRAM_END)
+	      return 0;
+	  if (*ptr++ != RL2_BAND_STATS_END)
+	      return 0;
+      }
+/* computing the CRC32 */
+    crc = crc32 (0L, blob, ptr - blob);
+    oldCrc = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    if (crc != oldCrc)
+	return 0;
+    if (*ptr != RL2_STATS_END)
+	return 0;		/* invalid end signature */
+
+    return 1;
+}
+
+RL2_DECLARE rl2RasterStatisticsPtr
+rl2_deserialize_dbms_raster_statistics (const unsigned char *blob,
+					int blob_size)
+{
+/* attempting to deserialize a Raster Statistics object from DBMS binary format */
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    unsigned char sample_type;
+    unsigned char num_bands;
+    int ib;
+    int ih;
+    const unsigned char *ptr = blob;
+    int endian;
+    int endian_arch = endianArch ();
+    if (!check_raster_serialized_statistics (blob, blob_size))
+	return NULL;
+
+    ptr = blob + 2;
+    endian = *ptr++;
+    sample_type = *ptr++;
+    num_bands = *ptr++;
+    stats = rl2_create_raster_statistics (sample_type, num_bands);
+    if (stats == NULL)
+	goto error;
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    st->no_data = importDouble (ptr, endian, endian_arch);	/* # no_data values */
+    ptr += 8;
+    st->count = importDouble (ptr, endian, endian_arch);	/* # count */
+    ptr += 8;
+    for (ib = 0; ib < num_bands; ib++)
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + ib;
+	  ptr++;		/* skipping BAND START marker */
+	  band->min = importDouble (ptr, endian, endian_arch);	/* # Min values */
+	  ptr += 8;
+	  band->max = importDouble (ptr, endian, endian_arch);	/* # Max values */
+	  ptr += 8;
+	  band->mean = importDouble (ptr, endian, endian_arch);	/* # Mean */
+	  ptr += 8;
+	  band->quot = importDouble (ptr, endian, endian_arch);	/* # Quot */
+	  ptr += 8;
+	  ptr += 2;		/* skipping HISTOGRAM START marker */
+	  for (ih = 0; ih < band->nHistogram; ih++)
+	    {
+		band->histogram[ih] = importDouble (ptr, endian, endian_arch);	/* # Histogram values */
+		ptr += 8;
+	    }
+	  ptr += 1;		/* skipping END markers */
+      }
+    return stats;
+
+  error:
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
     return NULL;
 }

@@ -147,6 +147,40 @@ formatFloat (double value)
 }
 
 static char *
+formatFloat2 (double value)
+{
+/* nicely formatting a float value (2 decimals) */
+    char *fmt = sqlite3_mprintf ("%1.2f", value);
+    return fmt;
+}
+
+static char *
+formatFloat6 (double value)
+{
+/* nicely formatting a float value (6 decimals) */
+    char *fmt = sqlite3_mprintf ("%1.2f", value);
+    return fmt;
+}
+
+static char *
+formatLong (double value)
+{
+/* nicely formatting a Longitude */
+    if (value >= -180.0 && value <= 180.0)
+	return formatFloat6 (value);
+    return formatFloat2 (value);
+}
+
+static char *
+formatLat (double value)
+{
+/* nicely formatting a Latitude */
+    if (value >= -90.0 && value <= 90.0)
+	return formatFloat6 (value);
+    return formatFloat2 (value);
+}
+
+static char *
 get_section_name (const char *src_path)
 {
 /* attempting to extract the section name from source path */
@@ -249,6 +283,46 @@ exec_create (sqlite3 * handle, const char *coverage,
 }
 
 static int
+stampa_statistiche (rl2RasterStatisticsPtr stats)
+{
+    double no_data;
+    double count;
+    double mean;
+    double variance;
+    double stddev;
+    double min;
+    double max;
+    unsigned char sample_type;
+    unsigned char num_bands;
+    unsigned char ib;
+
+    if (rl2_get_raster_statistics_summary
+	(stats, &no_data, &count, &sample_type, &num_bands) != RL2_OK)
+      {
+	  fprintf (stderr, "SUMMARY ERROR\n");
+	  return;
+      }
+    fprintf (stderr, "no_data=%1.6f\n", no_data);
+    fprintf (stderr, "  count=%1.6f\n", count);
+    fprintf (stderr, "type=%02x bands=%02x\n", sample_type, num_bands);
+
+    for (ib = 0; ib < num_bands; ib++)
+      {
+	  if (rl2_get_band_statistics
+	      (stats, ib, &min, &max, &mean, &variance, &stddev) != RL2_OK)
+	    {
+		fprintf (stderr, "BAND ERROR %d\n", ib);
+		return;
+	    }
+	  fprintf (stderr, "band%d      min=%1.6f\n", ib, min);
+	  fprintf (stderr, "band%d      max=%1.6f\n", ib, max);
+	  fprintf (stderr, "band%d     mean=%1.6f\n", ib, mean);
+	  fprintf (stderr, "band%d variance=%1.6f\n", ib, variance);
+	  fprintf (stderr, "band%d   stddev=%1.6f\n", ib, stddev);
+      }
+}
+
+static int
 do_import_file (sqlite3 * handle, const char *src_path,
 		rl2CoveragePtr cvg, const char *section, int worldfile,
 		int force_srid, int pyramidize, unsigned char sample_type,
@@ -256,7 +330,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		unsigned short tile_w, unsigned short tile_h,
 		unsigned char compression, int quality,
 		sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
-		sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl)
+		sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
+		sqlite3_stmt * stmt_upd_sect)
 {
 /* importing a single Source file */
     int ret;
@@ -264,6 +339,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     rl2RasterPtr raster = NULL;
     rl2PalettePtr aux_palette = NULL;
     rl2RasterStatisticsPtr stats;
+    rl2RasterStatisticsPtr section_stats = NULL;
     int row;
     int col;
     unsigned short width;
@@ -316,13 +392,13 @@ do_import_file (sqlite3 * handle, const char *src_path,
     ret = rl2_get_tiff_origin_extent (origin, &minx, &miny, &maxx, &maxy);
     if (ret == RL2_OK)
       {
-	  dumb1 = formatFloat (minx);
-	  dumb2 = formatFloat (miny);
+	  dumb1 = formatLong (minx);
+	  dumb2 = formatLat (miny);
 	  printf ("       LowerLeft Corner: X=%s Y=%s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
-	  dumb1 = formatFloat (maxx);
-	  dumb2 = formatFloat (maxy);
+	  dumb1 = formatLong (maxx);
+	  dumb2 = formatLat (maxy);
 	  printf ("      UpperRight Corner: X=%s Y=%s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
@@ -386,6 +462,9 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		   sqlite3_errmsg (handle));
 	  goto error;
       }
+    section_stats = rl2_create_raster_statistics (sample_type, num_bands);
+    if (section_stats == NULL)
+	goto error;
 
 /* INSERTing the base-levels */
     sqlite3_reset (stmt_levl);
@@ -438,36 +517,25 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		stats = rl2_get_raster_statistics
 		    (blob_odd, blob_odd_sz, blob_even, blob_even_sz,
 		     aux_palette);
-		if (stats == NULL)
-		  {
-		      fprintf (stderr,
-			       "Unable to compute Tile/Band Statistics\n");
-		      goto error;
-		  }
 		if (aux_palette != NULL)
 		    rl2_destroy_palette (aux_palette);
 		aux_palette = NULL;
+		rl2_aggregate_raster_statistics (stats, section_stats);
 		sqlite3_reset (stmt_tils);
 		sqlite3_clear_bindings (stmt_tils);
 		sqlite3_bind_int64 (stmt_tils, 1, section_id);
 		tile_maxx = tile_minx + ((double) tile_w * res_x);
+		if (tile_maxx > maxx)
+		    tile_maxx = maxx;
 		tile_miny = tile_maxy - ((double) tile_h * res_y);
-		if (rl2_serialize_dbms_raster_statistics
-		    (stats, &blob_stats, &blob_stats_sz) != RL2_OK)
-		  {
-		      fprintf (stderr, "SERIALIZE ERROR\n");
-		  }
-		if (rl2_deserialize_dbms_raster_statistics
-		    (blob_stats, blob_stats_sz) == NULL)
-		    fprintf (stderr, "DESERIALIZE ERROR\n");
-		sqlite3_bind_blob (stmt_tils, 2, blob_stats, blob_stats_sz,
-				   free);
+		if (tile_miny < miny)
+		    tile_miny = miny;
 		geom =
 		    build_extent (srid, tile_minx, tile_miny, tile_maxx,
 				  tile_maxy);
 		gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
 		gaiaFreeGeomColl (geom);
-		sqlite3_bind_blob (stmt_tils, 3, blob, blob_size, free);
+		sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
 		ret = sqlite3_step (stmt_tils);
 		if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 		    ;
@@ -508,7 +576,28 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  tile_maxy -= (double) tile_h *res_y;
       }
 
+    stampa_statistiche (section_stats);
+
+/* updating the Section's Statistics */
+    sqlite3_reset (stmt_upd_sect);
+    sqlite3_clear_bindings (stmt_upd_sect);
+    rl2_serialize_dbms_raster_statistics (section_stats, &blob_stats,
+					  &blob_stats_sz);
+    sqlite3_bind_blob (stmt_upd_sect, 1, blob_stats, blob_stats_sz, free);
+    sqlite3_bind_int64 (stmt_upd_sect, 2, section_id);
+    ret = sqlite3_step (stmt_upd_sect);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "UPDATE sections; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+
     rl2_destroy_tiff_origin (origin);
+    rl2_destroy_raster_statistics (section_stats);
 
     return 1;
 
@@ -523,6 +612,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	rl2_destroy_raster (raster);
     if (aux_palette != NULL)
 	rl2_destroy_palette (aux_palette);
+    if (section_stats != NULL)
+	rl2_destroy_raster_statistics (section_stats);
     return 0;
 }
 
@@ -553,7 +644,7 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 	       unsigned short tile_w, unsigned short tile_h,
 	       unsigned char compression, int quality, sqlite3_stmt * stmt_data,
 	       sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
-	       sqlite3_stmt * stmt_levl)
+	       sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect)
 {
 /* importing a whole directory */
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -582,7 +673,8 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 					  force_srid, pyramidize, sample_type,
 					  pixel_type, num_bands, tile_w, tile_h,
 					  compression, quality, stmt_data,
-					  stmt_tils, stmt_sect, stmt_levl);
+					  stmt_tils, stmt_sect, stmt_levl,
+					  stmt_upd_sect);
 		      sqlite3_free (path);
 		      if (!ret)
 			  goto error;
@@ -618,7 +710,7 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 	      do_import_file (handle, path, cvg, section, worldfile, force_srid,
 			      pyramidize, sample_type, pixel_type, num_bands,
 			      tile_w, tile_h, compression, quality, stmt_data,
-			      stmt_tils, stmt_sect, stmt_levl);
+			      stmt_tils, stmt_sect, stmt_levl, stmt_upd_sect);
 	  sqlite3_free (path);
 	  if (!ret)
 	      goto error;
@@ -654,6 +746,7 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     sqlite3_stmt *stmt_tils = NULL;
     sqlite3_stmt *stmt_sect = NULL;
     sqlite3_stmt *stmt_levl = NULL;
+    sqlite3_stmt *stmt_upd_sect = NULL;
 
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
@@ -684,6 +777,21 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
 	  goto error;
       }
 
+    table = sqlite3_mprintf ("%s_sections", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("UPDATE \"%s\" SET statistics = ? WHERE section_id = ?", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_upd_sect, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE sections SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+
     table = sqlite3_mprintf ("%s_levels", coverage);
     xtable = gaiaDoubleQuotedSql (table);
     sqlite3_free (table);
@@ -709,8 +817,8 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, statistics, geometry) "
-	 "VALUES (NULL, 0, ?, ?, ?)", xtable);
+	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	 "VALUES (NULL, 0, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
     sqlite3_free (sql);
@@ -744,7 +852,7 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
 	      (handle, src_path, cvg, section, worldfile, force_srid,
 	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
 	       compression, quality, stmt_data, stmt_tils, stmt_sect,
-	       stmt_levl))
+	       stmt_levl, stmt_upd_sect))
 	      goto error;
       }
     else
@@ -754,10 +862,11 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
 	      (handle, dir_path, file_ext, cvg, section, worldfile, force_srid,
 	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
 	       compression, quality, stmt_data, stmt_tils, stmt_sect,
-	       stmt_levl))
+	       stmt_levl, stmt_upd_sect))
 	      goto error;
       }
 
+    sqlite3_finalize (stmt_upd_sect);
     sqlite3_finalize (stmt_sect);
     sqlite3_finalize (stmt_levl);
     sqlite3_finalize (stmt_tils);
@@ -767,6 +876,8 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     return 1;
 
   error:
+    if (stmt_upd_sect != NULL)
+	sqlite3_finalize (stmt_upd_sect);
     if (stmt_sect != NULL)
 	sqlite3_finalize (stmt_sect);
     if (stmt_levl != NULL)
@@ -1781,18 +1892,18 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 		printf ("    ------------------\n");
 		printf ("        Size (pixels): %d x %d\n", width, height);
 		printf ("           Input Path: %s\n", path);
-		dumb1 = formatFloat (minx);
-		dumb2 = formatFloat (miny);
+		dumb1 = formatLong (minx);
+		dumb2 = formatLat (miny);
 		printf ("     LowerLeft corner: X=%s Y=%s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
-		dumb1 = formatFloat (maxx);
-		dumb2 = formatFloat (maxy);
+		dumb1 = formatLong (maxx);
+		dumb2 = formatLat (maxy);
 		printf ("    UpperRight corner: X=%s Y=%s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
-		dumb1 = formatFloat (minx + ((maxx - minx) / 2.0));
-		dumb2 = formatFloat (miny + ((maxy - miny) / 2.0));
+		dumb1 = formatLong (minx + ((maxx - minx) / 2.0));
+		dumb2 = formatLat (miny + ((maxy - miny) / 2.0));
 		printf ("         Center Point: X=%s Y=%s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
@@ -2615,13 +2726,13 @@ check_export_args (const char *db_path, const char *dst_path,
 	    }
 	  if (!err_bbox)
 	    {
-		dumb1 = formatFloat (*minx);
-		dumb2 = formatFloat (*miny);
+		dumb1 = formatLong (*minx);
+		dumb2 = formatLat (*miny);
 		fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
-		dumb1 = formatFloat (*maxx);
-		dumb2 = formatFloat (*maxy);
+		dumb1 = formatLong (*maxx);
+		dumb2 = formatLat (*maxy);
 		fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
@@ -2629,8 +2740,8 @@ check_export_args (const char *db_path, const char *dst_path,
 		ext_y = *maxy - *miny;
 		*cx = *minx + (ext_x / 2.0);
 		*cy = *miny + (ext_y / 2.0);
-		dumb1 = formatFloat (*cx);
-		dumb2 = formatFloat (*cy);
+		dumb1 = formatLong (*cx);
+		dumb2 = formatLat (*cy);
 		fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
@@ -2692,18 +2803,18 @@ check_export_args (const char *db_path, const char *dst_path,
 		*maxx = *minx + ext_x;
 		*miny = *cy - (ext_y / 2.0);
 		*maxy = *miny + ext_y;
-		dumb1 = formatFloat (*minx);
-		dumb2 = formatFloat (*miny);
+		dumb1 = formatLong (*minx);
+		dumb2 = formatLat (*miny);
 		fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
-		dumb1 = formatFloat (*maxx);
-		dumb2 = formatFloat (*maxy);
+		dumb1 = formatLong (*maxx);
+		dumb2 = formatLat (*maxy);
 		fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);
-		dumb1 = formatFloat (*cx);
-		dumb2 = formatFloat (*cy);
+		dumb1 = formatLong (*cx);
+		dumb2 = formatLat (*cy);
 		fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
 		sqlite3_free (dumb1);
 		sqlite3_free (dumb2);

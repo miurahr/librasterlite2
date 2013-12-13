@@ -299,14 +299,24 @@ extern "C"
     } rl2PrivTiffDestination;
     typedef rl2PrivTiffDestination *rl2PrivTiffDestinationPtr;
 
+    typedef struct rl2_pool_variance
+    {
+	double variance;
+	double count;
+	struct rl2_pool_variance *next;
+    } rl2PoolVariance;
+    typedef rl2PoolVariance *rl2PoolVariancePtr;
+
     typedef struct rl2_priv_band_statistics
     {
 	double min;
 	double max;
 	double mean;
-	double quot;
+	double sum_sq_diff;
 	unsigned short nHistogram;
 	double *histogram;
+	rl2PoolVariancePtr first;
+	rl2PoolVariancePtr last;
     } rl2PrivBandStatistics;
     typedef rl2PrivBandStatistics *rl2PrivBandStatisticsPtr;
 

@@ -1823,8 +1823,9 @@ extern "C"
  
  \return the pointer to newly created Raster Statistics Object: NULL on failure.
  
- \sa rl2_destroy_raster_statistics, rl2_serialize_dbms_raster_statistics, 
- rl2_deserialize_dbms_raster_statistics
+ \sa rl2_destroy_raster_statistics, rl2_aggregate_raster_statistics,
+ rl2_serialize_dbms_raster_statistics, rl2_deserialize_dbms_raster_statistics,
+ rl2_get_raster_statistics_summary, rl2_get_band_statistics
  
  \note you are responsible to destroy (before or after) any allocated 
  Raster Statistics object.
@@ -1845,7 +1846,7 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_create_raster_statistics, rl2_serialize_dbms_raster_statistics,  
+ \sa rl2_create_raster_statistics, rl2_get_raster_statistics,  
  rl2_deserialize_dbms_raster_statistics
  
  \note the returned BLOB object corresponds to dynamic memory;
@@ -1865,8 +1866,8 @@ extern "C"
  
  \return the pointer to newly created Raster Statistics Object: NULL on failure.
 
- \sa rl2_create_raster_statisrl2_serialize_dbms_raster_statistics, 
- rl2_deserialize_dbms_raster_statistics
+ \sa rl2_create_raster_statistics, rl2_serialize_dbms_raster_statistics,
+ rl2_get_raster_statistics_summary, rl2_get_band_statistics
  
  \note you are responsible to destroy (before or after) any allocated 
  Raster Statistics object.
@@ -1874,6 +1875,72 @@ extern "C"
     RL2_DECLARE rl2RasterStatisticsPtr
 	rl2_deserialize_dbms_raster_statistics (const unsigned char *blob,
 						int blob_sz);
+
+/**
+ Encodes a Raster Statistics Object into the corresponding BLOB serialized format
+
+ \param stats_in pointer to the input Raster Statistics Object.
+ \param stats_out pointer to the output Raster Statistics Object.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster_statistics, rl2_get_raster_statistics,
+ rl2_get_raster_statistics_summary, rl2_get_band_statistics
+ */
+    RL2_DECLARE int
+	rl2_aggregate_raster_statistics (rl2RasterStatisticsPtr stats_in,
+					 rl2RasterStatisticsPtr stats_out);
+
+/**
+ Return summary values from a Raster Statistics Object
+
+ \param stats pointer to the input Raster Statistics Object.
+ \param no_data on completion the variable referenced by this
+ pointer will contain the total count of NO-DATA pixels.
+ \param count on completion the variable referenced by this
+ pointer will contain the total count of valid pixels.
+ \param sample_type on completion the variable referenced by this
+ pointer will contain the Sampe Type.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the Number of Bands.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster_statistics, rl2_get_raster_statistics,
+ rl2_aggregate_raster_statistics, rl2_get_band_statistics
+ */
+    RL2_DECLARE int
+	rl2_get_raster_statistics_summary (rl2RasterStatisticsPtr stats,
+					   double *no_data, double *count,
+					   unsigned char *sample_type,
+					   unsigned char *num_bands);
+
+/**
+ Return summary values from a single Band (Raster Statistics Object)
+
+ \param stats pointer to the input Raster Statistics Object.
+ \param band Band index.
+ \param min on completion the variable referenced by this
+ pointer will contain the minimum pixel value.
+ \param max on completion the variable referenced by this
+ pointer will contain the maximum pixel value.
+ \param mean on completion the variable referenced by this
+ pointer will contain the mean of all pixel values.
+ \param variance on completion the variable referenced by this
+ pointer will contain the Variance.
+ \param standard_deviation on completion the variable referenced by this
+ pointer will contain the Standard Deviation.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster_statistics, rl2_get_raster_statistics,
+ rl2_aggregate_raster_statistics, rl2_get_raster_statistics_summary
+ */
+    RL2_DECLARE int
+	rl2_get_band_statistics (rl2RasterStatisticsPtr stats,
+				 unsigned char band, double *min, double *max,
+				 double *mean, double *variance,
+				 double *standard_deviation);
 
 /**
  Creates an RGB pixel array from a Raster

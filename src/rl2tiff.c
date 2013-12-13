@@ -2339,31 +2339,15 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	  mask = malloc (mask_size);
 	  if (mask == NULL)
 	      goto error;
+	  /* full Transparent mask */
+	  memset (mask, 0, coverage->tileWidth * coverage->tileHeight);
 	  for (row = 0; row < coverage->tileHeight; row++)
 	    {
 		unsigned char *p = mask + (row * coverage->tileWidth);
-		if (row >= shadow_y)
+		if (row < shadow_y)
 		  {
-		      /* full transparent scanline */
-		      memset (p, 0, coverage->tileWidth);
-		  }
-		else
-		  {
-		      /* partially transparent scanline */
-		      int col;
-		      for (col = 0; col < coverage->tileWidth; col++)
-			{
-			    if (col >= shadow_x)
-			      {
-				  /* transparent pixel */
-				  *p++ = 0;
-			      }
-			    else
-			      {
-				  /* opaque pixel */
-				  *p++ = 1;
-			      }
-			}
+		      /* setting opaque pixels */
+		      memset (p, 1, shadow_x);
 		  }
 	    }
       }

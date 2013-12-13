@@ -604,6 +604,23 @@ test_gray_png (const char *path, const char *mask_path)
     rl2PixelPtr pxl;
     unsigned char gray;
     int transparent;
+    unsigned char *blob_odd;
+    int blob_odd_sz;
+    unsigned char *blob_even;
+    int blob_even_sz;
+    rl2RasterStatisticsPtr stats;
+    rl2RasterStatisticsPtr cumul_stats;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned char xnum_bands;
+    double no_data;
+    double count;
+    double min;
+    double max;
+    double mean;
+    double variance;
+    double stddev;
 
     rl2SectionPtr img = rl2_section_from_jpeg (path);
     if (img == NULL)
@@ -678,6 +695,253 @@ test_gray_png (const char *path, const char *mask_path)
 	  fprintf (stderr, "Unable to create the output raster+mask\n");
 	  return 0;
       }
+
+    if (rl2_raster_encode
+	(rst, RL2_COMPRESSION_NONE, &blob_odd, &blob_odd_sz, &blob_even,
+	 &blob_even_sz, 0, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to Encode - uncompressed with mask\n");
+	  return 0;
+      }
+
+    if (rl2_get_raster_type (rst, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get the Raster Type\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+    cumul_stats = rl2_create_raster_statistics (sample_type, 0);
+    if (cumul_stats != NULL)
+      {
+	  fprintf (stderr, "Unexpeted cumulative statistics 0 Bands\n");
+	  return 0;
+      }
+    cumul_stats = rl2_create_raster_statistics (sample_type, num_bands);
+    if (cumul_stats == NULL)
+      {
+	  fprintf (stderr, "Unable to create cumulative statistics\n");
+	  return 0;
+      }
+    stats =
+	rl2_get_raster_statistics (blob_odd, blob_odd_sz, blob_even,
+				   blob_even_sz, NULL);
+    if (stats == NULL)
+      {
+	  fprintf (stderr, "Unable to get Raster Statistics #1\n");
+	  return 0;
+      }
+    if (rl2_aggregate_raster_statistics (stats, cumul_stats) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to aggregate Raster Statistics #1\n");
+	  return 0;
+      }
+    rl2_destroy_raster_statistics (stats);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:8 - uncompressed with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:4 - uncompressed with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:2 - uncompressed with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:1 - uncompressed with mask\n");
+	  return 0;
+      }
+    free (blob_odd);
+    free (blob_even);
+
+    if (rl2_raster_encode
+	(rst, RL2_COMPRESSION_PNG, &blob_odd, &blob_odd_sz, &blob_even,
+	 &blob_even_sz, 0, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to Encode - PNG with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    stats =
+	rl2_get_raster_statistics (blob_odd, blob_odd_sz, blob_even,
+				   blob_even_sz, NULL);
+    if (stats == NULL)
+      {
+	  fprintf (stderr, "Unable to get Raster Statistics #2\n");
+	  return 0;
+      }
+    if (rl2_aggregate_raster_statistics (stats, cumul_stats) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to aggregate Raster Statistics #2\n");
+	  return 0;
+      }
+    if (rl2_get_band_statistics (NULL, 0, &min, &max, &mean, &variance, &stddev)
+	!= RL2_ERROR)
+      {
+	  fprintf (stderr,
+		   "Unexpected success on get Band Statistics (NULL)\n");
+	  return 0;
+      }
+    if (rl2_get_band_statistics
+	(stats, 4, &min, &max, &mean, &variance, &stddev) != RL2_ERROR)
+      {
+	  fprintf (stderr,
+		   "Unexpected success on get Band Statistics (band#4)\n");
+	  return 0;
+      }
+    if (rl2_get_band_statistics
+	(stats, 0, &min, &max, &mean, &variance, &stddev) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Band Statistics #1\n");
+	  return 0;
+      }
+    rl2_destroy_raster_statistics (stats);
+
+    if (rl2_get_raster_statistics_summary
+	(NULL, &no_data, &count, &sample_type, &xnum_bands) != RL2_ERROR)
+      {
+	  fprintf (stderr,
+		   "Unexpected success on get Statistics Summary (NULL)\n");
+	  return 0;
+      }
+    if (rl2_get_raster_statistics_summary
+	(cumul_stats, &no_data, &count, &sample_type, &xnum_bands) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get a Statistics Summary\n");
+	  return 0;
+      }
+    if (no_data != 248959.0)
+      {
+	  fprintf (stderr, "Unexpected result - NO-DATA count: %1.1f\n",
+		   no_data);
+	  return 0;
+      }
+    if (count != 357029.0)
+      {
+	  fprintf (stderr, "Unexpected result - Valid Pixels count: %1.1f\n",
+		   count);
+	  return 0;
+      }
+    if (sample_type != RL2_SAMPLE_UINT8)
+      {
+	  fprintf (stderr, "Unexpected result - Statistics Sample Type: %02x\n",
+		   sample_type);
+	  return 0;
+      }
+    if (num_bands != xnum_bands)
+      {
+	  fprintf (stderr, "Unexpected result - Statistics # Bands: %02x\n",
+		   xnum_bands);
+	  return 0;
+      }
+
+    if (rl2_get_band_statistics
+	(cumul_stats, 0, &min, &max, &mean, &variance, &stddev) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Band Statistics #2\n");
+	  return 0;
+      }
+    if (min != 47.0)
+      {
+	  fprintf (stderr, "Unexpected result - Band #2 Min: %1.1f\n", min);
+	  return 0;
+      }
+    if (max != 255.0)
+      {
+	  fprintf (stderr, "Unexpected result - Band #2 Max: %1.1f\n", max);
+	  return 0;
+      }
+    if (mean >= 170.0 && mean <= 170.1)
+	;
+    else
+      {
+	  fprintf (stderr, "Unexpected result - Band #2 Mean: %1.1f\n", mean);
+	  return 0;
+      }
+    if (variance >= 1052.6 && variance <= 1052.7)
+	;
+    else
+      {
+	  fprintf (stderr, "Unexpected result - Band #2 Variance: %1.2f\n",
+		   variance);
+	  return 0;
+      }
+    if (stddev >= 32.4 && stddev <= 32.5)
+	;
+    else
+      {
+	  fprintf (stderr, "Unexpected result - Band #2 StdDeviation: %1.2f\n",
+		   stddev);
+	  return 0;
+      }
+    rl2_destroy_raster_statistics (cumul_stats);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_8, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:8 - PNG with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_4, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:4 - PNG with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_2, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:2 - PNG with mask\n");
+	  return 0;
+      }
+    rl2_destroy_raster (rst);
+
+    rst =
+	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, NULL);
+    if (rst == NULL)
+      {
+	  fprintf (stderr, "Unable to Decode 1:1 - PNG with mask\n");
+	  return 0;
+      }
+    free (blob_odd);
+    free (blob_even);
 
     img =
 	rl2_create_section ("beta", RL2_COMPRESSION_PNG, RL2_TILESIZE_UNDEFINED,

@@ -171,7 +171,7 @@ main (int argc, char *argv[])
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char *blob;
-    int *blob_size;
+    int blob_size;
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */

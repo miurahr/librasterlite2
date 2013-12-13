@@ -376,7 +376,6 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
 			   "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
 			   "\tpyramid_level INTEGER NOT NULL,\n"
 			   "\tsection_id INTEGER NOT NULL,\n"
-			   "\tstatistics BLOB,\n"
 			   "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
 			   "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
 			   "\tCONSTRAINT \"%s\" FOREIGN KEY (pyramid_level) "
@@ -390,7 +389,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CREATE TABLE \"%s_tiles_level\" error: %s\n",
+	  fprintf (stderr, "CREATE TABLE \"%s_tiles\" error: %s\n",
 		   xxcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  free (xxcoverage);
@@ -1758,6 +1757,8 @@ copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -1767,6 +1768,8 @@ copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -1812,23 +1815,31 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
     const unsigned char *p_msk = mask;
     unsigned char *p_out;
     int transparent;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
 
+    geo_y = tile_maxy + y_res2;
     for (y = 0; y < tile_height; y++)
       {
-	  geo_y = tile_maxy - ((double) y * y_res);
+	  geo_y -= y_res;
 	  out_y = (maxy - geo_y) / y_res;
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
+	  geo_x = tile_minx - x_res2;
 	  for (x = 0; x < tile_width; x++)
 	    {
-		geo_x = tile_minx + ((double) x * x_res);
+		geo_x += x_res;
 		out_x = (geo_x - minx) / x_res;
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -1882,6 +1893,8 @@ copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -1891,6 +1904,8 @@ copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -1944,6 +1959,8 @@ copy_uint16_raw_pixels (const unsigned short *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -1953,6 +1970,8 @@ copy_uint16_raw_pixels (const unsigned short *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -2006,6 +2025,8 @@ copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -2015,6 +2036,8 @@ copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -2068,6 +2091,8 @@ copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -2077,6 +2102,8 @@ copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -2130,6 +2157,8 @@ copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -2139,6 +2168,8 @@ copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =
@@ -2192,6 +2223,8 @@ copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
 	  if (out_y < 0 || out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
 		continue;
 	    }
 	  for (x = 0; x < tile_width; x++)
@@ -2201,6 +2234,8 @@ copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
 		if (out_x < 0 || out_x >= width)
 		  {
 		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
 		      continue;
 		  }
 		p_out =

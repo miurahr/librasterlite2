@@ -2514,11 +2514,13 @@ rl2_create_raster_statistics (unsigned char sample_type,
 	  band->min = DBL_MAX;
 	  band->max = 0.0 - DBL_MAX;
 	  band->mean = 0.0;
-	  band->quot = 0.0;
+	  band->sum_sq_diff = 0.0;
 	  band->nHistogram = nHistogram;
 	  band->histogram = malloc (sizeof (double) * nHistogram);
 	  for (j = 0; j < nHistogram; j++)
 	      band->histogram[j] = 0.0;
+	  band->first = NULL;
+	  band->last = NULL;
       }
     return (rl2RasterStatisticsPtr) stats;
 }
@@ -2527,10 +2529,19 @@ static void
 free_band_stats (rl2PrivBandStatisticsPtr band)
 {
 /* memory cleanup - destroying a Raster Band Statistics object */
+    rl2PoolVariancePtr pV;
+    rl2PoolVariancePtr pVn;
     if (band == NULL)
 	return;
     if (band->histogram != NULL)
 	free (band->histogram);
+    pV = band->first;
+    while (pV != NULL)
+      {
+	  pVn = pV->next;
+	  free (pV);
+	  pV = pVn;
+      }
 }
 
 RL2_DECLARE void
@@ -2549,4 +2560,59 @@ rl2_destroy_raster_statistics (rl2RasterStatisticsPtr stats)
     if (st->band_stats != NULL)
 	free (st->band_stats);
     free (st);
+}
+
+RL2_DECLARE int
+rl2_get_raster_statistics_summary (rl2RasterStatisticsPtr stats,
+				   double *no_data, double *count,
+				   unsigned char *sample_type,
+				   unsigned char *num_bands)
+{
+/* returning overall statistics values */
+    rl2PrivRasterStatisticsPtr st = (rl2PrivRasterStatisticsPtr) stats;
+    if (st == NULL)
+	return RL2_ERROR;
+    *no_data = st->no_data;
+    *count = st->count;
+    *sample_type = st->sampleType;
+    *num_bands = st->nBands;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_band_statistics (rl2RasterStatisticsPtr stats, unsigned char band,
+			 double *min, double *max, double *mean,
+			 double *variance, double *standard_deviation)
+{
+/* returning Band statistics values */
+    rl2PrivBandStatisticsPtr st_band;
+    rl2PrivRasterStatisticsPtr st = (rl2PrivRasterStatisticsPtr) stats;
+    if (st == NULL)
+	return RL2_ERROR;
+    if (band >= st->nBands)
+	return RL2_ERROR;
+
+    st_band = st->band_stats + band;
+    *min = st_band->min;
+    *max = st_band->max;
+    *mean = st_band->mean;
+    if (st_band->first != NULL)
+      {
+	  double count = 0.0;
+	  double sum_var = 0.0;
+	  double sum_count = 0.0;
+	  rl2PoolVariancePtr pV = st_band->first;
+	  while (pV != NULL)
+	    {
+		count += 1.0;
+		sum_var += (pV->count - 1.0) * pV->variance;
+		sum_count += pV->count;
+		pV = pV->next;
+	    }
+	  *variance = sum_var / (sum_count - count);
+      }
+    else
+	*variance = st_band->sum_sq_diff / (st->count - 1.0);
+    *standard_deviation = sqrt (*variance);
+    return RL2_OK;
 }

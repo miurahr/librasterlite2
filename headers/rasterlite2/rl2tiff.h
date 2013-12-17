@@ -269,6 +269,11 @@ extern "C"
 			     unsigned short height, unsigned char sample_type,
 			     unsigned char num_bands);
 
+    RL2_DECLARE void
+	rl2_prime_void_tile_palette (void *pixels, unsigned short width,
+				     unsigned short height,
+				     rl2PalettePtr palette);
+
 
 #ifdef __cplusplus
 }

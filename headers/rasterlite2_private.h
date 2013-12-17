@@ -121,6 +121,9 @@ extern "C"
 #define RL2_CONVERT_NO			0x00
 #define RL2_CONVERT_RGB_TO_GRAYSCALE 		0x01
 #define RL2_CONVERT_PALETTE_TO_GRAYSCALE	0x02
+#define RL2_CONVERT_GRAYSCALE_TO_RGB 		0x03
+#define RL2_CONVERT_GRAYSCALE_TO_PALETTE	0x04
+#define RL2_CONVERT_PALETTE_TO_RGB			0x05
 
     typedef union rl2_priv_sample
     {
@@ -347,9 +350,10 @@ extern "C"
     RL2_PRIVATE int
 	rl2_decode_webp_scaled (int scale, const unsigned char *webp,
 				int webp_sz, unsigned short *width,
-				unsigned short *height, unsigned char **pixels,
-				int *pixels_sz, unsigned char **mask,
-				int *mask_sz);
+				unsigned short *height,
+				unsigned char pixel_type,
+				unsigned char **pixels, int *pixels_sz,
+				unsigned char **mask, int *mask_sz);
 
     RL2_PRIVATE int
 	rl2_data_to_png (unsigned char *pixels, unsigned char *mask,

@@ -836,13 +836,13 @@ test_gray_png (const char *path, const char *mask_path)
 	  fprintf (stderr, "Unable to get a Statistics Summary\n");
 	  return 0;
       }
-    if (no_data != 248959.0)
+    if (no_data != 269318.0)
       {
 	  fprintf (stderr, "Unexpected result - NO-DATA count: %1.1f\n",
 		   no_data);
 	  return 0;
       }
-    if (count != 357029.0)
+    if (count != 336670.0)
       {
 	  fprintf (stderr, "Unexpected result - Valid Pixels count: %1.1f\n",
 		   count);
@@ -877,14 +877,14 @@ test_gray_png (const char *path, const char *mask_path)
 	  fprintf (stderr, "Unexpected result - Band #2 Max: %1.1f\n", max);
 	  return 0;
       }
-    if (mean >= 170.0 && mean <= 170.1)
+    if (mean >= 171.4 && mean <= 171.5)
 	;
     else
       {
 	  fprintf (stderr, "Unexpected result - Band #2 Mean: %1.1f\n", mean);
 	  return 0;
       }
-    if (variance >= 1052.6 && variance <= 1052.7)
+    if (variance >= 1089.98 && variance <= 1089.99)
 	;
     else
       {
@@ -892,7 +892,7 @@ test_gray_png (const char *path, const char *mask_path)
 		   variance);
 	  return 0;
       }
-    if (stddev >= 32.4 && stddev <= 32.5)
+    if (stddev >= 33.01 && stddev <= 33.02)
 	;
     else
       {

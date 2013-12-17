@@ -54,6 +54,13 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2_private.h"
 #include "rasterlite2/rl2tiff.h"
 
+static int
+read_from_tiff (rl2PrivTiffOriginPtr origin, unsigned short width,
+		unsigned short height, unsigned char sample_type,
+		unsigned char pixel_type, unsigned char num_bands,
+		unsigned int startRow, unsigned int startCol,
+		unsigned char **pixels, int *pixels_sz, rl2PalettePtr palette);
+
 static rl2PrivTiffOriginPtr
 create_tiff_origin (const char *path, unsigned char force_sample_type,
 		    unsigned char force_pixel_type,
@@ -567,6 +574,19 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRAYSCALE_TO_RGB;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->bitsPerSample <= 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_PALETTE_TO_RGB;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_UINT16
 	&& origin->forced_pixel_type == RL2_PIXEL_RGB
@@ -619,6 +639,12 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	      && origin->samplesPerPixel == 1 && origin->photometric == 3
 	      && origin->bitsPerSample <= 8)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->photometric < 2)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRAYSCALE_TO_PALETTE;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_4_BIT
 	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE
@@ -825,6 +851,17 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		max_palette = 256;
 		break;
 	    };
+	  if (origin->forced_conversion == RL2_CONVERT_GRAYSCALE_TO_PALETTE)
+	    {
+		/* forced conversion: creating a GRAYSCALE palette */
+		max_palette = 256;
+		for (i = 0; i < max_palette; i++)
+		  {
+		      red[i] = i;
+		      green[i] = i;
+		      blue[i] = i;
+		  }
+	    }
 	  if (max_palette == 0)
 	      goto error;
 	  if (!alloc_palette (origin, max_palette))
@@ -848,9 +885,103 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		    origin->blue[i] = blue[i] / 256;
 		origin->alpha[i] = 255;
 	    }
+	  if ((origin->forced_sample_type == RL2_SAMPLE_1_BIT
+	       || origin->forced_sample_type == RL2_SAMPLE_2_BIT
+	       || origin->forced_sample_type == RL2_SAMPLE_4_BIT)
+	      && origin->forced_pixel_type == RL2_PIXEL_PALETTE)
+	    {
+		int max = 0;
+		unsigned char plt[256];
+		int j;
+		unsigned char *p;
+		unsigned short x;
+		unsigned short y;
+		unsigned short row;
+		unsigned short height = 256;
+		if (origin->isTiled)
+		    height = origin->tileHeight;
+		for (row = 0; row < origin->height; row += height)
+		  {
+		      unsigned char *pixels = NULL;
+		      int pixels_sz = 0;
+		      rl2PalettePtr pltx = rl2_create_palette (max_palette);
+		      for (j = 0; j < max_palette; j++)
+			  rl2_set_palette_color (pltx, j, origin->red[j],
+						 origin->green[j],
+						 origin->blue[j], 255);
+		      if (read_from_tiff
+			  (origin, origin->width, height, RL2_SAMPLE_UINT8,
+			   RL2_PIXEL_PALETTE, 1, row, 0, &pixels, &pixels_sz,
+			   pltx) != RL2_OK)
+			  goto error;
+		      rl2_destroy_palette (pltx);
+		      p = pixels;
+		      for (y = 0; y < height; y++)
+			{
+			    if ((y + row) >= origin->height)
+				break;
+			    for (x = 0; x < origin->width; x++)
+			      {
+				  int ok = 0;
+				  int index = *p++;
+				  for (j = 0; j < max; j++)
+				    {
+					if (plt[j] == index)
+					  {
+					      ok = 1;
+					      break;
+					  }
+				    }
+				  if (!ok)
+				      plt[max++] = index;
+			      }
+			}
+		      free (pixels);
+		  }
+		if (origin->red != NULL)
+		    free (origin->red);
+		if (origin->green != NULL)
+		    free (origin->green);
+		if (origin->blue != NULL)
+		    free (origin->blue);
+		if (!alloc_palette (origin, max))
+		    goto error;
+		for (j = 0; j < max; j++)
+		  {
+		      /* normalized palette */
+		      if (red[plt[j]] < 256)
+			  origin->red[j] = red[plt[j]];
+		      else
+			  origin->red[j] = red[plt[j]] / 256;
+		      if (green[plt[j]] < 256)
+			  origin->green[j] = green[plt[j]];
+		      else
+			  origin->green[j] = green[plt[j]] / 256;
+		      if (blue[plt[j]] < 256)
+			  origin->blue[j] = blue[plt[j]];
+		      else
+			  origin->blue[j] = blue[plt[j]] / 256;
+		      origin->alpha[j] = 255;
+		  }
+	    }
       }
     if (!check_tiff_origin_pixel_conversion (origin))
 	goto error;
+
+    if (origin->forced_conversion == RL2_CONVERT_GRAYSCALE_TO_PALETTE)
+      {
+	  /* forced conversion: creating a GRAYSCALE palette */
+	  int i;
+	  if (!alloc_palette (origin, 256))
+	      goto error;
+	  for (i = 0; i < 256; i++)
+	    {
+		origin->red[i] = i;
+		origin->green[i] = i;
+		origin->blue[i] = i;
+		origin->alpha[i] = 255;
+	    }
+      }
 
     return 1;
   error:
@@ -1896,6 +2027,22 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				  *p_out++ = (unsigned char) gray;
 			      }
 			    else if (origin->forced_conversion ==
+				     RL2_CONVERT_GRAYSCALE_TO_RGB
+				     || origin->forced_conversion ==
+				     RL2_CONVERT_PALETTE_TO_RGB)
+			      {
+				  /* forced conversion: GRAYSCALE or PALETTE -> RGB */
+				  *p_out++ = red;
+				  *p_out++ = green;
+				  *p_out++ = blue;
+			      }
+			    else if (origin->forced_conversion ==
+				     RL2_CONVERT_GRAYSCALE_TO_PALETTE)
+			      {
+				  /* forced conversion: GRAYSCALE -> PALETTE */
+				  *p_out++ = red;
+			      }
+			    else if (origin->forced_conversion ==
 				     RL2_CONVERT_PALETTE_TO_GRAYSCALE)
 			      {
 				  /* forced conversion: PALETTE -> GRAYSCALE */
@@ -2050,6 +2197,22 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 				    ((double) green * 0.7152) +
 				    ((double) blue * 0.0722);
 			    *p_out++ = (unsigned char) gray;
+			}
+		      else if (origin->forced_conversion ==
+			       RL2_CONVERT_GRAYSCALE_TO_RGB
+			       || origin->forced_conversion ==
+			       RL2_CONVERT_PALETTE_TO_RGB)
+			{
+			    /* forced conversion: GRAYSCALE or PALETTE -> RGB */
+			    *p_out++ = red;
+			    *p_out++ = green;
+			    *p_out++ = blue;
+			}
+		      else if (origin->forced_conversion ==
+			       RL2_CONVERT_GRAYSCALE_TO_PALETTE)
+			{
+			    /* forced conversion: GRAYSCALE -> PALETTE */
+			    *p_out++ = red;
 			}
 		      else if (origin->forced_conversion ==
 			       RL2_CONVERT_PALETTE_TO_GRAYSCALE)
@@ -2301,8 +2464,9 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     if ((x * coverage->tileHeight) != startRow)
 	return NULL;
 
-    if (origin->photometric == 3
-	&& origin->forced_pixel_type == RL2_PIXEL_PALETTE)
+    if ((origin->photometric == 3
+	 && origin->forced_pixel_type == RL2_PIXEL_PALETTE)
+	|| origin->forced_conversion == RL2_CONVERT_GRAYSCALE_TO_PALETTE)
       {
 	  /* creating a Palette */
 	  if (origin->remapMaxPalette == 0 && origin->maxPalette > 0
@@ -2310,10 +2474,12 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	      build_remap (origin);
 	  palette = rl2_create_palette (origin->remapMaxPalette);
 	  for (x = 0; x < origin->remapMaxPalette; x++)
-	      rl2_set_palette_color (palette, x, origin->remapRed[x],
-				     origin->remapGreen[x],
-				     origin->remapBlue[x],
-				     origin->remapAlpha[x]);
+	    {
+		rl2_set_palette_color (palette, x, origin->remapRed[x],
+				       origin->remapGreen[x],
+				       origin->remapBlue[x],
+				       origin->remapAlpha[x]);
+	    }
       }
 
 /* attempting to create the tile */

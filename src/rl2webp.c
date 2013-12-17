@@ -391,8 +391,8 @@ rl2_raster_from_webp (unsigned char *webp, int webp_size)
     unsigned short height;
 
     if (rl2_decode_webp_scaled
-	(1, webp, webp_size, &width, &height, &buf, &buf_size, &mask,
-	 &mask_size) != RL2_OK)
+	(1, webp, webp_size, &width, &height, RL2_PIXEL_RGB, &buf, &buf_size,
+	 &mask, &mask_size) != RL2_OK)
 	return NULL;
 
 /* creating the raster */
@@ -411,8 +411,9 @@ rl2_raster_from_webp (unsigned char *webp, int webp_size)
 RL2_PRIVATE int
 rl2_decode_webp_scaled (int scale, const unsigned char *webp, int webp_size,
 			unsigned short *xwidth, unsigned short *xheight,
-			unsigned char **pixels, int *pixels_size,
-			unsigned char **xmask, int *xmask_size)
+			unsigned char pixel_type, unsigned char **pixels,
+			int *pixels_size, unsigned char **xmask,
+			int *xmask_size)
 {
 /* attempting to create a raster from a WebP image - supporting rescaled size */
     unsigned char *buf = NULL;
@@ -512,6 +513,29 @@ rl2_decode_webp_scaled (int scale, const unsigned char *webp, int webp_size,
 	      goto error;
 	  mask = NULL;
 	  mask_size = 0;
+      }
+
+    if (pixel_type == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* returning a GRAYSCALE pixel buffer */
+	  unsigned char *gray = NULL;
+	  int gray_size = width * height;
+	  gray = malloc (gray_size);
+	  if (gray == NULL)
+	      goto error;
+	  p_in = buf;
+	  p_out = gray;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      *p_out++ = *p_in;
+		      p_in += 3;
+		  }
+	    }
+	  free (buf);
+	  buf = gray;
+	  buf_size = gray_size;
       }
 
     *xwidth = width;

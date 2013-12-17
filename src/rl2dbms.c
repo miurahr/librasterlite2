@@ -950,6 +950,62 @@ rl2_prime_void_tile (void *pixels, unsigned short width, unsigned short height,
       };
 }
 
+RL2_DECLARE void
+rl2_prime_void_tile_palette (void *pixels, unsigned short width,
+			     unsigned short height, rl2PalettePtr palette)
+{
+/* priming a void tile buffer (PALETTE) */
+    int row;
+    int col;
+    int j;
+    int index = -1;
+    unsigned char *p = pixels;
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+
+    if (plt == NULL)
+	;
+    else
+      {
+	  /* searching for WHITE */ rl2PrivPaletteEntryPtr entry;
+	  for (j = 0; j < plt->nEntries; j++)
+	    {
+		entry = plt->entries + j;
+		if (entry->red == 255 && entry->green == 255
+		    && entry->blue == 255)
+		  {
+		      index = j;
+		      break;
+		  }
+	    }
+	  if (index < 0)
+	    {
+		/* searching for BLACK */
+		for (j = 0; j < plt->nEntries; j++)
+		  {
+		      entry = plt->entries + j;
+		      if (entry->red == 0 && entry->green == 0
+			  && entry->blue == 0)
+			{
+			    index = j;
+			    break;
+			}
+		  }
+	    }
+      }
+    if (index < 0)
+      {
+	  /* not WHITE neither BLACK are defined */
+	  /* defaulting to first palette entry */
+	  index = 0;
+      }
+
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	      *p++ = index;
+      }
+}
+
 static rl2PixelPtr
 rescale_int8 (rl2PixelPtr pixel, rl2PrivRasterPtr rst, int row, int col,
 	      int size)
@@ -1727,6 +1783,62 @@ void_raw_buffer (unsigned char *buffer, unsigned short width,
 				 num_bands);
 	  break;
       };
+}
+
+static void
+void_raw_buffer_palette (unsigned char *buffer, unsigned short width,
+			 unsigned short height, rl2PalettePtr palette)
+{
+/* preparing an empty/void buffer (PALETTE) */
+    int row;
+    int col;
+    int j;
+    int index = -1;
+    unsigned char *p = buffer;
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+
+    if (plt == NULL)
+	;
+    else
+      {
+	  /* searching for WHITE */ rl2PrivPaletteEntryPtr entry;
+	  for (j = 0; j < plt->nEntries; j++)
+	    {
+		entry = plt->entries + j;
+		if (entry->red == 255 && entry->green == 255
+		    && entry->blue == 255)
+		  {
+		      index = j;
+		      break;
+		  }
+	    }
+	  if (index < 0)
+	    {
+		/* searching for BLACK */
+		for (j = 0; j < plt->nEntries; j++)
+		  {
+		      entry = plt->entries + j;
+		      if (entry->red == 0 && entry->green == 0
+			  && entry->blue == 0)
+			{
+			    index = j;
+			    break;
+			}
+		  }
+	    }
+      }
+    if (index < 0)
+      {
+	  /* not WHITE neither BLACK are defined */
+	  /* defaulting to first palette entry */
+	  index = 0;
+      }
+
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	      *p++ = index;
+      }
 }
 
 static void
@@ -2745,7 +2857,10 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
       }
 
 /* preparing a raw pixels buffer */
-    void_raw_buffer (bufpix, width, height, sample_type, num_bands);
+    if (pixel_type == RL2_PIXEL_PALETTE)
+	void_raw_buffer_palette (bufpix, width, height, plt);
+    else
+	void_raw_buffer (bufpix, width, height, sample_type, num_bands);
     if (!load_dbms_tiles
 	(handle, stmt_tiles, stmt_data, bufpix, width, height, sample_type,
 	 num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level, scale, plt))
@@ -2996,7 +3111,6 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
     rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
     if (cvg == NULL || origin == NULL)
 	return RL2_ERROR;
-
     palette = rl2_get_dbms_palette (handle, cvg->coverageName);
     if (palette == NULL)
 	goto error;
@@ -3056,7 +3170,6 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 		changed = 1;
 	    }
       }
-    fprintf (stderr, "Palette Changed %d %d\n", changed, maxPalette);
     if (changed)
       {
 	  /* updating the DBMS Palette */
@@ -3066,12 +3179,8 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 	  rl2_destroy_palette (palette);
 	  palette = plt2;
 	  for (j = 0; j < maxPalette; j++)
-	    {
-		fprintf (stderr, "new %d) #%02x%02x%02x\n", j, red[j], green[j],
-			 blue[j]);
-		rl2_set_palette_color (palette, j, red[j], green[j], blue[j],
-				       alpha[j]);
-	    }
+	      rl2_set_palette_color (palette, j, red[j], green[j], blue[j],
+				     alpha[j]);
 	  if (rl2_update_dbms_palette (handle, cvg->coverageName, palette) !=
 	      RL2_OK)
 	      goto error;

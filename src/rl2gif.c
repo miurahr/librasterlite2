@@ -508,7 +508,7 @@ rl2_section_to_gif (rl2SectionPtr scn, const char *path)
     rst = rl2_get_section_raster (scn);
     if (rst == NULL)
 	return RL2_ERROR;
-/* attempting to export as a GUF image */
+/* attempting to export as a GIF image */
     if (rl2_raster_to_gif (rst, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     ret = rl2_blob_to_file (path, blob, blob_size);
@@ -519,7 +519,7 @@ rl2_section_to_gif (rl2SectionPtr scn, const char *path)
 }
 
 RL2_DECLARE int
-rl2_raster_to_gif (rl2RasterPtr rst, unsigned char **png, int *png_size)
+rl2_raster_to_gif (rl2RasterPtr rst, unsigned char **gif, int *gif_size)
 {
 /* creating a GIF image from a raster */
     unsigned char *blob;
@@ -530,8 +530,8 @@ rl2_raster_to_gif (rl2RasterPtr rst, unsigned char **png, int *png_size)
 
     if (compress_gif (rst, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
-    *png = blob;
-    *png_size = blob_size;
+    *gif = blob;
+    *gif_size = blob_size;
     return RL2_OK;
 }
 
@@ -725,6 +725,9 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
 #else
 			    print_gif_error (GifLastError ());
 #endif
+			    fprintf (stderr, "err GIF %d / %d %d\n", row,
+				     GifFile->Image.Height,
+				     GifFile->Image.Width);
 			    goto error;
 			}
 		      for (col = 0; col < GifFile->Image.Width; col++)

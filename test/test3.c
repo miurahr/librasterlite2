@@ -252,20 +252,28 @@ main (int argc, char *argv[])
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LOSSY_WEBP, &blob_odd_lossy_webp,
 	 &blob_odd_sz_lossy_webp, &blob_even_lossy_webp,
-	 &blob_even_sz_lossy_webp, 10, anti_endian) != RL2_ERROR)
+	 &blob_even_sz_lossy_webp, 10, anti_endian) != RL2_OK)
       {
 	  fprintf (stderr, "Unexpected result - lossy WEBP compressed\n");
 	  return -9;
       }
+if (blob_odd_lossy_webp != NULL)
+free(blob_odd_lossy_webp);
+if (blob_even_lossy_webp != NULL)
+free(blob_even_lossy_webp);
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LOSSLESS_WEBP, &blob_odd_lossless_webp,
 	 &blob_odd_sz_lossless_webp, &blob_even_lossless_webp,
-	 &blob_even_sz_lossless_webp, 10, anti_endian) != RL2_ERROR)
+	 &blob_even_sz_lossless_webp, 10, anti_endian) != RL2_OK)
       {
 	  fprintf (stderr, "Unexpected result - lossless WEBP compressed\n");
 	  return -10;
       }
+if (blob_odd_lossless_webp != NULL)
+free(blob_odd_lossless_webp);
+if (blob_even_lossless_webp != NULL)
+free(blob_even_lossless_webp);
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_PNG, &blob_odd_png, &blob_odd_sz_png,

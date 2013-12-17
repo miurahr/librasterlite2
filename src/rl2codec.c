@@ -578,6 +578,8 @@ check_encode_self_consistency (unsigned char sample_type,
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_GIF:
 	    case RL2_COMPRESSION_JPEG:
+	    case RL2_COMPRESSION_LOSSY_WEBP:
+	    case RL2_COMPRESSION_LOSSLESS_WEBP:
 		break;
 	    default:
 		return 0;
@@ -1640,6 +1642,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     unsigned char *compr_mask = NULL;
     unsigned char *to_clean1 = NULL;
     unsigned char *to_clean2 = NULL;
+    unsigned char *save_mask = NULL;
     uLong crc;
     int endian_arch = endianArch ();
 
@@ -1724,20 +1727,22 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     if (raster->maskBuffer != NULL)
       {
 	  /* preparing the mask buffer */
+	  save_mask = raster->maskBuffer;
+	  raster->maskBuffer = NULL;
 	  if (compression == RL2_COMPRESSION_NONE
 	      || compression == RL2_COMPRESSION_DEFLATE
 	      || compression == RL2_COMPRESSION_LZMA
-	      || compression == RL2_COMPRESSION_JPEG)
+	      || compression == RL2_COMPRESSION_JPEG
+	      || compression == RL2_COMPRESSION_PNG
+	      || compression == RL2_COMPRESSION_GIF
+	      || compression == RL2_COMPRESSION_LOSSY_WEBP
+	      || compression == RL2_COMPRESSION_LOSSLESS_WEBP)
 	    {
 		/* packing RLE data */
 		if (!pack_rle_rows
-		    (raster, raster->maskBuffer, &mask_pix, &mask_pix_size))
+		    (raster, save_mask, &mask_pix, &mask_pix_size))
 		    return RL2_ERROR;
 	    }
-	  else if (compression == RL2_COMPRESSION_PNG ||
-		   compression == RL2_COMPRESSION_LOSSY_WEBP
-		   || compression == RL2_COMPRESSION_LOSSLESS_WEBP)
-	      ;
 	  else
 	      return RL2_ERROR;
       }
@@ -1872,14 +1877,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      RL2_OK)
 	    {
 		/* ok, lossless WEBP compression was successful */
-		int alphaBand = 0;
-		if (raster->maskBuffer != NULL)
-		    alphaBand = 1;
-		uncompressed =
-		    raster->width * raster->height * (raster->nBands +
-						      alphaBand);
+		uncompressed = raster->width * raster->height * raster->nBands;
 		to_clean1 = compr_data;
 		odd_rows = raster->height;
+		if (mask_pix == NULL)
+		    uncompressed_mask = 0;
+		else
+		    uncompressed_mask = raster->width * raster->height;
+		compressed_mask = mask_pix_size;
+		compr_mask = mask_pix;
 	    }
 	  else
 	      goto error;
@@ -1891,14 +1897,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      == RL2_OK)
 	    {
 		/* ok, lossy WEBP compression was successful */
-		int alphaBand = 0;
-		if (raster->maskBuffer != NULL)
-		    alphaBand = 1;
-		uncompressed =
-		    raster->width * raster->height * (raster->nBands +
-						      alphaBand);
+		uncompressed = raster->width * raster->height * raster->nBands;
 		to_clean1 = compr_data;
 		odd_rows = raster->height;
+		if (mask_pix == NULL)
+		    uncompressed_mask = 0;
+		else
+		    uncompressed_mask = raster->width * raster->height;
+		compressed_mask = mask_pix_size;
+		compr_mask = mask_pix;
 	    }
 	  else
 	      goto error;
@@ -1917,6 +1924,12 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      uncompressed = raster->width * raster->height;
 		      to_clean1 = compr_data;
 		      odd_rows = raster->height;
+		      if (mask_pix == NULL)
+			  uncompressed_mask = 0;
+		      else
+			  uncompressed_mask = raster->width * raster->height;
+		      compressed_mask = mask_pix_size;
+		      compr_mask = mask_pix;
 		  }
 		else
 		    goto error;
@@ -1926,13 +1939,19 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		/* split between Odd/Even Blocks */
 		rl2PalettePtr plt = rl2_get_raster_palette (rst);
 		if (rl2_data_to_png
-		    (pixels_odd, raster->maskBuffer, plt, raster->width,
+		    (pixels_odd, NULL, plt, raster->width,
 		     odd_rows, raster->sampleType, raster->pixelType,
 		     &compr_data, &compressed) == RL2_OK)
 		  {
 		      /* ok, PNG compression was successful */
 		      uncompressed = size_odd;
 		      to_clean1 = compr_data;
+		      if (mask_pix == NULL)
+			  uncompressed_mask = 0;
+		      else
+			  uncompressed_mask = raster->width * raster->height;
+		      compressed_mask = mask_pix_size;
+		      compr_mask = mask_pix;
 		  }
 		else
 		    goto error;
@@ -1952,6 +1971,12 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      uncompressed = raster->width * raster->height;
 		      to_clean1 = compr_data;
 		      odd_rows = raster->height;
+		      if (mask_pix == NULL)
+			  uncompressed_mask = 0;
+		      else
+			  uncompressed_mask = raster->width * raster->height;
+		      compressed_mask = mask_pix_size;
+		      compr_mask = mask_pix;
 		  }
 		else
 		    goto error;
@@ -1961,13 +1986,19 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		/* split between Odd/Even Blocks */
 		rl2PalettePtr plt = rl2_get_raster_palette (rst);
 		if (rl2_data_to_gif
-		    (pixels_odd, raster->maskBuffer, plt, raster->width,
+		    (pixels_odd, NULL, plt, raster->width,
 		     odd_rows, raster->sampleType, raster->pixelType,
 		     &compr_data, &compressed) == RL2_OK)
 		  {
 		      /* ok, GIF compression was successful */
 		      uncompressed = size_odd;
 		      to_clean1 = compr_data;
+		      if (mask_pix == NULL)
+			  uncompressed_mask = 0;
+		      else
+			  uncompressed_mask = raster->width * raster->height;
+		      compressed_mask = mask_pix_size;
+		      compr_mask = mask_pix;
 		  }
 		else
 		    goto error;
@@ -2124,11 +2155,35 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      /* split between Odd/Even Blocks */
 		      rl2PalettePtr plt = rl2_get_raster_palette (rst);
 		      if (rl2_data_to_png
-			  (pixels_even, raster->maskBuffer, plt, raster->width,
+			  (pixels_even, NULL, plt, raster->width,
 			   even_rows, raster->sampleType, raster->pixelType,
 			   &compr_data, &compressed) == RL2_OK)
 			{
 			    /* ok, PNG compression was successful */
+			    uncompressed = size_even;
+			    to_clean2 = compr_data;
+			}
+		      else
+			  goto error;
+		  }
+	    }
+	  else if (compression == RL2_COMPRESSION_GIF)
+	    {
+		/* compressing as GIF */
+		if (raster->sampleType == RL2_SAMPLE_1_BIT
+		    || raster->sampleType == RL2_SAMPLE_2_BIT
+		    || raster->sampleType == RL2_SAMPLE_4_BIT)
+		    ;
+		else
+		  {
+		      /* split between Odd/Even Blocks */
+		      rl2PalettePtr plt = rl2_get_raster_palette (rst);
+		      if (rl2_data_to_gif
+			  (pixels_even, NULL, plt, raster->width,
+			   even_rows, raster->sampleType, raster->pixelType,
+			   &compr_data, &compressed) == RL2_OK)
+			{
+			    /* ok, GIF compression was successful */
 			    uncompressed = size_even;
 			    to_clean2 = compr_data;
 			}
@@ -2185,6 +2240,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     if (to_clean2 != NULL)
 	free (to_clean2);
 
+    raster->maskBuffer = save_mask;
     *blob_odd = block_odd;
     *blob_odd_sz = block_odd_size;
     *blob_even = block_even;
@@ -2206,6 +2262,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	free (block_odd);
     if (block_even != NULL)
 	free (block_even);
+    raster->maskBuffer = save_mask;
     return RL2_ERROR;
 }
 
@@ -4442,26 +4499,30 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    case RL2_SCALE_1:
 		ret =
 		    rl2_decode_webp_scaled (1, pixels_odd, uncompressed_odd,
-					    &width, &height, &pixels,
-					    &pixels_sz, &mask, &mask_sz);
+					    &width, &height, pixel_type,
+					    &pixels, &pixels_sz, &mask,
+					    &mask_sz);
 		break;
 	    case RL2_SCALE_2:
 		ret =
 		    rl2_decode_webp_scaled (2, pixels_odd, uncompressed_odd,
-					    &width, &height, &pixels,
-					    &pixels_sz, &mask, &mask_sz);
+					    &width, &height, pixel_type,
+					    &pixels, &pixels_sz, &mask,
+					    &mask_sz);
 		break;
 	    case RL2_SCALE_4:
 		ret =
 		    rl2_decode_webp_scaled (4, pixels_odd, uncompressed_odd,
-					    &width, &height, &pixels,
-					    &pixels_sz, &mask, &mask_sz);
+					    &width, &height, pixel_type,
+					    &pixels, &pixels_sz, &mask,
+					    &mask_sz);
 		break;
 	    case RL2_SCALE_8:
 		ret =
 		    rl2_decode_webp_scaled (8, pixels_odd, uncompressed_odd,
-					    &width, &height, &pixels,
-					    &pixels_sz, &mask, &mask_sz);
+					    &width, &height, pixel_type,
+					    &pixels, &pixels_sz, &mask,
+					    &mask_sz);
 		break;
 	    };
 	  if (ret != RL2_OK)
@@ -4509,12 +4570,6 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		      rl2_destroy_palette (palette2);
 		  }
 		pixels_even = even_data;
-		mask_width = width;
-		mask_height = height;
-		if (!build_mask_buffer
-		    (scale, &mask_width, &mask_height, odd_rows, odd_mask,
-		     even_rows, even_mask, (void **) (&mask), &mask_sz))
-		    goto error;
 		if (odd_mask != NULL)
 		    free (odd_mask);
 		if (even_mask != NULL)
@@ -4543,10 +4598,10 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    }
 	  else
 	    {
-		ret = rl2_decode_gif (pixels_odd, uncompressed_odd,
-				      &width, &odd_rows, &sample_type,
-				      &pixel_type, &odd_data, &pixels_sz,
-				      &palette);
+		ret =
+		    rl2_decode_gif (pixels_odd, uncompressed_odd, &width,
+				    &odd_rows, &sample_type, &pixel_type,
+				    &odd_data, &pixels_sz, &palette);
 		if (ret != RL2_OK)
 		    goto error;
 		pixels_odd = odd_data;
@@ -4558,13 +4613,6 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    goto error;
 		rl2_destroy_palette (palette2);
 		pixels_even = even_data;
-		num_bands = 1;
-		mask_width = width;
-		mask_height = height;
-		if (!build_mask_buffer
-		    (scale, &mask_width, &mask_height, odd_rows, odd_mask,
-		     even_rows, even_mask, (void **) (&mask), &mask_sz))
-		    goto error;
 		if (odd_mask != NULL)
 		    free (odd_mask);
 		if (even_mask != NULL)

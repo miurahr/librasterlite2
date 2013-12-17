@@ -1011,7 +1011,11 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 			       "rl2tool Export: Insufficient Memory !!!\n");
 		      goto error;
 		  }
-		rl2_prime_void_tile (bufpix, 256, 256, sample_type, num_bands);
+		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
+		    rl2_prime_void_tile_palette (bufpix, 256, 256, palette);
+		else
+		    rl2_prime_void_tile (bufpix, 256, 256, sample_type,
+					 num_bands);
 		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  num_bands, width, height, 256, 256,
 					  base_y, base_x);

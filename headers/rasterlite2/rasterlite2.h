@@ -2639,7 +2639,8 @@ extern "C"
 				  unsigned char compression, int quality,
 				  unsigned short tile_width,
 				  unsigned short tile_height, int srid,
-				  double x_res, double y_res);
+				  double x_res, double y_res,
+				  rl2PixelPtr no_data);
 
     RL2_DECLARE int
 	rl2_delete_dbms_section (sqlite3 * handle, const char *coverage,
@@ -2673,6 +2674,13 @@ extern "C"
     RL2_DECLARE int
 	rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr cvg,
 				rl2TiffOriginPtr tiff);
+
+    RL2_DECLARE int
+	rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
+				    int *blob_size);
+
+    RL2_DECLARE rl2PixelPtr
+	rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size);
 
 #ifdef __cplusplus
 }

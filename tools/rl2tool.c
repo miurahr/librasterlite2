@@ -83,6 +83,7 @@
 #define ARG_MAXY	33
 #define ARG_CX	34
 #define ARG_CY	35
+#define ARG_NO_DATA	36
 
 #define ARG_CACHE_SIZE		99
 
@@ -269,12 +270,13 @@ static int
 exec_create (sqlite3 * handle, const char *coverage,
 	     unsigned char sample, unsigned char pixel, unsigned char num_bands,
 	     unsigned char compression, int quality, unsigned short tile_width,
-	     unsigned short tile_height, int srid, double x_res, double y_res)
+	     unsigned short tile_height, int srid, double x_res, double y_res,
+	     rl2PixelPtr no_data)
 {
 /* performing CREATE */
     if (rl2_create_dbms_coverage
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
-	 tile_width, tile_height, srid, x_res, y_res) != RL2_OK)
+	 tile_width, tile_height, srid, x_res, y_res, no_data) != RL2_OK)
 	return 0;
 
     fprintf (stderr, "\rRaster Coverage \"%s\" successfully created\n",
@@ -2378,7 +2380,7 @@ static int
 check_create_args (const char *db_path, const char *coverage, int sample,
 		   int pixel, int num_bands, int compression, int *quality,
 		   int tile_width, int tile_height, int srid, double x_res,
-		   double y_res)
+		   double y_res, rl2PixelPtr pxl)
 {
 /* checking/printing CREATE args */
     int err = 0;
@@ -2471,9 +2473,94 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  break;
       };
     if (num_bands == RL2_BANDS_UNKNOWN)
-	fprintf (stderr, "*** ERROR *** unkown number of Bands\n");
+	fprintf (stderr, "*** ERROR *** unknown number of Bands\n");
     else
 	fprintf (stderr, "      Number of Bands: %d\n", num_bands);
+    if (pxl != NULL)
+      {
+	  unsigned char xsample;
+	  unsigned char xpixel;
+	  unsigned char xbands;
+	  int band_idx;
+	  if (rl2_get_pixel_type (pxl, &xsample, &xpixel, &xbands) != RL2_OK)
+	      fprintf (stderr, "*** ERROR *** invalid NO-DATA pixel\n");
+	  else
+	    {
+		fprintf (stderr, "        NO-DATA pixel: ");
+		for (band_idx = 0; band_idx < xbands; band_idx++)
+		  {
+		      char int8_value;
+		      unsigned char uint8_value;
+		      short int16_value;
+		      unsigned short uint16_value;
+		      int int32_value;
+		      unsigned int uint32_value;
+		      float flt_value;
+		      double dbl_value;
+		      char *dummy;
+		      switch (xsample)
+			{
+			case RL2_SAMPLE_1_BIT:
+			    rl2_get_pixel_sample_1bit (pxl, &uint8_value);
+			    fprintf (stderr, "%u", uint8_value);
+			    break;
+			case RL2_SAMPLE_2_BIT:
+			    rl2_get_pixel_sample_2bit (pxl, &uint8_value);
+			    fprintf (stderr, "%u", uint8_value);
+			    break;
+			case RL2_SAMPLE_4_BIT:
+			    rl2_get_pixel_sample_4bit (pxl, &uint8_value);
+			    fprintf (stderr, "%u", uint8_value);
+			    break;
+			case RL2_SAMPLE_INT8:
+			    rl2_get_pixel_sample_int8 (pxl, &int8_value);
+			    fprintf (stderr, "%d", int8_value);
+			    break;
+			case RL2_SAMPLE_UINT8:
+			    rl2_get_pixel_sample_uint8 (pxl, band_idx,
+							&uint8_value);
+			    if (band_idx > 0)
+				fprintf (stderr, ",%u", uint8_value);
+			    else
+				fprintf (stderr, "%u", uint8_value);
+			    break;
+			case RL2_SAMPLE_INT16:
+			    rl2_get_pixel_sample_int16 (pxl, &int16_value);
+			    fprintf (stderr, "%d", int16_value);
+			    break;
+			case RL2_SAMPLE_UINT16:
+			    rl2_get_pixel_sample_uint16 (pxl, band_idx,
+							 &uint16_value);
+			    if (band_idx > 0)
+				fprintf (stderr, ",%u", uint16_value);
+			    else
+				fprintf (stderr, "%u", uint16_value);
+			    break;
+			case RL2_SAMPLE_INT32:
+			    rl2_get_pixel_sample_int32 (pxl, &int32_value);
+			    fprintf (stderr, "%u", uint32_value);
+			    break;
+			case RL2_SAMPLE_UINT32:
+			    rl2_get_pixel_sample_uint32 (pxl, &uint32_value);
+			    fprintf (stderr, "%u", uint32_value);
+			    break;
+			case RL2_SAMPLE_FLOAT:
+			    rl2_get_pixel_sample_float (pxl, &flt_value);
+			    dummy = formatFloat (flt_value);
+			    fprintf (stderr, "%s", dummy);
+			    free (dummy);
+			    break;
+			case RL2_SAMPLE_DOUBLE:
+			    rl2_get_pixel_sample_double (pxl, &dbl_value);
+			    dummy = formatFloat (dbl_value);
+			    fprintf (stderr, "%s", dummy);
+			    free (dummy);
+			    break;
+			};
+		  }
+		fprintf (stderr, "\n");
+	    }
+      }
     switch (compression)
       {
       case RL2_COMPRESSION_NONE:
@@ -3068,6 +3155,210 @@ check_check_args (const char *db_path, const char *coverage,
     return err;
 }
 
+static char *
+get_num (const char *start, const char *end)
+{
+/* extracting a token */
+    char *buf;
+    int len = end - start;
+    if (len <= 0)
+	return NULL;
+    buf = malloc (len + 1);
+    memcpy (buf, start, len);
+    *(buf + len) = '\0';
+    return buf;
+}
+
+static rl2PixelPtr
+parse_no_data (const char *in, unsigned char sample_type,
+	       unsigned char pixel_type, unsigned char num_bands)
+{
+/* attempting to parse a NO-DATA pixel value */
+    int band = 0;
+    char *num = NULL;
+    const char *p;
+    const char *start;
+    const char *end;
+    char int8_value;
+    unsigned char uint8_value;
+    short int16_value;
+    unsigned short uint16_value;
+    int int32_value;
+    unsigned int uint32_value;
+    float flt_value;
+    double dbl_value;
+    rl2PixelPtr pixel = NULL;
+
+    switch (pixel_type)
+      {
+      case RL2_PIXEL_MONOCHROME:
+	  num_bands = 1;
+	  break;
+      case RL2_PIXEL_PALETTE:
+	  num_bands = 1;
+	  break;
+      case RL2_PIXEL_GRAYSCALE:
+	  num_bands = 1;
+	  break;
+      case RL2_PIXEL_RGB:
+	  num_bands = 3;
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  num_bands = 1;
+	  break;
+      };
+    pixel = rl2_create_pixel (sample_type, pixel_type, num_bands);
+    if (pixel == NULL)
+	return NULL;
+
+    start = in;
+    p = in;
+    while (1)
+      {
+	  if (*p == ',' || *p == '\0')
+	    {
+		end = p;
+		switch (sample_type)
+		  {
+		  case RL2_SAMPLE_1_BIT:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      uint8_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_1bit (pixel, int8_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_2_BIT:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      uint8_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_2bit (pixel, int8_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_4_BIT:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      uint8_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_4bit (pixel, int8_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_INT8:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      int8_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_int8 (pixel, int8_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_UINT8:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      uint8_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_uint8 (pixel, band, uint8_value)
+			  != RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_INT16:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      int16_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_int16 (pixel, int16_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_UINT16:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      uint16_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_uint16
+			  (pixel, band, uint16_value) != RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_INT32:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      int32_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_int32 (pixel, int32_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_UINT32:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      uint32_value = atoi (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_uint32 (pixel, uint32_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_FLOAT:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      flt_value = atof (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_float (pixel, flt_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  case RL2_SAMPLE_DOUBLE:
+		      num = get_num (start, end);
+		      if (num == NULL)
+			  goto error;
+		      dbl_value = atof (num);
+		      free (num);
+		      num = NULL;
+		      if (rl2_set_pixel_sample_double (pixel, dbl_value) !=
+			  RL2_OK)
+			  goto error;
+		      break;
+		  };
+		if (*p == '\0')
+		    break;
+		start = p + 1;
+		band++;
+	    }
+	  p++;
+      }
+    return pixel;
+
+  error:
+    if (num != NULL)
+	free (num);
+    if (pixel != NULL)
+	rl2_destroy_pixel (pixel);
+    return NULL;
+}
+
 static void
 do_help (int mode)
 {
@@ -3107,6 +3398,8 @@ do_help (int mode)
 		   "-xres or --x-resol    number    pixel resolution(X specific)\n");
 	  fprintf (stderr,
 		   "-yres or --y-resol    number    pixel resolution(Y specific)\n\n");
+	  fprintf (stderr,
+		   "-nd or --no-data      pixel     NO-DATA pixel value\n\n");
 	  fprintf (stderr, "SampleType Keywords:\n");
 	  fprintf (stderr, "----------------------------------\n");
 	  fprintf (stderr,
@@ -3338,6 +3631,8 @@ main (int argc, char *argv[])
     unsigned short width = 0;
     unsigned short height = 0;
     int srid = -1;
+    const char *no_data_str = NULL;
+    rl2PixelPtr no_data = NULL;
     int worldfile = 0;
     int pyramidize = 0;
     int force_pyramid = 0;
@@ -3504,6 +3799,9 @@ main (int argc, char *argv[])
 		      break;
 		  case ARG_CY:
 		      cy = atof (argv[i]);
+		      break;
+		  case ARG_NO_DATA:
+		      no_data_str = argv[i];
 		      break;
 		  case ARG_IMG_WIDTH:
 		      width = atoi (argv[i]);
@@ -3681,6 +3979,12 @@ main (int argc, char *argv[])
 		next_arg = ARG_CY;
 		continue;
 	    }
+	  if (strcmp (argv[i], "-nd") == 0
+	      || strcasecmp (argv[i], "--no-data") == 0)
+	    {
+		next_arg = ARG_NO_DATA;
+		continue;
+	    }
 	  if (strcmp (argv[i], "-f") == 0
 	      || strcasecmp (argv[i], "--force") == 0)
 	    {
@@ -3732,10 +4036,21 @@ main (int argc, char *argv[])
     switch (mode)
       {
       case ARG_MODE_CREATE:
+	  if (no_data_str != NULL)
+	    {
+		no_data = parse_no_data (no_data_str, sample, pixel, num_bands);
+		if (no_data == NULL)
+		  {
+		      fprintf (stderr,
+			       "Unable to parse the NO-DATA pixel !!!\n");
+		      error = 1;
+		      break;
+		  }
+	    }
 	  error =
 	      check_create_args (db_path, coverage, sample, pixel, num_bands,
 				 compression, &quality, tile_width, tile_height,
-				 srid, x_res, y_res);
+				 srid, x_res, y_res, no_data);
 	  break;
       case ARG_MODE_DROP:
 	  error = check_drop_args (db_path, coverage);
@@ -3850,7 +4165,7 @@ main (int argc, char *argv[])
 	  ret =
 	      exec_create (handle, coverage, sample, pixel,
 			   num_bands, compression, quality, tile_width,
-			   tile_height, srid, x_res, y_res);
+			   tile_height, srid, x_res, y_res, no_data);
 	  break;
       case ARG_MODE_DROP:
 	  ret = exec_drop (handle, coverage);

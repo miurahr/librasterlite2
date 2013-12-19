@@ -116,6 +116,10 @@ extern "C"
 #define RL2_BAND_STATS_END		0x3a
 #define RL2_HISTOGRAM_START		0x47
 #define RL2_HISTOGRAM_END		0x4a
+#define RL2_NO_DATA_START		0x03
+#define RL2_NO_DATA_END			0x23
+#define RL2_SAMPLE_START		0x06
+#define RL2_SAMPLE_END			0x26
 
 /* internal ColorSpace forced conversions */
 #define RL2_CONVERT_NO			0x00

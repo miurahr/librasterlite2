@@ -114,6 +114,95 @@ exportU16 (unsigned char *p, unsigned short value, int little_endian,
       }
 }
 
+static short
+import16 (const unsigned char *p, int little_endian, int little_endian_arch)
+{
+/* fetches a 16bit int from BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[2];
+	short int_value;
+    } convert;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 1);
+		convert.byte[1] = *(p + 0);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 1);
+		convert.byte[1] = *(p + 0);
+	    }
+      }
+    return convert.int_value;
+}
+
+static void
+export16 (unsigned char *p, short value, int little_endian,
+	  int little_endian_arch)
+{
+/* stores a 16bit int into a BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[2];
+	short int_value;
+    } convert;
+    convert.int_value = value;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 1) = convert.byte[0];
+		*(p + 0) = convert.byte[1];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 1) = convert.byte[0];
+		*(p + 0) = convert.byte[1];
+	    }
+      }
+}
+
 static unsigned short
 importU16 (const unsigned char *p, int little_endian, int little_endian_arch)
 {
@@ -261,6 +350,216 @@ importU32 (const unsigned char *p, int little_endian, int little_endian_arch)
 	    }
       }
     return convert.int_value;
+}
+
+static void
+export32 (unsigned char *p, int value, int little_endian,
+	  int little_endian_arch)
+{
+/* stores a 32bit int into a BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[4];
+	int int_value;
+    } convert;
+    convert.int_value = value;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 3) = convert.byte[0];
+		*(p + 2) = convert.byte[1];
+		*(p + 1) = convert.byte[2];
+		*(p + 0) = convert.byte[3];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 3) = convert.byte[0];
+		*(p + 2) = convert.byte[1];
+		*(p + 1) = convert.byte[2];
+		*(p + 0) = convert.byte[3];
+	    }
+      }
+}
+
+static int
+import32 (const unsigned char *p, int little_endian, int little_endian_arch)
+{
+/* fetches a 32bit int from BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[4];
+	int int_value;
+    } convert;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 3);
+		convert.byte[1] = *(p + 2);
+		convert.byte[2] = *(p + 1);
+		convert.byte[3] = *(p + 0);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+		convert.byte[2] = *(p + 2);
+		convert.byte[3] = *(p + 3);
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+		convert.byte[2] = *(p + 2);
+		convert.byte[3] = *(p + 3);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 3);
+		convert.byte[1] = *(p + 2);
+		convert.byte[2] = *(p + 1);
+		convert.byte[3] = *(p + 0);
+	    }
+      }
+    return convert.int_value;
+}
+
+static void
+exportFloat (unsigned char *p, float value, int little_endian,
+	     int little_endian_arch)
+{
+/* stores a 32bit Float into a BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[4];
+	float flt_value;
+    } convert;
+    convert.flt_value = value;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 3) = convert.byte[0];
+		*(p + 2) = convert.byte[1];
+		*(p + 1) = convert.byte[2];
+		*(p + 0) = convert.byte[3];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 3) = convert.byte[0];
+		*(p + 2) = convert.byte[1];
+		*(p + 1) = convert.byte[2];
+		*(p + 0) = convert.byte[3];
+	    }
+      }
+}
+
+static float
+importFloat (const unsigned char *p, int little_endian, int little_endian_arch)
+{
+/* fetches a 32bit Float from BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[4];
+	float flt_value;
+    } convert;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 3);
+		convert.byte[1] = *(p + 2);
+		convert.byte[2] = *(p + 1);
+		convert.byte[3] = *(p + 0);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+		convert.byte[2] = *(p + 2);
+		convert.byte[3] = *(p + 3);
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		convert.byte[0] = *(p + 0);
+		convert.byte[1] = *(p + 1);
+		convert.byte[2] = *(p + 2);
+		convert.byte[3] = *(p + 3);
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		convert.byte[0] = *(p + 3);
+		convert.byte[1] = *(p + 2);
+		convert.byte[2] = *(p + 1);
+		convert.byte[3] = *(p + 0);
+	    }
+      }
+    return convert.flt_value;
 }
 
 static void
@@ -2749,38 +3048,6 @@ build_pixel_buffer_2 (int swap, unsigned short *xwidth, unsigned short *xheight,
     return 1;
 }
 
-static int
-build_mask_buffer_2 (unsigned short *xwidth, unsigned short *xheight,
-		     unsigned short odd_rows,
-		     const void *mask_odd, void **mask, int *mask_sz)
-{
-/* decoding the mask - scale 1:2 */
-    unsigned short width = 0;
-    unsigned short height = 0;
-    int row;
-    int col;
-    void *buf;
-    int buf_size;
-
-    for (row = 0; row < *xheight; row += 2)
-	height++;
-    for (col = 0; col < *xwidth; col += 2)
-	width++;
-
-    buf_size = width * height;
-    buf = malloc (buf_size);
-    if (buf == NULL)
-	return 0;
-
-    do_copy2_uint8 (mask_odd, buf, *xwidth, odd_rows, 1);
-
-    *xwidth = width;
-    *xheight = height;
-    *mask = buf;
-    *mask_sz = buf_size;
-    return 1;
-}
-
 static void
 do_copy4_int8 (const char *p_odd, char *buf, unsigned short width,
 	       unsigned short odd_rows)
@@ -3034,38 +3301,6 @@ build_pixel_buffer_4 (int swap, unsigned short *xwidth, unsigned short *xheight,
     return 1;
 }
 
-static int
-build_mask_buffer_4 (unsigned short *xwidth, unsigned short *xheight,
-		     unsigned short odd_rows,
-		     const void *mask_odd, void **mask, int *mask_sz)
-{
-/* decoding the mask - scale 1:4 */
-    unsigned short width = 0;
-    unsigned short height = 0;
-    int row;
-    int col;
-    void *buf;
-    int buf_size;
-
-    for (row = 0; row < *xheight; row += 4)
-	height++;
-    for (col = 0; col < *xwidth; col += 4)
-	width++;
-
-    buf_size = width * height;
-    buf = malloc (buf_size);
-    if (buf == NULL)
-	return 0;
-
-    do_copy4_uint8 (mask_odd, buf, *xwidth, odd_rows, 1);
-
-    *xwidth = width;
-    *xheight = height;
-    *mask = buf;
-    *mask_sz = buf_size;
-    return 1;
-}
-
 static void
 do_copy8_int8 (const char *p_odd, char *buf, unsigned short width,
 	       unsigned short odd_rows)
@@ -3316,38 +3551,6 @@ build_pixel_buffer_8 (int swap, unsigned short *xwidth, unsigned short *xheight,
     *xheight = height;
     *pixels = buf;
     *pixels_sz = buf_size;
-    return 1;
-}
-
-static int
-build_mask_buffer_8 (unsigned short *xwidth, unsigned short *xheight,
-		     unsigned short odd_rows,
-		     const void *mask_odd, void **mask, int *mask_sz)
-{
-/* decoding the raster - scale 1:8 */
-    unsigned short width = 0;
-    unsigned short height = 0;
-    int row;
-    int col;
-    void *buf;
-    int buf_size;
-
-    for (row = 0; row < *xheight; row += 8)
-	height++;
-    for (col = 0; col < *xwidth; col += 8)
-	width++;
-
-    buf_size = width * height;
-    buf = malloc (buf_size);
-    if (buf == NULL)
-	return 0;
-
-    do_copy8_uint8 (mask_odd, buf, *xwidth, odd_rows, 1);
-
-    *xwidth = width;
-    *xheight = height;
-    *mask = buf;
-    *mask_sz = buf_size;
     return 1;
 }
 
@@ -3748,47 +3951,6 @@ build_pixel_buffer (int swap, int scale, unsigned short *xwidth,
 
     *pixels = buf;
     *pixels_sz = buf_size;
-    return 1;
-}
-
-static int
-build_mask_buffer (int scale, unsigned short *xwidth,
-		   unsigned short *xheight, unsigned short odd_rows,
-		   const void *mask_odd, unsigned short even_rows,
-		   const void *mask_even, void **mask, int *mask_sz)
-{
-/* decoding the transparency mask */
-    unsigned short width = *xwidth;
-    unsigned short height = *xheight;
-    void *buf;
-    int buf_size;
-
-    if (mask_odd == NULL)
-      {
-	  *mask = NULL;
-	  *mask_sz = 0;
-	  return 1;
-      }
-
-    if (scale == RL2_SCALE_2)
-	return build_mask_buffer_2 (xwidth, xheight, odd_rows,
-				    mask_odd, mask, mask_sz);
-    if (scale == RL2_SCALE_4)
-	return build_mask_buffer_4 (xwidth, xheight, odd_rows,
-				    mask_odd, mask, mask_sz);
-    if (scale == RL2_SCALE_8)
-	return build_mask_buffer_8 (xwidth, xheight, odd_rows,
-				    mask_odd, mask, mask_sz);
-
-    buf_size = width * height;
-    buf = malloc (buf_size);
-    if (buf == NULL)
-	return 0;
-
-    do_copy_uint8 (mask_odd, mask_even, buf, width, odd_rows, even_rows, 1);
-
-    *mask = buf;
-    *mask_sz = buf_size;
     return 1;
 }
 
@@ -5566,5 +5728,351 @@ rl2_deserialize_dbms_raster_statistics (const unsigned char *blob,
   error:
     if (stats != NULL)
 	rl2_destroy_raster_statistics (stats);
+    return NULL;
+}
+
+RL2_DECLARE int
+rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
+			    int *blob_size)
+{
+/* creating a NO-DATA (DBMS serialized format) */
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) pixel;
+    rl2PrivSamplePtr band;
+    int sz = 11;
+    uLong crc;
+    int ib;
+    int endian_arch = endianArch ();
+    unsigned char *p;
+    unsigned char *ptr;
+
+    *blob = NULL;
+    *blob_size = 0;
+    if (pxl == NULL)
+	return RL2_ERROR;
+
+    switch (pxl->sampleType)
+      {
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_INT8:
+	  sz += 3;
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  sz += pxl->nBands + 2;
+	  break;
+      case RL2_SAMPLE_INT16:
+	  sz += 4;
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  sz += (pxl->nBands * 2) + 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  sz += 6;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  sz += 10;
+	  break;
+      default:
+	  return RL2_ERROR;
+      };
+    p = malloc (sz);
+    if (p == NULL)
+	return RL2_ERROR;
+    ptr = p;
+
+    *ptr++ = 0x00;		/* start marker */
+    *ptr++ = RL2_NO_DATA_START;
+    *ptr++ = RL2_LITTLE_ENDIAN;
+    *ptr++ = pxl->sampleType;
+    *ptr++ = pxl->pixelType;
+    *ptr++ = pxl->nBands;
+    for (ib = 0; ib < pxl->nBands; ib++)
+      {
+	  *ptr++ = RL2_SAMPLE_START;
+	  band = pxl->Samples + ib;
+	  switch (pxl->sampleType)
+	    {
+	    case RL2_SAMPLE_INT8:
+		*ptr++ = (unsigned char) (band->int8);
+		break;
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_UINT8:
+		*ptr++ = band->uint8;
+		break;
+	    case RL2_SAMPLE_INT16:
+		export16 (ptr, band->int16, 1, endian_arch);
+		ptr += 2;
+		break;
+	    case RL2_SAMPLE_UINT16:
+		exportU16 (ptr, band->uint16, 1, endian_arch);
+		ptr += 2;
+		break;
+	    case RL2_SAMPLE_INT32:
+		export32 (ptr, band->int32, 1, endian_arch);
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_UINT32:
+		exportU32 (ptr, band->uint32, 1, endian_arch);
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		exportFloat (ptr, band->float32, 1, endian_arch);
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		exportDouble (ptr, band->float64, 1, endian_arch);
+		ptr += 8;
+		break;
+	    };
+	  *ptr++ = RL2_SAMPLE_END;
+      }
+/* computing the CRC32 */
+    crc = crc32 (0L, p, ptr - p);
+    exportU32 (ptr, crc, 1, endian_arch);	/* the NO-DATA own CRC */
+    ptr += 4;
+    *ptr++ = RL2_NO_DATA_END;
+    *blob = p;
+    *blob_size = sz;
+    return RL2_OK;
+}
+
+static int
+check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
+{
+/* checking a NO-DATA pixel value serialized object from validity */
+    const unsigned char *ptr = blob;
+    int endian;
+    uLong crc;
+    uLong oldCrc;
+    int ib;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int endian_arch = endianArch ();
+
+    if (blob == NULL)
+	return 0;
+    if (blob_size < 12)
+	return 0;
+    if (*ptr++ != 0x00)
+	return 0;		/* invalid start signature */
+    if (*ptr++ != RL2_NO_DATA_START)
+	return 0;		/* invalid start signature */
+    endian = *ptr++;
+    if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
+	;
+    else
+	return 0;		/* invalid endiannes */
+    sample_type = *ptr++;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_INT8:
+      case RL2_SAMPLE_UINT8:
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+      case RL2_SAMPLE_DOUBLE:
+	  break;
+      default:
+	  return 0;
+      };
+    pixel_type = *ptr++;
+    switch (pixel_type)
+      {
+      case RL2_PIXEL_MONOCHROME:
+      case RL2_PIXEL_PALETTE:
+      case RL2_PIXEL_GRAYSCALE:
+      case RL2_PIXEL_RGB:
+      case RL2_PIXEL_MULTIBAND:
+      case RL2_PIXEL_DATAGRID:
+	  break;
+      default:
+	  return 0;
+      };
+    num_bands = *ptr++;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_1_BIT:
+	  if ((pixel_type == RL2_PIXEL_PALETTE
+	       || pixel_type == RL2_PIXEL_GRAYSCALE
+	       || pixel_type == RL2_PIXEL_MONOCHROME) && num_bands == 1)
+	      ;
+	  else
+	      return 0;
+	  break;
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+	  if ((pixel_type == RL2_PIXEL_PALETTE
+	       || pixel_type == RL2_PIXEL_GRAYSCALE) && num_bands == 1)
+	      ;
+	  else
+	      return 0;
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  if ((pixel_type == RL2_PIXEL_PALETTE
+	       || pixel_type == RL2_PIXEL_GRAYSCALE
+	       || pixel_type == RL2_PIXEL_DATAGRID) && num_bands == 1)
+	      ;
+	  else if (pixel_type == RL2_PIXEL_RGB && num_bands == 3)
+	      ;
+	  else if (pixel_type == RL2_PIXEL_MULTIBAND && num_bands > 1)
+	      ;
+	  else
+	      return 0;
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  if ((pixel_type == RL2_PIXEL_GRAYSCALE
+	       || pixel_type == RL2_PIXEL_DATAGRID) && num_bands == 1)
+	      ;
+	  else if (pixel_type == RL2_PIXEL_RGB && num_bands == 3)
+	      ;
+	  else if (pixel_type == RL2_PIXEL_MULTIBAND && num_bands > 1)
+	      ;
+	  else
+	      return 0;
+	  break;
+      case RL2_SAMPLE_INT8:
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+      case RL2_SAMPLE_DOUBLE:
+	  if (pixel_type == RL2_PIXEL_DATAGRID && num_bands == 1)
+	      ;
+	  else
+	      return 0;
+	  break;
+      default:
+	  return 0;
+      };
+
+    for (ib = 0; ib < num_bands; ib++)
+      {
+	  if (*ptr++ != RL2_SAMPLE_START)
+	      return 0;
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_INT8:
+	    case RL2_SAMPLE_UINT8:
+		ptr++;
+		break;
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+		ptr += 2;
+		break;
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+	    case RL2_SAMPLE_FLOAT:
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		ptr += 8;
+		break;
+		break;
+	    };
+	  if (((ptr - blob) + 6) > blob_size)
+	      return 0;
+	  if (*ptr++ != RL2_SAMPLE_END)
+	      return 0;
+      }
+/* computing the CRC32 */
+    crc = crc32 (0L, blob, ptr - blob);
+    oldCrc = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    if (crc != oldCrc)
+	return 0;
+    if (*ptr != RL2_NO_DATA_END)
+	return 0;		/* invalid end signature */
+
+    return 1;
+}
+
+RL2_DECLARE rl2PixelPtr
+rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size)
+{
+/* attempting to deserialize a NO-DATA pixel value from DBMS binary format */
+    rl2PixelPtr pixel = NULL;
+    rl2PrivPixelPtr pxl;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int ib;
+    const unsigned char *ptr = blob;
+    int endian;
+    int endian_arch = endianArch ();
+    if (!check_raster_serialized_no_data (blob, blob_size))
+	return NULL;
+
+    ptr = blob + 2;
+    endian = *ptr++;
+    sample_type = *ptr++;
+    pixel_type = *ptr++;
+    num_bands = *ptr++;
+    pixel = rl2_create_pixel (sample_type, pixel_type, num_bands);
+    if (pixel == NULL)
+	goto error;
+    pxl = (rl2PrivPixelPtr) pixel;
+    for (ib = 0; ib < num_bands; ib++)
+      {
+	  rl2PrivSamplePtr band = pxl->Samples + ib;
+	  ptr++;		/* skipping SAMPLE START marker */
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_INT8:
+		band->int8 = *((char *) ptr);
+		ptr++;
+		break;
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_UINT8:
+		band->uint8 = *ptr;
+		ptr++;
+		break;
+	    case RL2_SAMPLE_INT16:
+		band->int16 = import16 (ptr, endian, endian_arch);
+		ptr += 2;
+		break;
+	    case RL2_SAMPLE_UINT16:
+		band->uint16 = importU16 (ptr, endian, endian_arch);
+		ptr += 2;
+		break;
+	    case RL2_SAMPLE_INT32:
+		band->int32 = import32 (ptr, endian, endian_arch);
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_UINT32:
+		band->uint32 = importU32 (ptr, endian, endian_arch);
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		band->float32 = importFloat (ptr, endian, endian_arch);
+		ptr += 4;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		band->float64 = importDouble (ptr, endian, endian_arch);
+		ptr += 8;
+		break;
+	    };
+	  ptr++;		/* skipping SAMPLE END marker */
+      }
+    return pixel;
+
+  error:
+    if (pixel != NULL)
+	rl2_destroy_pixel (pixel);
     return NULL;
 }

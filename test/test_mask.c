@@ -79,7 +79,7 @@ test_rgb_jpeg (const char *path, const char *mask_path)
     mask_img = rl2_section_from_png (mask_path);
     if (mask_img == NULL)
       {
-	  fprintf (stderr, "Unable to read: %s\n", mask_path);
+	  fprintf (stderr, "X Unable to read: %s\n", mask_path);
 	  return 0;
       }
 

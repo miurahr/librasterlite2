@@ -46,7 +46,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
-#include <sqlite3.h>
+#include "rasterlite2/sqlite.h"
 
 #include "config.h"
 

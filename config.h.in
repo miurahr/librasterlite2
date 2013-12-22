@@ -115,6 +115,9 @@
    */
 #undef LT_OBJDIR
 
+/* Must be defined in order to disable debug mode. */
+#undef NDEBUG
+
 /* Name of package */
 #undef PACKAGE
 
@@ -139,6 +142,9 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* Should contain a text-string describing the intended target CPU */
+#undef TARGET_CPU
+
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
 
@@ -147,6 +153,15 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* Must be =64 in order to enable huge-file support. */
+#undef _FILE_OFFSET_BITS
+
+/* Must be defined in order to enable huge-file support. */
+#undef _LARGEFILE_SOURCE
+
+/* Must be defined in order to enable huge-file support. */
+#undef _LARGE_FILE
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const

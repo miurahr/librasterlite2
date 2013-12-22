@@ -48,6 +48,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "config.h"
 
+#ifdef LOADABLE_EXTENSION
+#include "rasterlite2/sqlite.h"
+#endif
+
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2_private.h"
 

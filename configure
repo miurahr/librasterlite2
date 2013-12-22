@@ -634,6 +634,8 @@ ac_includes_default="\
 ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
+MINGW_FALSE
+MINGW_TRUE
 LIBXML2_LIBS
 LIBXML2_CFLAGS
 LIBCURL_LIBS
@@ -3064,6 +3066,23 @@ fi
 
 
 ac_config_headers="$ac_config_headers config.h"
+
+
+# enabling huge-file support (64 bit file pointers)
+
+$as_echo "#define _LARGE_FILE 1" >>confdefs.h
+
+
+$as_echo "#define _FILE_OFFSET_BITS 64" >>confdefs.h
+
+
+$as_echo "#define _LARGEFILE_SOURCE 1" >>confdefs.h
+
+
+# disablibg debug support
+
+$as_echo "#define NDEBUG 1" >>confdefs.h
+
 
 
 
@@ -17147,6 +17166,12 @@ fi
 ac_config_files="$ac_config_files Makefile headers/Makefile src/Makefile test/Makefile tools/Makefile examples/Makefile Doxyfile rasterlite2.pc"
 
 
+# exporting the TARGET_CPU string
+rl2_cpu=`$CC -dumpmachine`
+cat >>confdefs.h <<_ACEOF
+#define TARGET_CPU "$rl2_cpu"
+_ACEOF
+
 
 # Checks for installed libraries
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for inflateInit_ in -lz" >&5
@@ -18023,6 +18048,16 @@ fi
 
 
 
+# Checking for MinGW
+ if test "$target_alias" = "mingw32"; then
+  MINGW_TRUE=
+  MINGW_FALSE='#'
+else
+  MINGW_TRUE='#'
+  MINGW_FALSE=
+fi
+
+
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
 # tests run on this system so they can be shared between configure
@@ -18165,6 +18200,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${am__fastdepCC_TRUE}" && test -z "${am__fastdepCC_FALSE}"; then
   as_fn_error $? "conditional \"am__fastdepCC\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${MINGW_TRUE}" && test -z "${MINGW_FALSE}"; then
+  as_fn_error $? "conditional \"MINGW\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 

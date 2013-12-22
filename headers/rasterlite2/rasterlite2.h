@@ -308,6 +308,37 @@ extern "C"
     RL2_DECLARE void rl2_free (void *ptr);
 
 /**
+ Return the target CPU name.
+
+ \return the target CPU string.
+ */
+    RL2_DECLARE const char *rl2_target_cpu (void);
+
+/**
+ Return the current library version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_version (void);
+
+#ifdef LOADABLE_EXTENSION
+    RL2_DECLARE int
+	sqlite3_rasterlite_init (sqlite3 * db, char **pzErrMsg,
+				 const sqlite3_api_routines * pApi);
+#endif
+
+/**
+ Initializes the library
+ 
+ \param db_handle handle to the current SQLite connection
+ \param verbose if TRUE a short start-up message is shown on stderr
+
+ \note you are always expected to explicitly call this function
+ before attempting to call any RasterLite-2 own function.
+ */
+    RL2_DECLARE void rl2_init (sqlite3 * db_handle, int verbose);
+
+/**
  Allocates and initializes a new Pixel object
 
  \param sample_type one of RL2_SAMPLE_1_BIT, RL2_SAMPLE_2_BIT, RL2_SAMPLE_4_BIT,
@@ -991,9 +1022,9 @@ extern "C"
  Retrieving the Compression Type from a Coverage Object
 
  \param cvg pointer to the Coverage Object.
- \param num_bands on completion the variable referenced by this
+ \param compression on completion the variable referenced by this
  pointer will contain the Compression Type.
- \param num_bands on completion the variable referenced by this
+ \param quality on completion the variable referenced by this
  pointer will contain the Compression Quality.
  
  \return  RL2_OK on success: RL2_ERROR on failure.
@@ -1281,6 +1312,7 @@ extern "C"
  \param scn pointer to the Section Object.
  \param compression on completion the variable referenced by this
  pointer will contain the section's Compression Type.
+ \param rst pointer to the Raster Object.
  
  \return  RL2_OK on success: RL2_ERROR on failure.
 
@@ -1440,7 +1472,7 @@ extern "C"
 /**
  Retrieving the Sample Type from a Raster Object
 
- \param cvg pointer to the Raster Object.
+ \param rst pointer to the Raster Object.
  \param sample_type on completion the variable referenced by this
  pointer will contain the Sampe Type.
  \param pixel_type on completion the variable referenced by this

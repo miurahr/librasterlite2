@@ -11,6 +11,24 @@ AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE
 AM_CONFIG_HEADER(config.h)
 
+# enabling huge-file support (64 bit file pointers)
+AH_TEMPLATE([_LARGE_FILE],
+            [Must be defined in order to enable huge-file support.])
+AC_DEFINE(_LARGE_FILE)
+AH_TEMPLATE([_FILE_OFFSET_BITS],
+            [Must be =64 in order to enable huge-file support.])
+AC_DEFINE(_FILE_OFFSET_BITS, 64)
+AH_TEMPLATE([_LARGEFILE_SOURCE],
+            [Must be defined in order to enable huge-file support.])
+AC_DEFINE(_LARGEFILE_SOURCE)
+
+# disablibg debug support
+AH_TEMPLATE([NDEBUG],
+            [Must be defined in order to disable debug mode.])
+AC_DEFINE(NDEBUG)
+AH_TEMPLATE([TARGET_CPU],
+            [Should contain a text-string describing the intended target CPU])
+
 
 # Checks for header files.
 AC_CHECK_HEADERS(stdlib.h,, [AC_MSG_ERROR([cannot find stdlib.h, bailing out])])
@@ -89,6 +107,9 @@ AC_CONFIG_FILES([Makefile \
 		Doxyfile \
 		rasterlite2.pc])
 
+# exporting the TARGET_CPU string
+rl2_cpu=`$CC -dumpmachine`
+AC_DEFINE_UNQUOTED([TARGET_CPU], ["$rl2_cpu"])
 
 # Checks for installed libraries
 AC_CHECK_LIB(z,inflateInit_,,AC_MSG_ERROR(['libz' is required but it doesn't seems to be installed on this system.]),-lm)
@@ -124,5 +145,8 @@ AC_SUBST(LIBCURL_LIBS)
 PKG_CHECK_MODULES([LIBXML2], [libxml-2.0], , AC_MSG_ERROR(['libxml2' is required but it doesn't seem to be installed on this system.]))
 AC_SUBST(LIBXML2_CFLAGS)
 AC_SUBST(LIBXML2_LIBS)
+
+# Checking for MinGW
+AM_CONDITIONAL([MINGW], [test "$target_alias" = "mingw32"])
 
 AC_OUTPUT

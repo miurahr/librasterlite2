@@ -48,6 +48,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "config.h"
 
+#ifdef LOADABLE_EXTENSION
+#include "rasterlite2/sqlite.h"
+#endif
+
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2_private.h"
 
@@ -104,6 +108,8 @@ is_valid_compression (unsigned char compression)
       case RL2_COMPRESSION_JPEG:
       case RL2_COMPRESSION_LOSSY_WEBP:
       case RL2_COMPRESSION_LOSSLESS_WEBP:
+      case RL2_COMPRESSION_CCITTFAX3:
+      case RL2_COMPRESSION_CCITTFAX4:
 	  return 1;
       };
     return 0;

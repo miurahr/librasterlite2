@@ -2010,20 +2010,10 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				RL2_CONVERT_RGB_TO_GRAYSCALE)
 			      {
 				  /* forced conversion: RGB -> GRAYSCALE */
-				  double gray;
-				  if (origin->photometric == 0)
-				    {
-					/* WhiteIsZero - inverting the grayscale */
-					gray =
-					    ((double) (255 - red) * 0.2126) +
-					    ((double) (255 - green) * 0.7152) +
-					    ((double) (255 - blue) * 0.0722);
-				    }
-				  else
-				      gray =
-					  ((double) red * 0.2126) +
-					  ((double) green * 0.7152) +
-					  ((double) blue * 0.0722);
+				  double gray =
+				      ((double) red * 0.2126) +
+				      ((double) green * 0.7152) +
+				      ((double) blue * 0.0722);
 				  *p_out++ = (unsigned char) gray;
 			      }
 			    else if (origin->forced_conversion ==
@@ -2046,13 +2036,7 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				     RL2_CONVERT_PALETTE_TO_GRAYSCALE)
 			      {
 				  /* forced conversion: PALETTE -> GRAYSCALE */
-				  index = red;
-				  if (origin->photometric == 0)
-				    {
-					/* WhiteIsZero - inverting the grayscale */
-					index = 255 - red;
-				    }
-				  *p_out++ = index;
+				  *p_out++ = red;
 			      }
 			    else if (pixel_type == RL2_PIXEL_PALETTE)
 			      {
@@ -2066,29 +2050,15 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 			    else if (pixel_type == RL2_PIXEL_MONOCHROME)
 			      {
 				  /* MONOCHROME  image */
-				  index = red;
-				  if (index != 0)
-				      index = 1;
-				  if (origin->photometric == 1)
-				    {
-					/* BlackIsZero - inverting black and white indexes */
-					if (index == 0)
-					    index = 1;
-					else
-					    index = 0;
-				    }
-				  *p_out++ = index;
+				  if (red == 0)
+				      *p_out++ = 1;
+				  else
+				      *p_out++ = 0;
 			      }
 			    else if (pixel_type == RL2_PIXEL_GRAYSCALE)
 			      {
 				  /* GRAYSCALE  image */
-				  index = red;
-				  if (origin->photometric == 0)
-				    {
-					/* WhiteIsZero - inverting the grayscale */
-					index = 255 - red;
-				    }
-				  *p_out++ = index;
+				  *p_out++ = red;
 			      }
 			    else
 			      {
@@ -2182,20 +2152,10 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 			  RL2_CONVERT_RGB_TO_GRAYSCALE)
 			{
 			    /* forced conversion: RGB -> GRAYSCALE */
-			    double gray;
-			    if (origin->photometric == 0)
-			      {
-				  /* WhiteIsZero - inverting the grayscale */
-				  gray =
-				      ((double) (255 - red) * 0.2126) +
-				      ((double) (255 - green) * 0.7152) +
-				      ((double) (255 - blue) * 0.0722);
-			      }
-			    else
-				gray =
-				    ((double) red * 0.2126) +
-				    ((double) green * 0.7152) +
-				    ((double) blue * 0.0722);
+			    double gray =
+				((double) red * 0.2126) +
+				((double) green * 0.7152) +
+				((double) blue * 0.0722);
 			    *p_out++ = (unsigned char) gray;
 			}
 		      else if (origin->forced_conversion ==
@@ -2218,13 +2178,7 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 			       RL2_CONVERT_PALETTE_TO_GRAYSCALE)
 			{
 			    /* forced conversion: PALETTE -> GRAYSCALE */
-			    index = red;
-			    if (origin->photometric == 0)
-			      {
-				  /* WhiteIsZero - inverting the grayscale */
-				  index = 255 - red;
-			      }
-			    *p_out++ = index;
+			    *p_out++ = red;
 			}
 		      else if (pixel_type == RL2_PIXEL_PALETTE)
 			{
@@ -2238,29 +2192,15 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 		      else if (pixel_type == RL2_PIXEL_MONOCHROME)
 			{
 			    /* MONOCHROME  image */
-			    index = red;
-			    if (index != 0)
-				index = 1;
-			    if (origin->photometric == 1)
-			      {
-				  /* BlackIsZero - inverting black and white indexes */
-				  if (index == 0)
-				      index = 1;
-				  else
-				      index = 0;
-			      }
-			    *p_out++ = index;
+			    if (red == 0)
+				*p_out++ = 1;
+			    else
+				*p_out++ = 0;
 			}
 		      else if (pixel_type == RL2_PIXEL_GRAYSCALE)
 			{
 			    /* GRAYSCALE  image */
-			    index = red;
-			    if (origin->photometric == 0)
-			      {
-				  /* WhiteIsZero - inverting the grayscale */
-				  index = 255 - red;
-			      }
-			    *p_out++ = index;
+			    *p_out++ = red;
 			}
 		      else
 			{

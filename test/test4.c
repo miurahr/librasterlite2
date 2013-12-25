@@ -721,7 +721,7 @@ main (int argc, char *argv[])
 
     stats =
 	rl2_get_raster_statistics (blob_odd_zip, blob_odd_sz_zip, blob_even_zip,
-				   blob_even_sz_zip, NULL);
+				   blob_even_sz_zip, NULL, NULL);
     if (stats == NULL)
       {
 	  fprintf (stderr, "Unable to get Raster Statistics\n");

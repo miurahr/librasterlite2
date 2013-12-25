@@ -572,7 +572,7 @@ main (int argc, char *argv[])
     plt2 = rl2_clone_palette (rl2_get_raster_palette (raster));
     stats =
 	rl2_get_raster_statistics (blob_odd, blob_odd_sz, blob_even,
-				   blob_even_sz, plt2);
+				   blob_even_sz, plt2, NULL);
     if (stats == NULL)
       {
 	  fprintf (stderr, "Unable to get Raster Statistics\n");

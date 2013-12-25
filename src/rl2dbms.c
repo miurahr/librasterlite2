@@ -265,6 +265,8 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     char *xxcoverage;
     char *xindex;
     char *xxindex;
+    char *xtrigger;
+    char *xxtrigger;
 
 /* creating the SECTIONS table */
     xcoverage = sqlite3_mprintf ("%s_sections", coverage);
@@ -281,13 +283,57 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CREATE TABLE \"%s_sections\" error: %s\n",
+	  fprintf (stderr, "CREATE TABLE \"%s\" error: %s\n",
 		   xxcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  free (xxcoverage);
 	  return 0;
       }
     free (xxcoverage);
+
+/* adding the safeguard Triggers */
+    xtrigger = sqlite3_mprintf ("%s_sections_statistics_insert", coverage);
+    xxtrigger = gaiaDoubleQuotedSql (xtrigger);
+    sqlite3_free (xtrigger);
+    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
+    sql = sqlite3_mprintf ("CREATE TRIGGER \"%s\"\n"
+			   "BEFORE INSERT ON %Q\nFOR EACH ROW BEGIN\n"
+			   "SELECT RAISE(ABORT,'insert on %s violates constraint: "
+			   "invalid statistics')\nWHERE NEW.statistics IS NOT NULL AND "
+			   "IsValidRasterStatistics(%Q, NEW.statistics) <> 1;\nEND",
+			   xxtrigger, xcoverage, xcoverage, coverage);
+    sqlite3_free (xcoverage);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
+		   sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxtrigger);
+	  return 0;
+      }
+    free (xxtrigger);
+    xtrigger = sqlite3_mprintf ("%s_sections_statistics_update", coverage);
+    xxtrigger = gaiaDoubleQuotedSql (xtrigger);
+    sqlite3_free (xtrigger);
+    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
+    sql = sqlite3_mprintf ("CREATE TRIGGER \"%s\"\n"
+			   "BEFORE UPDATE OF 'statistics' ON %Q"
+			   "\nFOR EACH ROW BEGIN\n"
+			   "SELECT RAISE(ABORT, 'update on %s violates constraint: "
+			   "invalid statistics')\nWHERE NEW.statistics IS NOT NULL AND "
+			   "IsValidRasterStatistics(%Q, NEW.statistics) <> 1;\nEND",
+			   xxtrigger, xcoverage, xcoverage, coverage);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
+		   sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxtrigger);
+	  return 0;
+      }
+    free (xxtrigger);
 
 /* creating the SECTIONS geometry */
     xcoverage = sqlite3_mprintf ("%s_sections", coverage);
@@ -298,7 +344,7 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "AddGeometryColumn \"%s_sections\" error: %s\n",
+	  fprintf (stderr, "AddGeometryColumn \"%s\" error: %s\n",
 		   xcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  sqlite3_free (xcoverage);
@@ -314,7 +360,7 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateSpatialIndex \"%s_sections\" error: %s\n",
+	  fprintf (stderr, "CreateSpatialIndex \"%s\" error: %s\n",
 		   xcoverage, sql_err);
 	  sqlite3_free (sql_err);
 	  sqlite3_free (xcoverage);
@@ -365,6 +411,10 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     char *xxfk2;
     char *xmother2;
     char *xxmother2;
+    char *xtrigger;
+    char *xxtrigger;
+    char *xtiles;
+    char *xxtiles;
 
     xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
     xxcoverage = gaiaDoubleQuotedSql (xcoverage);
@@ -491,6 +541,60 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
 	  return 0;
       }
     free (xxcoverage);
+
+/* adding the safeguard Triggers */
+    xtrigger = sqlite3_mprintf ("%s_tile_data_insert", coverage);
+    xxtrigger = gaiaDoubleQuotedSql (xtrigger);
+    sqlite3_free (xtrigger);
+    xcoverage = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtiles = sqlite3_mprintf ("%s_tiles", coverage);
+    xxtiles = gaiaDoubleQuotedSql (xtiles);
+    sqlite3_free (xtiles);
+    sql = sqlite3_mprintf ("CREATE TRIGGER \"%s\"\n"
+			   "BEFORE INSERT ON %Q\nFOR EACH ROW BEGIN\n"
+			   "SELECT RAISE(ABORT,'insert on %s violates constraint: "
+			   "invalid tile_data')\nWHERE IsValidRasterTile(%Q, "
+			   "(SELECT t.pyramid_level FROM \"%s\" AS t WHERE t.tile_id = NEW.tile_id), "
+			   "NEW.tile_data_odd, NEW.tile_data_even) <> 1;\nEND",
+			   xxtrigger, xcoverage, xcoverage, coverage, xxtiles);
+    sqlite3_free (xcoverage);
+    free (xxtiles);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
+		   sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxtrigger);
+	  return 0;
+      }
+    free (xxtrigger);
+    xtrigger = sqlite3_mprintf ("%s_tile_data_update", coverage);
+    xxtrigger = gaiaDoubleQuotedSql (xtrigger);
+    sqlite3_free (xtrigger);
+    xcoverage = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtiles = sqlite3_mprintf ("%s_tiles", coverage);
+    xxtiles = gaiaDoubleQuotedSql (xtiles);
+    sqlite3_free (xtiles);
+    sql = sqlite3_mprintf ("CREATE TRIGGER \"%s\"\n"
+			   "BEFORE UPDATE ON %Q\nFOR EACH ROW BEGIN\n"
+			   "SELECT RAISE(ABORT, 'update on %s violates constraint: "
+			   "invalid tile_data')\nWHERE IsValidRasterTile(%Q, "
+			   "(SELECT t.pyramid_level FROM \"%s\" AS t WHERE t.tile_id = NEW.tile_id), "
+			   "NEW.tile_data_odd, NEW.tile_data_even) <> 1;\nEND",
+			   xxtrigger, xcoverage, xcoverage, coverage, xxtiles);
+    sqlite3_free (xcoverage);
+    free (xxtiles);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
+		   sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxtrigger);
+	  return 0;
+      }
+    free (xxtrigger);
     return 1;
 }
 
@@ -1893,10 +1997,11 @@ copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -1938,9 +2043,9 @@ copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
@@ -1999,12 +2104,13 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
     double y_res2 = y_res / 2.0;
     double x_res2 = x_res / 2.0;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2050,9 +2156,9 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      for (b = 0; b < num_bands; b++)
 			{
 			    if (transparent)
@@ -2133,10 +2239,11 @@ copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2178,9 +2285,9 @@ copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
@@ -2239,10 +2346,11 @@ copy_uint16_raw_pixels (const unsigned short *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2284,9 +2392,9 @@ copy_uint16_raw_pixels (const unsigned short *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      for (b = 0; b < num_bands; b++)
 			{
 			    if (transparent)
@@ -2352,10 +2460,11 @@ copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2397,9 +2506,9 @@ copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
@@ -2457,10 +2566,11 @@ copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2502,9 +2612,9 @@ copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
@@ -2562,10 +2672,11 @@ copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2607,9 +2718,9 @@ copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
@@ -2667,10 +2778,11 @@ copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char nbands;
-    int ignore_no_data = 0;
+    int ignore_no_data = 1;
 
     if (no_data != NULL)
       {
+	  ignore_no_data = 0;
 	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
 	      != RL2_OK)
 	      ignore_no_data = 1;
@@ -2712,9 +2824,9 @@ copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (no_data == NULL || transparent || ignore_no_data)
+		if (transparent || ignore_no_data)
 		  {
-		      /* there is no NO-DATA value */
+		      /* already transparent or missing NO-DATA value */
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
@@ -3571,5 +3683,206 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
   error:
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
+{
+/*attempting to update a Coverage (statistics and extent) */
+    int ret;
+    char *sql;
+    char *xtable;
+    char *xxtable;
+    rl2RasterStatisticsPtr coverage_stats = NULL;
+    unsigned char *blob_stats;
+    int blob_stats_sz;
+    int first;
+    sqlite3_stmt *stmt_ext_in = NULL;
+    sqlite3_stmt *stmt_ext_out = NULL;
+    sqlite3_stmt *stmt_stats_in = NULL;
+    sqlite3_stmt *stmt_stats_out = NULL;
+
+/* Extent query stmt */
+    xtable = sqlite3_mprintf ("%s_sections", coverage);
+    xxtable = gaiaDoubleQuotedSql (xtable);
+    sqlite3_free (xtable);
+    sql =
+	sqlite3_mprintf
+	("SELECT Min(MbrMinX(geometry)), Min(MbrMinY(geometry)), "
+	 "Max(MbrMaxX(geometry)), Max(MbrMaxY(geometry)) " "FROM \"%s\"",
+	 xxtable);
+    free (xxtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_ext_in, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT Coverage extent SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+/* Extent update stmt */
+    sql = sqlite3_mprintf ("UPDATE raster_coverages SET extent_minx = ?, "
+			   "extent_miny = ?, extent_maxx = ?, extent_maxy = ? "
+			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_ext_out, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE Coverage extent SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    while (1)
+      {
+	  /* querying the extent */
+	  ret = sqlite3_step (stmt_ext_in);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		double minx = sqlite3_column_double (stmt_ext_in, 0);
+		double miny = sqlite3_column_double (stmt_ext_in, 1);
+		double maxx = sqlite3_column_double (stmt_ext_in, 2);
+		double maxy = sqlite3_column_double (stmt_ext_in, 3);
+
+		/* updating the extent */
+		sqlite3_reset (stmt_ext_out);
+		sqlite3_clear_bindings (stmt_ext_out);
+		sqlite3_bind_double (stmt_ext_out, 1, minx);
+		sqlite3_bind_double (stmt_ext_out, 2, miny);
+		sqlite3_bind_double (stmt_ext_out, 3, maxx);
+		sqlite3_bind_double (stmt_ext_out, 4, maxy);
+		ret = sqlite3_step (stmt_ext_out);
+		if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+		    break;
+		else
+		  {
+		      fprintf (stderr,
+			       "UPDATE Coverage Extent sqlite3_step() error: %s\n",
+			       sqlite3_errmsg (handle));
+		      goto error;
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT Coverage Extent sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+
+    sqlite3_finalize (stmt_ext_in);
+    sqlite3_finalize (stmt_ext_out);
+    stmt_ext_in = NULL;
+    stmt_ext_out = NULL;
+
+/* Raster Statistics query stmt */
+    xtable = sqlite3_mprintf ("%s_sections", coverage);
+    xxtable = gaiaDoubleQuotedSql (xtable);
+    sqlite3_free (xtable);
+    sql = sqlite3_mprintf ("SELECT statistics FROM \"%s\"", xxtable);
+    free (xxtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_stats_in, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT Coverage Statistics SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+/* Raster Statistics update stmt */
+    sql = sqlite3_mprintf ("UPDATE raster_coverages SET statistics = ? "
+			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_stats_out, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE Coverage Statistics SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    first = 1;
+    while (1)
+      {
+	  /* querying the statistics */
+	  ret = sqlite3_step (stmt_stats_in);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		rl2RasterStatisticsPtr stats;
+		blob_stats =
+		    (unsigned char *) sqlite3_column_blob (stmt_stats_in, 0);
+		blob_stats_sz = sqlite3_column_bytes (stmt_stats_in, 0);
+		stats =
+		    rl2_deserialize_dbms_raster_statistics (blob_stats,
+							    blob_stats_sz);
+		if (stats == NULL)
+		    goto error;
+
+		if (first)
+		  {
+		      double no_data;
+		      double count;
+		      unsigned char sample_type;
+		      unsigned char num_bands;
+		      if (rl2_get_raster_statistics_summary
+			  (stats, &no_data, &count, &sample_type,
+			   &num_bands) != RL2_OK)
+			  goto error;
+		      coverage_stats =
+			  rl2_create_raster_statistics (sample_type, num_bands);
+		      if (coverage_stats == NULL)
+			  goto error;
+		      first = 0;
+		  }
+
+		rl2_aggregate_raster_statistics (stats, coverage_stats);
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT Coverage Statistics sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    if (coverage_stats == NULL)
+	goto error;
+
+    /* updating the statistics */
+    sqlite3_reset (stmt_stats_out);
+    sqlite3_clear_bindings (stmt_stats_out);
+    rl2_serialize_dbms_raster_statistics (coverage_stats, &blob_stats,
+					  &blob_stats_sz);
+    sqlite3_bind_blob (stmt_stats_out, 1, blob_stats, blob_stats_sz, free);
+    ret = sqlite3_step (stmt_stats_out);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "UPDATE Coverage Statistics sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_finalize (stmt_stats_in);
+    sqlite3_finalize (stmt_stats_out);
+    return RL2_OK;
+
+  error:
+    if (stmt_ext_in != NULL)
+	sqlite3_finalize (stmt_ext_in);
+    if (stmt_ext_out != NULL)
+	sqlite3_finalize (stmt_ext_out);
+    if (stmt_stats_in != NULL)
+	sqlite3_finalize (stmt_stats_in);
+    if (stmt_stats_out != NULL)
+	sqlite3_finalize (stmt_stats_out);
     return RL2_ERROR;
 }

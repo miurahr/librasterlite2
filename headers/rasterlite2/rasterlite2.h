@@ -1775,7 +1775,7 @@ extern "C"
  you are responsible for properly freeing such dynamic allocations in
  the most appropriate way.
  
- \note some specific encoding doen't require the "even" BLOB; so be prepared
+ \note some specific encoding doesn't require the "even" BLOB; so be prepared
  to get a NULL pointer in this case.
  */
     RL2_DECLARE int
@@ -1783,6 +1783,44 @@ extern "C"
 			   unsigned char **blob_odd, int *blob_odd_sz,
 			   unsigned char **blob_even, int *blob_even_sz,
 			   int quality, int little_endian);
+
+/**
+ Tests a Raster Tile Object for validity - BLOB serialized format
+
+ \param level Pyramid level index (full resolution always corresponds to the ZERO index)
+ \param tile_width the individual tile width in pixels.
+ \param tile_height the individual tile height in pixels.
+ \param blob_odd pointer to the encoded BLOB ("odd" half).
+ \param blob_odd_sz size (in bytes) of the "odd" BLOB.
+ \param blob_even pointer to the encoded BLOB ("even" half): could be NULL.
+ \param blob_even_sz size (in bytes) of the "even" BLOB: could be ZERO.
+ \param sample_type sample type of the belonging Coverage
+ \param pixel_type pixel type of the belonging Coverage
+ \param num_bands number of bands of the belonging Coverage
+ \param compression of the belonging Coverage
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster, rl2_raster_encode, rl2_get_raster_statistics
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster object.
+ 
+ \note some specific encoding doesn't require the "even" BLOB; in this case
+ you should set blob_even to NULL and blob_even_sz to ZERO.
+ */
+    RL2_DECLARE int
+	rl2_is_valid_dbms_raster_tile (unsigned short level,
+				       unsigned short tile_width,
+				       unsigned short tile_height,
+				       const unsigned char *blob_odd,
+				       int blob_odd_sz,
+				       const unsigned char *blob_even,
+				       int blob_even_sz,
+				       unsigned char sample_type,
+				       unsigned char pixel_type,
+				       unsigned char num_bands,
+				       unsigned char compression);
 
 /**
  Decodes a Raster Object from the corresponding BLOB serialized format
@@ -1798,12 +1836,13 @@ extern "C"
  
  \return the pointer to newly created Raster Object: NULL on failure.
 
- \sa rl2_create_raster, rl2_raster_encode, rl2_get_raster_statistics
+ \sa rl2_create_raster, rl2_raster_encode, rl2_get_raster_statistics,
+ rl2_is_valid_dbms_raster_tile
  
  \note you are responsible to destroy (before or after) any allocated 
  Raster object.
  
- \note some specific encoding doen't require the "even" BLOB; in this case
+ \note some specific encoding doesn't require the "even" BLOB; in this case
  you should set blob_even to NULL and blob_even_sz to ZERO.
  */
     RL2_DECLARE rl2RasterPtr
@@ -1852,6 +1891,7 @@ extern "C"
  \param blob_even_sz size (in bytes) of the "even" BLOB: could be ZERO.
  \param palette pointer to a Palette object (could be NULL, but it could
  be strictly required by Palette-based tiles)
+ \param no_data NO-DATA pixel value (could be eventually NULL)
  
  \return the pointer to newly created Raster Statistics Object: NULL on failure.
  
@@ -1866,20 +1906,21 @@ extern "C"
 	rl2_get_raster_statistics (const unsigned char *blob_odd,
 				   int blob_odd_sz,
 				   const unsigned char *blob_even,
-				   int blob_even_sz, rl2PalettePtr palette);
+				   int blob_even_sz, rl2PalettePtr palette,
+				   rl2PixelPtr no_data);
 
 /**
  Encodes a Raster Statistics Object into the corresponding BLOB serialized format
 
  \param stats pointer to the Raster Statistics Object.
- \param blob_odd on completion will point to the created encoded BLOB ("odd" half).
- \param blob_odd_sz on completion the variable referenced by this
- pointer will contain the size (in bytes) of the "odd" BLOB.
+ \param blob on completion will point to the created encoded BLOB.
+ \param blob_sz on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the BLOB.
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster_statistics, rl2_get_raster_statistics,  
- rl2_deserialize_dbms_raster_statistics
+ rl2_deserialize_dbms_raster_statistics, rl2_is_valid_dbms_raster_statistics
  
  \note the returned BLOB object corresponds to dynamic memory;
  you are responsible for properly freeing such dynamic allocation in
@@ -1889,6 +1930,27 @@ extern "C"
 	rl2_serialize_dbms_raster_statistics (rl2RasterStatisticsPtr stats,
 					      unsigned char **blob,
 					      int *blob_sz);
+
+/**
+ Tests a Raster Statistics Object for validity - BLOB serialized format
+
+ \param blob pointer to the encoded BLOB encoded object.
+ \param blob_sz size (in bytes) of the BLOB encoded object.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster_statistics, rl2_get_raster_statistics,  
+ rl2_deserialize_dbms_raster_statistics, rl2_is_valid_dbms_raster_statistics
+ 
+ \note the returned BLOB object corresponds to dynamic memory;
+ you are responsible for properly freeing such dynamic allocation in
+ the most appropriate way.
+ */
+    RL2_DECLARE int
+	rl2_is_valid_dbms_raster_statistics (const unsigned char *blob,
+					     int blob_sz,
+					     unsigned char sample_type,
+					     unsigned char num_bands);
 
 /**
  Decodes a Raster Statistics Object from the corresponding BLOB serialized format
@@ -2687,11 +2749,20 @@ extern "C"
 	rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage);
 
     RL2_DECLARE int
+	rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage);
+
+    RL2_DECLARE int
 	rl2_create_default_dbms_palette (unsigned char **blob, int *blob_size);
 
     RL2_DECLARE int
 	rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
 				    int *blob_size);
+
+    RL2_DECLARE int
+	rl2_is_valid_dbms_palette (const unsigned char *blob, int blob_size,
+				   unsigned char sample_type,
+				   unsigned char pixel_type,
+				   unsigned char num_bands);
 
     RL2_DECLARE rl2PalettePtr
 	rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size);
@@ -2710,6 +2781,11 @@ extern "C"
     RL2_DECLARE int
 	rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
 				    int *blob_size);
+
+    RL2_DECLARE int
+	rl2_is_valid_dbms_no_data (const unsigned char *blob, int blob_size,
+				   unsigned char sample_type,
+				   unsigned char num_bands);
 
     RL2_DECLARE rl2PixelPtr
 	rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size);

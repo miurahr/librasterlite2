@@ -725,7 +725,7 @@ test_gray_png (const char *path, const char *mask_path)
       }
     stats =
 	rl2_get_raster_statistics (blob_odd, blob_odd_sz, blob_even,
-				   blob_even_sz, NULL);
+				   blob_even_sz, NULL, NULL);
     if (stats == NULL)
       {
 	  fprintf (stderr, "Unable to get Raster Statistics #1\n");
@@ -790,7 +790,7 @@ test_gray_png (const char *path, const char *mask_path)
 
     stats =
 	rl2_get_raster_statistics (blob_odd, blob_odd_sz, blob_even,
-				   blob_even_sz, NULL);
+				   blob_even_sz, NULL, NULL);
     if (stats == NULL)
       {
 	  fprintf (stderr, "Unable to get Raster Statistics #2\n");

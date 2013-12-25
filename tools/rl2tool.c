@@ -304,8 +304,8 @@ stampa_statistiche (rl2RasterStatisticsPtr stats)
 	  fprintf (stderr, "SUMMARY ERROR\n");
 	  return;
       }
-    fprintf (stderr, "no_data=%1.6f\n", no_data);
-    fprintf (stderr, "  count=%1.6f\n", count);
+    fprintf (stderr, "no_data=%1.1f\n", no_data);
+    fprintf (stderr, "  count=%1.1f\n", count);
     fprintf (stderr, "type=%02x bands=%02x\n", sample_type, num_bands);
 
     for (ib = 0; ib < num_bands; ib++)
@@ -342,6 +342,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     rl2PalettePtr aux_palette = NULL;
     rl2RasterStatisticsPtr stats;
     rl2RasterStatisticsPtr section_stats = NULL;
+    rl2PixelPtr no_data = NULL;
     int row;
     int col;
     unsigned short width;
@@ -430,6 +431,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  fprintf (stderr, "Coverage/TIFF mismatch\n");
 	  goto error;
       }
+    no_data = rl2_get_coverage_no_data (cvg);
 
 /* INSERTing the section */
     sqlite3_reset (stmt_sect);
@@ -518,7 +520,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		    rl2_clone_palette (rl2_get_raster_palette (raster));
 		stats = rl2_get_raster_statistics
 		    (blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     aux_palette);
+		     aux_palette, no_data);
 		if (aux_palette != NULL)
 		    rl2_destroy_palette (aux_palette);
 		aux_palette = NULL;
@@ -873,6 +875,17 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     sqlite3_finalize (stmt_levl);
     sqlite3_finalize (stmt_tils);
     sqlite3_finalize (stmt_data);
+    stmt_upd_sect = NULL;
+    stmt_sect = NULL;
+    stmt_levl = NULL;
+    stmt_tils = NULL;
+    stmt_data = NULL;
+
+    if (rl2_update_dbms_coverage (handle, coverage) != RL2_OK)
+      {
+	  fprintf (stderr, "unable to update the Coverage\n");
+	  goto error;
+      }
 
     rl2_destroy_coverage (cvg);
     return 1;
@@ -2295,6 +2308,7 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
 	  sprintf (sql, "PRAGMA cache_size=%d", cache_size);
 	  sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
       }
+    rl2_init (db_handle, 0);
 
 /* checking the GEOMETRY_COLUMNS table */
     strcpy (sql, "PRAGMA table_info(geometry_columns)");

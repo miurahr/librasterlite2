@@ -4434,6 +4434,44 @@ unpack_4bit (unsigned short width, unsigned short height,
     return 1;
 }
 
+RL2_DECLARE int
+rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
+			       unsigned short tile_height,
+			       const unsigned char *blob_odd, int blob_odd_sz,
+			       const unsigned char *blob_even, int blob_even_sz,
+			       unsigned char sample_type,
+			       unsigned char pixel_type,
+			       unsigned char num_bands,
+			       unsigned char compression)
+{
+/* testing a serialized Raster Tile object for validity */
+    unsigned short width;
+    unsigned short height;
+    unsigned char xsample_type;
+    unsigned char xpixel_type;
+    unsigned char xnum_bands;
+    unsigned char xcompression;
+    unsigned short row_stride_odd;
+    uLong crc;
+    if (!check_blob_odd
+	(blob_odd, blob_odd_sz, &width, &height, &xsample_type, &xpixel_type,
+	 &xnum_bands, &xcompression, &crc))
+	return RL2_ERROR;
+    if (blob_even != NULL)
+      {
+	  if (!check_blob_even
+	      (blob_even, blob_even_sz, width, height, xsample_type,
+	       xpixel_type, xnum_bands, xcompression, crc))
+	      return RL2_ERROR;
+      }
+    if (width != tile_width || height != tile_height)
+	return RL2_ERROR;
+    if (sample_type != xsample_type || pixel_type != xpixel_type
+	|| num_bands != xnum_bands || compression != xcompression)
+	return RL2_ERROR;
+    return RL2_OK;
+}
+
 RL2_DECLARE rl2RasterPtr
 rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		   int blob_odd_sz, const unsigned char *blob_even,
@@ -4998,7 +5036,7 @@ update_stats (rl2PrivRasterStatisticsPtr st, int band, double value)
 static void
 update_int8_stats (unsigned short width, unsigned short height,
 		   const char *pixels, const unsigned char *mask,
-		   rl2PrivRasterStatisticsPtr st)
+		   rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing INT8 tile statistics */
     int x;
@@ -5006,6 +5044,24 @@ update_int8_stats (unsigned short width, unsigned short height,
     const char *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT8)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5017,16 +5073,44 @@ update_int8_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+		  }}
 		else
 		  {
-		      double value = *p_in++;
-		      update_count_stats (st);
-		      update_stats (st, 0, value);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const char *p_save = p_in;
+		      char sample = 0;
+		      rl2_get_pixel_sample_int8 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
+			}
 		  }
 	    }
       }
@@ -5036,7 +5120,7 @@ static void
 update_uint8_stats (unsigned short width, unsigned short height,
 		    unsigned char num_bands,
 		    const unsigned char *pixels, const unsigned char *mask,
-		    rl2PrivRasterStatisticsPtr st)
+		    rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing UINT8 tile statistics */
     int x;
@@ -5045,6 +5129,26 @@ update_uint8_stats (unsigned short width, unsigned short height,
     const unsigned char *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != num_bands)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_1_BIT || sample_type == RL2_SAMPLE_2_BIT
+	      || sample_type == RL2_SAMPLE_4_BIT
+	      || sample_type == RL2_SAMPLE_UINT8)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5056,19 +5160,67 @@ update_uint8_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      for (ib = 0; ib < num_bands; ib++)
-			  p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    for (ib = 0; ib < num_bands; ib++)
+				p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    update_count_stats (st);
+			    for (ib = 0; ib < num_bands; ib++)
+			      {
+				  double value = *p_in++;
+				  update_stats (st, ib, value);
+			      }
+		  }}
 		else
 		  {
-		      update_count_stats (st);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const unsigned char *p_save = p_in;
 		      for (ib = 0; ib < num_bands; ib++)
 			{
-			    double value = *p_in++;
-			    update_stats (st, ib, value);
+			    unsigned char sample = 0;
+			    switch (sample_type)
+			      {
+			      case RL2_SAMPLE_1_BIT:
+				  rl2_get_pixel_sample_1bit (no_data, &sample);
+				  break;
+			      case RL2_SAMPLE_2_BIT:
+				  rl2_get_pixel_sample_2bit (no_data, &sample);
+				  break;
+			      case RL2_SAMPLE_4_BIT:
+				  rl2_get_pixel_sample_4bit (no_data, &sample);
+				  break;
+			      case RL2_SAMPLE_UINT8:
+				  rl2_get_pixel_sample_uint8 (no_data, ib,
+							      &sample);
+				  break;
+			      };
+			    if (sample == *p_in++)
+				match++;
+			}
+		      if (match != num_bands)
+			{
+			    /* opaque pixel */
+			    update_count_stats (st);
+			    p_in = p_save;
+			    for (ib = 0; ib < num_bands; ib++)
+			      {
+				  double value = *p_in++;
+				  update_stats (st, ib, value);
+			      }
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
 			}
 		  }
 	    }
@@ -5078,7 +5230,7 @@ update_uint8_stats (unsigned short width, unsigned short height,
 static void
 update_int16_stats (unsigned short width, unsigned short height,
 		    const short *pixels, const unsigned char *mask,
-		    rl2PrivRasterStatisticsPtr st)
+		    rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing INT16 tile statistics */
     int x;
@@ -5086,6 +5238,24 @@ update_int16_stats (unsigned short width, unsigned short height,
     const short *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT16)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5097,16 +5267,44 @@ update_int16_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+		  }}
 		else
 		  {
-		      double value = *p_in++;
-		      update_count_stats (st);
-		      update_stats (st, 0, value);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const short *p_save = p_in;
+		      short sample = 0;
+		      rl2_get_pixel_sample_int16 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
+			}
 		  }
 	    }
       }
@@ -5116,7 +5314,7 @@ static void
 update_uint16_stats (unsigned short width, unsigned short height,
 		     unsigned char num_bands,
 		     const unsigned short *pixels, const unsigned char *mask,
-		     rl2PrivRasterStatisticsPtr st)
+		     rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing UINT16 tile statistics */
     int x;
@@ -5125,6 +5323,24 @@ update_uint16_stats (unsigned short width, unsigned short height,
     const unsigned short *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != num_bands)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_UINT16)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5136,19 +5352,52 @@ update_uint16_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      for (ib = 0; ib < num_bands; ib++)
-			  p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    for (ib = 0; ib < num_bands; ib++)
+				p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    update_count_stats (st);
+			    for (ib = 0; ib < num_bands; ib++)
+			      {
+				  double value = *p_in++;
+				  update_stats (st, ib, value);
+			      }
+		  }}
 		else
 		  {
-		      update_count_stats (st);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const unsigned short *p_save = p_in;
 		      for (ib = 0; ib < num_bands; ib++)
 			{
-			    double value = *p_in++;
-			    update_stats (st, ib, value);
+			    unsigned short sample = 0;
+			    rl2_get_pixel_sample_uint16 (no_data, ib, &sample);
+			    if (sample == *p_in++)
+				match++;
+			}
+		      if (match != num_bands)
+			{
+			    /* opaque pixel */
+			    update_count_stats (st);
+			    p_in = p_save;
+			    for (ib = 0; ib < num_bands; ib++)
+			      {
+				  double value = *p_in++;
+				  update_stats (st, ib, value);
+			      }
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
 			}
 		  }
 	    }
@@ -5158,7 +5407,7 @@ update_uint16_stats (unsigned short width, unsigned short height,
 static void
 update_int32_stats (unsigned short width, unsigned short height,
 		    const int *pixels, const unsigned char *mask,
-		    rl2PrivRasterStatisticsPtr st)
+		    rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing INT32 tile statistics */
     int x;
@@ -5166,6 +5415,24 @@ update_int32_stats (unsigned short width, unsigned short height,
     const int *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT32)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5177,16 +5444,44 @@ update_int32_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+		  }}
 		else
 		  {
-		      double value = *p_in++;
-		      update_count_stats (st);
-		      update_stats (st, 0, value);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const int *p_save = p_in;
+		      int sample = 0;
+		      rl2_get_pixel_sample_int32 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
+			}
 		  }
 	    }
       }
@@ -5195,7 +5490,7 @@ update_int32_stats (unsigned short width, unsigned short height,
 static void
 update_uint32_stats (unsigned short width, unsigned short height,
 		     const unsigned int *pixels, const unsigned char *mask,
-		     rl2PrivRasterStatisticsPtr st)
+		     rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing UINT32 tile statistics */
     int x;
@@ -5203,6 +5498,24 @@ update_uint32_stats (unsigned short width, unsigned short height,
     const unsigned int *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_UINT32)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5214,16 +5527,44 @@ update_uint32_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+		  }}
 		else
 		  {
-		      double value = *p_in++;
-		      update_count_stats (st);
-		      update_stats (st, 0, value);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const unsigned int *p_save = p_in;
+		      unsigned int sample = 0;
+		      rl2_get_pixel_sample_int32 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
+			}
 		  }
 	    }
       }
@@ -5232,7 +5573,7 @@ update_uint32_stats (unsigned short width, unsigned short height,
 static void
 update_float_stats (unsigned short width, unsigned short height,
 		    const float *pixels, const unsigned char *mask,
-		    rl2PrivRasterStatisticsPtr st)
+		    rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing FLOAT tile statistics */
     int x;
@@ -5240,6 +5581,24 @@ update_float_stats (unsigned short width, unsigned short height,
     const float *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_FLOAT)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5251,16 +5610,44 @@ update_float_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+		  }}
 		else
 		  {
-		      double value = *p_in++;
-		      update_count_stats (st);
-		      update_stats (st, 0, value);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const float *p_save = p_in;
+		      float sample = 0.0;
+		      rl2_get_pixel_sample_float (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
+			}
 		  }
 	    }
       }
@@ -5269,7 +5656,7 @@ update_float_stats (unsigned short width, unsigned short height,
 static void
 update_double_stats (unsigned short width, unsigned short height,
 		     const double *pixels, const unsigned char *mask,
-		     rl2PrivRasterStatisticsPtr st)
+		     rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
 {
 /* computing DOUBLE tile statistics */
     int x;
@@ -5277,6 +5664,24 @@ update_double_stats (unsigned short width, unsigned short height,
     const double *p_in = pixels;
     const unsigned char *p_msk = mask;
     int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_DOUBLE)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -5288,16 +5693,44 @@ update_double_stats (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (transparent)
+		if (transparent || ignore_no_data)
 		  {
-		      update_no_data_stats (st);
-		      p_in++;
-		  }
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    update_no_data_stats (st);
+			    p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+		  }}
 		else
 		  {
-		      double value = *p_in++;
-		      update_count_stats (st);
-		      update_stats (st, 0, value);
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const double *p_save = p_in;
+		      double sample = 0.0;
+		      rl2_get_pixel_sample_double (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_count_stats (st);
+			    update_stats (st, 0, value);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    update_no_data_stats (st);
+			}
 		  }
 	    }
       }
@@ -5306,7 +5739,8 @@ update_double_stats (unsigned short width, unsigned short height,
 RL2_DECLARE rl2RasterStatisticsPtr
 rl2_get_raster_statistics (const unsigned char *blob_odd,
 			   int blob_odd_sz, const unsigned char *blob_even,
-			   int blob_even_sz, rl2PalettePtr palette)
+			   int blob_even_sz, rl2PalettePtr palette,
+			   rl2PixelPtr noData)
 {
 /* 
 / decoding from internal RL2 binary format to Raster and 
@@ -5336,42 +5770,42 @@ rl2_get_raster_statistics (const unsigned char *blob_odd,
       case RL2_SAMPLE_UINT8:
 	  update_uint8_stats (rst->width, rst->height, rst->nBands,
 			      (const unsigned char *) (rst->rasterBuffer),
-			      rst->maskBuffer, st);
+			      rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_INT8:
 	  update_int8_stats (rst->width, rst->height,
 			     (const char *) (rst->rasterBuffer),
-			     rst->maskBuffer, st);
+			     rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_UINT16:
 	  update_uint16_stats (rst->width, rst->height, rst->nBands,
 			       (const unsigned short *) (rst->rasterBuffer),
-			       rst->maskBuffer, st);
+			       rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_INT16:
 	  update_int16_stats (rst->width, rst->height,
 			      (const short *) (rst->rasterBuffer),
-			      rst->maskBuffer, st);
+			      rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_UINT32:
 	  update_uint32_stats (rst->width, rst->height,
 			       (const unsigned int *) (rst->rasterBuffer),
-			       rst->maskBuffer, st);
+			       rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_INT32:
 	  update_int32_stats (rst->width, rst->height,
 			      (const int *) (rst->rasterBuffer),
-			      rst->maskBuffer, st);
+			      rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_FLOAT:
 	  update_float_stats (rst->width, rst->height,
 			      (const float *) (rst->rasterBuffer),
-			      rst->maskBuffer, st);
+			      rst->maskBuffer, st, noData);
 	  break;
       case RL2_SAMPLE_DOUBLE:
 	  update_double_stats (rst->width, rst->height,
 			       (const double *) (rst->rasterBuffer),
-			       rst->maskBuffer, st);
+			       rst->maskBuffer, st, noData);
 	  break;
       };
 
@@ -5465,15 +5899,92 @@ rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
     return RL2_OK;
 }
 
+static int
+check_serialized_palette (const unsigned char *blob, int blob_size)
+{
+/* checking a Raster Statistics serialized object from validity */
+    uLong crc;
+    uLong oldCrc;
+    const unsigned char *ptr = blob;
+    int endian;
+    unsigned short nEntries;
+    int endian_arch = endianArch ();
+    if (blob == NULL)
+	return 0;
+    if (blob_size < 12)
+	return 0;
+
+    if (*ptr++ != 0x00)
+	return 0;		/* invalid start signature */
+    if (*ptr++ != RL2_DATA_START)
+	return 0;		/* invalid start signature */
+    endian = *ptr++;
+    if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
+	;
+    else
+	return 0;		/* invalid endiannes */
+    nEntries = importU16 (ptr, endian, endian_arch);
+    ptr += 2;
+    if (blob_size != 12 + (nEntries * 4))
+	return 0;		/* invalid size */
+    if (*ptr++ != RL2_PALETTE_START)
+	return 0;		/* invalid start marker */
+    ptr += nEntries * 4;
+    if (*ptr++ != RL2_PALETTE_END)
+	return 0;
+/* computing the CRC32 */
+    crc = crc32 (0L, blob, ptr - blob);
+    oldCrc = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    if (crc != oldCrc)
+	return 0;
+    if (*ptr != RL2_DATA_END)
+	return 0;		/* invalid end signature */
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_is_valid_dbms_palette (const unsigned char *blob, int blob_size,
+			   unsigned char sample_type, unsigned char pixel_type,
+			   unsigned char num_bands)
+{
+/* testing a serialized Palette object for validity */
+    const unsigned char *ptr;
+    int endian;
+    unsigned short nEntries;
+    int endian_arch = endianArch ();
+    if (!check_serialized_palette (blob, blob_size))
+	return RL2_ERROR;
+    ptr = blob + 2;
+    endian = *ptr++;
+    nEntries = importU16 (ptr, endian, endian_arch);
+    if (sample_type == RL2_SAMPLE_1_BIT || sample_type == RL2_SAMPLE_2_BIT
+	|| sample_type == RL2_SAMPLE_4_BIT || sample_type == RL2_SAMPLE_UINT8)
+	;
+    else
+	return RL2_ERROR;
+    if (pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
+	;
+    else
+	return RL2_ERROR;
+    if (sample_type == RL2_SAMPLE_1_BIT && nEntries > 2)
+	return RL2_ERROR;
+    if (sample_type == RL2_SAMPLE_2_BIT && nEntries > 4)
+	return RL2_ERROR;
+    if (sample_type == RL2_SAMPLE_4_BIT && nEntries > 16)
+	return RL2_ERROR;
+    if (sample_type == RL2_SAMPLE_UINT8 && nEntries > 256)
+	return RL2_ERROR;
+    return RL2_OK;
+}
+
 RL2_DECLARE rl2PalettePtr
 rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size)
 {
 /* attempting to deserialize a Palette from DBMS binary format */
     rl2PalettePtr palette = NULL;
     int ip;
-    uLong crc;
-    uLong oldCrc;
-    const unsigned char *ptr = blob;
+    const unsigned char *ptr;
     int endian;
     unsigned short nEntries;
     int endian_arch = endianArch ();
@@ -5482,21 +5993,12 @@ rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size)
     if (blob_size < 12)
 	return NULL;
 
-    if (*ptr++ != 0x00)
-	return NULL;		/* invalid start signature */
-    if (*ptr++ != RL2_DATA_START)
-	return NULL;		/* invalid start signature */
+    if (!check_serialized_palette (blob, blob_size))
+	return NULL;
+    ptr = blob + 2;
     endian = *ptr++;
-    if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
-	;
-    else
-	return NULL;		/* invalid endiannes */
     nEntries = importU16 (ptr, endian, endian_arch);
-    ptr += 2;
-    if (blob_size != 12 + (nEntries * 4))
-	return NULL;		/* invalid size */
-    if (*ptr++ != RL2_PALETTE_START)
-	return NULL;		/* invalid start marker */
+    ptr += 3;
     palette = rl2_create_palette (nEntries);
     if (palette == NULL)
 	return NULL;
@@ -5508,16 +6010,6 @@ rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size)
 	  unsigned char a = *ptr++;
 	  rl2_set_palette_color (palette, ip, r, g, b, a);
       }
-    if (*ptr++ != RL2_PALETTE_END)
-	goto error;
-/* computing the CRC32 */
-    crc = crc32 (0L, blob, ptr - blob);
-    oldCrc = importU32 (ptr, endian, endian_arch);
-    ptr += 4;
-    if (crc != oldCrc)
-	goto error;
-    if (*ptr != RL2_DATA_END)
-	goto error;		/* invalid end signature */
     return palette;
 
   error:
@@ -5676,6 +6168,25 @@ check_raster_serialized_statistics (const unsigned char *blob, int blob_size)
 	return 0;		/* invalid end signature */
 
     return 1;
+}
+
+RL2_DECLARE int
+rl2_is_valid_dbms_raster_statistics (const unsigned char *blob, int blob_size,
+				     unsigned char sample_type,
+				     unsigned char num_bands)
+{
+/* testing a serialized Raster Statistics object for validity */
+    const unsigned char *ptr;
+    unsigned char xsample_type;
+    unsigned char xnum_bands;
+    if (!check_raster_serialized_statistics (blob, blob_size))
+	return RL2_ERROR;
+    ptr = blob + 3;
+    xsample_type = *ptr++;
+    xnum_bands = *ptr++;
+    if (sample_type == xsample_type && num_bands == xnum_bands)
+	return RL2_OK;
+    return RL2_ERROR;
 }
 
 RL2_DECLARE rl2RasterStatisticsPtr
@@ -6002,6 +6513,25 @@ check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
 	return 0;		/* invalid end signature */
 
     return 1;
+}
+
+RL2_DECLARE int
+rl2_is_valid_dbms_no_data (const unsigned char *blob, int blob_size,
+			   unsigned char sample_type, unsigned char num_bands)
+{
+/* testing a serialized NO-DATA pixel value for validity */
+    const unsigned char *ptr;
+    unsigned char xsample_type;
+    unsigned char xnum_bands;
+    if (!check_raster_serialized_no_data (blob, blob_size))
+	return RL2_ERROR;
+    ptr = blob + 3;
+    xsample_type = *ptr++;
+    ptr++;
+    xnum_bands = *ptr++;
+    if (sample_type == xsample_type && num_bands == xnum_bands)
+	return RL2_OK;
+    return RL2_ERROR;
 }
 
 RL2_DECLARE rl2PixelPtr

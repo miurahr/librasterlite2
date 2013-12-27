@@ -287,6 +287,19 @@ extern "C"
     typedef rl2TiffDestination *rl2TiffDestinationPtr;
 
 /**
+ Typedef for RL2 ASCII Origin object (opaque, hidden)
+
+ \sa rl2AsciiOriginPtr
+ */
+    typedef struct rl2_ascii_origin rl2AsciiOrigin;
+/**
+ Typedef for RL2 ASCII Origin object pointer (opaque, hidden)
+
+ \sa rl2AsciiOrigin
+ */
+    typedef rl2AsciiOrigin *rl2AsciiOriginPtr;
+
+/**
  Typedef for RL2 Raster Statistics object (opaque, hidden)
 
  \sa rl2RasterStatisticsPtr
@@ -2789,6 +2802,44 @@ extern "C"
 
     RL2_DECLARE rl2PixelPtr
 	rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size);
+
+    RL2_DECLARE rl2AsciiOriginPtr rl2_create_ascii_origin (const char *path,
+							   int srid,
+							   unsigned char
+							   sample_type);
+
+    RL2_DECLARE void rl2_destroy_ascii_origin (rl2AsciiOriginPtr ascii);
+
+    RL2_DECLARE const char *rl2_get_ascii_origin_path (rl2AsciiOriginPtr ascii);
+
+    RL2_DECLARE int
+	rl2_get_ascii_origin_size (rl2AsciiOriginPtr ascii,
+				   unsigned short *width,
+				   unsigned short *height);
+
+    RL2_DECLARE int
+	rl2_get_ascii_origin_type (rl2AsciiOriginPtr ascii,
+				   unsigned char *sample_type,
+				   unsigned char *pixel_type,
+				   unsigned char *num_bands);
+
+    RL2_DECLARE int rl2_get_ascii_origin_srid (rl2AsciiOriginPtr ascii,
+					       int *srid);
+
+    RL2_DECLARE int
+	rl2_get_ascii_origin_extent (rl2AsciiOriginPtr ascii, double *minX,
+				     double *minY, double *maxX, double *maxY);
+
+    RL2_DECLARE int
+	rl2_get_ascii_origin_resolution (rl2AsciiOriginPtr ascii,
+					 double *hResolution,
+					 double *vResolution);
+
+    RL2_DECLARE rl2RasterPtr
+	rl2_get_tile_from_ascii_origin (rl2CoveragePtr cvg,
+					rl2AsciiOriginPtr ascii,
+					unsigned int startRow,
+					unsigned int startCol);
 
 #ifdef __cplusplus
 }

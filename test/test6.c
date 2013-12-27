@@ -524,6 +524,7 @@ main (int argc, char *argv[])
     stats =
 	rl2_get_raster_statistics (blob_odd_gif, blob_odd_sz_gif, blob_even_gif,
 				   blob_even_sz_gif, plt2, NULL);
+    rl2_destroy_palette (plt2);
     if (stats == NULL)
       {
 	  fprintf (stderr, "Unable to get Raster Statistics\n");

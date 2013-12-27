@@ -124,7 +124,7 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 librasterlite2_la_DEPENDENCIES =
 am_librasterlite2_la_OBJECTS = rasterlite2.lo rl2raw.lo rl2codec.lo \
 	rl2jpeg.lo rl2png.lo rl2gif.lo rl2webp.lo rl2tiff.lo rl2wms.lo \
-	rl2paint.lo rl2dbms.lo rl2sql.lo rl2version.lo
+	rl2ascii.lo rl2paint.lo rl2dbms.lo rl2sql.lo rl2version.lo
 librasterlite2_la_OBJECTS = $(am_librasterlite2_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -140,8 +140,9 @@ am_rasterlite2_la_OBJECTS = rasterlite2_la-rasterlite2.lo \
 	rasterlite2_la-rl2jpeg.lo rasterlite2_la-rl2png.lo \
 	rasterlite2_la-rl2gif.lo rasterlite2_la-rl2webp.lo \
 	rasterlite2_la-rl2tiff.lo rasterlite2_la-rl2wms.lo \
-	rasterlite2_la-rl2paint.lo rasterlite2_la-rl2dbms.lo \
-	rasterlite2_la-rl2sql.lo rasterlite2_la-rl2version.lo
+	rasterlite2_la-rl2ascii.lo rasterlite2_la-rl2paint.lo \
+	rasterlite2_la-rl2dbms.lo rasterlite2_la-rl2sql.lo \
+	rasterlite2_la-rl2version.lo
 rasterlite2_la_OBJECTS = $(am_rasterlite2_la_OBJECTS)
 rasterlite2_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
@@ -354,7 +355,7 @@ AM_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers
 lib_LTLIBRARIES = librasterlite2.la rasterlite2.la
 librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
-	rl2paint.c rl2dbms.c rl2sql.c rl2version.c
+	rl2ascii.c rl2paint.c rl2dbms.c rl2sql.c rl2version.c
 
 @MINGW_FALSE@librasterlite2_la_LDFLAGS = -version-info 1:0:0
 @MINGW_TRUE@librasterlite2_la_LDFLAGS = -avoid-version -no-undefined
@@ -364,7 +365,7 @@ librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
 
 rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
-	rl2paint.c rl2dbms.c rl2sql.c rl2version.c
+	rl2ascii.c rl2paint.c rl2dbms.c rl2sql.c rl2version.c
 
 rasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
 	@LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ \
@@ -460,6 +461,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rasterlite2.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2ascii.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2codec.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2dbms.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2gif.Plo@am__quote@
@@ -472,6 +474,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2version.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2webp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rasterlite2_la-rl2wms.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2ascii.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2codec.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2dbms.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2gif.Plo@am__quote@
@@ -568,6 +571,13 @@ rasterlite2_la-rl2wms.lo: rl2wms.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='rl2wms.c' object='rasterlite2_la-rl2wms.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o rasterlite2_la-rl2wms.lo `test -f 'rl2wms.c' || echo '$(srcdir)/'`rl2wms.c
+
+rasterlite2_la-rl2ascii.lo: rl2ascii.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT rasterlite2_la-rl2ascii.lo -MD -MP -MF $(DEPDIR)/rasterlite2_la-rl2ascii.Tpo -c -o rasterlite2_la-rl2ascii.lo `test -f 'rl2ascii.c' || echo '$(srcdir)/'`rl2ascii.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/rasterlite2_la-rl2ascii.Tpo $(DEPDIR)/rasterlite2_la-rl2ascii.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='rl2ascii.c' object='rasterlite2_la-rl2ascii.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o rasterlite2_la-rl2ascii.lo `test -f 'rl2ascii.c' || echo '$(srcdir)/'`rl2ascii.c
 
 rasterlite2_la-rl2paint.lo: rl2paint.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT rasterlite2_la-rl2paint.lo -MD -MP -MF $(DEPDIR)/rasterlite2_la-rl2paint.Tpo -c -o rasterlite2_la-rl2paint.lo `test -f 'rl2paint.c' || echo '$(srcdir)/'`rl2paint.c

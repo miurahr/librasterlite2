@@ -306,6 +306,24 @@ extern "C"
     } rl2PrivTiffDestination;
     typedef rl2PrivTiffDestination *rl2PrivTiffDestinationPtr;
 
+    typedef struct rl2_priv_ascii_origin
+    {
+	char *path;
+	FILE *tmp;
+	unsigned short width;
+	unsigned short height;
+	int Srid;
+	double hResolution;
+	double vResolution;
+	double minX;
+	double minY;
+	double maxX;
+	double maxY;
+	double noData;
+	unsigned char sample_type;
+    } rl2PrivAsciiOrigin;
+    typedef rl2PrivAsciiOrigin *rl2PrivAsciiOriginPtr;
+
     typedef struct rl2_pool_variance
     {
 	double variance;

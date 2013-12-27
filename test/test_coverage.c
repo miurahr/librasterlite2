@@ -550,6 +550,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to set Blue NoData #2\n");
 	  return -73;
       }
+    rl2_destroy_pixel (no_data);
 
     no_data = rl2_get_coverage_no_data (coverage);
     if (no_data == NULL)
@@ -648,6 +649,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to create a NoData pixel\n");
 	  return -86;
       }
+    rl2_destroy_pixel (no_data);
 
     if (rl2_is_coverage_uncompressed (coverage, &is_compressed) != RL2_OK)
       {

@@ -325,6 +325,370 @@ stampa_statistiche (rl2RasterStatisticsPtr stats)
 }
 
 static int
+do_insert_section (sqlite3 * handle, const char *src_path, const char *section,
+		   int srid, unsigned short width, unsigned short height,
+		   double minx, double miny, double maxx, double maxy,
+		   sqlite3_stmt * stmt_sect, sqlite3_int64 * id)
+{
+/* INSERTing the section */
+    int ret;
+    unsigned char *blob;
+    int blob_size;
+    gaiaGeomCollPtr geom;
+    sqlite3_int64 section_id;
+
+    sqlite3_reset (stmt_sect);
+    sqlite3_clear_bindings (stmt_sect);
+    if (section != NULL)
+	sqlite3_bind_text (stmt_sect, 1, section, strlen (section),
+			   SQLITE_STATIC);
+    else
+      {
+	  char *sect_name = get_section_name (src_path);
+	  if (sect_name == NULL)
+	      sqlite3_bind_null (stmt_sect, 1);
+	  else
+	      sqlite3_bind_text (stmt_sect, 1, sect_name, strlen (sect_name),
+				 free);
+      }
+    sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
+		       SQLITE_STATIC);
+    sqlite3_bind_int (stmt_sect, 3, width);
+    sqlite3_bind_int (stmt_sect, 4, height);
+    geom = build_extent (srid, minx, miny, maxx, maxy);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    gaiaFreeGeomColl (geom);
+    sqlite3_bind_blob (stmt_sect, 5, blob, blob_size, free);
+    ret = sqlite3_step (stmt_sect);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	section_id = sqlite3_last_insert_rowid (handle);
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO sections; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    *id = section_id;
+    return 1;
+  error:
+    return 0;
+}
+
+static int
+do_insert_levels (sqlite3 * handle, double res_x, double res_y,
+		  sqlite3_stmt * stmt_levl)
+{
+/* INSERTing the base-levels */
+    int ret;
+    sqlite3_reset (stmt_levl);
+    sqlite3_clear_bindings (stmt_levl);
+    sqlite3_bind_double (stmt_levl, 1, res_x);
+    sqlite3_bind_double (stmt_levl, 2, res_y);
+    sqlite3_bind_double (stmt_levl, 3, res_x * 2.0);
+    sqlite3_bind_double (stmt_levl, 4, res_y * 2.0);
+    sqlite3_bind_double (stmt_levl, 5, res_x * 4.0);
+    sqlite3_bind_double (stmt_levl, 6, res_y * 4.0);
+    sqlite3_bind_double (stmt_levl, 7, res_x * 8.0);
+    sqlite3_bind_double (stmt_levl, 8, res_y * 8.0);
+    ret = sqlite3_step (stmt_levl);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO levels; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    return 1;
+  error:
+    return 0;
+}
+
+static int
+do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
+		unsigned char *blob_even, int blob_even_sz,
+		sqlite3_int64 section_id, int srid, double res_x, double res_y,
+		unsigned short tile_w, unsigned short tile_h, double minx,
+		double miny, double maxx, double maxy, double *tile_minx,
+		double *tile_miny, double *tile_maxx, double *tile_maxy,
+		rl2PalettePtr aux_palette, rl2PixelPtr no_data,
+		sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
+		rl2RasterStatisticsPtr section_stats)
+{
+/* INSERTing the tile */
+    int ret;
+    sqlite3_int64 tile_id;
+    unsigned char *blob;
+    int blob_size;
+    gaiaGeomCollPtr geom;
+    rl2RasterStatisticsPtr stats;
+
+    stats = rl2_get_raster_statistics
+	(blob_odd, blob_odd_sz, blob_even, blob_even_sz, aux_palette, no_data);
+    if (aux_palette != NULL)
+	rl2_destroy_palette (aux_palette);
+    aux_palette = NULL;
+    rl2_aggregate_raster_statistics (stats, section_stats);
+    sqlite3_reset (stmt_tils);
+    sqlite3_clear_bindings (stmt_tils);
+    sqlite3_bind_int64 (stmt_tils, 1, section_id);
+    *tile_maxx = *tile_minx + ((double) tile_w * res_x);
+    if (*tile_maxx > maxx)
+	*tile_maxx = maxx;
+    *tile_miny = *tile_maxy - ((double) tile_h * res_y);
+    if (*tile_miny < miny)
+	*tile_miny = miny;
+    geom = build_extent (srid, *tile_minx, *tile_miny, *tile_maxx, *tile_maxy);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    gaiaFreeGeomColl (geom);
+    sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
+    ret = sqlite3_step (stmt_tils);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO tiles; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    tile_id = sqlite3_last_insert_rowid (handle);
+    /* INSERTing tile data */
+    sqlite3_reset (stmt_data);
+    sqlite3_clear_bindings (stmt_data);
+    sqlite3_bind_int64 (stmt_data, 1, tile_id);
+    sqlite3_bind_blob (stmt_data, 2, blob_odd, blob_odd_sz, free);
+    if (blob_even == NULL)
+	sqlite3_bind_null (stmt_data, 3);
+    else
+	sqlite3_bind_blob (stmt_data, 3, blob_even, blob_even_sz, free);
+    ret = sqlite3_step (stmt_data);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO tile_data; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    return 1;
+  error:
+    if (aux_palette != NULL)
+	rl2_destroy_palette (aux_palette);
+    return 0;
+}
+
+static int
+do_insert_stats (sqlite3 * handle, rl2RasterStatisticsPtr section_stats,
+		 sqlite3_int64 section_id, sqlite3_stmt * stmt_upd_sect)
+{
+/* updating the Section's Statistics */
+    unsigned char *blob_stats;
+    int blob_stats_sz;
+    int ret;
+
+    sqlite3_reset (stmt_upd_sect);
+    sqlite3_clear_bindings (stmt_upd_sect);
+    rl2_serialize_dbms_raster_statistics (section_stats, &blob_stats,
+					  &blob_stats_sz);
+    sqlite3_bind_blob (stmt_upd_sect, 1, blob_stats, blob_stats_sz, free);
+    sqlite3_bind_int64 (stmt_upd_sect, 2, section_id);
+    ret = sqlite3_step (stmt_upd_sect);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "UPDATE sections; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    return 1;
+  error:
+    return 0;
+}
+
+static int
+do_import_ascii_grid (sqlite3 * handle, const char *src_path,
+		      rl2CoveragePtr cvg, const char *section, int srid,
+		      unsigned short tile_w, unsigned short tile_h,
+		      int pyramidize, unsigned char sample_type,
+		      unsigned char compression, sqlite3_stmt * stmt_data,
+		      sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
+		      sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect)
+{
+/* importing an ASCII Data Grid file */
+    int ret;
+    rl2AsciiOriginPtr origin = NULL;
+    rl2RasterPtr raster = NULL;
+    rl2RasterStatisticsPtr stats;
+    rl2RasterStatisticsPtr section_stats = NULL;
+    rl2PixelPtr no_data = NULL;
+    int row;
+    int col;
+    unsigned short width;
+    unsigned short height;
+    unsigned char *blob_odd = NULL;
+    unsigned char *blob_even = NULL;
+    int blob_odd_sz;
+    int blob_even_sz;
+    unsigned char *blob_stats;
+    int blob_stats_sz;
+    double tile_minx;
+    double tile_miny;
+    double tile_maxx;
+    double tile_maxy;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    double res_x;
+    double res_y;
+    char *dumb1;
+    char *dumb2;
+    int bnd;
+    unsigned char *blob;
+    int blob_size;
+    gaiaGeomCollPtr geom;
+    sqlite3_int64 section_id;
+
+    origin = rl2_create_ascii_origin (src_path, srid, sample_type);
+    if (origin == NULL)
+	goto error;
+
+    printf ("Importing: %s\n", rl2_get_ascii_origin_path (origin));
+    printf ("------------------\n");
+    ret = rl2_get_ascii_origin_size (origin, &width, &height);
+    if (ret == RL2_OK)
+	printf ("    Image Size (pixels): %d x %d\n", width, height);
+    ret = rl2_get_ascii_origin_srid (origin, &srid);
+    if (ret == RL2_OK)
+	printf ("                   SRID: %d\n", srid);
+    ret = rl2_get_ascii_origin_extent (origin, &minx, &miny, &maxx, &maxy);
+    if (ret == RL2_OK)
+      {
+	  dumb1 = formatLong (minx);
+	  dumb2 = formatLat (miny);
+	  printf ("       LowerLeft Corner: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatLong (maxx);
+	  dumb2 = formatLat (maxy);
+	  printf ("      UpperRight Corner: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
+    ret = rl2_get_ascii_origin_resolution (origin, &res_x, &res_y);
+    if (ret == RL2_OK)
+      {
+	  dumb1 = formatFloat (res_x);
+	  dumb2 = formatFloat (res_y);
+	  printf ("       Pixel resolution: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
+
+    if (rl2_eval_ascii_origin_compatibility (cvg, origin) != RL2_TRUE)
+      {
+	  fprintf (stderr, "Coverage/ASCII mismatch\n");
+	  goto error;
+      }
+    no_data = rl2_get_coverage_no_data (cvg);
+
+/* INSERTing the section */
+    if (!do_insert_section
+	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
+	 stmt_sect, &section_id))
+	goto error;
+    section_stats = rl2_create_raster_statistics (sample_type, 1);
+    if (section_stats == NULL)
+	goto error;
+/* INSERTing the base-levels */
+    if (!do_insert_levels (handle, res_x, res_y, stmt_levl))
+	goto error;
+
+    tile_maxy = maxy;
+    for (row = 0; row < height; row += tile_h)
+      {
+	  tile_minx = minx;
+	  for (col = 0; col < width; col += tile_w)
+	    {
+		raster = rl2_get_tile_from_ascii_origin (cvg, origin, row, col);
+		if (raster == NULL)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      goto error;
+		  }
+		if (rl2_raster_encode
+		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
+		     &blob_even_sz, 100, 1) != RL2_OK)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      goto error;
+		  }
+
+		/* INSERTing the tile */
+		if (!do_insert_tile
+		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     section_id, srid, res_x, res_y, tile_w, tile_h, minx, miny,
+		     maxx, maxy, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
+		     NULL, no_data, stmt_tils, stmt_data, section_stats))
+		    goto error;
+		blob_odd = NULL;
+		blob_even = NULL;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+		tile_minx += (double) tile_w *res_x;
+	    }
+	  tile_maxy -= (double) tile_h *res_y;
+      }
+
+    stampa_statistiche (section_stats);
+
+/* updating the Section's Statistics */
+    if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+	goto error;
+
+    rl2_destroy_ascii_origin (origin);
+    rl2_destroy_raster_statistics (section_stats);
+
+    return 1;
+
+  error:
+    if (blob_odd != NULL)
+	free (blob_odd);
+    if (blob_even != NULL)
+	free (blob_even);
+    if (origin != NULL)
+	rl2_destroy_ascii_origin (origin);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (section_stats != NULL)
+	rl2_destroy_raster_statistics (section_stats);
+    return 0;
+}
+
+static int
+is_ascii_grid (const char *src_path)
+{
+/* testing for an ASCII Grid */
+    int len = strlen (src_path);
+    if (len > 4)
+      {
+	  if (strcasecmp (src_path + len - 4, ".asc") == 0)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
 do_import_file (sqlite3 * handle, const char *src_path,
 		rl2CoveragePtr cvg, const char *section, int worldfile,
 		int force_srid, int pyramidize, unsigned char sample_type,
@@ -372,6 +736,12 @@ do_import_file (sqlite3 * handle, const char *src_path,
     gaiaGeomCollPtr geom;
     sqlite3_int64 section_id;
     sqlite3_int64 tile_id;
+
+    if (is_ascii_grid (src_path))
+	return do_import_ascii_grid (handle, src_path, cvg, section, force_srid,
+				     tile_w, tile_h, pyramidize, sample_type,
+				     compression, stmt_data, stmt_tils,
+				     stmt_sect, stmt_levl, stmt_upd_sect);
 
     if (worldfile)
 	origin =
@@ -434,63 +804,16 @@ do_import_file (sqlite3 * handle, const char *src_path,
     no_data = rl2_get_coverage_no_data (cvg);
 
 /* INSERTing the section */
-    sqlite3_reset (stmt_sect);
-    sqlite3_clear_bindings (stmt_sect);
-    if (section != NULL)
-	sqlite3_bind_text (stmt_sect, 1, section, strlen (section),
-			   SQLITE_STATIC);
-    else
-      {
-	  char *sect_name = get_section_name (src_path);
-	  if (sect_name == NULL)
-	      sqlite3_bind_null (stmt_sect, 1);
-	  else
-	      sqlite3_bind_text (stmt_sect, 1, sect_name, strlen (sect_name),
-				 free);
-      }
-    sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
-		       SQLITE_STATIC);
-    sqlite3_bind_int (stmt_sect, 3, width);
-    sqlite3_bind_int (stmt_sect, 4, height);
-    geom = build_extent (srid, minx, miny, maxx, maxy);
-    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-    gaiaFreeGeomColl (geom);
-    sqlite3_bind_blob (stmt_sect, 5, blob, blob_size, free);
-    ret = sqlite3_step (stmt_sect);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	section_id = sqlite3_last_insert_rowid (handle);
-    else
-      {
-	  fprintf (stderr,
-		   "INSERT INTO sections; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  goto error;
-      }
+    if (!do_insert_section
+	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
+	 stmt_sect, &section_id))
+	goto error;
     section_stats = rl2_create_raster_statistics (sample_type, num_bands);
     if (section_stats == NULL)
 	goto error;
-
 /* INSERTing the base-levels */
-    sqlite3_reset (stmt_levl);
-    sqlite3_clear_bindings (stmt_levl);
-    sqlite3_bind_double (stmt_levl, 1, res_x);
-    sqlite3_bind_double (stmt_levl, 2, res_y);
-    sqlite3_bind_double (stmt_levl, 3, res_x * 2.0);
-    sqlite3_bind_double (stmt_levl, 4, res_y * 2.0);
-    sqlite3_bind_double (stmt_levl, 5, res_x * 4.0);
-    sqlite3_bind_double (stmt_levl, 6, res_y * 4.0);
-    sqlite3_bind_double (stmt_levl, 7, res_x * 8.0);
-    sqlite3_bind_double (stmt_levl, 8, res_y * 8.0);
-    ret = sqlite3_step (stmt_levl);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	;
-    else
-      {
-	  fprintf (stderr,
-		   "INSERT INTO levels; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  goto error;
-      }
+    if (!do_insert_levels (handle, res_x, res_y, stmt_levl))
+	goto error;
 
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
@@ -518,59 +841,13 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		/* INSERTing the tile */
 		aux_palette =
 		    rl2_clone_palette (rl2_get_raster_palette (raster));
-		stats = rl2_get_raster_statistics
-		    (blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     aux_palette, no_data);
-		if (aux_palette != NULL)
-		    rl2_destroy_palette (aux_palette);
-		aux_palette = NULL;
-		rl2_aggregate_raster_statistics (stats, section_stats);
-		sqlite3_reset (stmt_tils);
-		sqlite3_clear_bindings (stmt_tils);
-		sqlite3_bind_int64 (stmt_tils, 1, section_id);
-		tile_maxx = tile_minx + ((double) tile_w * res_x);
-		if (tile_maxx > maxx)
-		    tile_maxx = maxx;
-		tile_miny = tile_maxy - ((double) tile_h * res_y);
-		if (tile_miny < miny)
-		    tile_miny = miny;
-		geom =
-		    build_extent (srid, tile_minx, tile_miny, tile_maxx,
-				  tile_maxy);
-		gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-		gaiaFreeGeomColl (geom);
-		sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
-		ret = sqlite3_step (stmt_tils);
-		if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-		    ;
-		else
-		  {
-		      fprintf (stderr,
-			       "INSERT INTO tiles; sqlite3_step() error: %s\n",
-			       sqlite3_errmsg (handle));
-		      goto error;
-		  }
-		tile_id = sqlite3_last_insert_rowid (handle);
-		/* INSERTing tile data */
-		sqlite3_reset (stmt_data);
-		sqlite3_clear_bindings (stmt_data);
-		sqlite3_bind_int64 (stmt_data, 1, tile_id);
-		sqlite3_bind_blob (stmt_data, 2, blob_odd, blob_odd_sz, free);
-		if (blob_even == NULL)
-		    sqlite3_bind_null (stmt_data, 3);
-		else
-		    sqlite3_bind_blob (stmt_data, 3, blob_even, blob_even_sz,
-				       free);
-		ret = sqlite3_step (stmt_data);
-		if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-		    ;
-		else
-		  {
-		      fprintf (stderr,
-			       "INSERT INTO tile_data; sqlite3_step() error: %s\n",
-			       sqlite3_errmsg (handle));
-		      goto error;
-		  }
+
+		if (!do_insert_tile
+		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     section_id, srid, res_x, res_y, tile_w, tile_h, minx, miny,
+		     maxx, maxy, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
+		     aux_palette, no_data, stmt_tils, stmt_data, section_stats))
+		    goto error;
 		blob_odd = NULL;
 		blob_even = NULL;
 		rl2_destroy_raster (raster);
@@ -583,22 +860,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
     stampa_statistiche (section_stats);
 
 /* updating the Section's Statistics */
-    sqlite3_reset (stmt_upd_sect);
-    sqlite3_clear_bindings (stmt_upd_sect);
-    rl2_serialize_dbms_raster_statistics (section_stats, &blob_stats,
-					  &blob_stats_sz);
-    sqlite3_bind_blob (stmt_upd_sect, 1, blob_stats, blob_stats_sz, free);
-    sqlite3_bind_int64 (stmt_upd_sect, 2, section_id);
-    ret = sqlite3_step (stmt_upd_sect);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	;
-    else
-      {
-	  fprintf (stderr,
-		   "UPDATE sections; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  goto error;
-      }
+    if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+	goto error;
 
     rl2_destroy_tiff_origin (origin);
     rl2_destroy_raster_statistics (section_stats);
@@ -614,8 +877,6 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	rl2_destroy_tiff_origin (origin);
     if (raster != NULL)
 	rl2_destroy_raster (raster);
-    if (aux_palette != NULL)
-	rl2_destroy_palette (aux_palette);
     if (section_stats != NULL)
 	rl2_destroy_raster_statistics (section_stats);
     return 0;
@@ -635,7 +896,7 @@ check_extension_match (const char *file_name, const char *file_ext)
       }
     if (mark == NULL)
 	return 0;
-    if (strcmp (mark, file_ext) == 0)
+    if (strcasecmp (mark, file_ext) == 0)
 	return 1;
     return 0;
 }
@@ -3624,7 +3885,7 @@ main (int argc, char *argv[])
     const char *src_path = NULL;
     const char *dst_path = NULL;
     const char *dir_path = NULL;
-    const char *file_ext = NULL;
+    const char *file_ext = ".tif";
     const char *coverage = NULL;
     const char *section = NULL;
     unsigned char sample = RL2_SAMPLE_UNKNOWN;

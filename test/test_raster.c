@@ -1326,6 +1326,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to set Blue NoData #2\n");
 	  return -171;
       }
+    rl2_destroy_pixel (no_data);
 
     no_data = rl2_get_raster_no_data (raster);
     if (no_data == NULL)
@@ -1541,6 +1542,8 @@ main (int argc, char *argv[])
 
     bufpix = malloc (256 * 256);
     mask = malloc (256 * 256);
+    memset (bufpix, 21, 256 * 256);
+    memset (mask, 0, 256 * 256);
     if (rl2_create_raster (256, 256, RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME, 1,
 			   bufpix, 256 * 256, NULL, mask, 256 * 256,
 			   NULL) != NULL)

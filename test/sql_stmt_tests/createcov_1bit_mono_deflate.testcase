@@ -1,0 +1,7 @@
+rl2CreateCoverage - 1-BIT MONOCHROME DEFLATE
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('1bit_mono_deflate', '1-BIT', 'MONOCHROME', 1, 'DEFLATE', 100, 512, 512, 3003, 1.0, 1.0, NULL);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('1bit_mono_deflate', '1-BIT', 'MONOCHROME', 1, 'DEFLATE', 100, 512, 512, 3003, 1.0, 1.0, NULL)
+0

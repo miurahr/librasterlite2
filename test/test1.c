@@ -951,6 +951,7 @@ test_palette_png (const char *path)
     double minY;
     double maxX;
     double maxY;
+gaiaGeomCollPtr geom;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
     rl2SectionPtr img = rl2_section_from_png (path);
@@ -1094,6 +1095,13 @@ test_palette_png (const char *path)
     if (maxY != 408.0)
       {
 	  fprintf (stderr, "\"%s\" invalid image MaxX\n", path);
+	  return 0;
+      }
+
+    geom = rl2_get_raster_bbox (rst);
+if (geom != NULL)
+      {
+	  fprintf (stderr, "\"%s\" unexpected image BBOX\n", path);
 	  return 0;
       }
 

@@ -1,0 +1,7 @@
+rl2CreateCoverage - INT16 GRID LZMA
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('int16_grid_lzma', 'INT16', 'DATAGRID', 1, 'LZMA', 100, 512, 512, 3003, 1.0);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('int16_grid_lzma', 'INT16', 'DATAGRID', 1, 'LZMA', 100, 512, 512, 3003, 1.0)
+1

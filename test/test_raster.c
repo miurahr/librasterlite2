@@ -79,6 +79,7 @@ main (int argc, char *argv[])
     double vResolution;
     unsigned char sample;
     unsigned char *mask;
+gaiaGeomCollPtr geom = NULL;
     unsigned char *bufpix = malloc (256 * 256);
     memset (bufpix, 255, 256 * 256);
 
@@ -228,6 +229,14 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unexpected raster MaxY (Center point)\n");
 	  return -22;
       }
+
+    geom = rl2_get_raster_bbox (raster);
+if (geom == NULL)
+      {
+	  fprintf (stderr, "Unable to get raster BBOX (Center point)\n");
+	  return -250;
+      }
+gaiaFreeGeomColl(geom);
     rl2_destroy_raster (raster);
 
     bufpix = malloc (256 * 256);
@@ -1720,6 +1729,12 @@ main (int argc, char *argv[])
 	  return -221;
       }
 
+    if (rl2_get_raster_bbox (NULL) != NULL)
+      {
+	  fprintf (stderr, "Unexpected result: Raster BBOX (NULL)\n");
+	  return -222;
+      }
+
     rl2_destroy_raster (NULL);
 
     bufpix = malloc (256 * 256);
@@ -1730,62 +1745,62 @@ main (int argc, char *argv[])
     if (raster == NULL)
       {
 	  fprintf (stderr, "Unable to create a GRAYSCALE/256\n");
-	  return -222;
+	  return -223;
       }
 
     pixel = rl2_create_pixel (RL2_SAMPLE_UINT16, RL2_PIXEL_DATAGRID, 1);
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create UINT16 pixels for testing\n");
-	  return -223;
+	  return -224;
       }
 
     if (rl2_get_raster_pixel (NULL, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (NULL, NULL)\n");
-	  return -224;
+	  return -225;
       }
 
     if (rl2_set_raster_pixel (NULL, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (NULL, NULL)\n");
-	  return -225;
+	  return -226;
       }
 
     if (rl2_get_raster_pixel (raster, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (valid, NULL)\n");
-	  return -226;
+	  return -227;
       }
 
     if (rl2_set_raster_pixel (raster, NULL, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (valid, NULL)\n");
-	  return -227;
+	  return -228;
       }
 
     if (rl2_get_raster_pixel (NULL, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (NULL, valid)\n");
-	  return -228;
+	  return -229;
       }
 
     if (rl2_set_raster_pixel (NULL, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (NULL, valid)\n");
-	  return -229;
+	  return -230;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (mismatching sample)\n");
-	  return -230;
+	  return -231;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (mismatching sample)\n");
-	  return -231;
+	  return -232;
       }
     rl2_destroy_pixel (pixel);
 
@@ -1793,19 +1808,19 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create UINT8 pixels for testing\n");
-	  return -232;
+	  return -233;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (mismatching pixel)\n");
-	  return -233;
+	  return -234;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 10, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (mismatching pixel)\n");
-	  return -234;
+	  return -235;
       }
     rl2_destroy_pixel (pixel);
 
@@ -1813,31 +1828,31 @@ main (int argc, char *argv[])
     if (no_data == NULL)
       {
 	  fprintf (stderr, "Unable to create Gray/256 pixels for testing\n");
-	  return -235;
+	  return -236;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 2000, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (invalid row)\n");
-	  return -236;
+	  return -237;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 2000, 10) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (invalid row)\n");
-	  return -237;
+	  return -238;
       }
 
     if (rl2_get_raster_pixel (raster, pixel, 10, 2000) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to get raster pixel (invalid col)\n");
-	  return -238;
+	  return -239;
       }
 
     if (rl2_set_raster_pixel (raster, pixel, 10, 2000) != RL2_ERROR)
       {
 	  fprintf (stderr, "Unable to set raster pixel (invalid col)\n");
-	  return -239;
+	  return -240;
       }
     rl2_destroy_pixel (pixel);
 

@@ -1,0 +1,7 @@
+rl2CreateCoverage - DOUBLE GRID LZMA
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('double_grid_lzma', 'DOUBLE', 'DATAGRID', 1, 'LZMA', 100, 512, 512, 3003, 1.0);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('double_grid_lzma', 'DOUBLE', 'DATAGRID', 1, 'LZMA', 100, 512, 512, 3003, 1.0)
+1

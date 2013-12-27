@@ -42,6 +42,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 */
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
@@ -616,6 +617,174 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
 }
 
 static void
+fnct_rl2CreateCoverage (sqlite3_context * context, int argc,
+			sqlite3_value ** argv)
+{
+/* SQL function:
+/ fnct_rl2CreateCoverage(text coverage, text sample_type, text pixel_type,
+/      integer num_bands, text compression, integer quality, integer tile_width,
+/      integer tile_height, integer srid, float resolution)
+/    or
+/ fnct_rl2CreateCoverage(text coverage, text sample_type, text pixel_type,
+/      integer num_bands, text compression, integer quality, integer tile_width,
+/      integer tile_height, integer srid, float horz_res, float vert_res)
+/    or
+/ fnct_rl2CreateCoverage(text coverage, text sample_type, text pixel_type,
+/      integer num_bands, text compression, integer quality, integer tile_width,
+/      integer tile_height, integer srid, float horz_res, float vert_res,
+/      BLOB nodata_pixel)
+/
+/ will return 1 (TRUE, success) or (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    const char *coverage = NULL;
+    unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
+    unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
+    unsigned char num_bands = RL2_BANDS_UNKNOWN;
+    unsigned char compression = RL2_COMPRESSION_UNKNOWN;
+    int quality = -1;
+    unsigned short tile_width = RL2_TILESIZE_UNDEFINED;
+    unsigned short tile_height = RL2_TILESIZE_UNDEFINED;
+    int srid = RL2_GEOREFERENCING_NONE;
+    double horz_res = 0.0;
+    double vert_res = 0.0;
+    sqlite3 *sqlite;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) == SQLITE_TEXT)
+	coverage = (const char *) sqlite3_value_text (argv[0]);
+    if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
+      {
+	  const char *sample = (const char *) sqlite3_value_text (argv[1]);
+	  if (strcasecmp (sample, "1-BIT") == 0)
+	      sample_type = RL2_SAMPLE_1_BIT;
+	  if (strcasecmp (sample, "2-BIT") == 0)
+	      sample_type = RL2_SAMPLE_2_BIT;
+	  if (strcasecmp (sample, "4-BIT") == 0)
+	      sample_type = RL2_SAMPLE_4_BIT;
+	  if (strcasecmp (sample, "INT8") == 0)
+	      sample_type = RL2_SAMPLE_INT8;
+	  if (strcasecmp (sample, "UINT8") == 0)
+	      sample_type = RL2_SAMPLE_UINT8;
+	  if (strcasecmp (sample, "INT16") == 0)
+	      sample_type = RL2_SAMPLE_INT16;
+	  if (strcasecmp (sample, "UINT16") == 0)
+	      sample_type = RL2_SAMPLE_UINT16;
+	  if (strcasecmp (sample, "INT32") == 0)
+	      sample_type = RL2_SAMPLE_INT32;
+	  if (strcasecmp (sample, "UINT32") == 0)
+	      sample_type = RL2_SAMPLE_UINT32;
+	  if (strcasecmp (sample, "INT8") == 0)
+	      sample_type = RL2_SAMPLE_INT8;
+	  if (strcasecmp (sample, "UINT8") == 0)
+	      sample_type = RL2_SAMPLE_UINT8;
+	  if (strcasecmp (sample, "FLOAT") == 0)
+	      sample_type = RL2_SAMPLE_FLOAT;
+	  if (strcasecmp (sample, "DOUBLE") == 0)
+	      sample_type = RL2_SAMPLE_DOUBLE;
+      }
+    if (sqlite3_value_type (argv[2]) == SQLITE_TEXT)
+      {
+	  const char *pixel = (const char *) sqlite3_value_text (argv[2]);
+	  if (strcasecmp (pixel, "MONOCHROME") == 0)
+	      pixel_type = RL2_PIXEL_MONOCHROME;
+	  if (strcasecmp (pixel, "PALETTE") == 0)
+	      pixel_type = RL2_PIXEL_PALETTE;
+	  if (strcasecmp (pixel, "GRAYSCALE") == 0)
+	      pixel_type = RL2_PIXEL_GRAYSCALE;
+	  if (strcasecmp (pixel, "RGB") == 0)
+	      pixel_type = RL2_PIXEL_RGB;
+	  if (strcasecmp (pixel, "MULTIBAND") == 0)
+	      pixel_type = RL2_PIXEL_MULTIBAND;
+	  if (strcasecmp (pixel, "DATAGRID") == 0)
+	      pixel_type = RL2_PIXEL_DATAGRID;
+      }
+    if (sqlite3_value_type (argv[3]) == SQLITE_INTEGER)
+	num_bands = sqlite3_value_int (argv[3]);
+    if (sqlite3_value_type (argv[4]) == SQLITE_TEXT)
+      {
+	  const char *compr = (const char *) sqlite3_value_text (argv[4]);
+	  if (strcasecmp (compr, "NONE") == 0)
+	      compression = RL2_COMPRESSION_NONE;
+	  if (strcasecmp (compr, "DEFLATE") == 0)
+	      compression = RL2_COMPRESSION_DEFLATE;
+	  if (strcasecmp (compr, "LZMA") == 0)
+	      compression = RL2_COMPRESSION_LZMA;
+	  if (strcasecmp (compr, "GIF") == 0)
+	      compression = RL2_COMPRESSION_GIF;
+	  if (strcasecmp (compr, "PNG") == 0)
+	      compression = RL2_COMPRESSION_PNG;
+	  if (strcasecmp (compr, "JPEG") == 0)
+	      compression = RL2_COMPRESSION_JPEG;
+	  if (strcasecmp (compr, "LOSSY_WEBP") == 0)
+	      compression = RL2_COMPRESSION_LOSSY_WEBP;
+	  if (strcasecmp (compr, "LOSSLESS_WEBP") == 0)
+	      compression = RL2_COMPRESSION_LOSSLESS_WEBP;
+		      if (strcasecmp (compr, "FAX3") == 0)
+			  compression = RL2_COMPRESSION_CCITTFAX3;
+		      if (strcasecmp (compr, "FAX4") == 0)
+			  compression = RL2_COMPRESSION_CCITTFAX4;
+      }
+    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+      {
+	  quality = sqlite3_value_int (argv[5]);
+	  if (compression == RL2_COMPRESSION_JPEG
+	      || compression == RL2_COMPRESSION_LOSSY_WEBP)
+	      ;
+	  else
+	      quality = 100;
+      }
+    if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
+      {
+	  int val = sqlite3_value_int (argv[6]);
+	  if (val > 0)
+	      tile_width = val;
+      }
+    if (sqlite3_value_type (argv[7]) == SQLITE_INTEGER)
+      {
+	  int val = sqlite3_value_int (argv[7]);
+	  if (val > 0)
+	      tile_height = val;
+      }
+    if (sqlite3_value_type (argv[8]) == SQLITE_INTEGER)
+	srid = sqlite3_value_int (argv[8]);
+    if (sqlite3_value_type (argv[9]) == SQLITE_INTEGER)
+	horz_res = sqlite3_value_int (argv[9]);
+    else if (sqlite3_value_type (argv[9]) == SQLITE_FLOAT)
+	horz_res = sqlite3_value_double (argv[9]);
+    if (argc == 10)
+	vert_res = horz_res;
+    if (argc >= 11)
+      {
+	  if (sqlite3_value_type (argv[10]) == SQLITE_INTEGER)
+	      vert_res = sqlite3_value_int (argv[10]);
+	  else if (sqlite3_value_type (argv[10]) == SQLITE_FLOAT)
+	      vert_res = sqlite3_value_double (argv[10]);
+      }
+
+    if (coverage == NULL || sample_type == RL2_SAMPLE_UNKNOWN
+	|| pixel_type == RL2_PIXEL_UNKNOWN || num_bands == RL2_BANDS_UNKNOWN
+	|| compression == RL2_COMPRESSION_UNKNOWN || quality < 0
+	|| tile_width == RL2_TILESIZE_UNDEFINED
+	|| tile_height == RL2_TILESIZE_UNDEFINED)
+      {
+	  /* illegal args */
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    sqlite = sqlite3_context_db_handle (context);
+    if (rl2_create_dbms_coverage
+	(sqlite, coverage, sample_type, pixel_type, num_bands, compression,
+	 quality, tile_width, tile_height, srid, horz_res, vert_res,
+	 NULL) == RL2_OK)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+}
+
+static void
 register_rl2_sql_functions (void *p_db)
 {
     sqlite3 *db = p_db;
@@ -633,6 +802,12 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_IsValidRasterStatistics, 0, 0);
     sqlite3_create_function (db, "IsValidRasterTile", 4, SQLITE_ANY, 0,
 			     fnct_IsValidRasterTile, 0, 0);
+    sqlite3_create_function (db, "rl2CreateCoverage", 10, SQLITE_ANY, 0,
+			     fnct_rl2CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "rl2CreateCoverage", 11, SQLITE_ANY, 0,
+			     fnct_rl2CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "rl2CreateCoverage", 12, SQLITE_ANY, 0,
+			     fnct_rl2CreateCoverage, 0, 0);
 }
 
 static void

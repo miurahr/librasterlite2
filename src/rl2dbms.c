@@ -133,26 +133,21 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
       {
       case RL2_PIXEL_MONOCHROME:
 	  xpixel = "MONOCHROME";
-	  num_bands = 1;
 	  break;
       case RL2_PIXEL_PALETTE:
 	  xpixel = "PALETTE";
-	  num_bands = 1;
 	  break;
       case RL2_PIXEL_GRAYSCALE:
 	  xpixel = "GRAYSCALE";
-	  num_bands = 1;
 	  break;
       case RL2_PIXEL_RGB:
 	  xpixel = "RGB";
-	  num_bands = 3;
 	  break;
       case RL2_PIXEL_MULTIBAND:
 	  xpixel = "MULTIBAND";
 	  break;
       case RL2_PIXEL_DATAGRID:
 	  xpixel = "DATAGRID";
-	  num_bands = 1;
 	  break;
       };
     switch (compression)
@@ -180,6 +175,12 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  xcompression = "LOSSLESS_WEBP";
+	  break;
+      case RL2_COMPRESSION_CCITTFAX3:
+	  xcompression = "CCITTFAX3";
+	  break;
+      case RL2_COMPRESSION_CCITTFAX4:
+	  xcompression = "CCITTFAX4";
 	  break;
       };
     sqlite3_reset (stmt);

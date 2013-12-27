@@ -1,0 +1,7 @@
+rl2CreateCoverage - UINT8 RGB LZMA
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('uint8_rgb_lzma', 'UINT8', 'RGB', 3, 'LZMA', 100, 512, 512, 3003, 1.0);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('uint8_rgb_lzma', 'UINT8', 'RGB', 3, 'LZMA', 100, 512, 512, 3003, 1.0)
+0

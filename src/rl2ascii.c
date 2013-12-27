@@ -51,6 +51,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "config.h"
 
 #include "rasterlite2/rasterlite2.h"
+#include "rasterlite2/rl2tiff.h"
 #include "rasterlite2_private.h"
 
 static int
@@ -545,7 +546,6 @@ rl2_get_ascii_origin_type (rl2AsciiOriginPtr ascii, unsigned char *sample_type,
 			   unsigned char *pixel_type, unsigned char *num_bands)
 {
 /* retrieving the sample/pixel type from an ASCII Grid origin */
-    int ok = 0;
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
     if (origin == NULL)
 	return RL2_ERROR;
@@ -889,7 +889,6 @@ read_from_ascii (rl2PrivAsciiOriginPtr origin, unsigned short width,
 		 unsigned char **pixels, int *pixels_sz)
 {
 /* creating a tile from the ASCII Grid origin */
-    int ret;
     unsigned char *bufPixels = NULL;
     int bufPixelsSz = 0;
     int pix_sz = 1;

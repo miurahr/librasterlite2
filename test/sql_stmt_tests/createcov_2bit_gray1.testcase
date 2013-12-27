@@ -1,0 +1,7 @@
+rl2CreateCoverage - 2-BIT GRAYSCALE invalid Bands
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('2bit_gray1', '2-BIT', 'GRAYSCALE', 2, 'NONE', 100, 512, 512, 3003, 1.0);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('2bit_gray1', '2-BIT', 'GRAYSCALE', 2, 'NONE', 100, 512, 512, 3003, 1.0)
+0

@@ -1,0 +1,7 @@
+rl2CreateCoverage - UINT8 RGB LOSSLESS WEBP
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('uint8_rgb_webp2', 'UINT8', 'RGB', 3, 'LOSSLESS_WEBP', 80, 512, 512, 3003, 1.0);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('uint8_rgb_webp2', 'UINT8', 'RGB', 3, 'LOSSLESS_WEBP', 80, 512, 512, 3003, 1.0)
+1

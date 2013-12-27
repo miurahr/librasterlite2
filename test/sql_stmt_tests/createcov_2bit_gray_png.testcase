@@ -1,0 +1,7 @@
+rl2CreateCoverage - 2-BIT GRAYSCALE PNG
+:memory: #use in-memory database
+SELECT rl2CreateCoverage('2bit_gray_png', '2-BIT', 'GRAYSCALE', 1, 'PNG', 100, 512, 512, 3003, 1.0);
+1 # rows (not including the header row)
+1 # columns
+rl2CreateCoverage('2bit_gray_png', '2-BIT', 'GRAYSCALE', 1, 'PNG', 100, 512, 512, 3003, 1.0)
+1

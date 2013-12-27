@@ -164,7 +164,6 @@ check_coverage_self_consistency (unsigned char sample_type,
       case RL2_PIXEL_GRAYSCALE:
 	  switch (sample_type)
 	    {
-	    case RL2_SAMPLE_1_BIT:
 	    case RL2_SAMPLE_2_BIT:
 	    case RL2_SAMPLE_4_BIT:
 	    case RL2_SAMPLE_UINT8:
@@ -177,8 +176,6 @@ check_coverage_self_consistency (unsigned char sample_type,
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
 	    case RL2_COMPRESSION_GIF:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_JPEG:
@@ -202,8 +199,6 @@ check_coverage_self_consistency (unsigned char sample_type,
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_JPEG:
 	    case RL2_COMPRESSION_LOSSY_WEBP:

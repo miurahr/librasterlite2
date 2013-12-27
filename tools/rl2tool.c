@@ -2068,6 +2068,10 @@ exec_catalog (sqlite3 * handle)
 		    printf ("          Compression: WEBP (lossy)\n");
 		else if (strcmp (compression, "LOSSLESS_WEBP") == 0)
 		    printf ("          Compression: WEBP, lossless\n");
+		else if (strcmp (compression, "CCITTFAX3") == 0)
+		    printf ("          Compression: FAX3, lossless\n");
+		else if (strcmp (compression, "CCITTFAX4") == 0)
+		    printf ("          Compression: FAX4, lossless\n");
 		if (strcmp (compression, "JPEG") == 0
 		    || strcmp (compression, "LOSSY_WEBP") == 0)
 		    printf ("  Compression Quality: %d\n", quality);
@@ -2876,6 +2880,14 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  fprintf (stderr, "          Compression: WEBP, lossless\n");
+	  *quality = 100;
+	  break;
+      case RL2_COMPRESSION_CCITTFAX3:
+	  fprintf (stderr, "          Compression: FAX3, lossless\n");
+	  *quality = 100;
+	  break;
+      case RL2_COMPRESSION_CCITTFAX4:
+	  fprintf (stderr, "          Compression: FAX4, lossless\n");
 	  *quality = 100;
 	  break;
       default:
@@ -3687,7 +3699,7 @@ do_help (int mode)
 	  fprintf (stderr, "Compression Keywords:\n");
 	  fprintf (stderr, "----------------------------------\n");
 	  fprintf (stderr,
-		   "NONE DEFLATE LZMA GIF PNG JPEG LOSSY_WEBP LOSSLESS_WEBP\n\n");
+		   "NONE DEFLATE LZMA GIF PNG JPEG LOSSY_WEBP LOSSLESS_WEBP FAX3 FAX4\n\n");
       }
     if (mode == ARG_NONE || mode == ARG_MODE_DROP)
       {
@@ -4034,6 +4046,10 @@ main (int argc, char *argv[])
 			  compression = RL2_COMPRESSION_LOSSY_WEBP;
 		      if (strcasecmp (argv[i], "LOSSLESS_WEBP") == 0)
 			  compression = RL2_COMPRESSION_LOSSLESS_WEBP;
+		      if (strcasecmp (argv[i], "FAX3") == 0)
+			  compression = RL2_COMPRESSION_CCITTFAX3;
+		      if (strcasecmp (argv[i], "FAX4") == 0)
+			  compression = RL2_COMPRESSION_CCITTFAX4;
 		      break;
 		  case ARG_QUALITY:
 		      quality = atoi (argv[i]);

@@ -100,7 +100,7 @@ extern "C"
 /* internal binary format markers */
 #define RL2_ODD_BLOCK_START		0xfa
 #define RL2_ODD_BLOCK_END		0xf0
-#define RL2_EVEN_BLOCK_START	0xdb
+#define RL2_EVEN_BLOCK_START		0xdb
 #define RL2_EVEN_BLOCK_END		0xd0
 #define RL2_LITTLE_ENDIAN		0x01
 #define RL2_BIG_ENDIAN			0x00
@@ -112,7 +112,7 @@ extern "C"
 #define RL2_MASK_END			0xb7
 #define RL2_STATS_START			0x27
 #define RL2_STATS_END			0x2a
-#define RL2_BAND_STATS_START	0x37
+#define RL2_BAND_STATS_START		0x37
 #define RL2_BAND_STATS_END		0x3a
 #define RL2_HISTOGRAM_START		0x47
 #define RL2_HISTOGRAM_END		0x4a
@@ -122,12 +122,12 @@ extern "C"
 #define RL2_SAMPLE_END			0x26
 
 /* internal ColorSpace forced conversions */
-#define RL2_CONVERT_NO			0x00
+#define RL2_CONVERT_NO				0x00
 #define RL2_CONVERT_RGB_TO_GRAYSCALE 		0x01
 #define RL2_CONVERT_PALETTE_TO_GRAYSCALE	0x02
 #define RL2_CONVERT_GRAYSCALE_TO_RGB 		0x03
 #define RL2_CONVERT_GRAYSCALE_TO_PALETTE	0x04
-#define RL2_CONVERT_PALETTE_TO_RGB			0x05
+#define RL2_CONVERT_PALETTE_TO_RGB		0x05
 
     typedef union rl2_priv_sample
     {

@@ -2810,6 +2810,10 @@ extern "C"
 
     RL2_DECLARE void rl2_destroy_ascii_origin (rl2AsciiOriginPtr ascii);
 
+RL2_DECLARE int
+rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
+				     rl2AsciiOriginPtr ascii);
+
     RL2_DECLARE const char *rl2_get_ascii_origin_path (rl2AsciiOriginPtr ascii);
 
     RL2_DECLARE int
@@ -2840,6 +2844,17 @@ extern "C"
 					rl2AsciiOriginPtr ascii,
 					unsigned int startRow,
 					unsigned int startCol);
+
+    RL2_DECLARE int
+	rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
+				   rl2CoveragePtr coverage, int worldfile,
+				   int force_srid, int pyramidize);
+
+    RL2_DECLARE int
+	rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
+				     const char *file_ext,
+				     rl2CoveragePtr coverage, int worldfile,
+				     int force_srid, int pyramidize);
 
 #ifdef __cplusplus
 }

@@ -524,42 +524,52 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
     if (origin->forced_pixel_type == RL2_PIXEL_UNKNOWN)
       {
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      && origin->samplesPerPixel == 3
+	      && origin->photometric == PHOTOMETRIC_RGB)
 	      origin->forced_pixel_type = RL2_PIXEL_RGB;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample > 1)
 	      origin->forced_pixel_type = RL2_PIXEL_GRAYSCALE;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	      origin->forced_pixel_type = RL2_PIXEL_PALETTE;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric <= 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric <= PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 1)
 	      origin->forced_pixel_type = RL2_PIXEL_MONOCHROME;
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 8)
 	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 16)
 	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 32)
 	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 32)
 	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
 	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 32)
 	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
 	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 64)
 	      origin->forced_pixel_type = RL2_PIXEL_DATAGRID;
       }
@@ -572,16 +582,19 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* RGB color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      && origin->samplesPerPixel == 3
+	      && origin->photometric == PHOTOMETRIC_RGB)
 	      return 1;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2)
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRAYSCALE_TO_RGB;
 		return 1;
 	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	    {
 		origin->forced_conversion = RL2_CONVERT_PALETTE_TO_RGB;
@@ -594,7 +607,8 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* RGB color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      && origin->samplesPerPixel == 3
+	      && origin->photometric == PHOTOMETRIC_RGB)
 	      return 1;
       }
     if (origin->forced_sample_type == RL2_SAMPLE_UINT8
@@ -603,17 +617,20 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* GRAYSCALE color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample > 1)
 	      return 1;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 3 && origin->photometric == 2)
+	      && origin->samplesPerPixel == 3
+	      && origin->photometric == PHOTOMETRIC_RGB)
 	    {
 		origin->forced_conversion = RL2_CONVERT_RGB_TO_GRAYSCALE;
 		return 1;
 	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8 && check_grayscale_palette (origin))
 	    {
 		origin->forced_conversion = RL2_CONVERT_PALETTE_TO_GRAYSCALE;
@@ -626,7 +643,8 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* GRAYSCALE color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB
 	      && origin->bitsPerSample > 1)
 	      return 1;
       }
@@ -636,11 +654,13 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* PALETTE-256 color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	      return 1;
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric < 2)
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric < PHOTOMETRIC_RGB)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRAYSCALE_TO_PALETTE;
 		return 1;
@@ -652,7 +672,8 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* PALETTE-16 color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	      return 1;
       }
@@ -662,7 +683,8 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* PALETTE-4 color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	      return 1;
       }
@@ -672,7 +694,8 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* PALETTE-2 color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric == 3
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	      return 1;
       }
@@ -682,7 +705,8 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
       {
 	  /* MONOCHROME color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 1 && origin->photometric <= 2
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric <= PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 1)
 	      return 1;
       }
@@ -816,7 +840,8 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
     if (origin->planarConfig != PLANARCONFIG_CONTIG)
 	goto error;
 
-    if (origin->photometric == 3 && origin->sampleFormat == SAMPLEFORMAT_UINT)
+    if (origin->photometric == PHOTOMETRIC_PALETTE
+	&& origin->sampleFormat == SAMPLEFORMAT_UINT)
       {
 	  /* attempting to retrieve a Palette */
 	  uint16 *red;
@@ -1217,7 +1242,8 @@ rl2_get_tiff_origin_type (rl2TiffOriginPtr tiff, unsigned char *sample_type,
 	return RL2_ERROR;
 
     if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	&& origin->samplesPerPixel == 1 && origin->photometric < 2)
+	&& origin->samplesPerPixel == 1
+	&& origin->photometric < PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of MONOCHROME */
 	  if (origin->bitsPerSample == 1)
@@ -1234,7 +1260,8 @@ rl2_get_tiff_origin_type (rl2TiffOriginPtr tiff, unsigned char *sample_type,
 	    }
       }
     if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	&& origin->samplesPerPixel == 1 && origin->photometric < 2)
+	&& origin->samplesPerPixel == 1
+	&& origin->photometric < PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of GRAYSCALE */
 	  if (origin->bitsPerSample == 2)
@@ -1268,7 +1295,8 @@ rl2_get_tiff_origin_type (rl2TiffOriginPtr tiff, unsigned char *sample_type,
 	    }
       }
     if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	&& origin->samplesPerPixel == 1 && origin->photometric == 3)
+	&& origin->samplesPerPixel == 1
+	&& origin->photometric == PHOTOMETRIC_PALETTE)
       {
 	  /* could be some kind of PALETTE */
 	  if (origin->bitsPerSample == 1)
@@ -1300,7 +1328,8 @@ rl2_get_tiff_origin_type (rl2TiffOriginPtr tiff, unsigned char *sample_type,
 	    }
       }
     if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	&& origin->samplesPerPixel == 3 && origin->photometric == 2)
+	&& origin->samplesPerPixel == 3
+	&& origin->photometric == PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of RGB */
 	  if (origin->bitsPerSample == 8)
@@ -1321,7 +1350,7 @@ rl2_get_tiff_origin_type (rl2TiffOriginPtr tiff, unsigned char *sample_type,
 		return RL2_OK;
 	    }
       }
-    if (origin->samplesPerPixel == 1 && origin->photometric < 2)
+    if (origin->samplesPerPixel == 1 && origin->photometric < PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of DATA-GRID */
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT)
@@ -2404,7 +2433,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     if ((x * coverage->tileHeight) != startRow)
 	return NULL;
 
-    if ((origin->photometric == 3
+    if ((origin->photometric == PHOTOMETRIC_RGB
 	 && origin->forced_pixel_type == RL2_PIXEL_PALETTE)
 	|| origin->forced_conversion == RL2_CONVERT_GRAYSCALE_TO_PALETTE)
       {
@@ -3052,7 +3081,7 @@ rl2_create_tiff_destination (const char *path, unsigned short width,
     TIFFSetErrorHandler (NULL);
     TIFFSetWarningHandler (NULL);
 
-/* creating a TIFF files */
+/* creating a TIFF file */
     destination->out = TIFFOpen (destination->path, "w");
     if (destination->out == NULL)
 	goto error;
@@ -3192,7 +3221,7 @@ rl2_create_geotiff_destination (const char *path, sqlite3 * handle,
     TIFFSetErrorHandler (NULL);
     TIFFSetWarningHandler (NULL);
 
-/* creating a TIFF files */
+/* creating a GeoTIFF file */
     destination->out = XTIFFOpen (destination->path, "w");
     if (destination->out == NULL)
 	goto error;
@@ -3420,7 +3449,8 @@ rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
 	return RL2_ERROR;
 
     if (destination->sampleFormat == SAMPLEFORMAT_UINT
-	&& destination->samplesPerPixel == 1 && destination->photometric < 2)
+	&& destination->samplesPerPixel == 1
+	&& destination->photometric < PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of MONOCHROME */
 	  if (destination->bitsPerSample == 1)
@@ -3437,7 +3467,8 @@ rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
 	    }
       }
     if (destination->sampleFormat == SAMPLEFORMAT_UINT
-	&& destination->samplesPerPixel == 1 && destination->photometric < 2)
+	&& destination->samplesPerPixel == 1
+	&& destination->photometric < PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of GRAYSCALE */
 	  if (destination->bitsPerSample == 2)
@@ -3472,7 +3503,8 @@ rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
 	    }
       }
     if (destination->sampleFormat == SAMPLEFORMAT_UINT
-	&& destination->samplesPerPixel == 1 && destination->photometric == 3)
+	&& destination->samplesPerPixel == 1
+	&& destination->photometric == PHOTOMETRIC_PALETTE)
       {
 	  /* could be some kind of PALETTE */
 	  if (destination->bitsPerSample == 1)
@@ -3504,7 +3536,8 @@ rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
 	    }
       }
     if (destination->sampleFormat == SAMPLEFORMAT_UINT
-	&& destination->samplesPerPixel == 3 && destination->photometric == 2)
+	&& destination->samplesPerPixel == 3
+	&& destination->photometric == PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of RGB */
 	  if (destination->bitsPerSample == 8)
@@ -3525,7 +3558,8 @@ rl2_get_tiff_destination_type (rl2TiffDestinationPtr tiff,
 		return RL2_OK;
 	    }
       }
-    if (destination->samplesPerPixel == 1 && destination->photometric < 2)
+    if (destination->samplesPerPixel == 1
+	&& destination->photometric < PHOTOMETRIC_RGB)
       {
 	  /* could be some kind of DATA-GRID */
 	  if (destination->sampleFormat == SAMPLEFORMAT_INT)
@@ -4506,5 +4540,4 @@ rl2_write_tiff_worldfile (rl2TiffDestinationPtr tiff)
     fprintf (tfw, "        %1.16f\n", destination->maxY);
     fclose (tfw);
     return RL2_OK;
-
 }

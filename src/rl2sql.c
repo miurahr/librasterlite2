@@ -42,10 +42,15 @@ the terms of any one of the MPL, the GPL or the LGPL.
 */
 
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "config.h"
 
@@ -94,7 +99,7 @@ fnct_IsValidNoDataPixel (sqlite3_context * context, int argc,
 /* SQL function:
 / IsValidNoDataPixel(BLOBencoded pixel, text sample_type, int num_bands)
 /
-/ will return 1 (TRUE, valid) or (FALSE, invalid)
+/ will return 1 (TRUE, valid) or 0 (FALSE, invalid)
 / or -1 (INVALID ARGS)
 /
 */
@@ -168,7 +173,7 @@ fnct_IsValidRasterPalette (sqlite3_context * context, int argc,
 /* SQL function:
 / IsValidRasterPalette(BLOBencoded palette, text sample_type, text pixel_type, int num_bands)
 /
-/ will return 1 (TRUE, valid) or (FALSE, invalid)
+/ will return 1 (TRUE, valid) or 0 (FALSE, invalid)
 / or -1 (INVALID ARGS)
 /
 */
@@ -328,7 +333,7 @@ fnct_IsValidRasterStatistics (sqlite3_context * context, int argc,
 /   or
 / IsValidRasterStatistics((BLOBencoded statistics, text sample_type, int num_bands)
 /
-/ will return 1 (TRUE, valid) or (FALSE, invalid)
+/ will return 1 (TRUE, valid) or 0 (FALSE, invalid)
 / or -1 (INVALID ARGS)
 /
 */
@@ -548,7 +553,7 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
 / IsValidRasterTile(text coverage, integer level, BLOBencoded tile_odd,
 /   BLOBencoded tile_even)
 /
-/ will return 1 (TRUE, valid) or (FALSE, invalid)
+/ will return 1 (TRUE, valid) or 0 (FALSE, invalid)
 / or -1 (INVALID ARGS)
 /
 */
@@ -617,197 +622,288 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
 }
 
 static void
-fnct_rl2CreateCoverage (sqlite3_context * context, int argc,
-			sqlite3_value ** argv)
+fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ fnct_rl2CreateCoverage(text coverage, text sample_type, text pixel_type,
-/      integer num_bands, text compression, integer quality, integer tile_width,
-/      integer tile_height, integer srid, float resolution)
-/    or
-/ fnct_rl2CreateCoverage(text coverage, text sample_type, text pixel_type,
-/      integer num_bands, text compression, integer quality, integer tile_width,
-/      integer tile_height, integer srid, float horz_res, float vert_res)
-/    or
-/ fnct_rl2CreateCoverage(text coverage, text sample_type, text pixel_type,
-/      integer num_bands, text compression, integer quality, integer tile_width,
-/      integer tile_height, integer srid, float horz_res, float vert_res,
-/      BLOB nodata_pixel)
+/ LoadRaster(text coverage, text path_to_raster)
+/ LoadRaster(text coverage, text path_to_raster, int with_worldfile)
+/ LoadRaster(text coverage, text path_to_raster, int with_worldfile,
+/            int force_srid)
+/ LoadRaster(text coverage, text path_to_raster, int with_worldfile,
+/            int force_srid, int transaction)
 /
-/ will return 1 (TRUE, success) or (FALSE, failure)
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
 /
 */
-    const char *coverage = NULL;
-    unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
-    unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
-    unsigned char num_bands = RL2_BANDS_UNKNOWN;
-    unsigned char compression = RL2_COMPRESSION_UNKNOWN;
-    int quality = -1;
-    unsigned short tile_width = RL2_TILESIZE_UNDEFINED;
-    unsigned short tile_height = RL2_TILESIZE_UNDEFINED;
-    int srid = RL2_GEOREFERENCING_NONE;
-    double horz_res = 0.0;
-    double vert_res = 0.0;
+    int err = 0;
+    const char *cvg_name;
+    const char *path;
+    int worldfile = 0;
+    int force_srid = -1;
+    int transaction = 0;
+    rl2CoveragePtr coverage;
     sqlite3 *sqlite;
+    int ret;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
-    if (sqlite3_value_type (argv[0]) == SQLITE_TEXT)
-	coverage = (const char *) sqlite3_value_text (argv[0]);
-    if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 3 && sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
       {
-	  const char *sample = (const char *) sqlite3_value_text (argv[1]);
-	  if (strcasecmp (sample, "1-BIT") == 0)
-	      sample_type = RL2_SAMPLE_1_BIT;
-	  if (strcasecmp (sample, "2-BIT") == 0)
-	      sample_type = RL2_SAMPLE_2_BIT;
-	  if (strcasecmp (sample, "4-BIT") == 0)
-	      sample_type = RL2_SAMPLE_4_BIT;
-	  if (strcasecmp (sample, "INT8") == 0)
-	      sample_type = RL2_SAMPLE_INT8;
-	  if (strcasecmp (sample, "UINT8") == 0)
-	      sample_type = RL2_SAMPLE_UINT8;
-	  if (strcasecmp (sample, "INT16") == 0)
-	      sample_type = RL2_SAMPLE_INT16;
-	  if (strcasecmp (sample, "UINT16") == 0)
-	      sample_type = RL2_SAMPLE_UINT16;
-	  if (strcasecmp (sample, "INT32") == 0)
-	      sample_type = RL2_SAMPLE_INT32;
-	  if (strcasecmp (sample, "UINT32") == 0)
-	      sample_type = RL2_SAMPLE_UINT32;
-	  if (strcasecmp (sample, "INT8") == 0)
-	      sample_type = RL2_SAMPLE_INT8;
-	  if (strcasecmp (sample, "UINT8") == 0)
-	      sample_type = RL2_SAMPLE_UINT8;
-	  if (strcasecmp (sample, "FLOAT") == 0)
-	      sample_type = RL2_SAMPLE_FLOAT;
-	  if (strcasecmp (sample, "DOUBLE") == 0)
-	      sample_type = RL2_SAMPLE_DOUBLE;
-      }
-    if (sqlite3_value_type (argv[2]) == SQLITE_TEXT)
-      {
-	  const char *pixel = (const char *) sqlite3_value_text (argv[2]);
-	  if (strcasecmp (pixel, "MONOCHROME") == 0)
-	      pixel_type = RL2_PIXEL_MONOCHROME;
-	  if (strcasecmp (pixel, "PALETTE") == 0)
-	      pixel_type = RL2_PIXEL_PALETTE;
-	  if (strcasecmp (pixel, "GRAYSCALE") == 0)
-	      pixel_type = RL2_PIXEL_GRAYSCALE;
-	  if (strcasecmp (pixel, "RGB") == 0)
-	      pixel_type = RL2_PIXEL_RGB;
-	  if (strcasecmp (pixel, "MULTIBAND") == 0)
-	      pixel_type = RL2_PIXEL_MULTIBAND;
-	  if (strcasecmp (pixel, "DATAGRID") == 0)
-	      pixel_type = RL2_PIXEL_DATAGRID;
-      }
-    if (sqlite3_value_type (argv[3]) == SQLITE_INTEGER)
-	num_bands = sqlite3_value_int (argv[3]);
-    if (sqlite3_value_type (argv[4]) == SQLITE_TEXT)
-      {
-	  const char *compr = (const char *) sqlite3_value_text (argv[4]);
-	  if (strcasecmp (compr, "NONE") == 0)
-	      compression = RL2_COMPRESSION_NONE;
-	  if (strcasecmp (compr, "DEFLATE") == 0)
-	      compression = RL2_COMPRESSION_DEFLATE;
-	  if (strcasecmp (compr, "LZMA") == 0)
-	      compression = RL2_COMPRESSION_LZMA;
-	  if (strcasecmp (compr, "GIF") == 0)
-	      compression = RL2_COMPRESSION_GIF;
-	  if (strcasecmp (compr, "PNG") == 0)
-	      compression = RL2_COMPRESSION_PNG;
-	  if (strcasecmp (compr, "JPEG") == 0)
-	      compression = RL2_COMPRESSION_JPEG;
-	  if (strcasecmp (compr, "LOSSY_WEBP") == 0)
-	      compression = RL2_COMPRESSION_LOSSY_WEBP;
-	  if (strcasecmp (compr, "LOSSLESS_WEBP") == 0)
-	      compression = RL2_COMPRESSION_LOSSLESS_WEBP;
-		      if (strcasecmp (compr, "FAX3") == 0)
-			  compression = RL2_COMPRESSION_CCITTFAX3;
-		      if (strcasecmp (compr, "FAX4") == 0)
-			  compression = RL2_COMPRESSION_CCITTFAX4;
-      }
-    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
-      {
-	  quality = sqlite3_value_int (argv[5]);
-	  if (compression == RL2_COMPRESSION_JPEG
-	      || compression == RL2_COMPRESSION_LOSSY_WEBP)
-	      ;
-	  else
-	      quality = 100;
-      }
-    if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
-      {
-	  int val = sqlite3_value_int (argv[6]);
-	  if (val > 0)
-	      tile_width = val;
-      }
-    if (sqlite3_value_type (argv[7]) == SQLITE_INTEGER)
-      {
-	  int val = sqlite3_value_int (argv[7]);
-	  if (val > 0)
-	      tile_height = val;
-      }
-    if (sqlite3_value_type (argv[8]) == SQLITE_INTEGER)
-	srid = sqlite3_value_int (argv[8]);
-    if (sqlite3_value_type (argv[9]) == SQLITE_INTEGER)
-	horz_res = sqlite3_value_int (argv[9]);
-    else if (sqlite3_value_type (argv[9]) == SQLITE_FLOAT)
-	horz_res = sqlite3_value_double (argv[9]);
-    if (argc == 10)
-	vert_res = horz_res;
-    if (argc >= 11)
-      {
-	  if (sqlite3_value_type (argv[10]) == SQLITE_INTEGER)
-	      vert_res = sqlite3_value_int (argv[10]);
-	  else if (sqlite3_value_type (argv[10]) == SQLITE_FLOAT)
-	      vert_res = sqlite3_value_double (argv[10]);
-      }
-
-    if (coverage == NULL || sample_type == RL2_SAMPLE_UNKNOWN
-	|| pixel_type == RL2_PIXEL_UNKNOWN || num_bands == RL2_BANDS_UNKNOWN
-	|| compression == RL2_COMPRESSION_UNKNOWN || quality < 0
-	|| tile_width == RL2_TILESIZE_UNDEFINED
-	|| tile_height == RL2_TILESIZE_UNDEFINED)
-      {
-	  /* illegal args */
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-
+/* attempting to load the Coverage definitions from the DBMS */
     sqlite = sqlite3_context_db_handle (context);
-    if (rl2_create_dbms_coverage
-	(sqlite, coverage, sample_type, pixel_type, num_bands, compression,
-	 quality, tile_width, tile_height, srid, horz_res, vert_res,
-	 NULL) == RL2_OK)
-	sqlite3_result_int (context, 1);
-    else
-	sqlite3_result_int (context, 0);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    rl2_destroy_coverage (coverage);
+/* attempting to load the Raster into the DBMS */
+    path = (const char *) sqlite3_value_text (argv[1]);
+    if (argc > 2)
+	worldfile = sqlite3_value_int (argv[2]);
+    if (argc > 3)
+	force_srid = sqlite3_value_int (argv[3]);
+    if (argc > 4)
+	transaction = sqlite3_value_int (argv[4]);
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		rl2_destroy_coverage (coverage);
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    ret = rl2_load_raster_into_dbms (sqlite, path, coverage,
+				     worldfile, force_srid, 0);
+    rl2_destroy_coverage (coverage);
+    if (ret != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
+}
+
+static void
+fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
+{
+/* SQL function:
+/ LoadRastersFromDir(text coverage, text dir_path)
+/ LoadRastersFromDir(text coverage, text dir_path, text file_ext)
+/ LoadRastersFromDir(text coverage, text dir_path, text file_ext,
+/                    int with_worldfile)
+/ LoadRastersFromDir(text coverage, text dir_path, text file_ext,
+/                    int with_worldfile, int force_srid)
+/ LoadRastersFromDir(text coverage, text dir_path, text file_ext,
+/                    int with_worldfile, int force_srid, 
+/                    int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    const char *path;
+    const char *file_ext;
+    int worldfile = 0;
+    int force_srid = -1;
+    int transaction = 1;
+    rl2CoveragePtr coverage;
+    sqlite3 *sqlite;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 3 && sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+/* attempting to load the Rasters into the DBMS */
+    path = (const char *) sqlite3_value_text (argv[1]);
+    if (argc > 2)
+	file_ext = (const char *) sqlite3_value_text (argv[2]);
+    if (argc > 3)
+	worldfile = sqlite3_value_int (argv[2]);
+    if (argc > 4)
+	force_srid = sqlite3_value_int (argv[3]);
+    if (argc > 5)
+	transaction = sqlite3_value_int (argv[5]);
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		rl2_destroy_coverage (coverage);
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    ret = rl2_load_mrasters_into_dbms (sqlite, path, file_ext, coverage,
+				       worldfile, force_srid, 0);
+    rl2_destroy_coverage (coverage);
+    if (ret != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
 }
 
 static void
 register_rl2_sql_functions (void *p_db)
 {
     sqlite3 *db = p_db;
+    const char *security_level;
     sqlite3_create_function (db, "rl2_version", 0, SQLITE_ANY, 0,
 			     fnct_rl2_version, 0, 0);
     sqlite3_create_function (db, "rl2_target_cpu", 0, SQLITE_ANY, 0,
 			     fnct_rl2_target_cpu, 0, 0);
     sqlite3_create_function (db, "IsValidNoDataPixel", 3, SQLITE_ANY, 0,
 			     fnct_IsValidNoDataPixel, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidNoDataPixel", 3, SQLITE_ANY, 0,
+			     fnct_IsValidNoDataPixel, 0, 0);
     sqlite3_create_function (db, "IsValidRasterPalette", 4, SQLITE_ANY, 0,
+			     fnct_IsValidRasterPalette, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidRasterPalette", 4, SQLITE_ANY, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
     sqlite3_create_function (db, "IsValidRasterStatistics", 2, SQLITE_ANY, 0,
 			     fnct_IsValidRasterStatistics, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidRasterStatistics", 2, SQLITE_ANY,
+			     0, fnct_IsValidRasterStatistics, 0, 0);
     sqlite3_create_function (db, "IsValidRasterStatistics", 3, SQLITE_ANY, 0,
 			     fnct_IsValidRasterStatistics, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidRasterStatistics", 3, SQLITE_ANY,
+			     0, fnct_IsValidRasterStatistics, 0, 0);
     sqlite3_create_function (db, "IsValidRasterTile", 4, SQLITE_ANY, 0,
 			     fnct_IsValidRasterTile, 0, 0);
-    sqlite3_create_function (db, "rl2CreateCoverage", 10, SQLITE_ANY, 0,
-			     fnct_rl2CreateCoverage, 0, 0);
-    sqlite3_create_function (db, "rl2CreateCoverage", 11, SQLITE_ANY, 0,
-			     fnct_rl2CreateCoverage, 0, 0);
-    sqlite3_create_function (db, "rl2CreateCoverage", 12, SQLITE_ANY, 0,
-			     fnct_rl2CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidRasterTile", 4, SQLITE_ANY, 0,
+			     fnct_IsValidRasterTile, 0, 0);
+
+/*
+// enabling ImportRaster and ExportRaster
+//
+// these functions could potentially introduce serious security issues,
+// most notably when invoked from within some Trigger
+// - BlobToFile: some arbitrary code, possibly harmful (e.g. virus or 
+//   trojan) could be installed on the local file-system, the user being
+//   completely unaware of this
+// - ImportRaster: some file could be maliciously "stolen" from the local
+//   file system and then inserted into the DB
+// - ExportRaster could eventually install some malicious payload into the
+//   local filesystem; or could potentially flood the local file-system by
+//   outputting a huge size of data
+//
+// so by default such functions are disabled.
+// if for any good/legitimate reason the user really wants to enable them
+// the following environment variable has to be explicitly declared:
+//
+// SPATIALITE_SECURITY=relaxed
+//
+*/
+    security_level = getenv ("SPATIALITE_SECURITY");
+    if (security_level == NULL)
+	;
+    else if (strcasecmp (security_level, "relaxed") == 0)
+      {
+	  sqlite3_create_function (db, "LoadRaster", 2, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "LoadRaster", 3, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "LoadRaster", 4, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "LoadRaster", 5, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRaster", 2, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRaster", 3, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRaster", 4, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRaster", 5, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "LoadRastersFromDir", 2, SQLITE_ANY, 0,
+				   fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "LoadRastersFromDir", 3, SQLITE_ANY, 0,
+				   fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "LoadRastersFromDir", 4, SQLITE_ANY, 0,
+				   fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "LoadRastersFromDir", 5, SQLITE_ANY, 0,
+				   fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "LoadRastersFromDir", 6, SQLITE_ANY, 0,
+				   fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 2, SQLITE_ANY,
+				   0, fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 3, SQLITE_ANY,
+				   0, fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 4, SQLITE_ANY,
+				   0, fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 5, SQLITE_ANY,
+				   0, fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 6, SQLITE_ANY,
+				   0, fnct_LoadRastersFromDir, 0, 0);
+      }
 }
 
 static void

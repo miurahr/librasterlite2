@@ -1,0 +1,7 @@
+GetPixelType - UINT16
+:memory: #use in-memory database
+SELECT RL2_GetPixelType(RL2_CreatePixel('UINT16', 'RGB', 3));
+1 # rows (not including the header row)
+1 # columns
+RL2_GetPixelType(RL2_CreatePixel('UINT16', 'RGB', 3))
+UINT16

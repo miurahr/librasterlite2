@@ -1,7 +1,7 @@
-rl2CreateCoverage - UINT8 MULTIBAND FAX4
+RL2_CreateCoverage - UINT8 MULTIBAND FAX4
 :memory: #use in-memory database
-SELECT rl2CreateCoverage('uint8_multiband_fax4', 'UINT8', 'MULTIBAND', 4, 'FAX4', 100, 512, 512, 3003, 1.0);
+SELECT RL2_CreateCoverage('uint8_multiband_fax4', 'UINT8', 'MULTIBAND', 4, 'FAX4', 100, 512, 512, 3003, 1.0);
 1 # rows (not including the header row)
 1 # columns
-rl2CreateCoverage('uint8_multiband_fax4', 'UINT8', 'MULTIBAND', 4, 'FAX4', 100, 512, 512, 3003, 1.0)
+RL2_CreateCoverage('uint8_multiband_fax4', 'UINT8', 'MULTIBAND', 4, 'FAX4', 100, 512, 512, 3003, 1.0)
 0

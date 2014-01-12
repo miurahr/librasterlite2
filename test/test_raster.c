@@ -79,7 +79,7 @@ main (int argc, char *argv[])
     double vResolution;
     unsigned char sample;
     unsigned char *mask;
-gaiaGeomCollPtr geom = NULL;
+    gaiaGeomCollPtr geom = NULL;
     unsigned char *bufpix = malloc (256 * 256);
     memset (bufpix, 255, 256 * 256);
 
@@ -231,12 +231,12 @@ gaiaGeomCollPtr geom = NULL;
       }
 
     geom = rl2_get_raster_bbox (raster);
-if (geom == NULL)
+    if (geom == NULL)
       {
 	  fprintf (stderr, "Unable to get raster BBOX (Center point)\n");
 	  return -250;
       }
-gaiaFreeGeomColl(geom);
+    gaiaFreeGeomColl (geom);
     rl2_destroy_raster (raster);
 
     bufpix = malloc (256 * 256);

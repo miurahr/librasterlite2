@@ -1006,7 +1006,7 @@ test_GetFeatureInfo_gml ()
 	  return -203;
       }
     count = get_wms_feature_attributes_count (ftr);
-    if (count != 6)
+    if (count != 7)
       {
 	  fprintf (stderr,
 		   "GetFeatureAttributeCount (GML): unexpected result %d\n",

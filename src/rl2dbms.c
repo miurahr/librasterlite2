@@ -133,26 +133,21 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
       {
       case RL2_PIXEL_MONOCHROME:
 	  xpixel = "MONOCHROME";
-	  num_bands = 1;
 	  break;
       case RL2_PIXEL_PALETTE:
 	  xpixel = "PALETTE";
-	  num_bands = 1;
 	  break;
       case RL2_PIXEL_GRAYSCALE:
 	  xpixel = "GRAYSCALE";
-	  num_bands = 1;
 	  break;
       case RL2_PIXEL_RGB:
 	  xpixel = "RGB";
-	  num_bands = 3;
 	  break;
       case RL2_PIXEL_MULTIBAND:
 	  xpixel = "MULTIBAND";
 	  break;
       case RL2_PIXEL_DATAGRID:
 	  xpixel = "DATAGRID";
-	  num_bands = 1;
 	  break;
       };
     switch (compression)
@@ -180,6 +175,12 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  xcompression = "LOSSLESS_WEBP";
+	  break;
+      case RL2_COMPRESSION_CCITTFAX3:
+	  xcompression = "CCITTFAX3";
+	  break;
+      case RL2_COMPRESSION_CCITTFAX4:
+	  xcompression = "CCITTFAX4";
 	  break;
       };
     sqlite3_reset (stmt);
@@ -619,7 +620,7 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
       }
     if (no_data != NULL)
       {
-	  if (rl2_serialize_dbms_no_data
+	  if (rl2_serialize_dbms_pixel
 	      (no_data, &blob_no_data, &blob_no_data_sz) != RL2_OK)
 	      goto error;
       }
@@ -1688,7 +1689,7 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 		      const unsigned char *blob =
 			  sqlite3_column_blob (stmt, 10);
 		      int blob_sz = sqlite3_column_bytes (stmt, 10);
-		      no_data = rl2_deserialize_dbms_no_data (blob, blob_sz);
+		      no_data = rl2_deserialize_dbms_pixel (blob, blob_sz);
 		      if (no_data == NULL)
 			  ok_nodata = 0;
 		  }
@@ -3873,7 +3874,7 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
 
     sqlite3_finalize (stmt_stats_in);
     sqlite3_finalize (stmt_stats_out);
-    rl2_free_coverage_statistics (coverage_stats);
+    rl2_destroy_raster_statistics (coverage_stats);
     return RL2_OK;
 
   error:
@@ -3886,6 +3887,6 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
     if (stmt_stats_out != NULL)
 	sqlite3_finalize (stmt_stats_out);
     if (coverage_stats != NULL)
-	rl2_free_coverage_statistics (coverage_stats);
+	rl2_destroy_raster_statistics (coverage_stats);
     return RL2_ERROR;
 }

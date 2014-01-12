@@ -164,7 +164,6 @@ check_coverage_self_consistency (unsigned char sample_type,
       case RL2_PIXEL_GRAYSCALE:
 	  switch (sample_type)
 	    {
-	    case RL2_SAMPLE_1_BIT:
 	    case RL2_SAMPLE_2_BIT:
 	    case RL2_SAMPLE_4_BIT:
 	    case RL2_SAMPLE_UINT8:
@@ -294,7 +293,6 @@ check_raster_self_consistency (unsigned char sample_type,
       case RL2_PIXEL_GRAYSCALE:
 	  switch (sample_type)
 	    {
-	    case RL2_SAMPLE_1_BIT:
 	    case RL2_SAMPLE_2_BIT:
 	    case RL2_SAMPLE_4_BIT:
 	    case RL2_SAMPLE_UINT8:
@@ -1848,6 +1846,8 @@ rl2_compare_pixels (rl2PixelPtr pixel1, rl2PixelPtr pixel2)
 		break;
 	    };
       }
+if (pxl1->isTransparent != pxl2->isTransparent)
+return RL2_FALSE;
     return RL2_TRUE;
 }
 

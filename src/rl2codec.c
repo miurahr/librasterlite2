@@ -863,7 +863,6 @@ check_encode_self_consistency (unsigned char sample_type,
       case RL2_PIXEL_GRAYSCALE:
 	  switch (sample_type)
 	    {
-	    case RL2_SAMPLE_1_BIT:
 	    case RL2_SAMPLE_2_BIT:
 	    case RL2_SAMPLE_4_BIT:
 	    case RL2_SAMPLE_UINT8:
@@ -6247,13 +6246,13 @@ rl2_deserialize_dbms_raster_statistics (const unsigned char *blob,
 }
 
 RL2_DECLARE int
-rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
-			    int *blob_size)
+rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
+			  int *blob_size)
 {
 /* creating a NO-DATA (DBMS serialized format) */
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) pixel;
     rl2PrivSamplePtr band;
-    int sz = 11;
+    int sz = 12;
     uLong crc;
     int ib;
     int endian_arch = endianArch ();
@@ -6274,13 +6273,13 @@ rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
 	  sz += 3;
 	  break;
       case RL2_SAMPLE_UINT8:
-	  sz += pxl->nBands + 2;
+	  sz += pxl->nBands * 3;
 	  break;
       case RL2_SAMPLE_INT16:
 	  sz += 4;
 	  break;
       case RL2_SAMPLE_UINT16:
-	  sz += (pxl->nBands * 2) + 2;
+	  sz += (pxl->nBands * 4);
 	  break;
       case RL2_SAMPLE_INT32:
       case RL2_SAMPLE_UINT32:
@@ -6304,6 +6303,7 @@ rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
     *ptr++ = pxl->sampleType;
     *ptr++ = pxl->pixelType;
     *ptr++ = pxl->nBands;
+*ptr++ = pxl->isTransparent;
     for (ib = 0; ib < pxl->nBands; ib++)
       {
 	  *ptr++ = RL2_SAMPLE_START;
@@ -6357,9 +6357,9 @@ rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
 }
 
 static int
-check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
+check_raster_serialized_pixel (const unsigned char *blob, int blob_size)
 {
-/* checking a NO-DATA pixel value serialized object from validity */
+/* checking a Pixel value serialized object from validity */
     const unsigned char *ptr = blob;
     int endian;
     uLong crc;
@@ -6372,7 +6372,7 @@ check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
 
     if (blob == NULL)
 	return 0;
-    if (blob_size < 12)
+    if (blob_size < 13)
 	return 0;
     if (*ptr++ != 0x00)
 	return 0;		/* invalid start signature */
@@ -6383,7 +6383,7 @@ check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
 	;
     else
 	return 0;		/* invalid endiannes */
-    sample_type = *ptr++;
+    sample_type = *ptr ++;
     switch (sample_type)
       {
       case RL2_SAMPLE_1_BIT:
@@ -6415,11 +6415,11 @@ check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
 	  return 0;
       };
     num_bands = *ptr++;
+ptr++;
     switch (sample_type)
       {
       case RL2_SAMPLE_1_BIT:
 	  if ((pixel_type == RL2_PIXEL_PALETTE
-	       || pixel_type == RL2_PIXEL_GRAYSCALE
 	       || pixel_type == RL2_PIXEL_MONOCHROME) && num_bands == 1)
 	      ;
 	  else
@@ -6496,7 +6496,6 @@ check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
 	    case RL2_SAMPLE_DOUBLE:
 		ptr += 8;
 		break;
-		break;
 	    };
 	  if (((ptr - blob) + 6) > blob_size)
 	      return 0;
@@ -6516,14 +6515,14 @@ check_raster_serialized_no_data (const unsigned char *blob, int blob_size)
 }
 
 RL2_DECLARE int
-rl2_is_valid_dbms_no_data (const unsigned char *blob, int blob_size,
-			   unsigned char sample_type, unsigned char num_bands)
+rl2_is_valid_dbms_pixel (const unsigned char *blob, int blob_size,
+			 unsigned char sample_type, unsigned char num_bands)
 {
-/* testing a serialized NO-DATA pixel value for validity */
+/* testing a serialized Pixel value for validity */
     const unsigned char *ptr;
     unsigned char xsample_type;
     unsigned char xnum_bands;
-    if (!check_raster_serialized_no_data (blob, blob_size))
+    if (!check_raster_serialized_pixel (blob, blob_size))
 	return RL2_ERROR;
     ptr = blob + 3;
     xsample_type = *ptr++;
@@ -6535,19 +6534,20 @@ rl2_is_valid_dbms_no_data (const unsigned char *blob, int blob_size,
 }
 
 RL2_DECLARE rl2PixelPtr
-rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size)
+rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size)
 {
-/* attempting to deserialize a NO-DATA pixel value from DBMS binary format */
+/* attempting to deserialize a Pixel value from DBMS binary format */
     rl2PixelPtr pixel = NULL;
     rl2PrivPixelPtr pxl;
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
+unsigned char transparent;
     int ib;
     const unsigned char *ptr = blob;
     int endian;
     int endian_arch = endianArch ();
-    if (!check_raster_serialized_no_data (blob, blob_size))
+    if (!check_raster_serialized_pixel (blob, blob_size))
 	return NULL;
 
     ptr = blob + 2;
@@ -6555,10 +6555,12 @@ rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size)
     sample_type = *ptr++;
     pixel_type = *ptr++;
     num_bands = *ptr++;
+transparent = *ptr++;
     pixel = rl2_create_pixel (sample_type, pixel_type, num_bands);
     if (pixel == NULL)
 	goto error;
     pxl = (rl2PrivPixelPtr) pixel;
+pxl->isTransparent = transparent;
     for (ib = 0; ib < num_bands; ib++)
       {
 	  rl2PrivSamplePtr band = pxl->Samples + ib;

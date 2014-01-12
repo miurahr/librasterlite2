@@ -2792,16 +2792,16 @@ extern "C"
 				rl2TiffOriginPtr tiff);
 
     RL2_DECLARE int
-	rl2_serialize_dbms_no_data (rl2PixelPtr pixel, unsigned char **blob,
+	rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
 				    int *blob_size);
 
     RL2_DECLARE int
-	rl2_is_valid_dbms_no_data (const unsigned char *blob, int blob_size,
+	rl2_is_valid_dbms_pixel (const unsigned char *blob, int blob_size,
 				   unsigned char sample_type,
 				   unsigned char num_bands);
 
     RL2_DECLARE rl2PixelPtr
-	rl2_deserialize_dbms_no_data (const unsigned char *blob, int blob_size);
+	rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size);
 
     RL2_DECLARE rl2AsciiOriginPtr rl2_create_ascii_origin (const char *path,
 							   int srid,

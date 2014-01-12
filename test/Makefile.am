@@ -6,7 +6,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test11 test12 test13 test14 \
 	test15 test16 test17 test18 \
 	test19 test20 test_tifin \
-	test_wr_tiff test_wms1 test_wms2 \
+	test_wr_tiff test_wms1  \
 	test_paint check_sql_stmt
 
 AM_CPPFLAGS = -I@srcdir@/../headers
@@ -25,3 +25,6 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	rgb-striped.tif test_under_valgrind.sh \
 	asprintf4win.h fnmatch_impl4win.h \
 	fnmatch4win.h scandir4win.h
+
+SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
+

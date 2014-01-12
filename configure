@@ -17163,7 +17163,7 @@ if test "x$enable_gcov" = "xyes"; then
     GCOV_FLAGS="-lgcov"
 fi
 
-ac_config_files="$ac_config_files Makefile headers/Makefile src/Makefile test/Makefile tools/Makefile examples/Makefile Doxyfile rasterlite2.pc"
+ac_config_files="$ac_config_files Makefile headers/Makefile src/Makefile test/Makefile test/sql_stmt_tests/Makefile test/sql_stmt_security_tests/Makefile tools/Makefile examples/Makefile Doxyfile rasterlite2.pc"
 
 
 # exporting the TARGET_CPU string
@@ -19182,6 +19182,8 @@ do
     "headers/Makefile") CONFIG_FILES="$CONFIG_FILES headers/Makefile" ;;
     "src/Makefile") CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
+    "test/sql_stmt_tests/Makefile") CONFIG_FILES="$CONFIG_FILES test/sql_stmt_tests/Makefile" ;;
+    "test/sql_stmt_security_tests/Makefile") CONFIG_FILES="$CONFIG_FILES test/sql_stmt_security_tests/Makefile" ;;
     "tools/Makefile") CONFIG_FILES="$CONFIG_FILES tools/Makefile" ;;
     "examples/Makefile") CONFIG_FILES="$CONFIG_FILES examples/Makefile" ;;
     "Doxyfile") CONFIG_FILES="$CONFIG_FILES Doxyfile" ;;

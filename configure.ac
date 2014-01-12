@@ -102,6 +102,8 @@ AC_CONFIG_FILES([Makefile \
 		headers/Makefile \
 		src/Makefile \
 		test/Makefile \
+		test/sql_stmt_tests/Makefile \
+		test/sql_stmt_security_tests/Makefile \
 		tools/Makefile \
 		examples/Makefile \
 		Doxyfile \

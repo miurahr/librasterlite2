@@ -1,7 +1,7 @@
-rl2CreateCoverage - NULL pixel
+RL2_CreateCoverage - NULL pixel
 :memory: #use in-memory database
-SELECT rl2CreateCoverage('invalid', 'UINT8', NULL, 1, 'NONE', 100, 512, 512, 3003, 1.0, 1.0, NULL);
+SELECT RL2_CreateCoverage('invalid', 'UINT8', NULL, 1, 'NONE', 100, 512, 512, 3003, 1.0, 1.0, NULL);
 1 # rows (not including the header row)
 1 # columns
-rl2CreateCoverage('invalid', 'UINT8', NULL, 1, 'NONE', 100, 512, 512, 3003, 1.0, 1.0, NULL)
+RL2_CreateCoverage('invalid', 'UINT8', NULL, 1, 'NONE', 100, 512, 512, 3003, 1.0, 1.0, NULL)
 -1

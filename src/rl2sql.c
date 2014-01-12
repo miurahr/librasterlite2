@@ -45,6 +45,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -59,6 +60,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #endif
 
 #include "rasterlite2/rasterlite2.h"
+#include "rasterlite2_private.h"
 
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
@@ -93,11 +95,10 @@ fnct_rl2_target_cpu (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
-fnct_IsValidNoDataPixel (sqlite3_context * context, int argc,
-			 sqlite3_value ** argv)
+fnct_IsValidPixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ IsValidNoDataPixel(BLOBencoded pixel, text sample_type, int num_bands)
+/ IsValidPixel(BLOBencoded pixel, text sample_type, int num_bands)
 /
 / will return 1 (TRUE, valid) or 0 (FALSE, invalid)
 / or -1 (INVALID ARGS)
@@ -157,8 +158,7 @@ fnct_IsValidNoDataPixel (sqlite3_context * context, int argc,
 		sqlite3_result_int (context, 0);
 		return;
 	    }
-	  ret =
-	      rl2_is_valid_dbms_no_data (blob, blob_sz, sample_type, num_bands);
+	  ret = rl2_is_valid_dbms_pixel (blob, blob_sz, sample_type, num_bands);
 	  if (ret == RL2_OK)
 	      sqlite3_result_int (context, 1);
 	  else
@@ -622,6 +622,870 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
 }
 
 static void
+fnct_CreatePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ CreatePixel(text sample_type, text pixel_type, int num_bands)
+/
+/ will return a serialized binary Pixel Object 
+/ or NULL on failure
+*/
+    int err = 0;
+    const char *sample_type;
+    const char *pixel_type;
+    int num_bands;
+    unsigned char sample;
+    unsigned char pixel;
+    rl2PixelPtr pxl = NULL;
+    unsigned char *blob = NULL;
+    int blob_sz = 0;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+	goto error;
+
+/* retrieving the arguments */
+    sample_type = (const char *) sqlite3_value_text (argv[0]);
+    pixel_type = (const char *) sqlite3_value_text (argv[1]);
+    num_bands = sqlite3_value_int (argv[2]);
+
+/* preliminary arg checking */
+    if (num_bands < 1 || num_bands > 255)
+	goto error;
+
+    sample = RL2_SAMPLE_UNKNOWN;
+    if (strcasecmp (sample_type, "1-BIT") == 0)
+	sample = RL2_SAMPLE_1_BIT;
+    if (strcasecmp (sample_type, "2-BIT") == 0)
+	sample = RL2_SAMPLE_2_BIT;
+    if (strcasecmp (sample_type, "4-BIT") == 0)
+	sample = RL2_SAMPLE_4_BIT;
+    if (strcasecmp (sample_type, "INT8") == 0)
+	sample = RL2_SAMPLE_INT8;
+    if (strcasecmp (sample_type, "UINT8") == 0)
+	sample = RL2_SAMPLE_UINT8;
+    if (strcasecmp (sample_type, "INT16") == 0)
+	sample = RL2_SAMPLE_INT16;
+    if (strcasecmp (sample_type, "UINT16") == 0)
+	sample = RL2_SAMPLE_UINT16;
+    if (strcasecmp (sample_type, "INT32") == 0)
+	sample = RL2_SAMPLE_INT32;
+    if (strcasecmp (sample_type, "UINT32") == 0)
+	sample = RL2_SAMPLE_UINT32;
+    if (strcasecmp (sample_type, "FLOAT") == 0)
+	sample = RL2_SAMPLE_FLOAT;
+    if (strcasecmp (sample_type, "DOUBLE") == 0)
+	sample = RL2_SAMPLE_DOUBLE;
+
+    pixel = RL2_PIXEL_UNKNOWN;
+    if (strcasecmp (pixel_type, "MONOCHROME") == 0)
+	pixel = RL2_PIXEL_MONOCHROME;
+    if (strcasecmp (pixel_type, "GRAYSCALE") == 0)
+	pixel = RL2_PIXEL_GRAYSCALE;
+    if (strcasecmp (pixel_type, "PALETTE") == 0)
+	pixel = RL2_PIXEL_PALETTE;
+    if (strcasecmp (pixel_type, "RGB") == 0)
+	pixel = RL2_PIXEL_RGB;
+    if (strcasecmp (pixel_type, "DATAGRID") == 0)
+	pixel = RL2_PIXEL_DATAGRID;
+    if (strcasecmp (pixel_type, "MULTIBAND") == 0)
+	pixel = RL2_PIXEL_MULTIBAND;
+
+/* attempting to create the Pixel */
+    pxl = rl2_create_pixel (sample, pixel, (unsigned char) num_bands);
+    if (pxl == NULL)
+	goto error;
+    if (rl2_serialize_dbms_pixel (pxl, &blob, &blob_sz) != RL2_OK)
+	goto error;
+    sqlite3_result_blob (context, blob, blob_sz, free);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_GetPixelType (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPixelType(BLOB pixel_obj)
+/
+/ will return one of "1-BIT", "2-BIT", "4-BIT", "INT8", "UINT8", "INT16",
+/      "UINT16", "INT32", "UINT32", "FLOAT", "DOUBLE", "UNKNOWN" 
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    const char *text;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    switch (pixel->sampleType)
+      {
+      case RL2_SAMPLE_1_BIT:
+	  text = "1-BIT";
+	  break;
+      case RL2_SAMPLE_2_BIT:
+	  text = "2-BIT";
+	  break;
+      case RL2_SAMPLE_4_BIT:
+	  text = "4-BIT";
+	  break;
+      case RL2_SAMPLE_INT8:
+	  text = "INT8";
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  text = "UINT8";
+	  break;
+      case RL2_SAMPLE_INT16:
+	  text = "INT16";
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  text = "UINT16";
+	  break;
+      case RL2_SAMPLE_INT32:
+	  text = "INT32";
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  text = "UINT32";
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  text = "FLOAT";
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  text = "DOUBLE";
+	  break;
+      default:
+	  text = "UNKNOWN";
+	  break;
+      };
+    sqlite3_result_text (context, text, strlen (text), SQLITE_TRANSIENT);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_GetPixelSampleType (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPixelSampleType(BLOB pixel_obj)
+/
+/ will return one of "MONOCHROME" "PALETTE", "GRAYSCALE", "RGB",
+/      "DATAGRID", "MULTIBAND", "UNKNOWN" 
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    const char *text;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    switch (pixel->pixelType)
+      {
+      case RL2_PIXEL_MONOCHROME:
+	  text = "MONOCHROME";
+	  break;
+      case RL2_PIXEL_PALETTE:
+	  text = "PALETTE";
+	  break;
+      case RL2_PIXEL_GRAYSCALE:
+	  text = "GRAYSCALE";
+	  break;
+      case RL2_PIXEL_RGB:
+	  text = "RGB";
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  text = "DATAGRID";
+	  break;
+      case RL2_PIXEL_MULTIBAND:
+	  text = "MULTIBAND";
+	  break;
+      default:
+	  text = "UNKNOWN";
+	  break;
+      };
+    sqlite3_result_text (context, text, strlen (text), SQLITE_TRANSIENT);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_GetPixelNumBands (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPixelNumBands(BLOB pixel_obj)
+/
+/ will return the number of Bands
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    sqlite3_result_int (context, pixel->nBands);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_GetPixelValue (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPixelValue(BLOB pixel_obj, INT band)
+/
+/ will return the corresponding Band value
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    rl2PrivSamplePtr sample;
+    int band_id;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_id = sqlite3_value_int (argv[1]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    if (band_id >= 0 && band_id < pixel->nBands)
+	;
+    else
+	goto error;
+    sample = pixel->Samples + band_id;
+    switch (pixel->sampleType)
+      {
+      case RL2_SAMPLE_INT8:
+	  sqlite3_result_int (context, sample->int8);
+	  break;
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_UINT8:
+	  sqlite3_result_int (context, sample->uint8);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  sqlite3_result_int (context, sample->int16);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  sqlite3_result_int (context, sample->uint16);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  sqlite3_result_int64 (context, sample->int32);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  sqlite3_result_int64 (context, sample->uint32);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  sqlite3_result_double (context, sample->float32);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  sqlite3_result_double (context, sample->float64);
+	  break;
+      default:
+	  goto error;
+      };
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_SetPixelValue (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ SetPixelValue(BLOB pixel_obj, INT band, INT value)
+/ SetPixelValue(BLOB pixel_obj, INT band, FLOAT value)
+/
+/ will return a new serialized Pixel Object
+/ or NULL on failure
+*/
+    unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    rl2PrivSamplePtr sample;
+    int band_id;
+    int intval;
+    double dblval;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	goto error;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[2]) != SQLITE_FLOAT)
+	goto error;
+
+    blob = (unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_id = sqlite3_value_int (argv[1]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    if (band_id >= 0 && band_id < pixel->nBands)
+	;
+    else
+	goto error;
+    if (pixel->sampleType == RL2_SAMPLE_FLOAT
+	|| pixel->sampleType == RL2_SAMPLE_DOUBLE)
+      {
+	  if (sqlite3_value_type (argv[2]) == SQLITE_FLOAT)
+	      dblval = sqlite3_value_double (argv[2]);
+	  else
+	    {
+		intval = sqlite3_value_int (argv[2]);
+		dblval = intval;
+	    }
+      }
+    else
+      {
+	  if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	      goto error;
+	  intval = sqlite3_value_int (argv[2]);
+      }
+    sample = pixel->Samples + band_id;
+    switch (pixel->sampleType)
+      {
+      case RL2_SAMPLE_INT8:
+	  if (intval < INT8_MIN || intval > INT8_MAX)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_1_BIT:
+	  if (intval < 0 || intval > 1)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_2_BIT:
+	  if (intval < 0 || intval > 3)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_4_BIT:
+	  if (intval < 0 || intval > 15)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  if (intval < 0 || intval > UINT8_MAX)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_INT16:
+	  if (intval < INT16_MIN || intval > INT16_MAX)
+	      goto error;
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  if (intval < 0 || intval > UINT16_MAX)
+	      goto error;
+	  break;
+      };
+    switch (pixel->sampleType)
+      {
+      case RL2_SAMPLE_INT8:
+	  sample->int8 = intval;
+	  break;
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_UINT8:
+	  sample->uint8 = intval;
+	  break;
+      case RL2_SAMPLE_INT16:
+	  sample->int16 = intval;
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  sample->uint16 = intval;
+	  break;
+      case RL2_SAMPLE_INT32:
+	  sample->int32 = intval;
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  sample->uint32 = (unsigned int) intval;
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  sample->float32 = dblval;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  sample->float64 = dblval;
+	  break;
+      default:
+	  goto error;
+      };
+    if (rl2_serialize_dbms_pixel (pxl, &blob, &blob_sz) != RL2_OK)
+	goto error;
+    sqlite3_result_blob (context, blob, blob_sz, free);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_IsTransparentPixel (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsTransparentPixel(BLOB pixel_obj)
+/
+/ 1 (TRUE) or 0 (FALSE)
+/ or NULL on invalid argument
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    if (pixel->isTransparent == 0)
+	sqlite3_result_int (context, 0);
+    else
+	sqlite3_result_int (context, 1);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_IsOpaquePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsOpaquePixel(BLOB pixel_obj)
+/
+/ 1 (TRUE) or 0 (FALSE)
+/ or NULL on invalid argument
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    if (pixel->isTransparent == 0)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_SetTransparentPixel (sqlite3_context * context, int argc,
+			  sqlite3_value ** argv)
+{
+/* SQL function:
+/ SetTransparentPixel(BLOB pixel_obj)
+/
+/ will return a new serialized Pixel Object
+/ or NULL on failure
+*/
+    unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = (unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    pixel->isTransparent = 1;
+    if (rl2_serialize_dbms_pixel (pxl, &blob, &blob_sz) != RL2_OK)
+	goto error;
+    sqlite3_result_blob (context, blob, blob_sz, free);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_SetOpaquePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ SetOpaquePixel(BLOB pixel_obj)
+/
+/ will return a new serialized Pixel Object
+/ or NULL on failure
+*/
+    unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl = NULL;
+    rl2PrivPixelPtr pixel;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = (unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl == NULL)
+	goto error;
+    pixel = (rl2PrivPixelPtr) pxl;
+    pixel->isTransparent = 0;
+    if (rl2_serialize_dbms_pixel (pxl, &blob, &blob_sz) != RL2_OK)
+	goto error;
+    sqlite3_result_blob (context, blob, blob_sz, free);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_PixelEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ PixelEquals(BLOB pixel_obj1, BLOB pixel_obj2)
+/
+/ 1 (TRUE) or 0 (FALSE)
+/ or NULL on invalid argument
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PixelPtr pxl1 = NULL;
+    rl2PixelPtr pxl2 = NULL;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+    if (sqlite3_value_type (argv[1]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    pxl1 = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl1 == NULL)
+	goto error;
+    blob = sqlite3_value_blob (argv[1]);
+    blob_sz = sqlite3_value_bytes (argv[1]);
+    pxl2 = rl2_deserialize_dbms_pixel (blob, blob_sz);
+    if (pxl2 == NULL)
+	goto error;
+    ret = rl2_compare_pixels (pxl1, pxl2);
+    if (ret == RL2_TRUE)
+	sqlite3_result_int (context, 1);
+    else 
+	sqlite3_result_int (context, 0);
+    rl2_destroy_pixel (pxl1);
+    rl2_destroy_pixel (pxl2);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl1 != NULL)
+	rl2_destroy_pixel (pxl1);
+    if (pxl2 != NULL)
+	rl2_destroy_pixel (pxl2);
+}
+
+static void
+fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ CreateCoverage(text coverage, text sample_type, text pixel_type,
+/                int num_bands, text compression, int quality,
+/                int tile_width, int tile_height, int srid,
+/                double res)
+/ CreateCoverage(text coverage, text sample_type, text pixel_type,
+/                int num_bands, text compression, int quality,
+/                int tile_width, int tile_height, int srid,
+/                double horz_res, double vert_res)
+/ CreateCoverage(text coverage, text sample_type, text pixel_type,
+/                int num_bands, text compression, int quality,
+/                int tile_width, int tile_height, int srid,
+/                double horz_res, double vert_res, BLOB no_data)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *coverage;
+    const char *sample_type;
+    const char *pixel_type;
+    int num_bands;
+    const char *compression;
+    int quality;
+    int tile_width;
+    int tile_height;
+    int srid;
+    double horz_res;
+    double vert_res;
+    unsigned char sample;
+    unsigned char pixel;
+    unsigned char compr;
+    sqlite3 *sqlite;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[4]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[9]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[9]) != SQLITE_FLOAT)
+	err = 1;
+    if (argc > 10)
+      {
+	  if (sqlite3_value_type (argv[10]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[10]) != SQLITE_FLOAT)
+	      err = 1;
+      }
+    if (argc > 11)
+      {
+	  if (sqlite3_value_type (argv[11]) != SQLITE_BLOB
+	      && sqlite3_value_type (argv[11]) != SQLITE_NULL)
+	      err = 1;
+      }
+    if (err)
+	goto error;
+
+/* retrieving the arguments */
+    coverage = (const char *) sqlite3_value_text (argv[0]);
+    sample_type = (const char *) sqlite3_value_text (argv[1]);
+    pixel_type = (const char *) sqlite3_value_text (argv[2]);
+    num_bands = sqlite3_value_int (argv[3]);
+    compression = (const char *) sqlite3_value_text (argv[4]);
+    quality = sqlite3_value_int (argv[5]);
+    tile_width = sqlite3_value_int (argv[6]);
+    tile_height = sqlite3_value_int (argv[7]);
+    srid = sqlite3_value_int (argv[8]);
+    if (sqlite3_value_type (argv[9]) == SQLITE_FLOAT)
+	horz_res = sqlite3_value_double (argv[9]);
+    else
+      {
+	  int val = sqlite3_value_int (argv[9]);
+	  horz_res = val;
+      }
+    if (argc > 10)
+      {
+	  if (sqlite3_value_type (argv[10]) == SQLITE_FLOAT)
+	      vert_res = sqlite3_value_double (argv[10]);
+	  else
+	    {
+		int val = sqlite3_value_int (argv[10]);
+		vert_res = val;
+	    }
+      }
+    else
+	vert_res = horz_res;
+
+/* preliminary arg checking */
+    if (num_bands < 1 || num_bands > 255)
+	goto error;
+    if (quality < 0)
+	quality = 0;
+    if (quality > 100)
+	quality = 100;
+    if (tile_width < 0 || tile_width > 65536)
+	goto error;
+    if (tile_height < 0 || tile_height > 65536)
+	goto error;
+
+    sample = RL2_SAMPLE_UNKNOWN;
+    if (strcasecmp (sample_type, "1-BIT") == 0)
+	sample = RL2_SAMPLE_1_BIT;
+    if (strcasecmp (sample_type, "2-BIT") == 0)
+	sample = RL2_SAMPLE_2_BIT;
+    if (strcasecmp (sample_type, "4-BIT") == 0)
+	sample = RL2_SAMPLE_4_BIT;
+    if (strcasecmp (sample_type, "INT8") == 0)
+	sample = RL2_SAMPLE_INT8;
+    if (strcasecmp (sample_type, "UINT8") == 0)
+	sample = RL2_SAMPLE_UINT8;
+    if (strcasecmp (sample_type, "INT16") == 0)
+	sample = RL2_SAMPLE_INT16;
+    if (strcasecmp (sample_type, "UINT16") == 0)
+	sample = RL2_SAMPLE_UINT16;
+    if (strcasecmp (sample_type, "INT32") == 0)
+	sample = RL2_SAMPLE_INT32;
+    if (strcasecmp (sample_type, "UINT32") == 0)
+	sample = RL2_SAMPLE_UINT32;
+    if (strcasecmp (sample_type, "FLOAT") == 0)
+	sample = RL2_SAMPLE_FLOAT;
+    if (strcasecmp (sample_type, "DOUBLE") == 0)
+	sample = RL2_SAMPLE_DOUBLE;
+
+    pixel = RL2_PIXEL_UNKNOWN;
+    if (strcasecmp (pixel_type, "MONOCHROME") == 0)
+	pixel = RL2_PIXEL_MONOCHROME;
+    if (strcasecmp (pixel_type, "GRAYSCALE") == 0)
+	pixel = RL2_PIXEL_GRAYSCALE;
+    if (strcasecmp (pixel_type, "PALETTE") == 0)
+	pixel = RL2_PIXEL_PALETTE;
+    if (strcasecmp (pixel_type, "RGB") == 0)
+	pixel = RL2_PIXEL_RGB;
+    if (strcasecmp (pixel_type, "DATAGRID") == 0)
+	pixel = RL2_PIXEL_DATAGRID;
+    if (strcasecmp (pixel_type, "MULTIBAND") == 0)
+	pixel = RL2_PIXEL_MULTIBAND;
+
+    compr = RL2_COMPRESSION_NONE;
+    if (strcasecmp (compression, "NONE") == 0)
+	compr = RL2_COMPRESSION_NONE;
+    if (strcasecmp (compression, "DEFLATE") == 0)
+	compr = RL2_COMPRESSION_DEFLATE;
+    if (strcasecmp (compression, "LZMA") == 0)
+	compr = RL2_COMPRESSION_LZMA;
+    if (strcasecmp (compression, "PNG") == 0)
+	compr = RL2_COMPRESSION_PNG;
+    if (strcasecmp (compression, "GIF") == 0)
+	compr = RL2_COMPRESSION_GIF;
+    if (strcasecmp (compression, "JPEG") == 0)
+	compr = RL2_COMPRESSION_JPEG;
+    if (strcasecmp (compression, "LOSSY_WEBP") == 0)
+	compr = RL2_COMPRESSION_LOSSY_WEBP;
+    if (strcasecmp (compression, "LOSSLESS_WEBP") == 0)
+	compr = RL2_COMPRESSION_LOSSLESS_WEBP;
+    if (strcasecmp (compression, "FAX3") == 0)
+	compr = RL2_COMPRESSION_CCITTFAX3;
+    if (strcasecmp (compression, "FAX4") == 0)
+	compr = RL2_COMPRESSION_CCITTFAX4;
+
+/* attempting to create the DBMS Coverage */
+    sqlite = sqlite3_context_db_handle (context);
+    ret = rl2_create_dbms_coverage (sqlite, coverage, sample, pixel,
+				    (unsigned char) num_bands,
+				    compr, quality,
+				    (unsigned short) tile_width,
+				    (unsigned short) tile_height, srid,
+				    horz_res, vert_res, NULL);
+    if (ret == RL2_OK)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+    return;
+
+  error:
+    sqlite3_result_int (context, -1);
+}
+
+static void
 fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -820,10 +1684,10 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_rl2_version, 0, 0);
     sqlite3_create_function (db, "rl2_target_cpu", 0, SQLITE_ANY, 0,
 			     fnct_rl2_target_cpu, 0, 0);
-    sqlite3_create_function (db, "IsValidNoDataPixel", 3, SQLITE_ANY, 0,
-			     fnct_IsValidNoDataPixel, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidNoDataPixel", 3, SQLITE_ANY, 0,
-			     fnct_IsValidNoDataPixel, 0, 0);
+    sqlite3_create_function (db, "IsValidPixel", 3, SQLITE_ANY, 0,
+			     fnct_IsValidPixel, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidPixel", 3, SQLITE_ANY, 0,
+			     fnct_IsValidPixel, 0, 0);
     sqlite3_create_function (db, "IsValidRasterPalette", 4, SQLITE_ANY, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
     sqlite3_create_function (db, "RL2_IsValidRasterPalette", 4, SQLITE_ANY, 0,
@@ -840,6 +1704,62 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_IsValidRasterTile, 0, 0);
     sqlite3_create_function (db, "RL2_IsValidRasterTile", 4, SQLITE_ANY, 0,
 			     fnct_IsValidRasterTile, 0, 0);
+    sqlite3_create_function (db, "CreateCoverage", 10, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "CreateCoverage", 11, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "CreateCoverage", 12, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_CreateCoverage", 10, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_CreateCoverage", 11, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_CreateCoverage", 12, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "CreatePixel", 3, SQLITE_ANY, 0,
+			     fnct_CreatePixel, 0, 0);
+    sqlite3_create_function (db, "RL2_CreatePixel", 3, SQLITE_ANY, 0,
+			     fnct_CreatePixel, 0, 0);
+    sqlite3_create_function (db, "GetPixelType", 1, SQLITE_ANY, 0,
+			     fnct_GetPixelType, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPixelType", 1, SQLITE_ANY, 0,
+			     fnct_GetPixelType, 0, 0);
+    sqlite3_create_function (db, "GetPixelSampleType", 1, SQLITE_ANY, 0,
+			     fnct_GetPixelSampleType, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPixelSampleType", 1, SQLITE_ANY, 0,
+			     fnct_GetPixelSampleType, 0, 0);
+    sqlite3_create_function (db, "GetPixelNumBands", 1, SQLITE_ANY, 0,
+			     fnct_GetPixelType, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPixelNumBands", 1, SQLITE_ANY, 0,
+			     fnct_GetPixelNumBands, 0, 0);
+    sqlite3_create_function (db, "GetPixelValue", 2, SQLITE_ANY, 0,
+			     fnct_GetPixelValue, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPixelValue", 2, SQLITE_ANY, 0,
+			     fnct_GetPixelValue, 0, 0);
+    sqlite3_create_function (db, "SetPixelValue", 3, SQLITE_ANY, 0,
+			     fnct_SetPixelValue, 0, 0);
+    sqlite3_create_function (db, "RL2_SetPixelValue", 3, SQLITE_ANY, 0,
+			     fnct_SetPixelValue, 0, 0);
+    sqlite3_create_function (db, "IsTransparentPixel", 1, SQLITE_ANY, 0,
+			     fnct_IsTransparentPixel, 0, 0);
+    sqlite3_create_function (db, "RL2_IsTransparentPixel", 1, SQLITE_ANY, 0,
+			     fnct_IsTransparentPixel, 0, 0);
+    sqlite3_create_function (db, "IsOpaquePixel", 1, SQLITE_ANY, 0,
+			     fnct_IsOpaquePixel, 0, 0);
+    sqlite3_create_function (db, "RL2_IsOpaquePixel", 1, SQLITE_ANY, 0,
+			     fnct_IsOpaquePixel, 0, 0);
+    sqlite3_create_function (db, "SetTransparentPixel", 1, SQLITE_ANY, 0,
+			     fnct_SetTransparentPixel, 0, 0);
+    sqlite3_create_function (db, "RL2_SetTransparentPixel", 1, SQLITE_ANY, 0,
+			     fnct_SetTransparentPixel, 0, 0);
+    sqlite3_create_function (db, "SetOpaquePixel", 1, SQLITE_ANY, 0,
+			     fnct_SetOpaquePixel, 0, 0);
+    sqlite3_create_function (db, "RL2_SetOpaquePixel", 1, SQLITE_ANY, 0,
+			     fnct_SetOpaquePixel, 0, 0);
+    sqlite3_create_function (db, "PixelEquals", 2, SQLITE_ANY, 0,
+			     fnct_PixelEquals, 0, 0);
+    sqlite3_create_function (db, "RL2_PixelEquals", 2, SQLITE_ANY, 0,
+			     fnct_PixelEquals, 0, 0);
 
 /*
 // enabling ImportRaster and ExportRaster

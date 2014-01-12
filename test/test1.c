@@ -951,7 +951,7 @@ test_palette_png (const char *path)
     double minY;
     double maxX;
     double maxY;
-gaiaGeomCollPtr geom;
+    gaiaGeomCollPtr geom;
     rl2PixelPtr pxl;
     rl2RasterPtr rst;
     rl2SectionPtr img = rl2_section_from_png (path);
@@ -1099,7 +1099,7 @@ gaiaGeomCollPtr geom;
       }
 
     geom = rl2_get_raster_bbox (rst);
-if (geom != NULL)
+    if (geom != NULL)
       {
 	  fprintf (stderr, "\"%s\" unexpected image BBOX\n", path);
 	  return 0;

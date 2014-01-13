@@ -7,7 +7,8 @@ check_PROGRAMS = test_coverage test_palette \
 	test15 test16 test17 test18 \
 	test19 test20 test_tifin \
 	test_wr_tiff test_wms1  \
-	test_paint check_sql_stmt
+	test_paint check_sql_stmt \
+	test_map_rgb
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
@@ -24,7 +25,11 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	plt-tiled.tif plt-striped.tif rgb-tiled.tif \
 	rgb-striped.tif test_under_valgrind.sh \
 	asprintf4win.h fnmatch_impl4win.h \
-	fnmatch4win.h scandir4win.h
+	fnmatch4win.h scandir4win.h \
+	map_samples/usgs-gray/gray1.tif \
+	map_samples/usgs-gray/gray2.tif \
+	map_samples/usgs-rgb/rgb1.tif \
+	map_samples/usgs-rgb/rgb2.tif
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

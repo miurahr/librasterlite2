@@ -2142,98 +2142,30 @@ check_export_args (const char *db_path, const char *dst_path,
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
       }
-    if (*cx == DBL_MAX && *cy == DBL_MAX && *width == 0 && *height == 0)
+    if (*width == 0)
       {
-	  /* computing the image center, width and height */
-	  if (*minx == DBL_MAX)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** undeclared Min-X (lower-left corner)\n");
-		err = 1;
-		err_bbox = 1;
-	    }
-	  if (*maxx == DBL_MAX)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** undeclared Max-X (upper-right corner)\n");
-		err = 1;
-		err_bbox = 1;
-	    }
-	  if (*miny == DBL_MAX)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** undeclared Min-Y (lower-left corner)\n");
-		err = 1;
-		err_bbox = 1;
-	    }
-	  if (*maxy == DBL_MAX)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** undeclared Max-Y (upper-right corner)\n");
-		err = 1;
-		err_bbox = 1;
-	    }
-	  if (*maxx <= *minx)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** negative or NULL horizontal extent\n");
-		err = 1;
-		err_bbox = 1;
-	    }
-	  if (*maxy <= *miny)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** negative or NULL vertical extent\n");
-		err = 1;
-		err_bbox = 1;
-	    }
-	  if (!err_bbox)
-	    {
-		dumb1 = formatLong (*minx);
-		dumb2 = formatLat (*miny);
-		fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		dumb1 = formatLong (*maxx);
-		dumb2 = formatLat (*maxy);
-		fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		ext_x = *maxx - *minx;
-		ext_y = *maxy - *miny;
-		*cx = *minx + (ext_x / 2.0);
-		*cy = *miny + (ext_y / 2.0);
-		dumb1 = formatLong (*cx);
-		dumb2 = formatLat (*cy);
-		fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		if ((ext_x / x_res) > USHRT_MAX)
-		  {
-		      fprintf (stderr,
-			       "*** ERROR *** exceeding max image Width\n");
-		      err = 1;
-		      err_bbox = 1;
-		  }
-		else
-		    *width = (unsigned short) (ext_x / x_res);
-		if ((ext_y / y_res) > USHRT_MAX)
-		  {
-		      fprintf (stderr,
-			       "*** ERROR *** exceeding max image Height\n");
-		      err = 1;
-		      err_bbox = 1;
-		  }
-		else
-		    *height = (unsigned short) (ext_y / y_res);
-		if (!err_bbox)
-		    fprintf (stderr, "        Image Size: %u x %u\n", *width,
-			     *height);
-	    }
+	  fprintf (stderr, "*** ERROR *** NULL/ZERO image Width\n");
+	  err = 1;
+	  err_bbox = 1;
       }
-    else if (*minx == DBL_MAX && *miny == DBL_MAX && *maxx == DBL_MAX
-	     && *maxy == DBL_MAX)
+    if (*height == 0)
       {
+	  fprintf (stderr, "*** ERROR *** NULL/ZERO image Height\n");
+	  err = 1;
+	  err_bbox = 1;
+      }
+    if (!err)
+	fprintf (stderr, "        Image Size: %u x %u\n", *width, *height);
+    if (dst_path == NULL)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** no output Destination path was specified\n");
+	  err = 1;
+      }
+    if (*minx == DBL_MAX && *miny == DBL_MAX && *maxx == DBL_MAX
+	&& *maxy == DBL_MAX)
+      {
+	  /* tie-point: Center Point */
 	  if (*cx == DBL_MAX)
 	    {
 		fprintf (stderr, "*** ERROR *** undeclared Center-X\n");
@@ -2246,58 +2178,146 @@ check_export_args (const char *db_path, const char *dst_path,
 		err = 1;
 		err_bbox = 1;
 	    }
-	  if (*width == 0)
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *minx = *cx - (ext_x / 2.0);
+	  *maxx = *minx + ext_x;
+	  *miny = *cy - (ext_y / 2.0);
+	  *maxy = *miny + ext_y;
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *maxx == DBL_MAX
+	     && *maxy == DBL_MAX)
+      {
+	  /* tie-point: LowerLeft Corner */
+	  if (*minx == DBL_MAX)
 	    {
-		fprintf (stderr, "*** ERROR *** NULL/ZERO image Width\n");
+		fprintf (stderr, "*** ERROR *** undeclared Min-X\n");
 		err = 1;
 		err_bbox = 1;
 	    }
-	  if (*height == 0)
+	  if (*miny == DBL_MAX)
 	    {
-		fprintf (stderr, "*** ERROR *** NULL/ZERO image Height\n");
+		fprintf (stderr, "*** ERROR *** undeclared Min-Y\n");
 		err = 1;
 		err_bbox = 1;
 	    }
-	  if (!err_bbox)
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *maxx = *minx + ext_x;
+	  *maxy = *miny + ext_y;
+	  *cx = *minx + (ext_x / 2.0);
+	  *cy = *miny + (ext_y / 2.0);
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *minx == DBL_MAX
+	     && *maxy == DBL_MAX)
+      {
+	  /* tie-point: LowerRight Corner */
+	  if (*maxx == DBL_MAX)
 	    {
-		ext_x = (double) (*width) * x_res;
-		ext_y = (double) (*height) * y_res;
-		*minx = *cx - (ext_x / 2.0);
-		*maxx = *minx + ext_x;
-		*miny = *cy - (ext_y / 2.0);
-		*maxy = *miny + ext_y;
-		dumb1 = formatLong (*minx);
-		dumb2 = formatLat (*miny);
-		fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		dumb1 = formatLong (*maxx);
-		dumb2 = formatLat (*maxy);
-		fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		dumb1 = formatLong (*cx);
-		dumb2 = formatLat (*cy);
-		fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		fprintf (stderr, "        Image Size: %u x %u\n", *width,
-			 *height);
-	    }
-	  if (dst_path == NULL)
-	    {
-		fprintf (stderr,
-			 "*** ERROR *** no output Destination path was specified\n");
+		fprintf (stderr, "*** ERROR *** undeclared Max-X\n");
 		err = 1;
+		err_bbox = 1;
 	    }
-	  else
-	      fprintf (stderr, "  Destination Path: %s\n", dst_path);
+	  if (*miny == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Min-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *minx = *maxx - ext_x;
+	  *maxy = *miny + ext_y;
+	  *cx = *maxx - (ext_x / 2.0);
+	  *cy = *miny + (ext_y / 2.0);
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *maxx == DBL_MAX
+	     && *miny == DBL_MAX)
+      {
+	  /* tie-point: UpperLeft Corner */
+	  if (*minx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Min-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxy == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *maxx = *minx + ext_x;
+	  *miny = *maxy - ext_y;
+	  *cx = *minx + (ext_x / 2.0);
+	  *cy = *maxy - (ext_y / 2.0);
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *minx == DBL_MAX
+	     && *miny == DBL_MAX)
+      {
+	  /* tie-point: UpperRight Corner */
+	  if (*maxx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxy == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *minx = *maxx - ext_x;
+	  *miny = *maxy - ext_y;
+	  *cx = *maxx - (ext_x / 2.0);
+	  *cy = *maxy - (ext_y / 2.0);
       }
     else
       {
-	  fprintf (stderr,
-		   "*** ERROR *** unable to determine the BBOX and image size\n");
+	  /* invalid tie-point */
+	  fprintf (stderr, "*** ERROR *** invalid output image tie-point\n");
 	  err = 1;
+	  err_bbox = 1;
+      }
+  error:
+    if (err_bbox)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** unable to determine the BBOX of output image\n");
+	  err = 1;
+      }
+    else
+      {
+	  dumb1 = formatLong (*minx);
+	  dumb2 = formatLat (*miny);
+	  fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatLong (*maxx);
+	  dumb2 = formatLat (*maxy);
+	  fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatLong (*cx);
+	  dumb2 = formatLat (*cy);
+	  fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
       }
     fprintf (stderr,
 	     "===========================================================\n\n");
@@ -2858,6 +2878,21 @@ do_help (int mode)
 		   "-outw or --out-width  number    image width (in pixels)\n");
 	  fprintf (stderr,
 		   "-outh or --out-height number    image height (in pixels)\n\n");
+	  fprintf (stderr,
+		   "In order to export a raster you are expected to specify:\n");
+	  fprintf (stderr,
+		   "\t- the intended resolution (-res OR -xres AND -yres)\n");
+	  fprintf (stderr, "\t- the output image size (-outw AND -outh)\n");
+	  fprintf (stderr, "\t- a single tie-point, defined as one of:\n");
+	  fprintf (stderr, "\t\t- Output Image Center point: -cx AND -cy\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image LowerLeft corner: -minx AND -miny\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image LowerRight corner: -maxx AND -miny\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image UpperLeft corner: -minx AND -maxy\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image UpperRight corner: -maxx AND -maxy\n\n");
       }
     if (mode == ARG_NONE || mode == ARG_MODE_DELETE)
       {
@@ -3417,6 +3452,20 @@ main (int argc, char *argv[])
 		      break;
 		  }
 	    }
+	  switch (pixel)
+	    {
+	    case RL2_PIXEL_MONOCHROME:
+	    case RL2_PIXEL_PALETTE:
+	    case RL2_PIXEL_GRAYSCALE:
+	    case RL2_PIXEL_DATAGRID:
+		if (num_bands == RL2_BANDS_UNKNOWN)
+		    num_bands = 1;
+		break;
+	    case RL2_PIXEL_RGB:
+		if (num_bands == RL2_BANDS_UNKNOWN)
+		    num_bands = 3;
+		break;
+	    };
 	  error =
 	      check_create_args (db_path, coverage, sample, pixel, num_bands,
 				 compression, &quality, tile_width, tile_height,

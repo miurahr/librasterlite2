@@ -127,17 +127,19 @@ get_section_name (const char *src_path)
 /* attempting to extract the section name from source path */
     int pos1 = 0;
     int pos2 = 0;
+    int xpos2;
     int len;
     char *name;
     const char *p;
     if (src_path == NULL)
 	return NULL;
     pos2 = strlen (src_path) - 1;
+    xpos2 = pos2;
     pos1 = 0;
     p = src_path + pos2;
     while (p >= src_path)
       {
-	  if (*p == '.')
+	  if (*p == '.' && pos2 == xpos2)
 	      pos2 = (p - 1) - src_path;
 	  if (*p == '/')
 	    {
@@ -591,7 +593,16 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	printf ("    Image Size (pixels): %d x %d\n", width, height);
     ret = rl2_get_tiff_origin_srid (origin, &srid);
     if (ret == RL2_OK)
-	printf ("                   SRID: %d\n", srid);
+      {
+	  if (force_srid > 0 && force_srid != srid)
+	    {
+		printf ("                   SRID: %d (forced to %d)\n", srid,
+			force_srid);
+		srid = force_srid;
+	    }
+	  else
+	      printf ("                   SRID: %d\n", srid);
+      }
     ret = rl2_get_tiff_origin_extent (origin, &minx, &miny, &maxx, &maxy);
     if (ret == RL2_OK)
       {
@@ -626,7 +637,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	    }
       }
 
-    if (rl2_eval_tiff_origin_compatibility (cvg, origin) != RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (cvg, origin, force_srid) !=
+	RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/TIFF mismatch\n");
 	  goto error;
@@ -651,7 +663,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster = rl2_get_tile_from_tiff_origin (cvg, origin, row, col);
+		raster =
+		    rl2_get_tile_from_tiff_origin (cvg, origin, row, col, srid);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,

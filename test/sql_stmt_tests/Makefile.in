@@ -453,6 +453,29 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	ispixeltransparent3.testcase \
 	ispixeltransparent4.testcase \
 	ispixeltransparent5.testcase \
+	isvalidpixel1.testcase \
+	isvalidpixel2.testcase \
+	isvalidpixel3.testcase \
+	isvalidpixel4.testcase \
+	isvalidpixel5.testcase \
+	isvalidpixel6.testcase \
+	isvalidpixel7.testcase \
+	isvalidpixel8.testcase \
+	isvalidpixel9.testcase \
+	isvalidpixel10.testcase \
+	isvalidpixel11.testcase \
+	isvalidpixel12.testcase \
+	isvalidpixel13.testcase \
+	isvalidpixel14.testcase \
+	isvalidpixel15.testcase \
+	isvalidpixel16.testcase \
+	isvalidpixel17.testcase \
+	isvalidpixel18.testcase \
+	isvalidpixel19.testcase \
+	isvalidpixel20.testcase \
+	isvalidpixel21.testcase \
+	isvalidpixel22.testcase \
+	isvalidpixel23.testcase \
 	setpixelopaque1.testcase \
 	pixelequals1.testcase \
 	pixelequals2.testcase \

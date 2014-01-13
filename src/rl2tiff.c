@@ -1473,7 +1473,8 @@ rl2_get_tiff_origin_compression (rl2TiffOriginPtr tiff,
 }
 
 RL2_DECLARE int
-rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff)
+rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
+				    int force_srid)
 {
 /* testing if a Coverage and a TIFF origin are mutually compatible */
     unsigned char sample_type;
@@ -1515,7 +1516,15 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff)
     if (rl2_get_tiff_origin_srid (tiff, &srid) != RL2_OK)
 	return RL2_FALSE;
     if (coverage->Srid != srid)
-	return RL2_FALSE;
+      {
+	  if (force_srid > 0)
+	    {
+		if (coverage->Srid != force_srid)
+		    return RL2_FALSE;
+	    }
+	  else
+	      return RL2_FALSE;
+      }
     if (rl2_get_tiff_origin_resolution (tiff, &hResolution, &vResolution) !=
 	RL2_OK)
 	return RL2_FALSE;
@@ -2401,7 +2410,8 @@ build_remap (rl2PrivTiffOriginPtr origin)
 
 RL2_DECLARE rl2RasterPtr
 rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
-			       unsigned int startRow, unsigned int startCol)
+			       unsigned int startRow, unsigned int startCol,
+			       int force_srid)
 {
 /* attempting to create a Coverage-tile from a Tiff origin */
     unsigned int x;
@@ -2418,7 +2428,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 
     if (coverage == NULL || tiff == NULL)
 	return NULL;
-    if (rl2_eval_tiff_origin_compatibility (cvg, tiff) != RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (cvg, tiff, force_srid) != RL2_TRUE)
 	return NULL;
 
 /* testing for tile's boundary validity */

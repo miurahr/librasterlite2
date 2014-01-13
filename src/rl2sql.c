@@ -1496,6 +1496,151 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_DeleteSection (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ DeleteSection(text coverage, text section)
+/ DeleteSection(text coverage, text section, int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *coverage;
+    const char *section;
+    int transaction = 1;
+    sqlite3 *sqlite;
+    int ret;
+    rl2CoveragePtr cvg = NULL;
+    sqlite3_int64 section_id;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+	goto invalid;
+
+/* retrieving the arguments */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = (const char *) sqlite3_value_text (argv[0]);
+    section = (const char *) sqlite3_value_text (argv[1]);
+    if (argc > 2)
+	transaction = sqlite3_value_int (argv[2]);
+
+    cvg = rl2_create_coverage_from_dbms (sqlite, coverage);
+    if (cvg == NULL)
+	goto error;
+    if (rl2_get_dbms_section_id (sqlite, coverage, section, &section_id) !=
+	RL2_OK)
+	goto error;
+
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	      goto error;
+      }
+
+    if (rl2_delete_dbms_section (sqlite, coverage, section_id) != RL2_OK)
+	goto error;
+
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	      goto error;
+      }
+    sqlite3_result_int (context, 1);
+    rl2_destroy_coverage (cvg);
+    return;
+
+  invalid:
+    sqlite3_result_int (context, -1);
+    return;
+  error:
+    if (cvg != NULL)
+	rl2_destroy_coverage (cvg);
+    sqlite3_result_int (context, 0);
+    return;
+}
+
+static void
+fnct_DropCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ DropCoverage(text coverage)
+/ DropCoverage(text coverage, int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *coverage;
+    int transaction = 1;
+    sqlite3 *sqlite;
+    int ret;
+    rl2CoveragePtr cvg = NULL;
+    sqlite3_int64 section_id;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+	goto invalid;
+
+/* retrieving the arguments */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = (const char *) sqlite3_value_text (argv[0]);
+    if (argc > 1)
+	transaction = sqlite3_value_int (argv[1]);
+
+    cvg = rl2_create_coverage_from_dbms (sqlite, coverage);
+    if (cvg == NULL)
+	goto error;
+
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	      goto error;
+      }
+
+    if (rl2_drop_dbms_coverage (sqlite, coverage) != RL2_OK)
+	goto error;
+
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	      goto error;
+      }
+    sqlite3_result_int (context, 1);
+    rl2_destroy_coverage (cvg);
+    return;
+
+  invalid:
+    sqlite3_result_int (context, -1);
+    return;
+  error:
+    if (cvg != NULL)
+	rl2_destroy_coverage (cvg);
+    sqlite3_result_int (context, 0);
+    return;
+}
+
+static void
 fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -1515,7 +1660,7 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     const char *path;
     int worldfile = 0;
     int force_srid = -1;
-    int transaction = 0;
+    int transaction = 1;
     rl2CoveragePtr coverage;
     sqlite3 *sqlite;
     int ret;
@@ -1545,7 +1690,6 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-    rl2_destroy_coverage (coverage);
 /* attempting to load the Raster into the DBMS */
     path = (const char *) sqlite3_value_text (argv[1]);
     if (argc > 2)
@@ -1726,6 +1870,22 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_CreateCoverage, 0, 0);
     sqlite3_create_function (db, "RL2_CreateCoverage", 12, SQLITE_ANY, 0,
 			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "DeleteSection", 2, SQLITE_ANY, 0,
+			     fnct_DeleteSection, 0, 0);
+    sqlite3_create_function (db, "RL2_DeleteSection", 2, SQLITE_ANY, 0,
+			     fnct_DeleteSection, 0, 0);
+    sqlite3_create_function (db, "DeleteSection", 3, SQLITE_ANY, 0,
+			     fnct_DeleteSection, 0, 0);
+    sqlite3_create_function (db, "RL2_DeleteSection", 3, SQLITE_ANY, 0,
+			     fnct_DeleteSection, 0, 0);
+    sqlite3_create_function (db, "DropCoverage", 1, SQLITE_ANY, 0,
+			     fnct_DropCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_DropCoverage", 1, SQLITE_ANY, 0,
+			     fnct_DropCoverage, 0, 0);
+    sqlite3_create_function (db, "DropCoverage", 2, SQLITE_ANY, 0,
+			     fnct_DropCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_DropCoverage", 2, SQLITE_ANY, 0,
+			     fnct_DropCoverage, 0, 0);
     sqlite3_create_function (db, "CreatePixel", 3, SQLITE_ANY, 0,
 			     fnct_CreatePixel, 0, 0);
     sqlite3_create_function (db, "RL2_CreatePixel", 3, SQLITE_ANY, 0,

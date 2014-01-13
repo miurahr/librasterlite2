@@ -87,31 +87,31 @@ test_tiff (const char *name, unsigned char sample_type,
 	  return -2;
       }
 
-    if (rl2_eval_tiff_origin_compatibility (coverage, origin) != RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (coverage, origin, -1) != RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/TIFF mismatch: %s\n", name);
 	  return -3;
       }
 
-    if (rl2_get_tile_from_tiff_origin (coverage, origin, 1, 0) != NULL)
+    if (rl2_get_tile_from_tiff_origin (coverage, origin, 1, 0, -1) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: startRow mismatch\n");
 	  return -4;
       }
 
-    if (rl2_get_tile_from_tiff_origin (coverage, origin, 0, 1) != NULL)
+    if (rl2_get_tile_from_tiff_origin (coverage, origin, 0, 1, -1) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: startCol mismatch\n");
 	  return -5;
       }
 
-    if (rl2_get_tile_from_tiff_origin (coverage, origin, 22000, 0) != NULL)
+    if (rl2_get_tile_from_tiff_origin (coverage, origin, 22000, 0, -1) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: startRow too big\n");
 	  return -6;
       }
 
-    if (rl2_get_tile_from_tiff_origin (coverage, origin, 0, 22000) != NULL)
+    if (rl2_get_tile_from_tiff_origin (coverage, origin, 0, 22000, -1) != NULL)
       {
 	  fprintf (stderr, "Unexpected result: startCol too big\n");
 	  return -7;
@@ -172,7 +172,7 @@ test_tiff (const char *name, unsigned char sample_type,
 	    {
 		sprintf (tile_name, "%s_%04d_%04d", name, row, col);
 		raster =
-		    rl2_get_tile_from_tiff_origin (coverage, origin, row, col);
+		    rl2_get_tile_from_tiff_origin (coverage, origin, row, col, -1);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,
@@ -340,27 +340,27 @@ test_null ()
     coverage =
 	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1,
 			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
-    raster = rl2_get_tile_from_tiff_origin (NULL, origin, 0, 0);
+    raster = rl2_get_tile_from_tiff_origin (NULL, origin, 0, 0, -1);
     if (raster != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: TIFF Get Tile - NULL coverage\n");
 	  return -43;
       }
-    raster = rl2_get_tile_from_tiff_origin (coverage, NULL, 0, 0);
+    raster = rl2_get_tile_from_tiff_origin (coverage, NULL, 0, 0, -1);
     if (raster != NULL)
       {
 	  fprintf (stderr, "Unexpected success: TIFF Get Tile - NULL origin\n");
 	  return -44;
       }
-    raster = rl2_get_tile_from_tiff_origin (coverage, origin, 3, 0);
+    raster = rl2_get_tile_from_tiff_origin (coverage, origin, 3, 0, -1);
     if (raster != NULL)
       {
 	  fprintf (stderr,
 		   "Unexpected success: TIFF Get Tile - invalid tile row\n");
 	  return -45;
       }
-    raster = rl2_get_tile_from_tiff_origin (coverage, origin, 0, 3);
+    raster = rl2_get_tile_from_tiff_origin (coverage, origin, 0, 3, -1);
     if (raster != NULL)
       {
 	  fprintf (stderr,
@@ -480,19 +480,19 @@ test_null ()
     coverage =
 	rl2_create_coverage ("alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 1,
 			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
-    if (rl2_eval_tiff_origin_compatibility (NULL, origin) == RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (NULL, origin, -1) == RL2_TRUE)
       {
 	  fprintf (stderr,
 		   "Unexpected success: TIFF Compatibility - NULL Coverage\n");
 	  return -62;
       }
-    if (rl2_eval_tiff_origin_compatibility (coverage, NULL) == RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (coverage, NULL, -1) == RL2_TRUE)
       {
 	  fprintf (stderr,
 		   "Unexpected success: TIFF Compatibility - NULL origin\n");
 	  return -63;
       }
-    if (rl2_eval_tiff_origin_compatibility (coverage, origin) == RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (coverage, origin, -1) == RL2_TRUE)
       {
 	  fprintf (stderr,
 		   "Unexpected success: TIFF Compatibility - mismatching sample\n");
@@ -502,7 +502,7 @@ test_null ()
     coverage =
 	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE, 1,
 			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
-    if (rl2_eval_tiff_origin_compatibility (coverage, origin) == RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (coverage, origin, -1) == RL2_TRUE)
       {
 	  fprintf (stderr,
 		   "Unexpected success: TIFF Compatibility - mismatching pixel\n");

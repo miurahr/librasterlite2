@@ -6303,7 +6303,7 @@ rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
     *ptr++ = pxl->sampleType;
     *ptr++ = pxl->pixelType;
     *ptr++ = pxl->nBands;
-*ptr++ = pxl->isTransparent;
+    *ptr++ = pxl->isTransparent;
     for (ib = 0; ib < pxl->nBands; ib++)
       {
 	  *ptr++ = RL2_SAMPLE_START;
@@ -6383,7 +6383,7 @@ check_raster_serialized_pixel (const unsigned char *blob, int blob_size)
 	;
     else
 	return 0;		/* invalid endiannes */
-    sample_type = *ptr ++;
+    sample_type = *ptr++;
     switch (sample_type)
       {
       case RL2_SAMPLE_1_BIT:
@@ -6415,7 +6415,7 @@ check_raster_serialized_pixel (const unsigned char *blob, int blob_size)
 	  return 0;
       };
     num_bands = *ptr++;
-ptr++;
+    ptr++;
     switch (sample_type)
       {
       case RL2_SAMPLE_1_BIT:
@@ -6542,7 +6542,7 @@ rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size)
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
-unsigned char transparent;
+    unsigned char transparent;
     int ib;
     const unsigned char *ptr = blob;
     int endian;
@@ -6555,12 +6555,12 @@ unsigned char transparent;
     sample_type = *ptr++;
     pixel_type = *ptr++;
     num_bands = *ptr++;
-transparent = *ptr++;
+    transparent = *ptr++;
     pixel = rl2_create_pixel (sample_type, pixel_type, num_bands);
     if (pixel == NULL)
 	goto error;
     pxl = (rl2PrivPixelPtr) pixel;
-pxl->isTransparent = transparent;
+    pxl->isTransparent = transparent;
     for (ib = 0; ib < num_bands; ib++)
       {
 	  rl2PrivSamplePtr band = pxl->Samples + ib;

@@ -656,9 +656,8 @@ main (int argc, char *argv[])
     if (old_SPATIALITE_SECURITY_ENV)
       {
 #ifdef _WIN32
-	  env =
-	      sqlite3_mprintf ("SPATIALITE_SECURITY=%s",
-			       old_SPATIALITE_SECURITY_ENV);
+	  char *env = sqlite3_mprintf ("SPATIALITE_SECURITY=%s",
+				       old_SPATIALITE_SECURITY_ENV);
 	  putenv (env);
 	  sqlite3_free (env);
 #else /* not WIN32 */

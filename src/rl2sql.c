@@ -1275,7 +1275,7 @@ fnct_PixelEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
     ret = rl2_compare_pixels (pxl1, pxl2);
     if (ret == RL2_TRUE)
 	sqlite3_result_int (context, 1);
-    else 
+    else
 	sqlite3_result_int (context, 0);
     rl2_destroy_pixel (pxl1);
     rl2_destroy_pixel (pxl2);
@@ -1327,6 +1327,7 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char compr;
     sqlite3 *sqlite;
     int ret;
+    rl2PixelPtr no_data = NULL;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -1394,6 +1395,15 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
       }
     else
 	vert_res = horz_res;
+    if (argc > 11 && sqlite3_value_type (argv[11]) == SQLITE_BLOB)
+      {
+	  /* NO-DATA pixel */
+	  const unsigned char *blob = sqlite3_value_blob (argv[11]);
+	  int blob_sz = sqlite3_value_bytes (argv[11]);
+	  no_data = rl2_deserialize_dbms_pixel (blob, blob_sz);
+	  if (no_data == NULL)
+	      goto error;
+      }
 
 /* preliminary arg checking */
     if (num_bands < 1 || num_bands > 255)
@@ -1474,7 +1484,7 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 				    compr, quality,
 				    (unsigned short) tile_width,
 				    (unsigned short) tile_height, srid,
-				    horz_res, vert_res, NULL);
+				    horz_res, vert_res, no_data);
     if (ret == RL2_OK)
 	sqlite3_result_int (context, 1);
     else

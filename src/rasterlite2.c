@@ -1846,8 +1846,8 @@ rl2_compare_pixels (rl2PixelPtr pixel1, rl2PixelPtr pixel2)
 		break;
 	    };
       }
-if (pxl1->isTransparent != pxl2->isTransparent)
-return RL2_FALSE;
+    if (pxl1->isTransparent != pxl2->isTransparent)
+	return RL2_FALSE;
     return RL2_TRUE;
 }
 

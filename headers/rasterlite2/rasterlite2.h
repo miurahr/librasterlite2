@@ -2793,12 +2793,12 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
-				    int *blob_size);
+				  int *blob_size);
 
     RL2_DECLARE int
 	rl2_is_valid_dbms_pixel (const unsigned char *blob, int blob_size,
-				   unsigned char sample_type,
-				   unsigned char num_bands);
+				 unsigned char sample_type,
+				 unsigned char num_bands);
 
     RL2_DECLARE rl2PixelPtr
 	rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size);
@@ -2810,9 +2810,9 @@ extern "C"
 
     RL2_DECLARE void rl2_destroy_ascii_origin (rl2AsciiOriginPtr ascii);
 
-RL2_DECLARE int
-rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
-				     rl2AsciiOriginPtr ascii);
+    RL2_DECLARE int
+	rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
+					     rl2AsciiOriginPtr ascii);
 
     RL2_DECLARE const char *rl2_get_ascii_origin_path (rl2AsciiOriginPtr ascii);
 

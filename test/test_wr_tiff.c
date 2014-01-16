@@ -1705,7 +1705,8 @@ check_origin (const char *path, const char *tfw_path, int srid, double minx,
 		break;
 	    };
 	  rl2_destroy_raster (raster);
-	  raster = rl2_get_tile_from_tiff_origin (coverage, origin, 512, 512, -1);
+	  raster =
+	      rl2_get_tile_from_tiff_origin (coverage, origin, 512, 512, -1);
 	  if (raster == NULL)
 	    {
 		fprintf (stderr, "ERROR: unable to retrieve a TIFF tile (2)\n");

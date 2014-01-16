@@ -1031,3 +1031,421 @@ rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
 	return RL2_ERROR;
     return RL2_OK;
 }
+
+static void
+copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
+			   unsigned char num_bands, unsigned short width,
+			   unsigned short height,
+			   unsigned short tile_width,
+			   unsigned short tile_height, int base_y, int base_x)
+{
+/* copying UINT8 pixels from the output buffer into the tile */
+    int x;
+    int y;
+    int b;
+    const unsigned char *p_in;
+    unsigned char *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in =
+	      outbuf + ((base_y + y) * width * num_bands) +
+	      (base_x * num_bands);
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out += num_bands;
+		      p_in += num_bands;
+		      continue;
+		  }
+		for (b = 0; b < num_bands; b++)
+		    *p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
+			  unsigned char sample_type, unsigned char num_bands,
+			  unsigned short width, unsigned short height,
+			  unsigned short tile_width, unsigned short tile_height,
+			  int base_y, int base_x)
+{
+/* copying pixels from the output buffer into the tile */
+    switch (sample_type)
+      {
+      default:
+	  copy_uint8_outbuf_to_tile ((unsigned char *) outbuf,
+				     (unsigned char *) tile, num_bands,
+				     width, height, tile_width, tile_height,
+				     base_y, base_x);
+	  break;
+      };
+}
+
+static int
+mismatching_size (unsigned short width, unsigned short height, double x_res,
+		  double y_res, double minx, double miny, double maxx,
+		  double maxy)
+{
+/* checking if the image size and the map extent do match */
+    double ext_x = (double) width * x_res;
+    double ext_y = (double) height * y_res;
+    double img_x = maxx - minx;
+    double img_y = maxy = miny;
+    double confidence;
+    confidence = ext_x / 100.0;
+    if (img_x < (ext_x - confidence) || img_x > (ext_x + confidence))
+	return 0;
+    confidence = ext_y / 100.0;
+    if (img_y < (ext_y - confidence) || img_y > (ext_y + confidence))
+	return 0;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
+			      rl2CoveragePtr cvg, double x_res, double y_res,
+			      double minx, double miny, double maxx,
+			      double maxy, unsigned short width,
+			      unsigned short height, unsigned char compression,
+			      unsigned short tile_sz, int with_worldfile)
+{
+/* exporting a GeoTIFF from the DBMS into the file-system */
+    rl2RasterPtr raster = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2PalettePtr plt2 = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int pix_sz = 1;
+    int base_x;
+    int base_y;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+
+    if (rl2_get_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
+	goto error;
+
+    tiff =
+	rl2_create_geotiff_destination (dst_path, handle, width, height,
+					sample_type, pixel_type, num_bands,
+					palette, compression, 1,
+					tile_sz, srid, minx, miny, maxx,
+					maxy, xx_res, yy_res, with_worldfile);
+    if (tiff == NULL)
+	goto error;
+    for (base_y = 0; base_y < height; base_y += tile_sz)
+      {
+	  for (base_x = 0; base_x < width; base_x += tile_sz)
+	    {
+		/* exporting all tiles from the output buffer */
+		bufpix_size = pix_sz * num_bands * tile_sz * tile_sz;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
+		    rl2_prime_void_tile_palette (bufpix, tile_sz, tile_sz,
+						 palette);
+		else
+		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
+					 num_bands);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  num_bands, width, height, tile_sz,
+					  tile_sz, base_y, base_x);
+		plt2 = rl2_clone_palette (palette);
+		raster =
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       pixel_type, num_bands, bufpix,
+				       bufpix_size, plt2, NULL, 0, NULL);
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+      }
+
+    if (with_worldfile)
+      {
+	  /* exporting the Worldfile */
+	  if (rl2_write_tiff_worldfile (tiff) != RL2_OK)
+	      goto error;
+      }
+
+    rl2_destroy_tiff_destination (tiff);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    free (outbuf);
+    return RL2_OK;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
+				     rl2CoveragePtr cvg, double x_res,
+				     double y_res, double minx, double miny,
+				     double maxx, double maxy,
+				     unsigned short width,
+				     unsigned short height,
+				     unsigned char compression,
+				     unsigned short tile_sz)
+{
+/* exporting a TIFF+TFW from the DBMS into the file-system */
+    rl2RasterPtr raster = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2PalettePtr plt2 = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int pix_sz = 1;
+    int base_x;
+    int base_y;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+
+    if (rl2_get_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
+	goto error;
+
+    tiff =
+	rl2_create_tiff_worldfile_destination (dst_path, width, height,
+					       sample_type, pixel_type,
+					       num_bands, palette, compression,
+					       1, tile_sz, srid, minx, miny,
+					       maxx, maxy, xx_res, yy_res);
+    if (tiff == NULL)
+	goto error;
+    for (base_y = 0; base_y < height; base_y += tile_sz)
+      {
+	  for (base_x = 0; base_x < width; base_x += tile_sz)
+	    {
+		/* exporting all tiles from the output buffer */
+		bufpix_size = pix_sz * num_bands * tile_sz * tile_sz;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
+		    rl2_prime_void_tile_palette (bufpix, tile_sz, tile_sz,
+						 palette);
+		else
+		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
+					 num_bands);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  num_bands, width, height, tile_sz,
+					  tile_sz, base_y, base_x);
+		plt2 = rl2_clone_palette (palette);
+		raster =
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       pixel_type, num_bands, bufpix,
+				       bufpix_size, plt2, NULL, 0, NULL);
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+      }
+
+/* exporting the Worldfile */
+    if (rl2_write_tiff_worldfile (tiff) != RL2_OK)
+	goto error;
+
+    rl2_destroy_tiff_destination (tiff);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    free (outbuf);
+    return RL2_OK;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+			   rl2CoveragePtr cvg, double x_res, double y_res,
+			   double minx, double miny, double maxx,
+			   double maxy, unsigned short width,
+			   unsigned short height, unsigned char compression,
+			   unsigned short tile_sz)
+{
+/* exporting a plain TIFF from the DBMS into the file-system */
+    rl2RasterPtr raster = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2PalettePtr plt2 = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int pix_sz = 1;
+    int base_x;
+    int base_y;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+
+    if (rl2_get_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
+	goto error;
+
+    tiff =
+	rl2_create_tiff_destination (dst_path, width, height, sample_type,
+				     pixel_type, num_bands, palette,
+				     compression, 1, tile_sz);
+    if (tiff == NULL)
+	goto error;
+    for (base_y = 0; base_y < height; base_y += tile_sz)
+      {
+	  for (base_x = 0; base_x < width; base_x += tile_sz)
+	    {
+		/* exporting all tiles from the output buffer */
+		bufpix_size = pix_sz * num_bands * tile_sz * tile_sz;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
+		    rl2_prime_void_tile_palette (bufpix, tile_sz, tile_sz,
+						 palette);
+		else
+		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
+					 num_bands);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  num_bands, width, height, tile_sz,
+					  tile_sz, base_y, base_x);
+		plt2 = rl2_clone_palette (palette);
+		raster =
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       pixel_type, num_bands, bufpix,
+				       bufpix_size, plt2, NULL, 0, NULL);
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+      }
+
+    rl2_destroy_tiff_destination (tiff);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    free (outbuf);
+    return RL2_OK;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}

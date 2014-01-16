@@ -2726,7 +2726,7 @@ extern "C"
 	rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage);
 
     RL2_DECLARE int
-	rl2_find_matching_resolution (sqlite3 * handle, const char *coverage,
+	rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
 				      double *x_res, double *y_res,
 				      unsigned char *level,
 				      unsigned char *scale);
@@ -2855,6 +2855,37 @@ extern "C"
 				     const char *file_ext,
 				     rl2CoveragePtr coverage, int worldfile,
 				     int force_srid, int pyramidize);
+
+    RL2_DECLARE int
+	rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				      rl2CoveragePtr coverage, double x_res,
+				      double y_res, double minx, double miny,
+				      double maxx, double maxy,
+				      unsigned short width,
+				      unsigned short height,
+				      unsigned char compression, 
+				      unsigned short tile_sz,
+				      int with_worldfile);
+
+    RL2_DECLARE int
+	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
+				      rl2CoveragePtr coverage, double x_res,
+				      double y_res, double minx, double miny,
+				      double maxx, double maxy,
+				      unsigned short width,
+				      unsigned short height,
+				      unsigned char compression, 
+				      unsigned short tile_sz);
+
+    RL2_DECLARE int
+	rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				      rl2CoveragePtr coverage, double x_res,
+				      double y_res, double minx, double miny,
+				      double maxx, double maxy,
+				      unsigned short width,
+				      unsigned short height,
+				      unsigned char compression, 
+				      unsigned short tile_sz);
 
 #ifdef __cplusplus
 }

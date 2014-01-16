@@ -3050,11 +3050,12 @@ load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 }
 
 RL2_DECLARE int
-rl2_find_matching_resolution (sqlite3 * handle, const char *coverage,
+rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
 			      double *x_res, double *y_res,
 			      unsigned char *level, unsigned char *scale)
 {
 /* attempting to identify the corresponding resolution level */
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
     int ret;
     int found = 0;
     int x_level;
@@ -3066,7 +3067,12 @@ rl2_find_matching_resolution (sqlite3 * handle, const char *coverage,
     char *sql;
     sqlite3_stmt *stmt = NULL;
 
-    xcoverage = sqlite3_mprintf ("%s_levels", coverage);
+    if (coverage == NULL)
+	return RL2_ERROR;
+    if (coverage->coverageName == NULL)
+	return RL2_ERROR;
+
+    xcoverage = sqlite3_mprintf ("%s_levels", coverage->coverageName);
     xxcoverage = gaiaDoubleQuotedSql (xcoverage);
     sqlite3_free (xcoverage);
     sql =
@@ -3249,7 +3255,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
     if (coverage == NULL)
 	goto error;
     if (rl2_find_matching_resolution
-	(handle, coverage, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
 	goto error;
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)

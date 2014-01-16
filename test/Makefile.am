@@ -8,7 +8,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test19 test20 test_tifin \
 	test_wr_tiff test_wms1  \
 	test_paint check_sql_stmt \
-	test_map_rgb
+	test_map_rgb test_map_gray
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \

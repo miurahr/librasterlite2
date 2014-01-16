@@ -264,168 +264,20 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     return 0;
 }
 
-static void
-copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
-			   unsigned char num_bands, unsigned short width,
-			   unsigned short height,
-			   unsigned short tile_width,
-			   unsigned short tile_height, int base_y, int base_x)
-{
-/* copying UINT8 pixels from the output buffer into the tile */
-    int x;
-    int y;
-    int b;
-    const unsigned char *p_in;
-    unsigned char *p_out = tile;
-
-    for (y = 0; y < tile_height; y++)
-      {
-	  if ((base_y + y) >= height)
-	      break;
-	  p_in =
-	      outbuf + ((base_y + y) * width * num_bands) +
-	      (base_x * num_bands);
-	  for (x = 0; x < tile_width; x++)
-	    {
-		if ((base_x + x) >= width)
-		  {
-		      p_out += num_bands;
-		      p_in += num_bands;
-		      continue;
-		  }
-		for (b = 0; b < num_bands; b++)
-		    *p_out++ = *p_in++;
-	    }
-      }
-}
-
-static void
-copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
-			  unsigned char sample_type, unsigned char num_bands,
-			  unsigned short width, unsigned short height,
-			  unsigned short tile_width, unsigned short tile_height,
-			  int base_y, int base_x)
-{
-/* copying pixels from the output buffer into the tile */
-    switch (sample_type)
-      {
-      default:
-	  copy_uint8_outbuf_to_tile ((unsigned char *) outbuf,
-				     (unsigned char *) tile, num_bands,
-				     width, height, tile_width, tile_height,
-				     base_y, base_x);
-	  break;
-      };
-}
-
 static int
 exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	     double x_res, double y_res, double minx, double miny, double maxx,
 	     double maxy, unsigned short width, unsigned short height)
 {
 /* performing EXPORT */
-    rl2RasterPtr raster = NULL;
-    rl2CoveragePtr cvg = NULL;
-    rl2PalettePtr palette = NULL;
-    rl2PalettePtr plt2 = NULL;
-    rl2TiffDestinationPtr tiff = NULL;
-    unsigned char level;
-    unsigned char scale;
-    double xx_res = x_res;
-    double yy_res = y_res;
-    unsigned char sample_type;
-    unsigned char pixel_type;
-    unsigned char num_bands;
-    int srid;
-    unsigned char *outbuf = NULL;
-    int outbuf_size;
-    unsigned char *bufpix = NULL;
-    int bufpix_size;
-    int pix_sz = 1;
-    int base_x;
-    int base_y;
-
-    if (rl2_find_matching_resolution
-	(handle, coverage, &xx_res, &yy_res, &level, &scale) != RL2_OK)
-	return 0;
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
-	goto error;
-
-    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
-	RL2_OK)
-	goto error;
-    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
-	goto error;
-
-    if (rl2_get_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
-	goto error;
-
-    tiff =
-	rl2_create_geotiff_destination (dst_path, handle, width, height,
-					sample_type, pixel_type, num_bands,
-					palette, RL2_COMPRESSION_NONE, 1, 256,
-					srid, minx, miny, maxx, maxy, xx_res,
-					yy_res, 0);
-    if (tiff == NULL)
-	goto error;
-    for (base_y = 0; base_y < height; base_y += 256)
-      {
-	  for (base_x = 0; base_x < width; base_x += 256)
-	    {
-		/* exporting all tiles from the output buffer */
-		bufpix_size = pix_sz * num_bands * 256 * 256;
-		bufpix = malloc (bufpix_size);
-		if (bufpix == NULL)
-		  {
-		      fprintf (stderr,
-			       "rl2tool Export: Insufficient Memory !!!\n");
-		      goto error;
-		  }
-		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
-		    rl2_prime_void_tile_palette (bufpix, 256, 256, palette);
-		else
-		    rl2_prime_void_tile (bufpix, 256, 256, sample_type,
-					 num_bands);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
-					  num_bands, width, height, 256, 256,
-					  base_y, base_x);
-		plt2 = rl2_clone_palette (palette);
-		raster =
-		    rl2_create_raster (256, 256, sample_type, pixel_type,
-				       num_bands, bufpix, bufpix_size, plt2,
-				       NULL, 0, NULL);
-		if (raster == NULL)
-		    goto error;
-		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
-		    RL2_OK)
-		    goto error;
-		rl2_destroy_raster (raster);
-		raster = NULL;
-	    }
-      }
-
-    rl2_destroy_coverage (cvg);
-    rl2_destroy_tiff_destination (tiff);
-    if (palette != NULL)
-	rl2_destroy_palette (palette);
-    free (outbuf);
+	return 0;
+    if (!rl2_export_geotiff_from_dbms
+	(handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
+	 width, height, RL2_COMPRESSION_NONE, 256, 0) != RL2_OK)
+	return 0;
     return 1;
-
-  error:
-    if (raster != NULL)
-	rl2_destroy_raster (raster);
-    if (cvg != NULL)
-	rl2_destroy_coverage (cvg);
-    if (tiff != NULL)
-	rl2_destroy_tiff_destination (tiff);
-    if (outbuf != NULL)
-	free (outbuf);
-    if (palette != NULL)
-	rl2_destroy_palette (palette);
-    return 0;
 }
 
 static int

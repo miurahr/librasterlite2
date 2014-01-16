@@ -150,6 +150,14 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	createpixel10.testcase \
 	createpixel11.testcase \
 	createpixel12.testcase \
+	createpixel13.testcase \
+	deletesection1.testcase \
+	deletesection2.testcase \
+	deletesection3.testcase \
+	deletesection4.testcase \
+	dropcoverage1.testcase \
+	dropcoverage2.testcase \
+	dropcoverage3.testcase \
 	getpixelnumbands1.testcase \
 	getpixelnumbands2.testcase \
 	getpixelnumbands3.testcase \
@@ -203,6 +211,24 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	ispixeltransparent3.testcase \
 	ispixeltransparent4.testcase \
 	ispixeltransparent5.testcase \
+	isvalidpalette1.testcase \
+	isvalidpalette2.testcase \
+	isvalidpalette3.testcase \
+	isvalidpalette4.testcase \
+	isvalidpalette5.testcase \
+	isvalidpalette6.testcase \
+	isvalidpalette7.testcase \
+	isvalidpalette8.testcase \
+	isvalidpalette9.testcase \
+	isvalidpalette10.testcase \
+	isvalidpalette11.testcase \
+	isvalidpalette12.testcase \
+	isvalidpalette13.testcase \
+	isvalidpalette14.testcase \
+	isvalidpalette15.testcase \
+	isvalidpalette16.testcase \
+	isvalidpalette17.testcase \
+	isvalidpalette18.testcase \
 	isvalidpixel1.testcase \
 	isvalidpixel2.testcase \
 	isvalidpixel3.testcase \
@@ -226,6 +252,28 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	isvalidpixel21.testcase \
 	isvalidpixel22.testcase \
 	isvalidpixel23.testcase \
+	isvalidstats1.testcase \
+	isvalidstats2.testcase \
+	isvalidstats3.testcase \
+	isvalidstats4.testcase \
+	isvalidstats5.testcase \
+	isvalidstats6.testcase \
+	isvalidstats7.testcase \
+	isvalidstats8.testcase \
+	isvalidstats9.testcase \
+	isvalidstats10.testcase \
+	isvalidstats11.testcase \
+	isvalidstats12.testcase \
+	isvalidstats13.testcase \
+	isvalidstats14.testcase \
+	isvalidstats15.testcase \
+	isvalidstats16.testcase \
+	isvalidstats17.testcase \
+	isvalidstats18.testcase \
+	isvalidtile1.testcase \
+	isvalidtile2.testcase \
+	isvalidtile3.testcase \
+	isvalidtile4.testcase \
 	setpixelopaque1.testcase \
 	pixelequals1.testcase \
 	pixelequals2.testcase \

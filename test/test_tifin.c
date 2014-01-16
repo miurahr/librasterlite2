@@ -172,7 +172,8 @@ test_tiff (const char *name, unsigned char sample_type,
 	    {
 		sprintf (tile_name, "%s_%04d_%04d", name, row, col);
 		raster =
-		    rl2_get_tile_from_tiff_origin (coverage, origin, row, col, -1);
+		    rl2_get_tile_from_tiff_origin (coverage, origin, row, col,
+						   -1);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,

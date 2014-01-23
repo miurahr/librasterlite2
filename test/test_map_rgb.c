@@ -56,6 +56,28 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define TILE_1024	1024
 
 static int
+execute_check (sqlite3 * sqlite, const char *sql)
+{
+/* executing an SQL statement returning True/False */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = 0;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return SQLITE_ERROR;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    if (retcode == 1)
+	return SQLITE_OK;
+    return SQLITE_ERROR;
+}
+
+static int
 get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 		     double *y_res)
 {
@@ -436,11 +458,11 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  qlty = 80;
 	  break;
       case RL2_COMPRESSION_LOSSY_WEBP:
-	  compression_name = "LOSSY_WEBP";
+	  compression_name = "WEBP";
 	  qlty = 80;
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  compression_name = "LOSSLESS_WEBP";
+	  compression_name = "LL_WEBP";
 	  qlty = 100;
 	  break;
       };
@@ -463,7 +485,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 			   coverage, sample_name, pixel_name, num_bands,
 			   compression_name, qlty, tile_size, tile_size, 26914,
 			   0.152400030480006134, 0.152400030480006134);
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -479,7 +501,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	sqlite3_mprintf
 	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 26914, 1)", coverage,
 	 "map_samples/usgs-rgb", ".tif");
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -493,7 +515,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* deleting the first section */
     sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
 			   coverage, "rgb1");
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -507,7 +529,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* re-loading yet again the first section */
     sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 26914, 1)",
 			   coverage, "map_samples/usgs-rgb/rgb1.tif");
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -736,7 +758,7 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 
 /* dropping the DBMS Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_DropCoverage(%Q, 1)", coverage);
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -759,6 +781,9 @@ main (int argc, char *argv[])
     sqlite3 *db_handle;
     void *cache = spatialite_alloc_connection ();
     char *old_SPATIALITE_SECURITY_ENV = NULL;
+
+    if (argc > 1 || argv[0] == NULL)
+	argc = 1;		/* silencing stupid compiler warnings */
 
     old_SPATIALITE_SECURITY_ENV = getenv ("SPATIALITE_SECURITY");
 #ifdef _WIN32

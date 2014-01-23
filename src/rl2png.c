@@ -318,7 +318,7 @@ compress_grayscale_png (unsigned char *pixels, unsigned char *mask,
 	    {
 		if (is_monochrome)
 		  {
-		      if (*p_in++ == 0)
+		      if (*p_in++ != 0)
 			  *p_out++ = 255;
 		      else
 			  *p_out++ = 0;

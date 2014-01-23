@@ -647,6 +647,10 @@ main (int argc, char *argv[])
     int blob_odd_sz_gif;
     unsigned char *blob_even_gif;
     int blob_even_sz_gif;
+    unsigned char *blob_odd_fax;
+    int blob_odd_sz_fax;
+    unsigned char *blob_even_fax;
+    int blob_even_sz_fax;
     unsigned char *blob_stat;
     int blob_stat_size;
     int endian = naturalEndian ();
@@ -712,16 +716,16 @@ main (int argc, char *argv[])
       }
 
     if (rl2_raster_encode
-	(raster, RL2_COMPRESSION_DEFLATE, &blob_odd_zip, &blob_odd_sz_zip,
-	 &blob_even_zip, &blob_even_sz_zip, 0, endian) != RL2_OK)
+	(raster, RL2_COMPRESSION_CCITTFAX4, &blob_odd_fax, &blob_odd_sz_fax,
+	 &blob_even_fax, &blob_even_sz_fax, 0, endian) != RL2_OK)
       {
-	  fprintf (stderr, "Unable to Encode - deflate\n");
+	  fprintf (stderr, "Unable to Encode - FAX4\n");
 	  return -9;
       }
 
     stats =
-	rl2_get_raster_statistics (blob_odd_zip, blob_odd_sz_zip, blob_even_zip,
-				   blob_even_sz_zip, NULL, NULL);
+	rl2_get_raster_statistics (blob_odd_fax, blob_odd_sz_fax, blob_even_fax,
+				   blob_even_sz_fax, NULL, NULL);
     if (stats == NULL)
       {
 	  fprintf (stderr, "Unable to get Raster Statistics\n");
@@ -744,10 +748,18 @@ main (int argc, char *argv[])
     rl2_destroy_raster_statistics (stats);
 
     if (rl2_raster_encode
-	(raster, RL2_COMPRESSION_LZMA, &blob_odd_lzma, &blob_odd_sz_lzma,
-	 &blob_even_lzma, &blob_even_sz_lzma, 0, endian) != RL2_OK)
+	(raster, RL2_COMPRESSION_DEFLATE, &blob_odd_zip, &blob_odd_sz_zip,
+	 &blob_even_zip, &blob_even_sz_zip, 0, endian) != RL2_ERROR)
       {
-	  fprintf (stderr, "Unable to Encode - lzma\n");
+	  fprintf (stderr, "Unexpected result - DEFLATE compressed\n");
+	  return -103;
+      }
+
+    if (rl2_raster_encode
+	(raster, RL2_COMPRESSION_LZMA, &blob_odd_lzma, &blob_odd_sz_lzma,
+	 &blob_even_lzma, &blob_even_sz_lzma, 0, endian) != RL2_ERROR)
+      {
+	  fprintf (stderr, "Unexpected result - LZMA compressed\n");
 	  return -10;
       }
 
@@ -769,9 +781,9 @@ main (int argc, char *argv[])
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_GIF, &blob_odd_gif, &blob_odd_sz_gif,
-	 &blob_even_gif, &blob_even_sz_gif, 0, endian) != RL2_OK)
+	 &blob_even_gif, &blob_even_sz_gif, 0, endian) != RL2_ERROR)
       {
-	  fprintf (stderr, "Unable to Encode - gif\n");
+	  fprintf (stderr, "Unexpected result - GIF compressed\n");
 	  return -13;
       }
 
@@ -805,49 +817,13 @@ main (int argc, char *argv[])
     free (blob_odd);
 
     unlink ("./monochrome_1_1_uncompressed.png");
+
     raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_zip, blob_odd_sz_zip,
-			   blob_even_zip, blob_even_sz_zip, NULL);
+	rl2_raster_decode (RL2_SCALE_1, blob_odd_fax, blob_odd_sz_fax,
+			   blob_even_fax, blob_even_sz_fax, NULL);
     if (raster == NULL)
       {
-	  fprintf (stderr, "Unable to Decode 1:1 - deflate\n");
-	  return -17;
-      }
-
-    img = rl2_create_section ("monochrome 1:1", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:1 - deflate\n");
-	  return -18;
-      }
-
-    if (rl2_section_to_png (img, "./monochrome_1_1_zip.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: monochrome_1_1_zip.png\n");
-	  return -19;
-      }
-    rl2_destroy_section (img);
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_zip, blob_odd_sz_zip,
-			   blob_even_zip, blob_even_sz_zip, NULL);
-    if (raster != NULL)
-      {
-	  fprintf (stderr, "Unexpected result: Decode 1:2 - deflate\n");
-	  return -20;
-      }
-    free (blob_odd_zip);
-
-    unlink ("./monochrome_1_1_zip.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_lzma, blob_odd_sz_lzma,
-			   blob_even_lzma, blob_even_sz_lzma, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:1 - lzma\n");
+	  fprintf (stderr, "Unable to Decode 1:1 - fax\n");
 	  return -21;
       }
 
@@ -856,28 +832,28 @@ main (int argc, char *argv[])
 			      raster);
     if (img == NULL)
       {
-	  fprintf (stderr, "Unable to create a Section 1:1 - lzma\n");
+	  fprintf (stderr, "Unable to create a Section 1:1 - fax\n");
 	  return -22;
       }
 
-    if (rl2_section_to_png (img, "./monochrome_1_1_lzma.png") != RL2_OK)
+    if (rl2_section_to_png (img, "./monochrome_1_1_fax.png") != RL2_OK)
       {
-	  fprintf (stderr, "Unable to write: monochrome_1_1_lzma.png\n");
+	  fprintf (stderr, "Unable to write: monochrome_1_1_fax.png\n");
 	  return -23;
       }
     rl2_destroy_section (img);
 
     raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_lzma, blob_odd_sz_lzma,
-			   blob_even_lzma, blob_even_sz_lzma, NULL);
+	rl2_raster_decode (RL2_SCALE_2, blob_odd_fax, blob_odd_sz_fax,
+			   blob_even_fax, blob_even_sz_fax, NULL);
     if (raster != NULL)
       {
-	  fprintf (stderr, "Unexpected result: Decode 1:2 - lzma\n");
+	  fprintf (stderr, "Unexpected result: Decode 1:2 - fax\n");
 	  return -24;
       }
     free (blob_odd_lzma);
 
-    unlink ("./monochrome_1_1_lzma.png");
+    unlink ("./monochrome_1_1_fax.png");
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_png, blob_odd_sz_png,
@@ -915,43 +891,6 @@ main (int argc, char *argv[])
     free (blob_odd_png);
 
     unlink ("./monochrome_1_1_png.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
-	  return -29;
-      }
-
-    img = rl2_create_section ("monochrome 1:1", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:1 - gif\n");
-	  return -30;
-      }
-
-    if (rl2_section_to_png (img, "./monochrome_1_1_gif.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: monochrome_1_1_gif.png\n");
-	  return -31;
-      }
-    rl2_destroy_section (img);
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster != NULL)
-      {
-	  fprintf (stderr, "Unexpected result: Decode 1:2 - gif\n");
-	  return -32;
-      }
-    free (blob_odd_gif);
-
-    unlink ("./monochrome_1_1_gif.png");
 
     return 0;
 }

@@ -98,36 +98,58 @@ extern "C"
 #endif
 
 /* internal binary format markers */
-#define RL2_ODD_BLOCK_START		0xfa
-#define RL2_ODD_BLOCK_END		0xf0
-#define RL2_EVEN_BLOCK_START		0xdb
-#define RL2_EVEN_BLOCK_END		0xd0
-#define RL2_LITTLE_ENDIAN		0x01
-#define RL2_BIG_ENDIAN			0x00
-#define RL2_PALETTE_START		0xa4
-#define RL2_PALETTE_END			0xa5
-#define RL2_DATA_START			0xc8
-#define RL2_DATA_END			0xc9
-#define RL2_MASK_START			0xb6
-#define RL2_MASK_END			0xb7
-#define RL2_STATS_START			0x27
-#define RL2_STATS_END			0x2a
-#define RL2_BAND_STATS_START		0x37
-#define RL2_BAND_STATS_END		0x3a
-#define RL2_HISTOGRAM_START		0x47
-#define RL2_HISTOGRAM_END		0x4a
-#define RL2_NO_DATA_START		0x03
-#define RL2_NO_DATA_END			0x23
-#define RL2_SAMPLE_START		0x06
-#define RL2_SAMPLE_END			0x26
+#define RL2_ODD_BLOCK_START			0xfa
+#define RL2_ODD_BLOCK_END			0xf0
+#define RL2_EVEN_BLOCK_START			0xdb
+#define RL2_EVEN_BLOCK_END			0xd0
+#define RL2_LITTLE_ENDIAN			0x01
+#define RL2_BIG_ENDIAN				0x00
+#define RL2_PALETTE_START			0xa4
+#define RL2_PALETTE_END				0xa5
+#define RL2_DATA_START				0xc8
+#define RL2_DATA_END				0xc9
+#define RL2_MASK_START				0xb6
+#define RL2_MASK_END				0xb7
+#define RL2_STATS_START				0x27
+#define RL2_STATS_END				0x2a
+#define RL2_BAND_STATS_START			0x37
+#define RL2_BAND_STATS_END			0x3a
+#define RL2_HISTOGRAM_START			0x47
+#define RL2_HISTOGRAM_END			0x4a
+#define RL2_NO_DATA_START			0x03
+#define RL2_NO_DATA_END				0x23
+#define RL2_SAMPLE_START			0x06
+#define RL2_SAMPLE_END				0x26
 
 /* internal ColorSpace forced conversions */
 #define RL2_CONVERT_NO				0x00
-#define RL2_CONVERT_RGB_TO_GRAYSCALE 		0x01
-#define RL2_CONVERT_PALETTE_TO_GRAYSCALE	0x02
-#define RL2_CONVERT_GRAYSCALE_TO_RGB 		0x03
-#define RL2_CONVERT_GRAYSCALE_TO_PALETTE	0x04
-#define RL2_CONVERT_PALETTE_TO_RGB		0x05
+#define RL2_CONVERT_MONOCHROME_TO_PALETTE	0x01
+#define RL2_CONVERT_PALETTE_TO_MONOCHROME	0x02
+#define RL2_CONVERT_RGB_TO_GRAYSCALE 		0x03
+#define RL2_CONVERT_GRAYSCALE_TO_RGB 		0x04
+#define RL2_CONVERT_PALETTE_TO_GRAYSCALE	0x05
+#define RL2_CONVERT_GRAYSCALE_TO_PALETTE	0x06
+#define RL2_CONVERT_PALETTE_TO_RGB		0x07
+#define RL2_CONVERT_GRID_INT8_TO_INT16		0x08
+#define RL2_CONVERT_GRID_INT8_TO_INT32		0x09
+#define RL2_CONVERT_GRID_INT8_TO_FLOAT		0x0a
+#define RL2_CONVERT_GRID_INT8_TO_DOUBLE		0x0b
+#define RL2_CONVERT_GRID_INT16_TO_INT32		0x0c
+#define RL2_CONVERT_GRID_INT16_TO_FLOAT		0x0d
+#define RL2_CONVERT_GRID_INT16_TO_DOUBLE	0x0e
+#define RL2_CONVERT_GRID_INT32_TO_FLOAT		0x0f
+#define RL2_CONVERT_GRID_INT32_TO_DOUBLE	0x10
+#define RL2_CONVERT_GRID_UINT8_TO_UINT16	0x11
+#define RL2_CONVERT_GRID_UINT8_TO_UINT32	0x12
+#define RL2_CONVERT_GRID_UINT8_TO_FLOAT		0x13
+#define RL2_CONVERT_GRID_UINT8_TO_DOUBLE	0x14
+#define RL2_CONVERT_GRID_UINT16_TO_UINT32	0x15
+#define RL2_CONVERT_GRID_UINT16_TO_FLOAT	0x16
+#define RL2_CONVERT_GRID_UINT16_TO_DOUBLE	0x17
+#define RL2_CONVERT_GRID_UINT32_TO_FLOAT	0x18
+#define RL2_CONVERT_GRID_UINT32_TO_DOUBLE	0x19
+#define RL2_CONVERT_GRID_FLOAT_TO_DOUBLE	0x1a
+#define RL2_CONVERT_GRID_DOUBLE_TO_FLOAT	0x1b
 
     typedef union rl2_priv_sample
     {
@@ -405,6 +427,11 @@ extern "C"
 			unsigned char *sample_type, unsigned char *pixel_type,
 			unsigned char **pixels, int *pixels_sz,
 			rl2PalettePtr * palette);
+
+    RL2_PRIVATE int
+	rl2_decode_tiff_mono4 (const unsigned char *tiff, int tiff_sz,
+			       unsigned short *width, unsigned short *height,
+			       unsigned char **pixels, int *pixels_sz);
 
 #ifdef __cplusplus
 }

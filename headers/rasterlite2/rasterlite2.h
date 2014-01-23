@@ -79,77 +79,77 @@ extern "C"
 #include <spatialite/gaiageo.h>
 
 /** RasterLite2 flag: FALSE */
-#define RL2_FALSE	0
+#define RL2_FALSE			0
 /** RasterLite2 flag: TRUE */
-#define RL2_TRUE	1
+#define RL2_TRUE			1
 
 /** RasterLite2 ret-value: OK (success) */
-#define RL2_OK		0
+#define RL2_OK				0
 /** RasterLite2 ret-value: ERROR (failure) */
-#define RL2_ERROR	-1
+#define RL2_ERROR			-1
 
 /** RasterLite2 constant: INVALID/UNDEFINED Pyramid Level */
 #define RL_INVALID_PYRAMID_LEVEL	-1
 
 /** RasterLite2 constant: Sample Type UNKNOWN */
-#define RL2_SAMPLE_UNKNOWN	0xa0
+#define RL2_SAMPLE_UNKNOWN		0xa0
 /** RasterLite2 constant: Sample Type 1-bit */
-#define RL2_SAMPLE_1_BIT	0xa1
+#define RL2_SAMPLE_1_BIT		0xa1
 /** RasterLite2 constant: Sample Type 2-bit */
-#define RL2_SAMPLE_2_BIT	0xa2
+#define RL2_SAMPLE_2_BIT		0xa2
 /** RasterLite2 constant: Sample Type 4-bit */
-#define RL2_SAMPLE_4_BIT	0xa3
+#define RL2_SAMPLE_4_BIT		0xa3
 /** RasterLite2 constant: Sample Type 8 bit Integer */
-#define RL2_SAMPLE_INT8		0xa4
+#define RL2_SAMPLE_INT8			0xa4
 /** RasterLite2 constant: Sample Type 8 bit Unsigned Integer */
-#define RL2_SAMPLE_UINT8	0xa5
+#define RL2_SAMPLE_UINT8		0xa5
 /** RasterLite2 constant: Sample Type 16 bit Integer */
-#define RL2_SAMPLE_INT16	0xa6
+#define RL2_SAMPLE_INT16		0xa6
 /** RasterLite2 constant: Sample Type 16 bit Unsigned Integer */
-#define RL2_SAMPLE_UINT16	0xa7
+#define RL2_SAMPLE_UINT16		0xa7
 /** RasterLite2 constant: Sample Type 32 bit Integer */
-#define RL2_SAMPLE_INT32	0xa8
+#define RL2_SAMPLE_INT32		0xa8
 /** RasterLite2 constant: Sample Type 32 bit Unsigned Integer */
-#define RL2_SAMPLE_UINT32	0xa9
+#define RL2_SAMPLE_UINT32		0xa9
 /** RasterLite2 constant: Sample Type Floating Point Single Precision */
-#define RL2_SAMPLE_FLOAT	0xaa
+#define RL2_SAMPLE_FLOAT		0xaa
 /** RasterLite2 constant: Sample Type Floating Point Double Precision */
-#define RL2_SAMPLE_DOUBLE	0xab
+#define RL2_SAMPLE_DOUBLE		0xab
 
 /** RasterLite2 constant: Pixel Type UNKNOWN */
-#define RL2_PIXEL_UNKNOWN	0x10
+#define RL2_PIXEL_UNKNOWN		0x10
 /** RasterLite2 constant: Pixel Type Monochrome - Bilevel */
-#define RL2_PIXEL_MONOCHROME	0x11
+#define RL2_PIXEL_MONOCHROME		0x11
 /** RasterLite2 constant: Pixel Type Palette based */
-#define RL2_PIXEL_PALETTE	0x12
+#define RL2_PIXEL_PALETTE		0x12
 /** RasterLite2 constant: Pixel Type Grayscale */
-#define RL2_PIXEL_GRAYSCALE	0x13
+#define RL2_PIXEL_GRAYSCALE		0x13
 /** RasterLite2 constant: Pixel Type Red-Green-Blue */
-#define RL2_PIXEL_RGB		0x14
+#define RL2_PIXEL_RGB			0x14
 /** RasterLite2 constant: Pixel Type Multiband (arbitrary) */
-#define RL2_PIXEL_MULTIBAND	0x15
+#define RL2_PIXEL_MULTIBAND		0x15
 /** RasterLite2 constant: Pixel Type Data-Grid */
-#define RL2_PIXEL_DATAGRID	0x16
+#define RL2_PIXEL_DATAGRID		0x16
 
 /** RasterLite2 constant: Opaque Pixel */
-#define RL2_PIXEL_OPAQUE	0x80
+#define RL2_PIXEL_OPAQUE		0x80
 /** RasterLite2 constant: Transparent Pixel */
-#define RL2_PIXEL_TRANSPARENT	0x40
+#define RL2_PIXEL_TRANSPARENT		0x40
 
 /** RasterLite2 constant: Compression UNKNOWN */
-#define RL2_COMPRESSION_UNKNOWN	0x20
+#define RL2_COMPRESSION_UNKNOWN		0x20
 /** RasterLite2 constant: Compression None */
-#define RL2_COMPRESSION_NONE	0x21
+#define RL2_COMPRESSION_NONE		0x21
 /** RasterLite2 constant: Compression Deflate (zip) */
-#define RL2_COMPRESSION_DEFLATE	0x22
+#define RL2_COMPRESSION_DEFLATE		0x22
 /** RasterLite2 constant: Compression LZMA */
-#define RL2_COMPRESSION_LZMA	0x23
+#define RL2_COMPRESSION_LZMA		0x23
 /** RasterLite2 constant: Compression GIF */
-#define RL2_COMPRESSION_GIF	0x24
+#define RL2_COMPRESSION_GIF		0x24
 /** RasterLite2 constant: Compression PNG */
-#define RL2_COMPRESSION_PNG	0x25
+#define RL2_COMPRESSION_PNG		0x25
 /** RasterLite2 constant: Compression JPEG */
-#define RL2_COMPRESSION_JPEG	0x26
+#define RL2_COMPRESSION_JPEG		0x26
 /** RasterLite2 constant: Compression WEBP (lossy mode) */
 #define RL2_COMPRESSION_LOSSY_WEBP	0x27
 /** RasterLite2 constant: Compression WEBP (lossless mode) */
@@ -159,40 +159,40 @@ extern "C"
 /** RasterLite2 constant: Compression CCITTFAX4 */
 #define RL2_COMPRESSION_CCITTFAX4	0x30
 /** RasterLite2 constant: Compression LZW */
-#define RL2_COMPRESSION_LZW	0x31
+#define RL2_COMPRESSION_LZW		0x31
 
 /** RasterLite2 constant: UNKNOWN number of Bands */
-#define RL2_BANDS_UNKNOWN	0x00
+#define RL2_BANDS_UNKNOWN		0x00
 
 /** RasterLite2 constant: Red Band */
-#define RL2_RED_BAND		0
+#define RL2_RED_BAND			0
 /** RasterLite2 constant: Green Band */
-#define RL2_GREEN_BAND		1
+#define RL2_GREEN_BAND			1
 /** RasterLite2 constant: Blue Band */
-#define RL2_BLUE_BAND		2
+#define RL2_BLUE_BAND			2
 /** RasterLite2 constant: Grayscale Band */
-#define RL2_GRAYSCALE_BAND	0
+#define RL2_GRAYSCALE_BAND		0
 /** RasterLite2 constant: Data-Grid Band */
-#define RL2_DATAGRID_BAND	0
+#define RL2_DATAGRID_BAND		0
 /** RasterLite2 constant: Monochrome Band */
-#define RL2_MONOCHROME_BAND	0
+#define RL2_MONOCHROME_BAND		0
 /** RasterLite2 constant: Palette Band */
-#define RL2_PALETTE_BAND	0
+#define RL2_PALETTE_BAND		0
 
 /** RasterLite2 constant: No Georeferencing infos */
-#define RL2_GEOREFERENCING_NONE	-1234
+#define RL2_GEOREFERENCING_NONE		-1234
 
 /** RasterLite2 constant: Undefined Tile size */
-#define RL2_TILESIZE_UNDEFINED	0
+#define RL2_TILESIZE_UNDEFINED		0
 
 /** RasterLite2 constant: reproduction scale 1:1 */
-#define RL2_SCALE_1	0x31
+#define RL2_SCALE_1			0x31
 /** RasterLite2 constant: reproduction scale 1:2 */
-#define RL2_SCALE_2	0x32
+#define RL2_SCALE_2			0x32
 /** RasterLite2 constant: reproduction scale 1:4 */
-#define RL2_SCALE_4	0x33
+#define RL2_SCALE_4			0x33
 /** RasterLite2 constant: reproduction scale 1:8 */
-#define RL2_SCALE_8	0x34
+#define RL2_SCALE_8			0x34
 
 /**
  Typedef for RL2 Pixel object (opaque, hidden)
@@ -2863,29 +2863,31 @@ extern "C"
 				      double maxx, double maxy,
 				      unsigned short width,
 				      unsigned short height,
-				      unsigned char compression, 
+				      unsigned char compression,
 				      unsigned short tile_sz,
 				      int with_worldfile);
 
     RL2_DECLARE int
-	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
-				      rl2CoveragePtr coverage, double x_res,
-				      double y_res, double minx, double miny,
-				      double maxx, double maxy,
-				      unsigned short width,
-				      unsigned short height,
-				      unsigned char compression, 
-				      unsigned short tile_sz);
+	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle,
+					     const char *dst_path,
+					     rl2CoveragePtr coverage,
+					     double x_res, double y_res,
+					     double minx, double miny,
+					     double maxx, double maxy,
+					     unsigned short width,
+					     unsigned short height,
+					     unsigned char compression,
+					     unsigned short tile_sz);
 
     RL2_DECLARE int
 	rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-				      rl2CoveragePtr coverage, double x_res,
-				      double y_res, double minx, double miny,
-				      double maxx, double maxy,
-				      unsigned short width,
-				      unsigned short height,
-				      unsigned char compression, 
-				      unsigned short tile_sz);
+				   rl2CoveragePtr coverage, double x_res,
+				   double y_res, double minx, double miny,
+				   double maxx, double maxy,
+				   unsigned short width,
+				   unsigned short height,
+				   unsigned char compression,
+				   unsigned short tile_sz);
 
 #ifdef __cplusplus
 }

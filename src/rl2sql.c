@@ -521,8 +521,6 @@ get_coverage_defs (sqlite3 * sqlite, const char *coverage,
 		    xcompression = RL2_COMPRESSION_LOSSY_WEBP;
 		if (strcmp (compr, "LOSSLESS_WEBP") == 0)
 		    xcompression = RL2_COMPRESSION_LOSSLESS_WEBP;
-		if (strcmp (compr, "CCITTFAX3") == 0)
-		    xcompression = RL2_COMPRESSION_CCITTFAX3;
 		if (strcmp (compr, "CCITTFAX4") == 0)
 		    xcompression = RL2_COMPRESSION_CCITTFAX4;
 		xtile_width = atoi (results[(i * columns) + 4]);
@@ -1455,7 +1453,7 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (strcasecmp (pixel_type, "MULTIBAND") == 0)
 	pixel = RL2_PIXEL_MULTIBAND;
 
-    compr = RL2_COMPRESSION_NONE;
+    compr = RL2_COMPRESSION_UNKNOWN;
     if (strcasecmp (compression, "NONE") == 0)
 	compr = RL2_COMPRESSION_NONE;
     if (strcasecmp (compression, "DEFLATE") == 0)
@@ -1468,12 +1466,10 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	compr = RL2_COMPRESSION_GIF;
     if (strcasecmp (compression, "JPEG") == 0)
 	compr = RL2_COMPRESSION_JPEG;
-    if (strcasecmp (compression, "LOSSY_WEBP") == 0)
+    if (strcasecmp (compression, "WEBP") == 0)
 	compr = RL2_COMPRESSION_LOSSY_WEBP;
-    if (strcasecmp (compression, "LOSSLESS_WEBP") == 0)
+    if (strcasecmp (compression, "LL_WEBP") == 0)
 	compr = RL2_COMPRESSION_LOSSLESS_WEBP;
-    if (strcasecmp (compression, "FAX3") == 0)
-	compr = RL2_COMPRESSION_CCITTFAX3;
     if (strcasecmp (compression, "FAX4") == 0)
 	compr = RL2_COMPRESSION_CCITTFAX4;
 
@@ -1568,6 +1564,11 @@ fnct_DeleteSection (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (cvg != NULL)
 	rl2_destroy_coverage (cvg);
     sqlite3_result_int (context, 0);
+    if (transaction)
+      {
+	  /* invalidating the pending transaction */
+	  sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+      }
     return;
 }
 
@@ -1636,6 +1637,11 @@ fnct_DropCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (cvg != NULL)
 	rl2_destroy_coverage (cvg);
     sqlite3_result_int (context, 0);
+    if (transaction)
+      {
+	  /* invalidating the pending transaction */
+	  sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+      }
     return;
 }
 
@@ -1714,6 +1720,11 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (ret != RL2_OK)
       {
 	  sqlite3_result_int (context, 0);
+	  if (transaction)
+	    {
+		/* invalidating the pending transaction */
+		sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	    }
 	  return;
       }
     if (transaction)
@@ -1813,6 +1824,11 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     if (ret != RL2_OK)
       {
 	  sqlite3_result_int (context, 0);
+	  if (transaction)
+	    {
+		/* invalidating the pending transaction */
+		sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	    }
 	  return;
       }
     if (transaction)
@@ -2576,8 +2592,8 @@ init_rl2_extension (sqlite3 * db, char **pzErrMsg,
 __attribute__ ((visibility ("default")))
 #endif
      RL2_DECLARE int
-	 sqlite3_rasterlite_init (sqlite3 * db, char **pzErrMsg,
-				  const sqlite3_api_routines * pApi)
+	 sqlite3_modrasterlite_init (sqlite3 * db, char **pzErrMsg,
+				     const sqlite3_api_routines * pApi)
 {
 /* SQLite invokes this routine once when it dynamically loads the extension. */
     return init_rl2_extension (db, pzErrMsg, pApi);

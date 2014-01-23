@@ -729,7 +729,7 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
 #else
 			    print_gif_error (GifLastError ());
 #endif
-			    fprintf (stderr, "err GIF %d / %d %d\n", row,
+fprintf (stderr, "err GIF %d / %d %d\n", row,
 				     GifFile->Image.Height,
 				     GifFile->Image.Width);
 			    goto error;
@@ -807,14 +807,7 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
 	      *xpixel_type = pixel_typ;
 	  *blob = data;
 	  *blob_sz = data_size;
-	  if (*xpixel_type == RL2_PIXEL_GRAYSCALE
-	      || *xpixel_type == RL2_PIXEL_MONOCHROME)
-	    {
-		*palette = NULL;
-		rl2_destroy_palette (rl_palette);
-	    }
-	  else
-	      *palette = rl_palette;
+	  *palette = rl_palette;
 	  return RL2_OK;
       }
   error:
@@ -824,5 +817,6 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
 	rl2_destroy_palette (rl_palette);
     if (data != NULL)
 	free (data);
+    *palette = NULL;
     return RL2_ERROR;
 }

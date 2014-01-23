@@ -563,9 +563,9 @@ main (int argc, char *argv[])
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_GIF, &blob_odd_gif, &blob_odd_sz_gif,
-	 &blob_even_gif, &blob_even_sz_gif, 0, anti_endian) != RL2_OK)
+	 &blob_even_gif, &blob_even_sz_gif, 0, anti_endian) == RL2_OK)
       {
-	  fprintf (stderr, "Unable to Encode - GIF\n");
+	  fprintf (stderr, "Unexpected result - GIF\n");
 	  return -10;
       }
 
@@ -656,43 +656,6 @@ main (int argc, char *argv[])
 	  return -20;
       }
     free (blob_odd_png);
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
-	  return -21;
-      }
-
-    img = rl2_create_section ("16colors 1:1", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:1 - gif\n");
-	  return -22;
-      }
-
-    if (rl2_section_to_png (img, "./16colors_1_1_gif.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: 16colors_1_1_gif.png\n");
-	  return -23;
-      }
-    rl2_destroy_section (img);
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster != NULL)
-      {
-	  fprintf (stderr, "Unexpected result: Decode 1:2 - gif\n");
-	  return -24;
-      }
-    free (blob_odd_gif);
-
-    unlink ("./16colors_1_1_gif.png");
 
     return 0;
 }

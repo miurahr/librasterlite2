@@ -1,6 +1,6 @@
 /*
 
- test_map_gray.c -- RasterLite-2 Test Case
+ test_map_mono.c -- RasterLite-2 Test Case
 
  Author: Sandro Furieri <a.furieri@lqt.it>
 
@@ -114,7 +114,7 @@ get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 
 static int
 do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		   int scale)
+		   int scale, const char *compression)
 {
 /* exporting a GeoTiff + Worldfile */
     char *sql;
@@ -151,7 +151,8 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     sqlite3_bind_double (stmt, 6, xx_res);
     sqlite3_bind_double (stmt, 7, yy_res);
     sqlite3_bind_int (stmt, 8, 1);
-    sqlite3_bind_text (stmt, 9, "NONE", 4, SQLITE_TRANSIENT);
+    sqlite3_bind_text (stmt, 9, compression, strlen (compression),
+		       SQLITE_TRANSIENT);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
       {
@@ -171,7 +172,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 
 static int
 do_export_tiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		int scale)
+		int scale, const char *compression)
 {
 /* exporting a Tiff (no Worldfile) */
     char *sql;
@@ -207,7 +208,8 @@ do_export_tiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     sqlite3_bind_blob (stmt, 5, blob, blob_size, free);
     sqlite3_bind_double (stmt, 6, xx_res);
     sqlite3_bind_double (stmt, 7, yy_res);
-    sqlite3_bind_text (stmt, 8, "LZW", 3, SQLITE_TRANSIENT);
+    sqlite3_bind_text (stmt, 8, compression, strlen (compression),
+		       SQLITE_TRANSIENT);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
       {
@@ -278,20 +280,20 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* setting the coverage name */
     switch (pixel)
       {
-      case RL2_PIXEL_GRAYSCALE:
+      case RL2_PIXEL_MONOCHROME:
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_none_256";
+		      coverage = "mono_none_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_none_512";
+		      coverage = "mono_none_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_none_1024";
+		      coverage = "mono_none_1024";
 		      break;
 		  };
 		break;
@@ -299,55 +301,27 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_png_256";
+		      coverage = "mono_png_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_png_512";
+		      coverage = "mono_png_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_png_1024";
+		      coverage = "mono_png_1024";
 		      break;
 		  };
 		break;
-	    case RL2_COMPRESSION_JPEG:
+	    case RL2_COMPRESSION_CCITTFAX4:
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_jpeg_256";
+		      coverage = "mono_fax4_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_jpeg_512";
+		      coverage = "mono_fax4_256_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_jpeg_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSY_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_webp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_webp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_webp_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSLESS_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_llwebp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_llwebp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_llwebp_1024";
+		      coverage = "mono_fax4_256_1024";
 		      break;
 		  };
 		break;
@@ -360,13 +334,13 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "plt_none_256";
+		      coverage = "plt1_none_256";
 		      break;
 		  case TILE_512:
-		      coverage = "plt_none_512";
+		      coverage = "plt1_none_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "plt_none_1024";
+		      coverage = "plt1_none_1024";
 		      break;
 		  };
 		break;
@@ -374,13 +348,13 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "plt_png_256";
+		      coverage = "plt1_png_256";
 		      break;
 		  case TILE_512:
-		      coverage = "plt_png_512";
+		      coverage = "plt1_png_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "plt_png_1024";
+		      coverage = "plt1_png_1024";
 		      break;
 		  };
 		break;
@@ -389,11 +363,11 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       };
 
 /* preparing misc Coverage's parameters */
-    sample_name = "UINT8";
+    sample_name = "1-BIT";
     switch (pixel)
       {
-      case RL2_PIXEL_GRAYSCALE:
-	  pixel_name = "GRAYSCALE";
+      case RL2_PIXEL_MONOCHROME:
+	  pixel_name = "MONOCHROME";
 	  break;
       case RL2_PIXEL_PALETTE:
 	  pixel_name = "PALETTE";
@@ -410,16 +384,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  compression_name = "PNG";
 	  qlty = 100;
 	  break;
-      case RL2_COMPRESSION_JPEG:
-	  compression_name = "JPEG";
-	  qlty = 80;
-	  break;
-      case RL2_COMPRESSION_LOSSY_WEBP:
-	  compression_name = "WEBP";
-	  qlty = 80;
-	  break;
-      case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  compression_name = "LL_WEBP";
+      case RL2_COMPRESSION_CCITTFAX4:
+	  compression_name = "FAX4";
 	  qlty = 100;
 	  break;
       };
@@ -438,10 +404,10 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 
 /* creating the DBMS Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_CreateCoverage("
-			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %d, %d)",
+			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %1.2f, %1.2f)",
 			   coverage, sample_name, pixel_name, num_bands,
-			   compression_name, qlty, tile_size, tile_size, 26914,
-			   1, 1);
+			   compression_name, qlty, tile_size, tile_size, 3003,
+			   0.5, 0.5);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -456,8 +422,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* loading from directory */
     sql =
 	sqlite3_mprintf
-	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 26914, 1)", coverage,
-	 "map_samples/usgs-gray", ".tif");
+	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 3003, 1)", coverage,
+	 "map_samples/ctrt", ".tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -471,7 +437,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 
 /* deleting the first section */
     sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
-			   coverage, "gray1");
+			   coverage, "cap1");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -484,8 +450,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* re-loading yet again the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 26914, 1)",
-			   coverage, "map_samples/usgs-gray/gray1.tif");
+    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 3003, 1)",
+			   coverage, "map_samples/ctrt/cap1.tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -497,52 +463,60 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* export tests */
+    if (pixel == RL2_PIXEL_MONOCHROME)
+	compression_name = "FAX3";
+    else
+	compression_name = "NONE";
     geom = get_center_point (sqlite, coverage);
     if (geom == NULL)
       {
 	  *retcode += -5;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 1))
+    if (!do_export_geotiff (sqlite, coverage, geom, 1, compression_name))
       {
 	  *retcode += -6;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 2))
+/*
+    if (!do_export_geotiff (sqlite, coverage, geom, 2, compression_name))
       {
 	  *retcode += -7;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 4))
+    if (!do_export_geotiff (sqlite, coverage, geom, 4, compression_name))
       {
 	  *retcode += -8;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 8))
+    if (!do_export_geotiff (sqlite, coverage, geom, 8, compression_name))
       {
 	  *retcode += -9;
 	  return 0;
       }
-    if (!do_export_tiff (sqlite, coverage, geom, 1))
+*/
+    if (!do_export_tiff (sqlite, coverage, geom, 1, compression_name))
       {
 	  *retcode += -10;
 	  return 0;
       }
-    if (!do_export_tiff (sqlite, coverage, geom, 2))
+/*
+    if (!do_export_tiff (sqlite, coverage, geom, 2, compression_name))
       {
 	  *retcode += -11;
 	  return 0;
       }
-    if (!do_export_tiff (sqlite, coverage, geom, 4))
+    if (!do_export_tiff (sqlite, coverage, geom, 4, compression_name))
       {
 	  *retcode += -12;
 	  return 0;
       }
-    if (!do_export_tiff (sqlite, coverage, geom, 8))
+    if (!do_export_tiff (sqlite, coverage, geom, 8, compression_name))
       {
 	  *retcode += -13;
 	  return 0;
       }
+*/
     gaiaFreeGeomColl (geom);
 
     return 1;
@@ -561,20 +535,20 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* setting the coverage name */
     switch (pixel)
       {
-      case RL2_PIXEL_GRAYSCALE:
+      case RL2_PIXEL_MONOCHROME:
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_none_256";
+		      coverage = "mono_none_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_none_512";
+		      coverage = "mono_none_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_none_1024";
+		      coverage = "mono_none_1024";
 		      break;
 		  };
 		break;
@@ -582,55 +556,27 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_png_256";
+		      coverage = "mono_png_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_png_512";
+		      coverage = "mono_png_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_png_1024";
+		      coverage = "mono_png_1024";
 		      break;
 		  };
 		break;
-	    case RL2_COMPRESSION_JPEG:
+	    case RL2_COMPRESSION_CCITTFAX4:
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_jpeg_256";
+		      coverage = "mono_fax4_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_jpeg_512";
+		      coverage = "mono_fax4_256_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_jpeg_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSY_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_webp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_webp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_webp_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSLESS_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_llwebp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_llwebp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_llwebp_1024";
+		      coverage = "mono_fax4_256_1024";
 		      break;
 		  };
 		break;
@@ -643,13 +589,13 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "plt_none_256";
+		      coverage = "plt1_none_256";
 		      break;
 		  case TILE_512:
-		      coverage = "plt_none_512";
+		      coverage = "plt1_none_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "plt_none_1024";
+		      coverage = "plt1_none_1024";
 		      break;
 		  };
 		break;
@@ -657,13 +603,13 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "plt_png_256";
+		      coverage = "plt1_png_256";
 		      break;
 		  case TILE_512:
-		      coverage = "plt_png_512";
+		      coverage = "plt1_png_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "plt_png_1024";
+		      coverage = "plt1_png_1024";
 		      break;
 		  };
 		break;
@@ -737,190 +683,138 @@ main (int argc, char *argv[])
 	  return -3;
       }
 
-/* GRAYSCALE tests */
+/* MONOCHROME tests */
     ret = -100;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
     ret = -120;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_NONE, TILE_512, &ret))
 	return ret;
     ret = -140;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_NONE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -200;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -220;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
     ret = -240;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
     ret = -300;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_256,
+	 &ret))
 	return ret;
     ret = -320;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_512,
+	 &ret))
 	return ret;
     ret = -340;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
-	return ret;
-    ret = -400;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_1024,
 	 &ret))
-	return ret;
-    ret = -420;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_512,
-	 &ret))
-	return ret;
-    ret = -440;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_1024,
-	 &ret))
-	return ret;
-    ret = -500;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_256, &ret))
-	return ret;
-    ret = -520;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_512, &ret))
-	return ret;
-    ret = -540;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_1024, &ret))
 	return ret;
 
 /* PALETTE tests */
-    ret = -600;
+    ret = -400;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -620;
+    ret = -420;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_512, &ret))
 	return ret;
-    ret = -640;
+    ret = -440;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -700;
+    ret = -500;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
-    ret = -720;
+    ret = -520;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
-    ret = -740;
+    ret = -540;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
 
-/* dropping all GRAYSCALE Coverages */
+/* dropping all MONOCHROME Coverages */
     ret = -170;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
     ret = -180;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_NONE, TILE_512, &ret))
 	return ret;
     ret = -190;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_NONE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -270;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -280;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
     ret = -290;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
     ret = -370;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_256,
+	 &ret))
 	return ret;
     ret = -380;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_512,
+	 &ret))
 	return ret;
     ret = -390;
     if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
-	return ret;
-    ret = -470;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_1024,
 	 &ret))
-	return ret;
-    ret = -480;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_512,
-	 &ret))
-	return ret;
-    ret = -490;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_1024,
-	 &ret))
-	return ret;
-    ret = -570;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_256, &ret))
-	return ret;
-    ret = -580;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_512, &ret))
-	return ret;
-    ret = -590;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_1024, &ret))
 	return ret;
 
 /* dropping all PALETTE Coverages */
-    ret = -670;
+    ret = -470;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -680;
+    ret = -480;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_512, &ret))
 	return ret;
-    ret = -690;
+    ret = -490;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -770;
+    ret = -570;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
-    ret = -780;
+    ret = -580;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
-    ret = -790;
+    ret = -590;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;

@@ -604,9 +604,9 @@ main (int argc, char *argv[])
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_GIF, &blob_odd_gif, &blob_odd_sz_gif,
-	 &blob_even_gif, &blob_even_sz_gif, 0, endian) != RL2_OK)
+	 &blob_even_gif, &blob_even_sz_gif, 0, endian) == RL2_OK)
       {
-	  fprintf (stderr, "Unable to Encode - GIF\n");
+	  fprintf (stderr, "Unexpected result - GIF\n");
 	  return -9;
       }
 
@@ -836,117 +836,6 @@ main (int argc, char *argv[])
 
     free (blob_odd_png);
     free (blob_even_png);
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:1 - gif\n");
-	  return -34;
-      }
-
-    img = rl2_create_section ("256color 1:1", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:1 - gif\n");
-	  return -35;
-      }
-
-    if (rl2_section_to_png (img, "./256color_1_1_gif.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: 256color_1_1_gif.png\n");
-	  return -36;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./256color_1_1_gif.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:2 - gif\n");
-	  return -37;
-      }
-
-    img = rl2_create_section ("256color 1:2", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:2 - gif\n");
-	  return -38;
-      }
-
-    if (rl2_section_to_png (img, "./256color_1_2_gif.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: 256color_1_2_gif.png\n");
-	  return -39;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./256color_1_2_gif.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_4, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:4 - gif\n");
-	  return -40;
-      }
-
-    img = rl2_create_section ("256color 1:4", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:4 - gif\n");
-	  return -41;
-      }
-
-    if (rl2_section_to_png (img, "./256color_1_4_gif.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: 256color_1_4_gif.png\n");
-	  return -42;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./256color_1_4_gif.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_8, blob_odd_gif, blob_odd_sz_gif,
-			   blob_even_gif, blob_even_sz_gif, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:8 - gif\n");
-	  return -43;
-      }
-
-    img = rl2_create_section ("256color 1:8", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:8 - gif\n");
-	  return -44;
-      }
-
-    if (rl2_section_to_png (img, "./256color_1_8_gif.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: 256color_1_8_gif.png\n");
-	  return -45;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./256color_1_8_gif.png");
-
-    free (blob_odd_gif);
-    free (blob_even_gif);
 
     return 0;
 }

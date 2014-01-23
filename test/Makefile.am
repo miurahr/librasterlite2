@@ -8,7 +8,8 @@ check_PROGRAMS = test_coverage test_palette \
 	test19 test20 test_tifin \
 	test_wr_tiff test_wms1  \
 	test_paint check_sql_stmt \
-	test_map_rgb test_map_gray
+	test_map_rgb test_map_gray \
+	test_map_srtm test_map_mono
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
@@ -29,7 +30,11 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/usgs-gray/gray1.tif \
 	map_samples/usgs-gray/gray2.tif \
 	map_samples/usgs-rgb/rgb1.tif \
-	map_samples/usgs-rgb/rgb2.tif
+	map_samples/usgs-rgb/rgb2.tif \
+	map_samples/usgs-srtm/srtm1.tif \
+	map_samples/usgs-srtm/srtm2.tif \
+	map_samples/usgs-ctrt/cap1.tif \
+	map_samples/usgs-ctrt/cap2.tif
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

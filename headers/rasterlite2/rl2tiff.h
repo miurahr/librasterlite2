@@ -58,11 +58,11 @@ extern "C"
 #endif
 
 /** RasterLite2 TIFF constant: No Geo-referencing */
-#define RL2_TIFF_NO_GEOREF	0xf1
+#define RL2_TIFF_NO_GEOREF			0xf1
 /** RasterLite2 TIFF constant: Auto Geo-referencing GeoTiff priority */
-#define RL2_TIFF_GEOTIFF	0xf2
+#define RL2_TIFF_GEOTIFF			0xf2
 /** RasterLite2 TIFF constant: Auto Geo-referencing Worldfile priority */
-#define RL2_TIFF_WORLDFILE	0xf3
+#define RL2_TIFF_WORLDFILE			0xf3
 
     RL2_DECLARE rl2TiffOriginPtr rl2_create_tiff_origin (const char *path,
 							 int georef_priority,
@@ -274,6 +274,10 @@ extern "C"
 	rl2_prime_void_tile_palette (void *pixels, unsigned short width,
 				     unsigned short height,
 				     rl2PalettePtr palette);
+
+    RL2_DECLARE int
+	rl2_raster_to_tiff_mono4 (rl2RasterPtr rst, unsigned char **tiff,
+				  int *tiff_size);
 
 
 #ifdef __cplusplus

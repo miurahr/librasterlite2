@@ -144,29 +144,21 @@ load_dyn_extensions (sqlite3 * db_handle)
     char *err_msg = NULL;
     sqlite3_enable_load_extension (db_handle, 1);
     ret =
-	sqlite3_exec (db_handle, "SELECT load_extension('rasterlite2')", NULL,
-		      NULL, &err_msg);
+	sqlite3_exec (db_handle, "SELECT load_extension('mod_rasterlite2')",
+		      NULL, NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "load_extension(rasterlite2) error: %s\n", err_msg);
+	  fprintf (stderr, "load_extension(mod_rasterlite2) error: %s\n",
+		   err_msg);
 	  sqlite3_free (err_msg);
 	  return 0;
       }
     ret =
-	sqlite3_exec (db_handle, "SELECT load_extension('spatialite')", NULL,
+	sqlite3_exec (db_handle, "SELECT load_extension('mod_spatialite')", NULL,
 		      NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "load_extension('spatialite') error: %s\n", err_msg);
-	  sqlite3_free (err_msg);
-	  return 0;
-      }
-    ret =
-	sqlite3_exec (db_handle, "SELECT load_extension('rasterlite2')", NULL,
-		      NULL, &err_msg);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "load_extension(rasterlite2) error: %s\n", err_msg);
+	  fprintf (stderr, "load_extension('mod_spatialite') error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  return 0;
       }

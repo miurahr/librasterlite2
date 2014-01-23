@@ -1033,6 +1033,37 @@ rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
 }
 
 static void
+copy_int8_outbuf_to_tile (const char *outbuf, char *tile,
+			  unsigned short width,
+			  unsigned short height,
+			  unsigned short tile_width,
+			  unsigned short tile_height, int base_y, int base_x)
+{
+/* copying INT8 pixels from the output buffer into the tile */
+    int x;
+    int y;
+    const char *p_in;
+    char *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in = outbuf + ((base_y + y) * width) + base_x;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out++;
+		      p_in++;
+		      continue;
+		  }
+		*p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
 copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
 			   unsigned char num_bands, unsigned short width,
 			   unsigned short height,
@@ -1068,6 +1099,196 @@ copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
 }
 
 static void
+copy_int16_outbuf_to_tile (const short *outbuf, short *tile,
+			   unsigned short width,
+			   unsigned short height,
+			   unsigned short tile_width,
+			   unsigned short tile_height, int base_y, int base_x)
+{
+/* copying INT16 pixels from the output buffer into the tile */
+    int x;
+    int y;
+    const short *p_in;
+    short *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in = outbuf + ((base_y + y) * width) + base_x;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out++;
+		      p_in++;
+		      continue;
+		  }
+		*p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_uint16_outbuf_to_tile (const unsigned short *outbuf, unsigned short *tile,
+			    unsigned char num_bands, unsigned short width,
+			    unsigned short height,
+			    unsigned short tile_width,
+			    unsigned short tile_height, int base_y, int base_x)
+{
+/* copying UINT16 pixels from the output buffer into the tile */
+    int x;
+    int y;
+    int b;
+    const unsigned short *p_in;
+    unsigned short *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in =
+	      outbuf + ((base_y + y) * width * num_bands) +
+	      (base_x * num_bands);
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out += num_bands;
+		      p_in += num_bands;
+		      continue;
+		  }
+		for (b = 0; b < num_bands; b++)
+		    *p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_int32_outbuf_to_tile (const int *outbuf, int *tile,
+			   unsigned short width,
+			   unsigned short height,
+			   unsigned short tile_width,
+			   unsigned short tile_height, int base_y, int base_x)
+{
+/* copying INT32 pixels from the output buffer into the tile */
+    int x;
+    int y;
+    const int *p_in;
+    int *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in = outbuf + ((base_y + y) * width) + base_x;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out++;
+		      p_in++;
+		      continue;
+		  }
+		*p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_uint32_outbuf_to_tile (const unsigned int *outbuf, unsigned int *tile,
+			    unsigned short width,
+			    unsigned short height,
+			    unsigned short tile_width,
+			    unsigned short tile_height, int base_y, int base_x)
+{
+/* copying UINT32 pixels from the output buffer into the tile */
+    int x;
+    int y;
+    const unsigned int *p_in;
+    unsigned int *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in = outbuf + ((base_y + y) * width) + base_x;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out++;
+		      p_in++;
+		      continue;
+		  }
+		*p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_float_outbuf_to_tile (const float *outbuf, float *tile,
+			   unsigned short width,
+			   unsigned short height,
+			   unsigned short tile_width,
+			   unsigned short tile_height, int base_y, int base_x)
+{
+/* copying FLOAT pixels from the output buffer into the tile */
+    int x;
+    int y;
+    const float *p_in;
+    float *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in = outbuf + ((base_y + y) * width) + base_x;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out++;
+		      p_in++;
+		      continue;
+		  }
+		*p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
+copy_double_outbuf_to_tile (const double *outbuf, double *tile,
+			    unsigned short width,
+			    unsigned short height,
+			    unsigned short tile_width,
+			    unsigned short tile_height, int base_y, int base_x)
+{
+/* copying DOUBLE pixels from the output buffer into the tile */
+    int x;
+    int y;
+    const double *p_in;
+    double *p_out = tile;
+
+    for (y = 0; y < tile_height; y++)
+      {
+	  if ((base_y + y) >= height)
+	      break;
+	  p_in = outbuf + ((base_y + y) * width) + base_x;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		if ((base_x + x) >= width)
+		  {
+		      p_out++;
+		      p_in++;
+		      continue;
+		  }
+		*p_out++ = *p_in++;
+	    }
+      }
+}
+
+static void
 copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
 			  unsigned char sample_type, unsigned char num_bands,
 			  unsigned short width, unsigned short height,
@@ -1077,11 +1298,47 @@ copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
 /* copying pixels from the output buffer into the tile */
     switch (sample_type)
       {
+      case RL2_SAMPLE_INT8:
+	  copy_int8_outbuf_to_tile ((char *) outbuf,
+				    (char *) tile, width, height, tile_width,
+				    tile_height, base_y, base_x);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  copy_int16_outbuf_to_tile ((short *) outbuf,
+				     (short *) tile, width, height, tile_width,
+				     tile_height, base_y, base_x);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  copy_uint16_outbuf_to_tile ((unsigned short *) outbuf,
+				      (unsigned short *) tile, num_bands,
+				      width, height, tile_width, tile_height,
+				      base_y, base_x);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  copy_int32_outbuf_to_tile ((int *) outbuf,
+				     (int *) tile, width, height, tile_width,
+				     tile_height, base_y, base_x);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  copy_uint32_outbuf_to_tile ((unsigned int *) outbuf,
+				      (unsigned int *) tile, width, height,
+				      tile_width, tile_height, base_y, base_x);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  copy_float_outbuf_to_tile ((float *) outbuf,
+				     (float *) tile, width, height, tile_width,
+				     tile_height, base_y, base_x);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  copy_double_outbuf_to_tile ((double *) outbuf,
+				      (double *) tile, width, height,
+				      tile_width, tile_height, base_y, base_x);
+	  break;
       default:
 	  copy_uint8_outbuf_to_tile ((unsigned char *) outbuf,
-				     (unsigned char *) tile, num_bands,
-				     width, height, tile_width, tile_height,
-				     base_y, base_x);
+				     (unsigned char *) tile, num_bands, width,
+				     height, tile_width, tile_height, base_y,
+				     base_x);
 	  break;
       };
 }
@@ -1153,6 +1410,23 @@ rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
 	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
 	goto error;
+
+/* computing the sample size */
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pix_sz = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pix_sz = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pix_sz = 8;
+	  break;
+      };
 
     tiff =
 	rl2_create_geotiff_destination (dst_path, handle, width, height,
@@ -1274,6 +1548,23 @@ rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
 	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
 	goto error;
 
+/* computing the sample size */
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pix_sz = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pix_sz = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pix_sz = 8;
+	  break;
+      };
+
     tiff =
 	rl2_create_tiff_worldfile_destination (dst_path, width, height,
 					       sample_type, pixel_type,
@@ -1388,6 +1679,23 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
 	 yy_res, &outbuf, &outbuf_size, &palette) != RL2_OK)
 	goto error;
+
+/* computing the sample size */
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pix_sz = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pix_sz = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pix_sz = 8;
+	  break;
+      };
 
     tiff =
 	rl2_create_tiff_destination (dst_path, width, height, sample_type,

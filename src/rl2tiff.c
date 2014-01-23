@@ -54,6 +54,130 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2_private.h"
 #include "rasterlite2/rl2tiff.h"
 
+struct memfile
+{
+/* a struct emulating a file [memory mapped] */
+    unsigned char *buffer;
+    int malloc_block;
+    tsize_t size;
+    tsize_t eof;
+    toff_t current;
+};
+
+static void
+memory_realloc (struct memfile *mem, tsize_t req_size)
+{
+/* expanding the allocated memory */
+    unsigned char *new_buffer;
+    tsize_t new_size = mem->size;
+    while (new_size < req_size)
+	new_size += mem->malloc_block;
+    new_buffer = realloc (mem->buffer, new_size);
+    if (!new_buffer)
+	return;
+    mem->buffer = new_buffer;
+    memset (mem->buffer + mem->size, '\0', new_size - mem->size);
+    mem->size = new_size;
+}
+
+static tsize_t
+memory_readproc (thandle_t clientdata, tdata_t data, tsize_t size)
+{
+/* emulating the read()  function */
+    struct memfile *mem = clientdata;
+    tsize_t len;
+    if (mem->current >= (toff_t) mem->eof)
+	return 0;
+    len = size;
+    if ((mem->current + size) >= (toff_t) mem->eof)
+	len = (tsize_t) (mem->eof - mem->current);
+    memcpy (data, mem->buffer + mem->current, len);
+    mem->current += len;
+    return len;
+}
+
+static tsize_t
+memory_writeproc (thandle_t clientdata, tdata_t data, tsize_t size)
+{
+/* emulating the write()  function */
+    struct memfile *mem = clientdata;
+    if ((mem->current + size) >= (toff_t) mem->size)
+	memory_realloc (mem, mem->current + size);
+    if ((mem->current + size) >= (toff_t) mem->size)
+	return -1;
+    memcpy (mem->buffer + mem->current, (unsigned char *) data, size);
+    mem->current += size;
+    if (mem->current > (toff_t) mem->eof)
+	mem->eof = (tsize_t) (mem->current);
+    return size;
+}
+
+static toff_t
+memory_seekproc (thandle_t clientdata, toff_t offset, int whence)
+{
+/* emulating the lseek()  function */
+    struct memfile *mem = clientdata;
+    switch (whence)
+      {
+      case SEEK_CUR:
+	  if ((int) (mem->current + offset) < 0)
+	      return (toff_t) - 1;
+	  mem->current += offset;
+	  if ((toff_t) mem->eof < mem->current)
+	      mem->eof = (tsize_t) (mem->current);
+	  break;
+      case SEEK_END:
+	  if ((int) (mem->eof + offset) < 0)
+	      return (toff_t) - 1;
+	  mem->current = mem->eof + offset;
+	  if ((toff_t) mem->eof < mem->current)
+	      mem->eof = (tsize_t) (mem->current);
+	  break;
+      case SEEK_SET:
+      default:
+	  if ((int) offset < 0)
+	      return (toff_t) - 1;
+	  mem->current = offset;
+	  if ((toff_t) mem->eof < mem->current)
+	      mem->eof = (tsize_t) (mem->current);
+	  break;
+      };
+    return mem->current;
+}
+
+static int
+closeproc (thandle_t clientdata)
+{
+/* emulating the close()  function */
+    if (clientdata)
+	return 0;		/* does absolutely nothing - required in order to suppress warnings */
+    return 0;
+}
+
+static toff_t
+memory_sizeproc (thandle_t clientdata)
+{
+/* returning the pseudo-file current size */
+    struct memfile *mem = clientdata;
+    return mem->eof;
+}
+
+static int
+mapproc (thandle_t clientdata, tdata_t * data, toff_t * offset)
+{
+    if (clientdata || data || offset)
+	return 0;		/* does absolutely nothing - required in order to suppress warnings */
+    return 0;
+}
+
+static void
+unmapproc (thandle_t clientdata, tdata_t data, toff_t offset)
+{
+    if (clientdata || data || offset)
+	return;			/* does absolutely nothing - required in order to suppress warnings */
+    return;
+}
+
 static int
 read_from_tiff (rl2PrivTiffOriginPtr origin, unsigned short width,
 		unsigned short height, unsigned char sample_type,
@@ -698,6 +822,14 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	      && origin->photometric == PHOTOMETRIC_PALETTE
 	      && origin->bitsPerSample <= 8)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric <= PHOTOMETRIC_RGB
+	      && origin->bitsPerSample == 1)
+	    {
+		origin->forced_conversion = RL2_CONVERT_MONOCHROME_TO_PALETTE;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_1_BIT
 	&& origin->forced_pixel_type == RL2_PIXEL_MONOCHROME
@@ -709,6 +841,14 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	      && origin->photometric <= PHOTOMETRIC_RGB
 	      && origin->bitsPerSample == 1)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1
+	      && origin->photometric == PHOTOMETRIC_PALETTE
+	      && origin->bitsPerSample <= 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_PALETTE_TO_MONOCHROME;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_INT8
 	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
@@ -727,6 +867,27 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_INT16;
+		return 1;
+	    }
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT16
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* UINT16 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_UINT16;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_INT32
 	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
@@ -736,6 +897,18 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_INT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_INT32;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_UINT32
 	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
@@ -745,24 +918,120 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_UINT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_UINT32;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_FLOAT
 	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
 	&& origin->forced_num_bands == 1)
       {
-	  /* UINT32 datagrid */
+	  /* FLOAT datagrid */
 	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_FLOAT;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_FLOAT;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_FLOAT;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_FLOAT;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_FLOAT;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_FLOAT;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_FLOAT;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_DOUBLE
 	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
 	&& origin->forced_num_bands == 1)
       {
-	  /* UINT32 datagrid */
+	  /* DOUBLE datagrid */
 	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_DOUBLE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_DOUBLE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_DOUBLE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_DOUBLE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_DOUBLE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_DOUBLE;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_DOUBLE;
+		return 1;
+	    }
       }
     return 0;
 }
@@ -1006,6 +1275,18 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		origin->blue[i] = i;
 		origin->alpha[i] = 255;
 	    }
+      }
+    if (origin->forced_conversion == RL2_CONVERT_MONOCHROME_TO_PALETTE)
+      {
+	  /* forced conversion: creating a BILEVEL palette */
+	  if (!alloc_palette (origin, 2))
+	      goto error;
+	  origin->red[0] = 255;
+	  origin->green[0] = 255;
+	  origin->blue[0] = 255;
+	  origin->red[1] = 0;
+	  origin->green[1] = 0;
+	  origin->blue[1] = 0;
       }
 
     return 1;
@@ -1571,6 +1852,48 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
     unsigned int dest_y;
     int skip;
     unsigned char bnd;
+    unsigned char cvt_sample_type = 0;
+
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT16)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT16;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT32)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_INT32)
+	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_INT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_FLOAT_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT16)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT16;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT32)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_UINT32)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_UINT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_DOUBLE_TO_FLOAT;
 
     tiff_tile = malloc (TIFFTileSize (origin->in));
     if (tiff_tile == NULL)
@@ -1624,13 +1947,12 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 			      {
 			      case RL2_SAMPLE_INT8:
 				  p_in_8 = (char *) tiff_tile;
-				  p_in_8 += y * origin->tileWidth * num_bands;
-				  p_in_8 += x * num_bands;
+				  p_in_8 += y * origin->tileWidth;
+				  p_in_8 += x;
 				  p_out_8 = (char *) pixels;
 				  p_out_8 +=
-				      ((dest_y -
-					startRow) * width * num_bands) +
-				      ((dest_x - startCol) * num_bands);
+				      ((dest_y - startRow) * width) + (dest_x -
+								       startCol);
 				  break;
 			      case RL2_SAMPLE_UINT8:
 				  p_in_u8 = (unsigned char *) tiff_tile;
@@ -1644,13 +1966,12 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				  break;
 			      case RL2_SAMPLE_INT16:
 				  p_in_16 = (short *) tiff_tile;
-				  p_in_16 += y * origin->tileWidth * num_bands;
-				  p_in_16 += x * num_bands;
+				  p_in_16 += y * origin->tileWidth;
+				  p_in_16 += x;
 				  p_out_16 = (short *) pixels;
 				  p_out_16 +=
-				      ((dest_y -
-					startRow) * width * num_bands) +
-				      ((dest_x - startCol) * num_bands);
+				      ((dest_y - startRow) * width) + (dest_x -
+								       startCol);
 				  break;
 			      case RL2_SAMPLE_UINT16:
 				  p_in_u16 = (unsigned short *) tiff_tile;
@@ -1664,47 +1985,243 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				  break;
 			      case RL2_SAMPLE_INT32:
 				  p_in_32 = (int *) tiff_tile;
-				  p_in_32 += y * origin->tileWidth * num_bands;
-				  p_in_32 += x * num_bands;
+				  p_in_32 += y * origin->tileWidth;
+				  p_in_32 += x;
 				  p_out_32 = (int *) pixels;
 				  p_out_32 +=
-				      ((dest_y -
-					startRow) * width * num_bands) +
-				      ((dest_x - startCol) * num_bands);
+				      ((dest_y - startRow) * width) + (dest_x -
+								       startCol);
 				  break;
 			      case RL2_SAMPLE_UINT32:
 				  p_in_u32 = (unsigned int *) tiff_tile;
-				  p_in_u32 += y * origin->tileWidth * num_bands;
-				  p_in_u32 += x * num_bands;
+				  p_in_u32 += y * origin->tileWidth;
+				  p_in_u32 += x;
 				  p_out_u32 = (unsigned int *) pixels;
 				  p_out_u32 +=
-				      ((dest_y -
-					startRow) * width * num_bands) +
-				      ((dest_x - startCol) * num_bands);
+				      ((dest_y - startRow) * width) + (dest_x -
+								       startCol);
 				  break;
 			      case RL2_SAMPLE_FLOAT:
 				  p_in_flt = (float *) tiff_tile;
-				  p_in_flt += y * origin->tileWidth * num_bands;
-				  p_in_flt += x * num_bands;
+				  p_in_flt += y * origin->tileWidth;
+				  p_in_flt += x;
 				  p_out_flt = (float *) pixels;
 				  p_out_flt +=
-				      ((dest_y -
-					startRow) * width * num_bands) +
-				      ((dest_x - startCol) * num_bands);
+				      ((dest_y - startRow) * width) + (dest_x -
+								       startCol);
 				  break;
 			      case RL2_SAMPLE_DOUBLE:
 				  p_in_dbl = (double *) tiff_tile;
-				  p_in_dbl += y * origin->tileWidth * num_bands;
-				  p_in_dbl += x * num_bands;
+				  p_in_dbl += y * origin->tileWidth;
+				  p_in_dbl += x;
 				  p_out_dbl = (double *) pixels;
 				  p_out_dbl +=
-				      ((dest_y -
-					startRow) * width * num_bands) +
-				      ((dest_x - startCol) * num_bands);
+				      ((dest_y - startRow) * width) + (dest_x -
+								       startCol);
 				  break;
 			      };
 			    for (bnd = 0; bnd < num_bands; bnd++)
 			      {
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT8_TO_INT16)
+				    {
+					p_out_16 = (short *) pixels;
+					p_out_16 +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_16 = *p_in_8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT8_TO_INT32)
+				    {
+					p_out_32 = (int *) pixels;
+					p_out_32 +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_32 = *p_in_8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT8_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT8_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT16_TO_INT32)
+				    {
+					p_out_32 = (int *) pixels;
+					p_out_32 +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_32 = *p_in_16++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT16_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_16++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT16_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_16++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT32_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_32++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_INT32_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_32++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT8_TO_UINT16)
+				    {
+					p_out_u16 = (unsigned short *) pixels;
+					p_out_u16 +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_u16 = *p_in_u8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT8_TO_UINT32)
+				    {
+					p_out_u32 = (unsigned int *) pixels;
+					p_out_u32 +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_u32 = *p_in_u8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT8_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_u8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_u8++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT16_TO_UINT32)
+				    {
+					p_out_u32 = (unsigned int *) pixels;
+					p_out_u32 +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_u32 = *p_in_u16++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT16_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_u16++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_u16++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT32_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_u32++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_u32++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
+				    {
+					p_out_dbl = (double *) pixels;
+					p_out_dbl +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_dbl = *p_in_flt++;
+					continue;
+				    }
+				  if (cvt_sample_type ==
+				      RL2_CONVERT_GRID_DOUBLE_TO_FLOAT)
+				    {
+					p_out_flt = (float *) pixels;
+					p_out_flt +=
+					    ((dest_y - startRow) * width) +
+					    (dest_x - startCol);
+					*p_out_flt = *p_in_dbl++;
+					continue;
+				    }
 				  switch (sample_type)
 				    {
 				    case RL2_SAMPLE_INT8:
@@ -1774,6 +2291,48 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
     double *p_in_dbl;
     double *p_out_dbl;
     unsigned char bnd;
+    unsigned char cvt_sample_type = 0;
+
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT16)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT16;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT32)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_INT32)
+	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_INT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_FLOAT_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT16)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT16;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT32)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_UINT32)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_UINT32;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_FLOAT)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_FLOAT;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_DOUBLE;
+    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
+	cvt_sample_type = RL2_CONVERT_GRID_DOUBLE_TO_FLOAT;
 
     tiff_scanline = malloc (TIFFScanlineSize (origin->in));
     if (tiff_scanline == NULL)
@@ -1783,7 +2342,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
       {
 	  /* scanning scanlines by row */
 	  line_no = y + startRow;
-	  if (line_no > origin->height)
+	  if (line_no >= origin->height)
 	    {
 		switch (sample_type)
 		  {
@@ -1839,7 +2398,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 	    case RL2_SAMPLE_INT8:
 		p_in_8 = (char *) tiff_scanline;
 		p_out_8 = (char *) pixels;
-		p_out_8 += y * width * num_bands;
+		p_out_8 += y * width;
 		break;
 	    case RL2_SAMPLE_UINT8:
 		p_in_u8 = (unsigned char *) tiff_scanline;
@@ -1849,7 +2408,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 	    case RL2_SAMPLE_INT16:
 		p_in_16 = (short *) tiff_scanline;
 		p_out_16 = (short *) pixels;
-		p_out_16 += y * width * num_bands;
+		p_out_16 += y * width;
 		break;
 	    case RL2_SAMPLE_UINT16:
 		p_in_u16 = (unsigned short *) tiff_scanline;
@@ -1859,22 +2418,22 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 	    case RL2_SAMPLE_INT32:
 		p_in_32 = (int *) tiff_scanline;
 		p_out_32 = (int *) pixels;
-		p_out_32 += y * width * num_bands;
+		p_out_32 += y * width;
 		break;
 	    case RL2_SAMPLE_UINT32:
 		p_in_u32 = (unsigned int *) tiff_scanline;
 		p_out_u32 = (unsigned int *) pixels;
-		p_out_u32 += y * width * num_bands;
+		p_out_u32 += y * width;
 		break;
 	    case RL2_SAMPLE_FLOAT:
 		p_in_flt = (float *) tiff_scanline;
 		p_out_flt = (float *) pixels;
-		p_out_flt += y * width * num_bands;
+		p_out_flt += y * width;
 		break;
 	    case RL2_SAMPLE_DOUBLE:
 		p_in_dbl = (double *) tiff_scanline;
 		p_out_dbl = (double *) pixels;
-		p_out_dbl += y * width * num_bands;
+		p_out_dbl += y * width;
 		break;
 	    default:
 		goto error;
@@ -1887,6 +2446,166 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		  {
 		      for (bnd = 0; bnd < num_bands; bnd++)
 			{
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT8_TO_INT16)
+			      {
+				  p_out_16 = (short *) pixels;
+				  p_out_16 += y * width;
+				  *p_out_16 = *p_in_8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT8_TO_INT32)
+			      {
+				  p_out_32 = (int *) pixels;
+				  p_out_32 += y * width;
+				  *p_out_32 = *p_in_8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT8_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT8_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT16_TO_INT32)
+			      {
+				  p_out_32 = (int *) pixels;
+				  p_out_32 += y * width;
+				  *p_out_32 = *p_in_16++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT16_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_16++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT16_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_16++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT32_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_32++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_INT32_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_32++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT8_TO_UINT16)
+			      {
+				  p_out_u16 = (unsigned short *) pixels;
+				  p_out_u16 += y * width;
+				  *p_out_u16 = *p_in_u8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT8_TO_UINT32)
+			      {
+				  p_out_u32 = (unsigned int *) pixels;
+				  p_out_u32 += y * width;
+				  *p_out_u32 = *p_in_u8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT8_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_u8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_u8++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT16_TO_UINT32)
+			      {
+				  p_out_u32 = (unsigned int *) pixels;
+				  p_out_u32 += y * width;
+				  *p_out_u32 = *p_in_u16++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT16_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_u16++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_u16++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT32_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_u32++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_u32++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
+			      {
+				  p_out_dbl = (double *) pixels;
+				  p_out_dbl += y * width;
+				  *p_out_dbl = *p_in_flt++;
+				  continue;
+			      }
+			    if (cvt_sample_type ==
+				RL2_CONVERT_GRID_DOUBLE_TO_FLOAT)
+			      {
+				  p_out_flt = (float *) pixels;
+				  p_out_flt += y * width;
+				  *p_out_flt = *p_in_dbl++;
+				  continue;
+			      }
 			    switch (sample_type)
 			      {
 			      case RL2_SAMPLE_INT8:
@@ -2076,6 +2795,24 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				  /* forced conversion: PALETTE -> GRAYSCALE */
 				  *p_out++ = red;
 			      }
+			    else if (origin->forced_conversion ==
+				     RL2_CONVERT_PALETTE_TO_MONOCHROME)
+			      {
+				  /* forced conversion: PALETTE -> MONOCHROME */
+				  if (red == 255 && green == 255 && blue == 255)
+				      *p_out++ = 0;
+				  else
+				      *p_out++ = 1;
+			      }
+			    else if (origin->forced_conversion ==
+				     RL2_CONVERT_MONOCHROME_TO_PALETTE)
+			      {
+				  /* forced conversion: MONOCHROME -> PALETTE */
+				  if (red == 0)
+				      *p_out++ = 1;
+				  else
+				      *p_out++ = 0;
+			      }
 			    else if (pixel_type == RL2_PIXEL_PALETTE)
 			      {
 				  /* PALETTE image */
@@ -2217,6 +2954,24 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 			{
 			    /* forced conversion: PALETTE -> GRAYSCALE */
 			    *p_out++ = red;
+			}
+		      else if (origin->forced_conversion ==
+			       RL2_CONVERT_PALETTE_TO_MONOCHROME)
+			{
+			    /* forced conversion: PALETTE -> MONOCHROME */
+			    if (red == 255 && green == 255 && blue == 255)
+				*p_out++ = 0;
+			    else
+				*p_out++ = 1;
+			}
+		      else if (origin->forced_conversion ==
+			       RL2_CONVERT_MONOCHROME_TO_PALETTE)
+			{
+			    /* forced conversion: MONOCHROME -> PALETTE */
+			    if (red == 0)
+				*p_out++ = 1;
+			    else
+				*p_out++ = 0;
 			}
 		      else if (pixel_type == RL2_PIXEL_PALETTE)
 			{
@@ -2450,6 +3205,23 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	  /* creating a remapped Palette */
 	  if (origin->remapMaxPalette == 0 && origin->maxPalette > 0
 	      && origin->maxPalette <= 256)
+	      build_remap (origin);
+	  palette = rl2_create_palette (origin->remapMaxPalette);
+	  for (x = 0; x < origin->remapMaxPalette; x++)
+	    {
+		rl2_set_palette_color (palette, x, origin->remapRed[x],
+				       origin->remapGreen[x],
+				       origin->remapBlue[x],
+				       origin->remapAlpha[x]);
+	    }
+      }
+    if ((origin->photometric < PHOTOMETRIC_RGB
+	 && origin->forced_pixel_type == RL2_PIXEL_PALETTE)
+	|| origin->forced_conversion == RL2_CONVERT_MONOCHROME_TO_PALETTE)
+      {
+	  /* creating a remapped Palette */
+	  if (origin->remapMaxPalette == 0 && origin->maxPalette > 0
+	      && origin->maxPalette <= 2)
 	      build_remap (origin);
 	  palette = rl2_create_palette (origin->remapMaxPalette);
 	  for (x = 0; x < origin->remapMaxPalette; x++)
@@ -4564,4 +5336,306 @@ rl2_write_tiff_worldfile (rl2TiffDestinationPtr tiff)
     fprintf (tfw, "        %1.16f\n", destination->maxY);
     fclose (tfw);
     return RL2_OK;
+}
+
+static int
+compress_fax4 (const unsigned char *buffer,
+	       unsigned short width,
+	       unsigned short height, unsigned char **blob, int *blob_size)
+{
+/* compressing a TIFF FAX4 block - actual work */
+    struct memfile clientdata;
+    TIFF *out = (TIFF *) 0;
+    tsize_t buf_size;
+    void *tiff_buffer = NULL;
+    int y;
+    int x;
+    unsigned char byte;
+    unsigned char pixel;
+    int pos;
+    const unsigned char *p_in;
+    unsigned char *p_out;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+    out = TIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			  memory_writeproc, memory_seekproc, closeproc,
+			  memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	return 0;
+
+/* setting up the TIFF headers */
+    TIFFSetField (out, TIFFTAG_SUBFILETYPE, 0);
+    TIFFSetField (out, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField (out, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField (out, TIFFTAG_XRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_YRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH);
+    TIFFSetField (out, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField (out, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    TIFFSetField (out, TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT);
+    TIFFSetField (out, TIFFTAG_SAMPLESPERPIXEL, 1);
+    TIFFSetField (out, TIFFTAG_BITSPERSAMPLE, 1);
+    TIFFSetField (out, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISWHITE);
+    TIFFSetField (out, TIFFTAG_COMPRESSION, COMPRESSION_CCITTFAX4);
+    TIFFSetField (out, TIFFTAG_TILEWIDTH, width);
+    TIFFSetField (out, TIFFTAG_TILELENGTH, height);
+
+/* allocating the TIFF write buffer */
+    buf_size = TIFFTileSize (out);
+    tiff_buffer = malloc (buf_size);
+    if (tiff_buffer == NULL)
+	goto error;
+
+/* writing a TIFF Monochrome tile */
+    p_in = buffer;
+    p_out = tiff_buffer;
+
+    /* priming a White tile */
+    for (x = 0; x < buf_size; x++)
+	*p_out++ = 0x00;
+    p_out = tiff_buffer;
+    for (y = 0; y < height; y++)
+      {
+	  /* inserting pixels */
+	  pos = 0;
+	  byte = 0x00;
+	  for (x = 0; x < width; x++)
+	    {
+		pixel = *p_in++;
+		if (pixel == 1)
+		  {
+		      /* handling a black pixel */
+		      switch (pos)
+			{
+			case 0:
+			    byte |= 0x80;
+			    break;
+			case 1:
+			    byte |= 0x40;
+			    break;
+			case 2:
+			    byte |= 0x20;
+			    break;
+			case 3:
+			    byte |= 0x10;
+			    break;
+			case 4:
+			    byte |= 0x08;
+			    break;
+			case 5:
+			    byte |= 0x04;
+			    break;
+			case 6:
+			    byte |= 0x02;
+			    break;
+			case 7:
+			    byte |= 0x01;
+			    break;
+			};
+		  }
+		pos++;
+		if (pos > 7)
+		  {
+		      /* exporting an octet */
+		      *p_out++ = byte;
+		      byte = 0x00;
+		      pos = 0;
+		  }
+	    }
+      }
+    if (TIFFWriteTile (out, tiff_buffer, 0, 0, 0, 0) < 0)
+	goto error;
+
+    TIFFClose (out);
+    free (tiff_buffer);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    TIFFClose (out);
+    if (tiff_buffer != NULL)
+	free (tiff_buffer);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+RL2_DECLARE int
+rl2_raster_to_tiff_mono4 (rl2RasterPtr rst, unsigned char **tiff,
+			  int *tiff_size)
+{
+/* creating a TIFF FAX4 block from a raster */
+    rl2PrivRasterPtr raster = (rl2PrivRasterPtr) rst;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_samples;
+    if (rst == NULL)
+	return RL2_ERROR;
+    if (rl2_get_raster_type (rst, &sample_type, &pixel_type, &num_samples) !=
+	RL2_OK)
+	return RL2_ERROR;
+    if (sample_type == RL2_SAMPLE_1_BIT && pixel_type == RL2_PIXEL_MONOCHROME
+	&& num_samples == 1)
+	;
+    else
+	return RL2_ERROR;
+
+    if (!compress_fax4 (raster->rasterBuffer, raster->width,
+			raster->height, tiff, tiff_size))
+	return RL2_ERROR;
+    return RL2_OK;
+}
+
+RL2_PRIVATE int
+rl2_decode_tiff_mono4 (const unsigned char *tiff, int tiff_sz,
+		       unsigned short *xwidth, unsigned short *xheight,
+		       unsigned char **pixels, int *pixels_sz)
+{
+/* attempting to decode a TIFF FAX4 block */
+    struct memfile clientdata;
+    TIFF *in = (TIFF *) 0;
+    int is_tiled;
+    uint32 width = 0;
+    uint32 height = 0;
+    uint32 tile_width;
+    uint32 tile_height;
+    uint16 bits_per_sample;
+    uint16 samples_per_pixel;
+    uint16 photometric;
+    uint16 compression;
+    uint16 sample_format;
+    uint16 planar_config;
+    tsize_t buf_size;
+    void *tiff_buffer = NULL;
+    unsigned int x;
+    unsigned char pixel;
+    unsigned char *buffer;
+    int buf_sz;
+    const unsigned char *p_in;
+    unsigned char *p_out;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* reading from memory */
+    clientdata.buffer = (unsigned char *) tiff;
+    clientdata.malloc_block = 1024;
+    clientdata.size = tiff_sz;
+    clientdata.eof = tiff_sz;
+    clientdata.current = 0;
+    in = TIFFClientOpen ("tiff", "r", &clientdata, memory_readproc,
+			 memory_writeproc, memory_seekproc, closeproc,
+			 memory_sizeproc, mapproc, unmapproc);
+    if (in == NULL)
+	return RL2_ERROR;
+
+/* retrieving the TIFF dimensions */
+    is_tiled = TIFFIsTiled (in);
+    if (!is_tiled)
+	goto error;
+    TIFFGetField (in, TIFFTAG_IMAGELENGTH, &height);
+    TIFFGetField (in, TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField (in, TIFFTAG_TILEWIDTH, &tile_width);
+    TIFFGetField (in, TIFFTAG_TILELENGTH, &tile_height);
+    if (tile_width != width)
+	goto error;
+    if (tile_height != height)
+	goto error;
+    TIFFGetField (in, TIFFTAG_BITSPERSAMPLE, &bits_per_sample);
+    if (bits_per_sample != 1)
+	goto error;
+    TIFFGetField (in, TIFFTAG_SAMPLESPERPIXEL, &samples_per_pixel);
+    if (samples_per_pixel != 1)
+	goto error;
+    TIFFGetField (in, TIFFTAG_SAMPLEFORMAT, &sample_format);
+    if (sample_format != SAMPLEFORMAT_UINT)
+	goto error;
+    TIFFGetField (in, TIFFTAG_PLANARCONFIG, &planar_config);
+    if (planar_config != PLANARCONFIG_CONTIG)
+	goto error;
+    TIFFGetField (in, TIFFTAG_PHOTOMETRIC, &photometric);
+    if (photometric != PHOTOMETRIC_MINISWHITE)
+	goto error;
+    TIFFGetField (in, TIFFTAG_COMPRESSION, &compression);
+    if (compression != COMPRESSION_CCITTFAX4)
+	goto error;
+
+/* allocating the tile buffer */
+    buf_size = TIFFTileSize (in);
+    tiff_buffer = malloc (buf_size);
+    if (tiff_buffer == NULL)
+	goto error;
+
+/* reading and decoding as a single tile */
+    if (!TIFFReadTile (in, tiff_buffer, 0, 0, 0, 0))
+	goto error;
+
+/* allocating the output buffer */
+    buf_sz = width * height;
+    buffer = malloc (buf_sz);
+    if (buffer == NULL)
+	goto error;
+
+    p_in = tiff_buffer;
+    p_out = buffer;
+    for (x = 0; x < buf_size; x++)
+      {
+	  pixel = *p_in++;
+	  if ((pixel & 0x80) == 0x80)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x40) == 0x40)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x20) == 0x20)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x10) == 0x10)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x08) == 0x08)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x04) == 0x04)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x02) == 0x02)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+	  if ((pixel & 0x01) == 0x01)
+	      *p_out++ = 1;
+	  else
+	      *p_out++ = 0;
+      }
+
+    TIFFClose (in);
+    if (tiff_buffer != NULL)
+	free (tiff_buffer);
+    *xwidth = width;
+    *xheight = height;
+    *pixels = buffer;
+    *pixels_sz = buf_sz;
+    return RL2_OK;
+
+  error:
+    TIFFClose (in);
+    if (tiff_buffer != NULL)
+	free (tiff_buffer);
+    return RL2_ERROR;
 }

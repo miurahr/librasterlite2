@@ -343,17 +343,17 @@ main (int argc, char *argv[])
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_DEFLATE, &blob_odd_zip, &blob_odd_sz_zip,
-	 &blob_even_zip, &blob_even_sz_zip, 0, anti_endian) != RL2_OK)
+	 &blob_even_zip, &blob_even_sz_zip, 0, anti_endian) == RL2_OK)
       {
-	  fprintf (stderr, "Unable to Encode - DEFLATE compressed\n");
+	  fprintf (stderr, "Unexpected result - DEFLATE compressed\n");
 	  return -8;
       }
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LZMA, &blob_odd_lzma, &blob_odd_sz_lzma,
-	 &blob_even_lzma, &blob_even_sz_lzma, 0, anti_endian) != RL2_OK)
+	 &blob_even_lzma, &blob_even_sz_lzma, 0, anti_endian) == RL2_OK)
       {
-	  fprintf (stderr, "Unable to Encode - LZMA compressed\n");
+	  fprintf (stderr, "Unexpected result - LZMA compressed\n");
 	  return -9;
       }
 
@@ -535,226 +535,6 @@ main (int argc, char *argv[])
     free (blob_even);
 
     unlink ("./rainbow_1_8_uncompressed.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_zip, blob_odd_sz_zip,
-			   blob_even_zip, blob_even_sz_zip, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:1 - deflate\n");
-	  return -27;
-      }
-
-    img = rl2_create_section ("rainbow 1:1", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:1 - deflate\n");
-	  return -28;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_1_deflate.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_1_deflate.png\n");
-	  return -29;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./rainbow_1_1_deflate.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_zip, blob_odd_sz_zip,
-			   blob_even_zip, blob_even_sz_zip, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:2 - deflate\n");
-	  return -30;
-      }
-
-    img = rl2_create_section ("rainbow 1:2", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:2 - deflate\n");
-	  return -31;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_2_deflate.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_2_deflate.png\n");
-	  return -32;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./rainbow_1_2_deflate.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_4, blob_odd_zip, blob_odd_sz_zip,
-			   blob_even_zip, blob_even_sz_zip, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:4 - deflate\n");
-	  return -33;
-      }
-
-    img = rl2_create_section ("rainbow 1:4", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:4 - deflate\n");
-	  return -34;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_4_deflate.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_4_deflate.png\n");
-	  return -35;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./rainbow_1_4_deflate.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_8, blob_odd_zip, blob_odd_sz_zip,
-			   blob_even_zip, blob_even_sz_zip, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:8 - deflate\n");
-	  return -36;
-      }
-
-    img = rl2_create_section ("rainbow 1:8", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:8 - deflate\n");
-	  return -37;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_8_deflate.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_8_deflate.png\n");
-	  return -38;
-      }
-    rl2_destroy_section (img);
-    free (blob_odd_zip);
-    free (blob_even_zip);
-
-    unlink ("./rainbow_1_8_deflate.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd_lzma, blob_odd_sz_lzma,
-			   blob_even_lzma, blob_even_sz_lzma, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:1 - lzma\n");
-	  return -39;
-      }
-
-    img = rl2_create_section ("rainbow 1:1", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:1 - lzma\n");
-	  return -40;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_1_lzma.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_1_lzma.png\n");
-	  return -41;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./rainbow_1_1_lzma.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_2, blob_odd_lzma, blob_odd_sz_lzma,
-			   blob_even_lzma, blob_even_sz_lzma, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:2 - lzma\n");
-	  return -42;
-      }
-
-    img = rl2_create_section ("rainbow 1:2", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:2 - lzma\n");
-	  return -43;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_2_lzma.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_2_lzma.png\n");
-	  return -44;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./rainbow_1_2_lzma.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_4, blob_odd_lzma, blob_odd_sz_lzma,
-			   blob_even_lzma, blob_even_sz_lzma, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:4 - lzma\n");
-	  return -45;
-      }
-
-    img = rl2_create_section ("rainbow 1:4", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:4 - lzma\n");
-	  return -46;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_4_lzma.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_4_lzma.png\n");
-	  return -47;
-      }
-    rl2_destroy_section (img);
-
-    unlink ("./rainbow_1_4_lzma.png");
-
-    raster =
-	rl2_raster_decode (RL2_SCALE_8, blob_odd_lzma, blob_odd_sz_lzma,
-			   blob_even_lzma, blob_even_sz_lzma, NULL);
-    if (raster == NULL)
-      {
-	  fprintf (stderr, "Unable to Decode 1:8 - lzma\n");
-	  return -48;
-      }
-
-    img = rl2_create_section ("rainbow 1:8", RL2_COMPRESSION_NONE,
-			      RL2_TILESIZE_UNDEFINED, RL2_TILESIZE_UNDEFINED,
-			      raster);
-    if (img == NULL)
-      {
-	  fprintf (stderr, "Unable to create a Section 1:8 - lzma\n");
-	  return -49;
-      }
-
-    if (rl2_section_to_png (img, "./rainbow_1_8_lzma.png") != RL2_OK)
-      {
-	  fprintf (stderr, "Unable to write: rainbow_1_8_lzma.png\n");
-	  return -50;
-      }
-    rl2_destroy_section (img);
-    free (blob_odd_lzma);
-    free (blob_even_lzma);
-
-    unlink ("./rainbow_1_8_lzma.png");
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_jpeg, blob_odd_sz_jpeg,

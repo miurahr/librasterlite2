@@ -86,8 +86,12 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test13$(EXEEXT) test14$(EXEEXT) test15$(EXEEXT) \
 	test16$(EXEEXT) test17$(EXEEXT) test18$(EXEEXT) \
 	test19$(EXEEXT) test20$(EXEEXT) test_tifin$(EXEEXT) \
-	test_wr_tiff$(EXEEXT) test_wms1$(EXEEXT) test_paint$(EXEEXT) \
-	check_sql_stmt$(EXEEXT) test_map_rgb$(EXEEXT) \
+	test_wr_tiff$(EXEEXT) test_wms1$(EXEEXT) test_wms2$(EXEEXT) \
+	test_paint$(EXEEXT) check_sql_stmt$(EXEEXT) \
+	test_map_nile_8$(EXEEXT) test_map_nile_u8$(EXEEXT) \
+	test_map_nile_u16$(EXEEXT) test_map_nile_32$(EXEEXT) \
+	test_map_nile_u32$(EXEEXT) test_map_nile_flt$(EXEEXT) \
+	test_map_nile_dbl$(EXEEXT) test_map_rgb$(EXEEXT) \
 	test_map_gray$(EXEEXT) test_map_srtm$(EXEEXT) \
 	test_map_mono$(EXEEXT)
 subdir = test
@@ -183,6 +187,27 @@ test_map_gray_LDADD = $(LDADD)
 test_map_mono_SOURCES = test_map_mono.c
 test_map_mono_OBJECTS = test_map_mono.$(OBJEXT)
 test_map_mono_LDADD = $(LDADD)
+test_map_nile_32_SOURCES = test_map_nile_32.c
+test_map_nile_32_OBJECTS = test_map_nile_32.$(OBJEXT)
+test_map_nile_32_LDADD = $(LDADD)
+test_map_nile_8_SOURCES = test_map_nile_8.c
+test_map_nile_8_OBJECTS = test_map_nile_8.$(OBJEXT)
+test_map_nile_8_LDADD = $(LDADD)
+test_map_nile_dbl_SOURCES = test_map_nile_dbl.c
+test_map_nile_dbl_OBJECTS = test_map_nile_dbl.$(OBJEXT)
+test_map_nile_dbl_LDADD = $(LDADD)
+test_map_nile_flt_SOURCES = test_map_nile_flt.c
+test_map_nile_flt_OBJECTS = test_map_nile_flt.$(OBJEXT)
+test_map_nile_flt_LDADD = $(LDADD)
+test_map_nile_u16_SOURCES = test_map_nile_u16.c
+test_map_nile_u16_OBJECTS = test_map_nile_u16.$(OBJEXT)
+test_map_nile_u16_LDADD = $(LDADD)
+test_map_nile_u32_SOURCES = test_map_nile_u32.c
+test_map_nile_u32_OBJECTS = test_map_nile_u32.$(OBJEXT)
+test_map_nile_u32_LDADD = $(LDADD)
+test_map_nile_u8_SOURCES = test_map_nile_u8.c
+test_map_nile_u8_OBJECTS = test_map_nile_u8.$(OBJEXT)
+test_map_nile_u8_LDADD = $(LDADD)
 test_map_rgb_SOURCES = test_map_rgb.c
 test_map_rgb_OBJECTS = test_map_rgb.$(OBJEXT)
 test_map_rgb_LDADD = $(LDADD)
@@ -213,6 +238,9 @@ test_webp_LDADD = $(LDADD)
 test_wms1_SOURCES = test_wms1.c
 test_wms1_OBJECTS = test_wms1.$(OBJEXT)
 test_wms1_LDADD = $(LDADD)
+test_wms2_SOURCES = test_wms2.c
+test_wms2_OBJECTS = test_wms2.$(OBJEXT)
+test_wms2_LDADD = $(LDADD)
 test_wr_tiff_SOURCES = test_wr_tiff.c
 test_wr_tiff_OBJECTS = test_wr_tiff.$(OBJEXT)
 test_wr_tiff_LDADD = $(LDADD)
@@ -254,16 +282,22 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test14.c test15.c test16.c test17.c test18.c test19.c test2.c \
 	test20.c test3.c test4.c test5.c test6.c test7.c test8.c \
 	test9.c test_coverage.c test_gif.c test_map_gray.c \
-	test_map_mono.c test_map_rgb.c test_map_srtm.c test_mask.c \
-	test_paint.c test_palette.c test_raster.c test_section.c \
-	test_tifin.c test_webp.c test_wms1.c test_wr_tiff.c
+	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
+	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
+	test_map_nile_u32.c test_map_nile_u8.c test_map_rgb.c \
+	test_map_srtm.c test_mask.c test_paint.c test_palette.c \
+	test_raster.c test_section.c test_tifin.c test_webp.c \
+	test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
 	test8.c test9.c test_coverage.c test_gif.c test_map_gray.c \
-	test_map_mono.c test_map_rgb.c test_map_srtm.c test_mask.c \
-	test_paint.c test_palette.c test_raster.c test_section.c \
-	test_tifin.c test_webp.c test_wms1.c test_wr_tiff.c
+	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
+	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
+	test_map_nile_u32.c test_map_nile_u8.c test_map_rgb.c \
+	test_map_srtm.c test_mask.c test_paint.c test_palette.c \
+	test_raster.c test_section.c test_tifin.c test_webp.c \
+	test_wms1.c test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -692,8 +726,22 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/usgs-rgb/rgb2.tif \
 	map_samples/usgs-srtm/srtm1.tif \
 	map_samples/usgs-srtm/srtm2.tif \
-	map_samples/usgs-ctrt/cap1.tif \
-	map_samples/usgs-ctrt/cap2.tif
+	map_samples/usgs-nile-8/nile1-int8.tif \
+	map_samples/usgs-nile-8/nile2-int8.tif \
+	map_samples/usgs-nile-u8/nile1-uint8.tif \
+	map_samples/usgs-nile-u8/nile2-uint8.tif \
+	map_samples/usgs-nile-u16/nile1-uint16.tif \
+	map_samples/usgs-nile-u16/nile2-uint16.tif \
+	map_samples/usgs-nile-32/nile1-int32.tif \
+	map_samples/usgs-nile-32/nile2-int32.tif \
+	map_samples/usgs-nile-u32/nile1-uint32.tif \
+	map_samples/usgs-nile-u32/nile2-uint32.tif \
+	map_samples/usgs-nile-flt/nile1-flt.tif \
+	map_samples/usgs-nile-flt/nile2-flt.tif \
+	map_samples/usgs-nile-dbl/nile1-dbl.tif \
+	map_samples/usgs-nile-dbl/nile2-dbl.tif \
+	map_samples/ctrt/cap1.tif \
+	map_samples/ctrt/cap2.tif 
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 all: all-recursive
@@ -840,6 +888,34 @@ test_map_mono$(EXEEXT): $(test_map_mono_OBJECTS) $(test_map_mono_DEPENDENCIES) $
 	@rm -f test_map_mono$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_mono_OBJECTS) $(test_map_mono_LDADD) $(LIBS)
 
+test_map_nile_32$(EXEEXT): $(test_map_nile_32_OBJECTS) $(test_map_nile_32_DEPENDENCIES) $(EXTRA_test_map_nile_32_DEPENDENCIES) 
+	@rm -f test_map_nile_32$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_32_OBJECTS) $(test_map_nile_32_LDADD) $(LIBS)
+
+test_map_nile_8$(EXEEXT): $(test_map_nile_8_OBJECTS) $(test_map_nile_8_DEPENDENCIES) $(EXTRA_test_map_nile_8_DEPENDENCIES) 
+	@rm -f test_map_nile_8$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_8_OBJECTS) $(test_map_nile_8_LDADD) $(LIBS)
+
+test_map_nile_dbl$(EXEEXT): $(test_map_nile_dbl_OBJECTS) $(test_map_nile_dbl_DEPENDENCIES) $(EXTRA_test_map_nile_dbl_DEPENDENCIES) 
+	@rm -f test_map_nile_dbl$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_dbl_OBJECTS) $(test_map_nile_dbl_LDADD) $(LIBS)
+
+test_map_nile_flt$(EXEEXT): $(test_map_nile_flt_OBJECTS) $(test_map_nile_flt_DEPENDENCIES) $(EXTRA_test_map_nile_flt_DEPENDENCIES) 
+	@rm -f test_map_nile_flt$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_flt_OBJECTS) $(test_map_nile_flt_LDADD) $(LIBS)
+
+test_map_nile_u16$(EXEEXT): $(test_map_nile_u16_OBJECTS) $(test_map_nile_u16_DEPENDENCIES) $(EXTRA_test_map_nile_u16_DEPENDENCIES) 
+	@rm -f test_map_nile_u16$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_u16_OBJECTS) $(test_map_nile_u16_LDADD) $(LIBS)
+
+test_map_nile_u32$(EXEEXT): $(test_map_nile_u32_OBJECTS) $(test_map_nile_u32_DEPENDENCIES) $(EXTRA_test_map_nile_u32_DEPENDENCIES) 
+	@rm -f test_map_nile_u32$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_u32_OBJECTS) $(test_map_nile_u32_LDADD) $(LIBS)
+
+test_map_nile_u8$(EXEEXT): $(test_map_nile_u8_OBJECTS) $(test_map_nile_u8_DEPENDENCIES) $(EXTRA_test_map_nile_u8_DEPENDENCIES) 
+	@rm -f test_map_nile_u8$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_nile_u8_OBJECTS) $(test_map_nile_u8_LDADD) $(LIBS)
+
 test_map_rgb$(EXEEXT): $(test_map_rgb_OBJECTS) $(test_map_rgb_DEPENDENCIES) $(EXTRA_test_map_rgb_DEPENDENCIES) 
 	@rm -f test_map_rgb$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_rgb_OBJECTS) $(test_map_rgb_LDADD) $(LIBS)
@@ -880,6 +956,10 @@ test_wms1$(EXEEXT): $(test_wms1_OBJECTS) $(test_wms1_DEPENDENCIES) $(EXTRA_test_
 	@rm -f test_wms1$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_wms1_OBJECTS) $(test_wms1_LDADD) $(LIBS)
 
+test_wms2$(EXEEXT): $(test_wms2_OBJECTS) $(test_wms2_DEPENDENCIES) $(EXTRA_test_wms2_DEPENDENCIES) 
+	@rm -f test_wms2$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_wms2_OBJECTS) $(test_wms2_LDADD) $(LIBS)
+
 test_wr_tiff$(EXEEXT): $(test_wr_tiff_OBJECTS) $(test_wr_tiff_DEPENDENCIES) $(EXTRA_test_wr_tiff_DEPENDENCIES) 
 	@rm -f test_wr_tiff$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_wr_tiff_OBJECTS) $(test_wr_tiff_LDADD) $(LIBS)
@@ -915,6 +995,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_gif.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_gray.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_mono.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_32.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_8.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_dbl.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_flt.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_u16.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_u32.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_u8.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_rgb.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_srtm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mask.Po@am__quote@
@@ -925,6 +1012,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tifin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_webp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms1.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms2.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wr_tiff.Po@am__quote@
 
 .c.o:
@@ -1404,6 +1492,13 @@ test_wms1.log: test_wms1$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_wms2.log: test_wms2$(EXEEXT)
+	@p='test_wms2$(EXEEXT)'; \
+	b='test_wms2'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_paint.log: test_paint$(EXEEXT)
 	@p='test_paint$(EXEEXT)'; \
 	b='test_paint'; \
@@ -1414,6 +1509,55 @@ test_paint.log: test_paint$(EXEEXT)
 check_sql_stmt.log: check_sql_stmt$(EXEEXT)
 	@p='check_sql_stmt$(EXEEXT)'; \
 	b='check_sql_stmt'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_8.log: test_map_nile_8$(EXEEXT)
+	@p='test_map_nile_8$(EXEEXT)'; \
+	b='test_map_nile_8'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_u8.log: test_map_nile_u8$(EXEEXT)
+	@p='test_map_nile_u8$(EXEEXT)'; \
+	b='test_map_nile_u8'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_u16.log: test_map_nile_u16$(EXEEXT)
+	@p='test_map_nile_u16$(EXEEXT)'; \
+	b='test_map_nile_u16'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_32.log: test_map_nile_32$(EXEEXT)
+	@p='test_map_nile_32$(EXEEXT)'; \
+	b='test_map_nile_32'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_u32.log: test_map_nile_u32$(EXEEXT)
+	@p='test_map_nile_u32$(EXEEXT)'; \
+	b='test_map_nile_u32'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_flt.log: test_map_nile_flt$(EXEEXT)
+	@p='test_map_nile_flt$(EXEEXT)'; \
+	b='test_map_nile_flt'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_nile_dbl.log: test_map_nile_dbl$(EXEEXT)
+	@p='test_map_nile_dbl$(EXEEXT)'; \
+	b='test_map_nile_dbl'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

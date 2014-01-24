@@ -1176,7 +1176,8 @@ main (int argc, char *argv[])
 	return ret;
     ret = -270;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -350;
     if (!test_coverage
@@ -1228,7 +1229,8 @@ main (int argc, char *argv[])
 	return ret;
     ret = -570;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -650;
     if (!test_coverage
@@ -1333,8 +1335,7 @@ main (int argc, char *argv[])
 	return ret;
     ret = -1170;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
     ret = -1250;
     if (!test_coverage
@@ -1386,7 +1387,8 @@ main (int argc, char *argv[])
 	return ret;
     ret = -290;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -380;
     if (!drop_coverage
@@ -1438,7 +1440,8 @@ main (int argc, char *argv[])
 	return ret;
     ret = -590;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -680;
     if (!drop_coverage
@@ -1543,8 +1546,7 @@ main (int argc, char *argv[])
 	return ret;
     ret = -1140;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
     ret = -1230;
     if (!drop_coverage

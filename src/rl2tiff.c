@@ -3184,10 +3184,27 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
     double *p_out_dbl;
     unsigned char bnd;
     unsigned char convert = origin->forced_conversion;
+    TIFF *in = (TIFF *) 0;
 
     tiff_scanline = malloc (TIFFScanlineSize (origin->in));
     if (tiff_scanline == NULL)
 	goto error;
+
+/*
+/ random access doesn't work on compressed scanlines
+/ so we'll open an auxiliary TIFF handle, thus ensuring
+/ an always clean reading context
+*/
+    in = TIFFOpen (origin->path, "r");
+    if (in == NULL)
+	goto error;
+
+    for (y = 0; y < startRow; y++)
+      {
+	  /* skipping trailing scanlines */
+	  if (TIFFReadScanline (in, tiff_scanline, y, 0) < 0)
+	      goto error;
+      }
 
     for (y = 0; y < height; y++)
       {
@@ -3242,7 +3259,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		  };
 		continue;
 	    }
-	  if (TIFFReadScanline (origin->in, tiff_scanline, line_no, 0) < 0)
+	  if (TIFFReadScanline (in, tiff_scanline, line_no, 0) < 0)
 	      goto error;
 	  if (convert != RL2_CONVERT_NO)
 	    {
@@ -3368,10 +3385,13 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
       }
 
     free (tiff_scanline);
+    TIFFClose (in);
     return RL2_OK;
   error:
     if (tiff_scanline != NULL)
 	free (tiff_scanline);
+    if (in != (TIFF *) 0)
+	TIFFClose (in);
     return RL2_ERROR;
 }
 

@@ -45,6 +45,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+#include <inttypes.h>
 
 #include "rasterlite2/sqlite.h"
 
@@ -858,6 +859,99 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_INT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_INT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_INT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_INT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_INT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_INT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_INT8;
+		return 1;
+	    }
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT8
+	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
+	&& origin->forced_num_bands == 1)
+      {
+	  /* UINT8 datagrid */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_UINT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_UINT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_UINT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_UINT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_UINT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_UINT8;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_UINT8;
+		return 1;
+	    }
       }
     if (origin->forced_sample_type == RL2_SAMPLE_INT16
 	&& origin->forced_pixel_type == RL2_PIXEL_DATAGRID
@@ -867,10 +961,46 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_INT16;
+		return 1;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_INT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_INT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_INT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_INT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_INT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_INT16;
 		return 1;
 	    }
       }
@@ -882,10 +1012,46 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_UINT16;
+		return 1;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_UINT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_UINT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_UINT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_UINT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_UINT16;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_UINT16;
 		return 1;
 	    }
       }
@@ -897,16 +1063,46 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT32_TO_INT32;
+		return 1;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_INT32;
 		return 1;
 	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_INT32;
+		return 1;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_INT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_INT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_INT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_INT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_INT32;
 		return 1;
 	    }
       }
@@ -918,16 +1114,46 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
 	      return 1;
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT32_TO_UINT32;
+		return 1;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRID_UINT8_TO_UINT32;
 		return 1;
 	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 8)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT8_TO_UINT32;
+		return 1;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
 	    {
 		origin->forced_conversion = RL2_CONVERT_GRID_UINT16_TO_UINT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_INT
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 16)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_INT16_TO_UINT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 32)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_FLOAT_TO_UINT32;
+		return 1;
+	    }
+	  if (origin->sampleFormat == SAMPLEFORMAT_IEEEFP
+	      && origin->samplesPerPixel == 1 && origin->bitsPerSample == 64)
+	    {
+		origin->forced_conversion = RL2_CONVERT_GRID_DOUBLE_TO_UINT32;
 		return 1;
 	    }
       }
@@ -1820,6 +2046,463 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     return RL2_TRUE;
 }
 
+static char
+truncate_8 (double val)
+{
+/* truncating to signed 8 bit integer */
+    if (val <= INT8_MIN)
+	return INT8_MIN;
+    if (val >= INT8_MAX)
+	return INT8_MAX;
+    return (char) val;
+}
+
+static unsigned char
+truncate_u8 (double val)
+{
+/* truncating to unsigned 8 bit integer */
+    if (val <= 0.0)
+	return 0;
+    if (val >= UINT8_MAX)
+	return UINT8_MAX;
+    return (unsigned char) val;
+}
+
+static short
+truncate_16 (double val)
+{
+/* truncating to signed 16 bit integer */
+    if (val <= INT16_MIN)
+	return INT16_MIN;
+    if (val >= INT16_MAX)
+	return INT16_MAX;
+    return (char) val;
+}
+
+static unsigned short
+truncate_u16 (double val)
+{
+/* truncating to unsigned 16 bit integer */
+    if (val <= 0.0)
+	return 0;
+    if (val >= UINT16_MAX)
+	return UINT16_MAX;
+    return (unsigned char) val;
+}
+
+static int
+truncate_32 (double val)
+{
+/* truncating to signed 32 bit integer */
+    if (val <= INT32_MIN)
+	return INT32_MIN;
+    if (val >= INT32_MAX)
+	return INT32_MAX;
+    return (char) val;
+}
+
+static unsigned int
+truncate_u32 (double val)
+{
+/* truncating to unsigned 32 bit integer */
+    if (val <= 0.0)
+	return 0;
+    if (val >= UINT32_MAX)
+	return UINT32_MAX;
+    return (unsigned char) val;
+}
+
+static void
+copy_convert_tile (rl2PrivTiffOriginPtr origin, void *in, void *out,
+		   unsigned int startRow, unsigned int startCol,
+		   unsigned short width, unsigned short height, uint32 tile_y,
+		   uint32 tile_x, unsigned char convert)
+{
+/* copying pixels by applying a format conversion */
+    char *p_in_8;
+    char *p_out_8;
+    unsigned char *p_in_u8;
+    unsigned char *p_out_u8;
+    short *p_in_16;
+    short *p_out_16;
+    unsigned short *p_in_u16;
+    unsigned short *p_out_u16;
+    int *p_in_32;
+    int *p_out_32;
+    unsigned int *p_in_u32;
+    unsigned int *p_out_u32;
+    float *p_in_flt;
+    float *p_out_flt;
+    double *p_in_dbl;
+    double *p_out_dbl;
+    uint32 x;
+    uint32 y;
+    unsigned int dest_x;
+    unsigned int dest_y;
+
+    for (y = 0; y < origin->tileHeight; y++)
+      {
+	  dest_y = tile_y + y;
+	  if (dest_y < startRow || dest_y >= (startRow + height))
+	      continue;
+
+	  switch (convert)
+	    {
+	    case RL2_CONVERT_GRID_INT8_TO_UINT8:
+	    case RL2_CONVERT_GRID_INT8_TO_INT16:
+	    case RL2_CONVERT_GRID_INT8_TO_UINT16:
+	    case RL2_CONVERT_GRID_INT8_TO_INT32:
+	    case RL2_CONVERT_GRID_INT8_TO_UINT32:
+	    case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+	    case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+		p_in_8 = (char *) in;
+		p_in_8 += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_INT8:
+	    case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+	    case RL2_CONVERT_GRID_UINT8_TO_INT16:
+	    case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+	    case RL2_CONVERT_GRID_UINT8_TO_INT32:
+	    case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+	    case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+		p_in_u8 = (unsigned char *) in;
+		p_in_u8 += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_INT8:
+	    case RL2_CONVERT_GRID_INT16_TO_UINT8:
+	    case RL2_CONVERT_GRID_INT16_TO_UINT16:
+	    case RL2_CONVERT_GRID_INT16_TO_INT32:
+	    case RL2_CONVERT_GRID_INT16_TO_UINT32:
+	    case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+	    case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+		p_in_16 = (short *) in;
+		p_in_16 += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_INT8:
+	    case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+	    case RL2_CONVERT_GRID_UINT16_TO_INT16:
+	    case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+	    case RL2_CONVERT_GRID_UINT16_TO_INT32:
+	    case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+	    case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+		p_in_u16 = (unsigned short *) in;
+		p_in_u16 += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_INT8:
+	    case RL2_CONVERT_GRID_INT32_TO_UINT8:
+	    case RL2_CONVERT_GRID_INT32_TO_INT16:
+	    case RL2_CONVERT_GRID_INT32_TO_UINT16:
+	    case RL2_CONVERT_GRID_INT32_TO_UINT32:
+	    case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+	    case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+		p_in_32 = (int *) in;
+		p_in_32 += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_INT8:
+	    case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+	    case RL2_CONVERT_GRID_UINT32_TO_INT16:
+	    case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+	    case RL2_CONVERT_GRID_UINT32_TO_INT32:
+	    case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+	    case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+		p_in_u32 = (unsigned int *) in;
+		p_in_u32 += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+	    case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+	    case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+	    case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+	    case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+	    case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+	    case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+		p_in_flt = (float *) in;
+		p_in_flt += y * origin->tileWidth;
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+	    case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+	    case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+	    case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+	    case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+	    case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+	    case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+		p_in_dbl = (double *) in;
+		p_in_dbl += y * origin->tileWidth;
+		break;
+	    };
+
+	  for (x = 0; x < origin->tileWidth; x++)
+	    {
+		dest_x = tile_x + x;
+		if (dest_x < startCol || dest_x >= (startCol + width))
+		    continue;
+
+		switch (convert)
+		  {
+		  case RL2_CONVERT_GRID_UINT8_TO_INT8:
+		  case RL2_CONVERT_GRID_INT16_TO_INT8:
+		  case RL2_CONVERT_GRID_UINT16_TO_INT8:
+		  case RL2_CONVERT_GRID_INT32_TO_INT8:
+		  case RL2_CONVERT_GRID_UINT32_TO_INT8:
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+		      p_out_8 = (char *) out;
+		      p_out_8 +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_UINT8:
+		  case RL2_CONVERT_GRID_INT16_TO_UINT8:
+		  case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+		  case RL2_CONVERT_GRID_INT32_TO_UINT8:
+		  case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+		      p_out_u8 = (unsigned char *) out;
+		      p_out_u8 +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_INT16:
+		  case RL2_CONVERT_GRID_UINT8_TO_INT16:
+		  case RL2_CONVERT_GRID_UINT16_TO_INT16:
+		  case RL2_CONVERT_GRID_INT32_TO_INT16:
+		  case RL2_CONVERT_GRID_UINT32_TO_INT16:
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+		      p_out_16 = (short *) out;
+		      p_out_16 +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_UINT16:
+		  case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+		  case RL2_CONVERT_GRID_INT16_TO_UINT16:
+		  case RL2_CONVERT_GRID_INT32_TO_UINT16:
+		  case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+		      p_out_u16 = (unsigned short *) out;
+		      p_out_u16 +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_INT32:
+		  case RL2_CONVERT_GRID_UINT8_TO_INT32:
+		  case RL2_CONVERT_GRID_INT16_TO_INT32:
+		  case RL2_CONVERT_GRID_UINT16_TO_INT32:
+		  case RL2_CONVERT_GRID_UINT32_TO_INT32:
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+		      p_out_32 = (int *) out;
+		      p_out_32 +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_UINT32:
+		  case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+		  case RL2_CONVERT_GRID_INT16_TO_UINT32:
+		  case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+		  case RL2_CONVERT_GRID_INT32_TO_UINT32:
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+		      p_out_u32 = (unsigned int *) out;
+		      p_out_u32 +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+		  case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+		  case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+		  case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+		  case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+		  case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+		      p_out_flt = (float *) out;
+		      p_out_flt +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+		  case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+		  case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+		  case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+		  case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+		  case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+		  case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+		      p_out_dbl = (double *) out;
+		      p_out_dbl +=
+			  ((dest_y - startRow) * width) + (dest_x - startCol);
+		      break;
+		  };
+
+		switch (convert)
+		  {
+		  case RL2_CONVERT_GRID_INT8_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_8++);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_INT16:
+		      *p_out_16++ = *p_in_8++;
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_UINT16:
+		      *p_out_u16++ = truncate_u16 (*p_in_8++);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_INT32:
+		      *p_out_32++ = *p_in_8++;
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_UINT32:
+		      *p_out_u32++ = truncate_u32 (*p_in_8++);
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+		      *p_out_flt++ = *p_in_8++;
+		      break;
+		  case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_8++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_u8++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_INT16:
+		      *p_out_16++ = truncate_16 (*p_in_u8++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+		      *p_out_u16++ = *p_in_u8++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+		      *p_out_u32++ = *p_in_u8++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_INT32:
+		      *p_out_32++ = truncate_32 (*p_in_u8++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+		      *p_out_flt++ = *p_in_u8++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_u8++;
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_16++);
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_16++);
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_UINT16:
+		      *p_out_u16++ = truncate_u16 (*p_in_16++);
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_INT32:
+		      *p_out_32++ = *p_in_16++;
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_UINT32:
+		      *p_out_u32++ = truncate_u32 (*p_in_16++);
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+		      *p_out_flt++ = *p_in_16++;
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_16++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_u16++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_u16++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_INT16:
+		      *p_out_16++ = truncate_16 (*p_in_u16++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+		      *p_out_u32++ = *p_in_u16++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_INT32:
+		      *p_out_32++ = truncate_32 (*p_in_u16++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+		      *p_out_flt++ = *p_in_u16++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_u16++;
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_32++);
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_32++);
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_INT16:
+		      *p_out_16++ = truncate_16 (*p_in_32++);
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_UINT16:
+		      *p_out_u16++ = truncate_u16 (*p_in_32++);
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_UINT32:
+		      *p_out_u32++ = truncate_u32 (*p_in_32++);
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+		      *p_out_flt++ = *p_in_32++;
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_32++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_u32++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_u32++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_INT16:
+		      *p_out_16++ = truncate_16 (*p_in_u32++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+		      *p_out_u16++ = truncate_u16 (*p_in_u32++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_INT32:
+		      *p_out_32++ = truncate_32 (*p_in_u32++);
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+		      *p_out_flt++ = *p_in_u32++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_u32++;
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_flt++);
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_flt++);
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+		      *p_out_16++ = truncate_16 (*p_in_flt++);
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+		      *p_out_u16++ = truncate_u16 (*p_in_flt++);
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+		      *p_out_32++ = truncate_32 (*p_in_flt++);
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+		      *p_out_u32++ = truncate_u32 (*p_in_flt++);
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+		      *p_out_dbl++ = *p_in_flt++;
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+		      *p_out_8++ = truncate_8 (*p_in_dbl++);
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+		      *p_out_u8++ = truncate_u8 (*p_in_dbl++);
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+		      *p_out_16++ = truncate_16 (*p_in_dbl++);
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+		      *p_out_u16++ = truncate_u16 (*p_in_dbl++);
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+		      *p_out_32++ = truncate_32 (*p_in_dbl++);
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+		      *p_out_u32++ = truncate_u32 (*p_in_dbl++);
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+		      *p_out_flt++ = *p_in_dbl++;
+		      break;
+		  };
+	    }
+      }
+}
+
 static int
 read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 		unsigned short height, unsigned char sample_type,
@@ -1852,48 +2535,7 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
     unsigned int dest_y;
     int skip;
     unsigned char bnd;
-    unsigned char cvt_sample_type = 0;
-
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT16)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT16;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT32)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_INT32)
-	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_INT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_FLOAT_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT16)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT16;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT32)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_UINT32)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_UINT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_DOUBLE_TO_FLOAT;
+    unsigned char convert = origin->forced_conversion;
 
     tiff_tile = malloc (TIFFTileSize (origin->in));
     if (tiff_tile == NULL)
@@ -1932,6 +2574,14 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 		if (TIFFReadTile (origin->in, tiff_tile, tile_x, tile_y, 0, 0) <
 		    0)
 		    goto error;
+		if (convert != RL2_CONVERT_NO)
+		  {
+		      /* applying some format conversion */
+		      copy_convert_tile (origin, tiff_tile, pixels, startRow,
+					 startCol, width, height, tile_y,
+					 tile_x, convert);
+		      continue;
+		  }
 		for (y = 0; y < origin->tileHeight; y++)
 		  {
 		      dest_y = tile_y + y;
@@ -2022,206 +2672,6 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 			      };
 			    for (bnd = 0; bnd < num_bands; bnd++)
 			      {
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT8_TO_INT16)
-				    {
-					p_out_16 = (short *) pixels;
-					p_out_16 +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_16 = *p_in_8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT8_TO_INT32)
-				    {
-					p_out_32 = (int *) pixels;
-					p_out_32 +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_32 = *p_in_8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT8_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT8_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT16_TO_INT32)
-				    {
-					p_out_32 = (int *) pixels;
-					p_out_32 +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_32 = *p_in_16++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT16_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_16++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT16_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_16++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT32_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_32++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_INT32_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_32++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT8_TO_UINT16)
-				    {
-					p_out_u16 = (unsigned short *) pixels;
-					p_out_u16 +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_u16 = *p_in_u8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT8_TO_UINT32)
-				    {
-					p_out_u32 = (unsigned int *) pixels;
-					p_out_u32 +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_u32 = *p_in_u8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT8_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_u8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_u8++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT16_TO_UINT32)
-				    {
-					p_out_u32 = (unsigned int *) pixels;
-					p_out_u32 +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_u32 = *p_in_u16++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT16_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_u16++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_u16++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT32_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_u32++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_u32++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
-				    {
-					p_out_dbl = (double *) pixels;
-					p_out_dbl +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_dbl = *p_in_flt++;
-					continue;
-				    }
-				  if (cvt_sample_type ==
-				      RL2_CONVERT_GRID_DOUBLE_TO_FLOAT)
-				    {
-					p_out_flt = (float *) pixels;
-					p_out_flt +=
-					    ((dest_y - startRow) * width) +
-					    (dest_x - startCol);
-					*p_out_flt = *p_in_dbl++;
-					continue;
-				    }
 				  switch (sample_type)
 				    {
 				    case RL2_SAMPLE_INT8:
@@ -2263,6 +2713,448 @@ read_raw_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
     return RL2_ERROR;
 }
 
+static void
+copy_convert_scanline (rl2PrivTiffOriginPtr origin, void *in, void *out,
+		       unsigned int lineNo, unsigned int startCol,
+		       unsigned int width, unsigned char convert)
+{
+/* copying pixels by applying a format conversion */
+    char *p_in_8;
+    char *p_out_8;
+    unsigned char *p_in_u8;
+    unsigned char *p_out_u8;
+    short *p_in_16;
+    short *p_out_16;
+    unsigned short *p_in_u16;
+    unsigned short *p_out_u16;
+    int *p_in_32;
+    int *p_out_32;
+    unsigned int *p_in_u32;
+    unsigned int *p_out_u32;
+    float *p_in_flt;
+    float *p_out_flt;
+    double *p_in_dbl;
+    double *p_out_dbl;
+    uint32 x;
+
+    switch (convert)
+      {
+      case RL2_CONVERT_GRID_INT8_TO_UINT8:
+      case RL2_CONVERT_GRID_INT8_TO_INT16:
+      case RL2_CONVERT_GRID_INT8_TO_UINT16:
+      case RL2_CONVERT_GRID_INT8_TO_INT32:
+      case RL2_CONVERT_GRID_INT8_TO_UINT32:
+      case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+      case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+	  p_in_8 = (char *) in;
+	  break;
+      case RL2_CONVERT_GRID_UINT8_TO_INT8:
+      case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+      case RL2_CONVERT_GRID_UINT8_TO_INT16:
+      case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+      case RL2_CONVERT_GRID_UINT8_TO_INT32:
+      case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+      case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+	  p_in_u8 = (unsigned char *) in;
+	  break;
+      case RL2_CONVERT_GRID_INT16_TO_INT8:
+      case RL2_CONVERT_GRID_INT16_TO_UINT8:
+      case RL2_CONVERT_GRID_INT16_TO_UINT16:
+      case RL2_CONVERT_GRID_INT16_TO_INT32:
+      case RL2_CONVERT_GRID_INT16_TO_UINT32:
+      case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+      case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+	  p_in_16 = (short *) in;
+	  break;
+      case RL2_CONVERT_GRID_UINT16_TO_INT8:
+      case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+      case RL2_CONVERT_GRID_UINT16_TO_INT16:
+      case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+      case RL2_CONVERT_GRID_UINT16_TO_INT32:
+      case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+      case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+	  p_in_u16 = (unsigned short *) in;
+	  break;
+      case RL2_CONVERT_GRID_INT32_TO_INT8:
+      case RL2_CONVERT_GRID_INT32_TO_UINT8:
+      case RL2_CONVERT_GRID_INT32_TO_INT16:
+      case RL2_CONVERT_GRID_INT32_TO_UINT16:
+      case RL2_CONVERT_GRID_INT32_TO_UINT32:
+      case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+      case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+	  p_in_32 = (int *) in;
+	  break;
+      case RL2_CONVERT_GRID_UINT32_TO_INT8:
+      case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+      case RL2_CONVERT_GRID_UINT32_TO_INT16:
+      case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+      case RL2_CONVERT_GRID_UINT32_TO_INT32:
+      case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+      case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+	  p_in_u32 = (unsigned int *) in;
+	  break;
+      case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+      case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+      case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+      case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+      case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+      case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+      case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+	  p_in_flt = (float *) in;
+	  break;
+      case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+      case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+      case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+      case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+      case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+      case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+      case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+	  p_in_dbl = (double *) in;
+	  break;
+      };
+
+    switch (convert)
+      {
+      case RL2_CONVERT_GRID_UINT8_TO_INT8:
+      case RL2_CONVERT_GRID_INT16_TO_INT8:
+      case RL2_CONVERT_GRID_UINT16_TO_INT8:
+      case RL2_CONVERT_GRID_INT32_TO_INT8:
+      case RL2_CONVERT_GRID_UINT32_TO_INT8:
+      case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+      case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+	  p_out_8 = (char *) out;
+	  p_out_8 += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_UINT8:
+      case RL2_CONVERT_GRID_INT16_TO_UINT8:
+      case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+      case RL2_CONVERT_GRID_INT32_TO_UINT8:
+      case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+      case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+      case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+	  p_out_u8 = (unsigned char *) out;
+	  p_out_u8 += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_INT16:
+      case RL2_CONVERT_GRID_UINT8_TO_INT16:
+      case RL2_CONVERT_GRID_UINT16_TO_INT16:
+      case RL2_CONVERT_GRID_INT32_TO_INT16:
+      case RL2_CONVERT_GRID_UINT32_TO_INT16:
+      case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+      case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+	  p_out_16 = (short *) out;
+	  p_out_16 += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_UINT16:
+      case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+      case RL2_CONVERT_GRID_INT16_TO_UINT16:
+      case RL2_CONVERT_GRID_INT32_TO_UINT16:
+      case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+      case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+      case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+	  p_out_u16 = (unsigned short *) out;
+	  p_out_u16 += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_INT32:
+      case RL2_CONVERT_GRID_UINT8_TO_INT32:
+      case RL2_CONVERT_GRID_INT16_TO_INT32:
+      case RL2_CONVERT_GRID_UINT16_TO_INT32:
+      case RL2_CONVERT_GRID_UINT32_TO_INT32:
+      case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+      case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+	  p_out_32 = (int *) out;
+	  p_out_32 += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_UINT32:
+      case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+      case RL2_CONVERT_GRID_INT16_TO_UINT32:
+      case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+      case RL2_CONVERT_GRID_INT32_TO_UINT32:
+      case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+      case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+	  p_out_u32 = (unsigned int *) out;
+	  p_out_u32 += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+      case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+      case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+      case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+      case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+      case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+      case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+	  p_out_flt = (float *) out;
+	  p_out_flt += lineNo * width;
+	  break;
+      case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+      case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+      case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+      case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+      case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+      case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+      case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+	  p_out_dbl = (double *) out;
+	  p_out_dbl += lineNo * width;
+	  break;
+      };
+
+    for (x = 0; x < origin->width; x++)
+      {
+	  if (x >= (startCol + width))
+	      break;
+	  if (x < startCol)
+	    {
+		switch (convert)
+		  {
+		  case RL2_CONVERT_GRID_INT8_TO_UINT8:
+		  case RL2_CONVERT_GRID_INT8_TO_INT16:
+		  case RL2_CONVERT_GRID_INT8_TO_UINT16:
+		  case RL2_CONVERT_GRID_INT8_TO_INT32:
+		  case RL2_CONVERT_GRID_INT8_TO_UINT32:
+		  case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+		  case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+		      p_in_8++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT8_TO_INT8:
+		  case RL2_CONVERT_GRID_UINT8_TO_INT16:
+		  case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+		  case RL2_CONVERT_GRID_UINT8_TO_INT32:
+		  case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+		  case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+		  case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+		      p_in_u8++;
+		      break;
+		  case RL2_CONVERT_GRID_INT16_TO_INT8:
+		  case RL2_CONVERT_GRID_INT16_TO_UINT8:
+		  case RL2_CONVERT_GRID_INT16_TO_UINT16:
+		  case RL2_CONVERT_GRID_INT16_TO_INT32:
+		  case RL2_CONVERT_GRID_INT16_TO_UINT32:
+		  case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+		  case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+		      p_in_16++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT16_TO_INT8:
+		  case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+		  case RL2_CONVERT_GRID_UINT16_TO_INT16:
+		  case RL2_CONVERT_GRID_UINT16_TO_INT32:
+		  case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+		  case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+		  case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+		      p_in_u16++;
+		      break;
+		  case RL2_CONVERT_GRID_INT32_TO_INT8:
+		  case RL2_CONVERT_GRID_INT32_TO_UINT8:
+		  case RL2_CONVERT_GRID_INT32_TO_INT16:
+		  case RL2_CONVERT_GRID_INT32_TO_UINT16:
+		  case RL2_CONVERT_GRID_INT32_TO_UINT32:
+		  case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+		  case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+		      p_in_32++;
+		      break;
+		  case RL2_CONVERT_GRID_UINT32_TO_INT8:
+		  case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+		  case RL2_CONVERT_GRID_UINT32_TO_INT16:
+		  case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+		  case RL2_CONVERT_GRID_UINT32_TO_INT32:
+		  case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+		  case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+		      p_in_u32++;
+		      break;
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+		  case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+		  case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+		  case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+		      p_in_flt++;
+		      break;
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+		  case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+		      p_in_dbl++;
+		      break;
+		  };
+		continue;
+	    }
+
+	  switch (convert)
+	    {
+	    case RL2_CONVERT_GRID_INT8_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_8++);
+		break;
+	    case RL2_CONVERT_GRID_INT8_TO_INT16:
+		*p_out_16++ = *p_in_8++;
+		break;
+	    case RL2_CONVERT_GRID_INT8_TO_UINT16:
+		*p_out_u16++ = truncate_u16 (*p_in_8++);
+		break;
+	    case RL2_CONVERT_GRID_INT8_TO_INT32:
+		*p_out_32++ = *p_in_8++;
+		break;
+	    case RL2_CONVERT_GRID_INT8_TO_UINT32:
+		*p_out_u32++ = truncate_u32 (*p_in_8++);
+		break;
+	    case RL2_CONVERT_GRID_INT8_TO_FLOAT:
+		*p_out_flt++ = *p_in_8++;
+		break;
+	    case RL2_CONVERT_GRID_INT8_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_8++;
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_u8++);
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_INT16:
+		*p_out_16++ = truncate_16 (*p_in_u8++);
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_UINT16:
+		*p_out_u16++ = *p_in_u8++;
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_UINT32:
+		*p_out_u32++ = *p_in_u8++;
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_INT32:
+		*p_out_32++ = truncate_32 (*p_in_u8++);
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_FLOAT:
+		*p_out_flt++ = *p_in_u8++;
+		break;
+	    case RL2_CONVERT_GRID_UINT8_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_u8++;
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_16++);
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_16++);
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_UINT16:
+		*p_out_u16++ = truncate_u16 (*p_in_16++);
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_INT32:
+		*p_out_32++ = *p_in_16++;
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_UINT32:
+		*p_out_u32++ = truncate_u32 (*p_in_16++);
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_FLOAT:
+		*p_out_flt++ = *p_in_16++;
+		break;
+	    case RL2_CONVERT_GRID_INT16_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_16++;
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_u16++);
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_u16++);
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_INT16:
+		*p_out_16++ = truncate_16 (*p_in_u16++);
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_UINT32:
+		*p_out_u32++ = *p_in_u16++;
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_INT32:
+		*p_out_32++ = truncate_32 (*p_in_u16++);
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_FLOAT:
+		*p_out_flt++ = *p_in_u16++;
+		break;
+	    case RL2_CONVERT_GRID_UINT16_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_u16++;
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_32++);
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_32++);
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_INT16:
+		*p_out_16++ = truncate_16 (*p_in_32++);
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_UINT16:
+		*p_out_u16++ = truncate_u16 (*p_in_32++);
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_UINT32:
+		*p_out_u32++ = truncate_u32 (*p_in_32++);
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_FLOAT:
+		*p_out_flt++ = *p_in_32++;
+		break;
+	    case RL2_CONVERT_GRID_INT32_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_32++;
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_u32++);
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_u32++);
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_INT16:
+		*p_out_16++ = truncate_16 (*p_in_u32++);
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_UINT16:
+		*p_out_u16++ = truncate_u16 (*p_in_u32++);
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_INT32:
+		*p_out_32++ = truncate_32 (*p_in_u32++);
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_FLOAT:
+		*p_out_flt++ = *p_in_u32++;
+		break;
+	    case RL2_CONVERT_GRID_UINT32_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_u32++;
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_flt++);
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_flt++);
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_INT16:
+		*p_out_16++ = truncate_16 (*p_in_flt++);
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_UINT16:
+		*p_out_u16++ = truncate_u16 (*p_in_flt++);
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_INT32:
+		*p_out_32++ = truncate_32 (*p_in_flt++);
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_UINT32:
+		*p_out_u32++ = truncate_u32 (*p_in_flt++);
+		break;
+	    case RL2_CONVERT_GRID_FLOAT_TO_DOUBLE:
+		*p_out_dbl++ = *p_in_flt++;
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_INT8:
+		*p_out_8++ = truncate_8 (*p_in_dbl++);
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_UINT8:
+		*p_out_u8++ = truncate_u8 (*p_in_dbl++);
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_INT16:
+		*p_out_16++ = truncate_16 (*p_in_dbl++);
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_UINT16:
+		*p_out_u16++ = truncate_u16 (*p_in_dbl++);
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_INT32:
+		*p_out_32++ = truncate_32 (*p_in_dbl++);
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_UINT32:
+		*p_out_u32++ = truncate_u32 (*p_in_dbl++);
+		break;
+	    case RL2_CONVERT_GRID_DOUBLE_TO_FLOAT:
+		*p_out_flt++ = *p_in_dbl++;
+		break;
+	    };
+      }
+}
+
 static int
 read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		    unsigned short height, unsigned char sample_type,
@@ -2291,48 +3183,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
     double *p_in_dbl;
     double *p_out_dbl;
     unsigned char bnd;
-    unsigned char cvt_sample_type = 0;
-
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT16)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT16;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_INT32)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_INT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT8_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_INT8_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_INT32)
-	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_INT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT16_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_INT16_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_INT32_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_INT32_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_FLOAT_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT16)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT16;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_UINT32)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_UINT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT8_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_UINT32)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_UINT32;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT16_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_FLOAT)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_FLOAT;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_UINT32_TO_DOUBLE;
-    if (origin->forced_sample_type == RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
-	cvt_sample_type = RL2_CONVERT_GRID_DOUBLE_TO_FLOAT;
+    unsigned char convert = origin->forced_conversion;
 
     tiff_scanline = malloc (TIFFScanlineSize (origin->in));
     if (tiff_scanline == NULL)
@@ -2348,7 +3199,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		  {
 		  case RL2_SAMPLE_INT8:
 		      p_out_8 = (char *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
+		      for (x = 0; x < width; x++)
 			  *p_out_8++ = 0;
 		      break;
 		  case RL2_SAMPLE_UINT8:
@@ -2358,7 +3209,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		      break;
 		  case RL2_SAMPLE_INT16:
 		      p_out_16 = (short *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
+		      for (x = 0; x < width; x++)
 			  *p_out_16++ = 0;
 		      break;
 		  case RL2_SAMPLE_UINT16:
@@ -2368,22 +3219,22 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		      break;
 		  case RL2_SAMPLE_INT32:
 		      p_out_32 = (int *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
+		      for (x = 0; x < width; x++)
 			  *p_out_32++ = 0;
 		      break;
 		  case RL2_SAMPLE_UINT32:
 		      p_out_u32 = (unsigned int *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
+		      for (x = 0; x < width; x++)
 			  *p_out_u32++ = 0;
 		      break;
 		  case RL2_SAMPLE_FLOAT:
 		      p_out_flt = (float *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
+		      for (x = 0; x < width; x++)
 			  *p_out_flt++ = 0;
 		      break;
 		  case RL2_SAMPLE_DOUBLE:
 		      p_out_dbl = (double *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
+		      for (x = 0; x < width; x++)
 			  *p_out_dbl++ = 0;
 		      break;
 		  default:
@@ -2393,6 +3244,13 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 	    }
 	  if (TIFFReadScanline (origin->in, tiff_scanline, line_no, 0) < 0)
 	      goto error;
+	  if (convert != RL2_CONVERT_NO)
+	    {
+		/* applying some format conversion */
+		copy_convert_scanline (origin, tiff_scanline, pixels, y,
+				       startCol, width, convert);
+		continue;
+	    }
 	  switch (sample_type)
 	    {
 	    case RL2_SAMPLE_INT8:
@@ -2446,166 +3304,6 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 		  {
 		      for (bnd = 0; bnd < num_bands; bnd++)
 			{
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT8_TO_INT16)
-			      {
-				  p_out_16 = (short *) pixels;
-				  p_out_16 += y * width;
-				  *p_out_16 = *p_in_8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT8_TO_INT32)
-			      {
-				  p_out_32 = (int *) pixels;
-				  p_out_32 += y * width;
-				  *p_out_32 = *p_in_8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT8_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT8_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT16_TO_INT32)
-			      {
-				  p_out_32 = (int *) pixels;
-				  p_out_32 += y * width;
-				  *p_out_32 = *p_in_16++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT16_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_16++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT16_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_16++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT32_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_32++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_INT32_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_32++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT8_TO_UINT16)
-			      {
-				  p_out_u16 = (unsigned short *) pixels;
-				  p_out_u16 += y * width;
-				  *p_out_u16 = *p_in_u8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT8_TO_UINT32)
-			      {
-				  p_out_u32 = (unsigned int *) pixels;
-				  p_out_u32 += y * width;
-				  *p_out_u32 = *p_in_u8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT8_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_u8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT8_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_u8++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT16_TO_UINT32)
-			      {
-				  p_out_u32 = (unsigned int *) pixels;
-				  p_out_u32 += y * width;
-				  *p_out_u32 = *p_in_u16++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT16_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_u16++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT16_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_u16++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT32_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_u32++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_UINT32_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_u32++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_FLOAT_TO_DOUBLE)
-			      {
-				  p_out_dbl = (double *) pixels;
-				  p_out_dbl += y * width;
-				  *p_out_dbl = *p_in_flt++;
-				  continue;
-			      }
-			    if (cvt_sample_type ==
-				RL2_CONVERT_GRID_DOUBLE_TO_FLOAT)
-			      {
-				  p_out_flt = (float *) pixels;
-				  p_out_flt += y * width;
-				  *p_out_flt = *p_in_dbl++;
-				  continue;
-			      }
 			    switch (sample_type)
 			      {
 			      case RL2_SAMPLE_INT8:

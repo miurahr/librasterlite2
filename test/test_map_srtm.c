@@ -52,8 +52,29 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rasterlite2.h"
 
 #define TILE_256	256
-#define TILE_512	512
 #define TILE_1024	1024
+
+static int
+execute_check (sqlite3 * sqlite, const char *sql)
+{
+/* executing an SQL statement returning True/False */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = 0;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return SQLITE_ERROR;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    if (retcode == 1)
+	return SQLITE_OK;
+    return SQLITE_ERROR;
+}
 
 static int
 get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
@@ -256,6 +277,82 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 /* setting the coverage name */
     switch (sample)
       {
+      case RL2_SAMPLE_INT8:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_8_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_8_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_8_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_8_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_8_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_8_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u8_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u8_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u8_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u8_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u8_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u8_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
       case RL2_SAMPLE_INT16:
 	  switch (compression)
 	    {
@@ -264,9 +361,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_16_none_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_16_none_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_16_none_1024";
@@ -279,9 +373,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_16_deflate_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_16_deflate_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_16_deflate_1024";
 		      break;
@@ -293,11 +384,46 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_16_lzma_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_16_lzma_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_16_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u16_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u16_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u16_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u16_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u16_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u16_lzma_1024";
 		      break;
 		  };
 		break;
@@ -312,9 +438,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_32_none_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_32_none_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_32_none_1024";
 		      break;
@@ -325,9 +448,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_32_deflate_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_32_deflate_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_32_deflate_1024";
@@ -340,11 +460,46 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_32_lzma_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_32_lzma_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_32_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u32_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u32_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u32_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u32_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u32_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u32_lzma_1024";
 		      break;
 		  };
 		break;
@@ -359,9 +514,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_flt_none_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_flt_none_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_flt_none_1024";
 		      break;
@@ -373,9 +525,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_flt_deflate_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_flt_deflate_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_flt_deflate_1024";
 		      break;
@@ -386,9 +535,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_flt_lzma_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_flt_lzma_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_flt_lzma_1024";
@@ -406,9 +552,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_dbl_none_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_dbl_none_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_dbl_none_1024";
 		      break;
@@ -420,9 +563,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_dbl_deflate_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_dbl_deflate_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_dbl_deflate_1024";
 		      break;
@@ -433,9 +573,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_dbl_lzma_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_dbl_lzma_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_dbl_lzma_1024";
@@ -450,11 +587,23 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
     pixel_name = "DATAGRID";
     switch (sample)
       {
+      case RL2_SAMPLE_INT8:
+	  sample_name = "INT8";
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  sample_name = "UINT8";
+	  break;
       case RL2_SAMPLE_INT16:
 	  sample_name = "INT16";
 	  break;
+      case RL2_SAMPLE_UINT16:
+	  sample_name = "UINT16";
+	  break;
       case RL2_SAMPLE_INT32:
 	  sample_name = "INT32";
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  sample_name = "UINT32";
 	  break;
       case RL2_SAMPLE_FLOAT:
 	  sample_name = "FLOAT";
@@ -484,9 +633,6 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
       case TILE_256:
 	  tile_size = 256;
 	  break;
-      case TILE_512:
-	  tile_size = 512;
-	  break;
       case TILE_1024:
 	  tile_size = 1024;
 	  break;
@@ -498,7 +644,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 			   coverage, sample_name, pixel_name, num_bands,
 			   compression_name, qlty, tile_size, tile_size, 4326,
 			   0.0008333333333333, 0.0008333333333333);
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -514,7 +660,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	sqlite3_mprintf
 	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 4326, 1)", coverage,
 	 "map_samples/usgs-srtm", ".tif");
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -528,7 +674,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 /* deleting the first section */
     sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
 			   coverage, "srtm1");
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -542,7 +688,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 /* re-loading yet again the first section */
     sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 4326, 1)",
 			   coverage, "map_samples/usgs-srtm/srtm1.tif");
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -617,6 +763,82 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 /* setting the coverage name */
     switch (sample)
       {
+      case RL2_SAMPLE_INT8:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_8_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_8_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_8_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_8_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_8_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_8_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u8_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u8_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u8_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u8_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u8_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u8_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
       case RL2_SAMPLE_INT16:
 	  switch (compression)
 	    {
@@ -625,9 +847,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_16_none_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_16_none_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_16_none_1024";
@@ -640,9 +859,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_16_deflate_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_16_deflate_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_16_deflate_1024";
 		      break;
@@ -654,11 +870,46 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_16_lzma_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_16_lzma_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_16_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u16_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u16_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u16_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u16_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u16_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u16_lzma_1024";
 		      break;
 		  };
 		break;
@@ -673,9 +924,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_32_none_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_32_none_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_32_none_1024";
 		      break;
@@ -686,9 +934,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_32_deflate_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_32_deflate_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_32_deflate_1024";
@@ -701,11 +946,46 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_32_lzma_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_32_lzma_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_32_lzma_1024";
+		      break;
+		  };
+		break;
+	    };
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_NONE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u32_none_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u32_none_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u32_deflate_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u32_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "grid_u32_lzma_256";
+		      break;
+		  case TILE_1024:
+		      coverage = "grid_u32_lzma_1024";
 		      break;
 		  };
 		break;
@@ -720,9 +1000,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_flt_none_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_flt_none_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_flt_none_1024";
 		      break;
@@ -734,9 +1011,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_flt_deflate_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_flt_deflate_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_flt_deflate_1024";
 		      break;
@@ -747,9 +1021,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_flt_lzma_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_flt_lzma_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_flt_lzma_1024";
@@ -767,9 +1038,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_dbl_none_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_dbl_none_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_dbl_none_1024";
 		      break;
@@ -780,9 +1048,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  {
 		  case TILE_256:
 		      coverage = "grid_dbl_deflate_256";
-		      break;
-		  case TILE_512:
-		      coverage = "grid_dbl_deflate_512";
 		      break;
 		  case TILE_1024:
 		      coverage = "grid_dbl_deflate_1024";
@@ -795,9 +1060,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 		  case TILE_256:
 		      coverage = "grid_dbl_lzma_256";
 		      break;
-		  case TILE_512:
-		      coverage = "grid_dbl_lzma_512";
-		      break;
 		  case TILE_1024:
 		      coverage = "grid_dbl_lzma_1024";
 		      break;
@@ -809,7 +1071,7 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 
 /* dropping the DBMS Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_DropCoverage(%Q, 1)", coverage);
-    ret = sqlite3_exec (sqlite, sql, NULL, NULL, &err_msg);
+    ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
@@ -832,6 +1094,9 @@ main (int argc, char *argv[])
     sqlite3 *db_handle;
     void *cache = spatialite_alloc_connection ();
     char *old_SPATIALITE_SECURITY_ENV = NULL;
+
+    if (argc > 1 || argv[0] == NULL)
+	argc = 1;		/* silencing stupid compiler warnings */
 
     old_SPATIALITE_SECURITY_ENV = getenv ("SPATIALITE_SECURITY");
 #ifdef _WIN32
@@ -877,10 +1142,6 @@ main (int argc, char *argv[])
 	return ret;
     ret = -120;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -140;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -200;
@@ -888,10 +1149,6 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -220;
-    if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -240;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
@@ -901,11 +1158,33 @@ main (int argc, char *argv[])
 	return ret;
     ret = -320;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -340;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
+/* UINT16 tests */
+    ret = -150;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -170;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -250;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -270;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	return ret;
+    ret = -350;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -370;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
 /* INT32 tests */
@@ -915,10 +1194,6 @@ main (int argc, char *argv[])
 	return ret;
     ret = -420;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -440;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -500;
@@ -926,10 +1201,6 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -520;
-    if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -540;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
@@ -939,11 +1210,33 @@ main (int argc, char *argv[])
 	return ret;
     ret = -620;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -640;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
+/* UINT32 tests */
+    ret = -450;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -470;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -550;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -570;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	return ret;
+    ret = -650;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -670;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
 /* FLOAT tests */
@@ -953,10 +1246,6 @@ main (int argc, char *argv[])
 	return ret;
     ret = -720;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -740;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -800;
@@ -964,10 +1253,6 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -820;
-    if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -840;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
@@ -977,11 +1262,33 @@ main (int argc, char *argv[])
 	return ret;
     ret = -920;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -940;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
+/* INT8 tests */
+    ret = -750;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -770;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -850;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -870;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	return ret;
+    ret = -950;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -970;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
 /* DOUBLE tests */
@@ -991,10 +1298,6 @@ main (int argc, char *argv[])
 	return ret;
     ret = -1020;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -1040;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -1100;
@@ -1002,10 +1305,6 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -1120;
-    if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -1140;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
@@ -1016,164 +1315,244 @@ main (int argc, char *argv[])
 	return ret;
     ret = -1220;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -1240;
-    if (!test_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
+/* UINT8 tests */
+    ret = -1050;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -1070;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -1150;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -1170;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
+	return ret;
+    ret = -1250;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -1270;
+    if (!test_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
 /* dropping all SRTM INT16 Coverages */
-    ret = -170;
+    ret = -130;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -180;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -190;
+    ret = -140;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -270;
+    ret = -230;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
-    ret = -280;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -290;
+    ret = -240;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
-    ret = -370;
+    ret = -330;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
 	return ret;
-    ret = -380;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -390;
+    ret = -340;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
+/* dropping all SRTM UINT16 Coverages */
+    ret = -180;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -190;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -280;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -290;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	return ret;
+    ret = -380;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -390;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
 /* dropping all INT32 Coverages */
-    ret = -470;
+    ret = -430;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -480;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -490;
+    ret = -440;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -570;
+    ret = -530;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
-    ret = -580;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -590;
+    ret = -540;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
-    ret = -670;
+    ret = -630;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
 	return ret;
-    ret = -680;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -690;
+    ret = -640;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
+/* dropping all UINT32 Coverages */
+    ret = -480;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -490;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -580;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -590;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	return ret;
+    ret = -680;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -690;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
 /* dropping all FLOAT Coverages */
-    ret = -770;
+    ret = -740;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -780;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -790;
+    ret = -750;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -870;
+    ret = -840;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
-    ret = -880;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -890;
+    ret = -850;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
-    ret = -970;
+    ret = -940;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256, &ret))
 	return ret;
-    ret = -980;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_512, &ret))
-	return ret;
-    ret = -990;
+    ret = -950;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
+/* dropping all INT8 Coverages */
+    ret = -780;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -790;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -880;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -890;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	return ret;
+    ret = -980;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -990;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+
 /* dropping all DOUBLE Coverages */
-    ret = -1070;
+    ret = -1030;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -1080;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -1090;
+    ret = -1040;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -1170;
+    ret = -1130;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
-    ret = -1180;
-    if (!drop_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
-	return ret;
-    ret = -1190;
+    ret = -1140;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
-    ret = -1270;
+    ret = -1230;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
 	return ret;
-    ret = -1280;
+    ret = -1240;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
-    ret = -1290;
+
+/* dropping all UINT8 Coverages */
+    ret = -1030;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	return ret;
+    ret = -1040;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	return ret;
+    ret = -1130;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -1140;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
+	return ret;
+    ret = -1230;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -1240;
+    if (!drop_coverage
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 
 /* closing the DB */

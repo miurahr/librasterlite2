@@ -2795,8 +2795,8 @@ do_copy2_int16 (int swap, const short *p_odd, short *buf, unsigned short width,
 		    *p_out++ = swapINT16 (*p_odd++);
 		else
 		    *p_out++ = *p_odd++;
+		p_odd++;
 	    }
-	  p_odd++;
       }
 }
 
@@ -2846,8 +2846,8 @@ do_copy2_int32 (int swap, const int *p_odd, int *buf, unsigned short width,
 		    *p_out++ = swapINT32 (*p_odd++);
 		else
 		    *p_out++ = *p_odd++;
+		p_odd++;
 	    }
-	  p_odd++;
       }
 }
 
@@ -2869,8 +2869,8 @@ do_copy2_uint32 (int swap, const unsigned int *p_odd, unsigned int *buf,
 		    *p_out++ = swapUINT32 (*p_odd++);
 		else
 		    *p_out++ = *p_odd++;
+		p_odd++;
 	    }
-	  p_odd++;
       }
 }
 
@@ -2892,8 +2892,8 @@ do_copy2_float (int swap, const float *p_odd, float *buf, unsigned short width,
 		    *p_out++ = swapFloat (*p_odd++);
 		else
 		    *p_out++ = *p_odd++;
+		p_odd++;
 	    }
-	  p_odd++;
       }
 }
 
@@ -2915,8 +2915,8 @@ do_copy2_double (int swap, const double *p_odd, double *buf,
 		    *p_out++ = swapDouble (*p_odd++);
 		else
 		    *p_out++ = *p_odd++;
+		p_odd++;
 	    }
-	  p_odd++;
       }
 }
 

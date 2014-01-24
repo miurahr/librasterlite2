@@ -729,7 +729,7 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
 #else
 			    print_gif_error (GifLastError ());
 #endif
-fprintf (stderr, "err GIF %d / %d %d\n", row,
+			    fprintf (stderr, "err GIF %d / %d %d\n", row,
 				     GifFile->Image.Height,
 				     GifFile->Image.Width);
 			    goto error;

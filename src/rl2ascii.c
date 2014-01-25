@@ -103,6 +103,30 @@ parse_yllcorner (const char *str, double *miny)
 }
 
 static int
+parse_xllcenter (const char *str, double *minx)
+{
+/* attempting to parse the XLLCENTER item */
+    if (strncmp (str, "xllcenter ", 10) == 0)
+      {
+	  *minx = atof (str + 10);
+	  return 1;
+      }
+    return 0;
+}
+
+static int
+parse_yllcenter (const char *str, double *miny)
+{
+/* attempting to parse the YLLCENTER item */
+    if (strncmp (str, "yllcenter ", 10) == 0)
+      {
+	  *miny = atof (str + 10);
+	  return 1;
+      }
+    return 0;
+}
+
+static int
 parse_cellsize (const char *str, double *xres)
 {
 /* attempting to parse the CELLSIZE item */
@@ -156,11 +180,17 @@ get_ascii_header (FILE * in, unsigned short *width, unsigned short *height,
 		      break;
 		  case 2:
 		      if (!parse_xllcorner (buf, minx))
-			  goto error;
+			{
+			    if (!parse_xllcenter (buf, minx))
+				goto error;
+			}
 		      break;
 		  case 3:
 		      if (!parse_yllcorner (buf, miny))
-			  goto error;
+			{
+			    if (!parse_yllcenter (buf, miny))
+				goto error;
+			}
 		      break;
 		  case 4:
 		      if (!parse_cellsize (buf, xres))
@@ -229,8 +259,9 @@ alloc_ascii_origin (const char *path, int srid, unsigned char sample_type,
     return ascii;
 }
 
-RL2_DECLARE rl2AsciiOriginPtr
-rl2_create_ascii_origin (const char *path, int srid, unsigned char sample_type)
+RL2_DECLARE rl2AsciiGridOriginPtr
+rl2_create_ascii_grid_origin (const char *path, int srid,
+			      unsigned char sample_type)
 {
 /* creating an ASCII Grid Origin */
     FILE *in;
@@ -384,45 +415,31 @@ rl2_create_ascii_origin (const char *path, int srid, unsigned char sample_type)
 		      switch (sample_type)
 			{
 			case RL2_SAMPLE_INT8:
-			    int8_value = (char) dbl_value;
-			    if (fabs (dbl_value - int8_value) > 1.0)
-				goto error;
+			    int8_value = truncate_8 (dbl_value);
 			    *p_int8++ = uint8_value;
 			    break;
 			case RL2_SAMPLE_UINT8:
-			    uint8_value = (unsigned char) dbl_value;
-			    if (fabs (dbl_value - uint8_value) > 1.0)
-				goto error;
+			    uint8_value = truncate_u8 (dbl_value);
 			    *p_uint8++ = uint8_value;
 			    break;
 			case RL2_SAMPLE_INT16:
-			    int16_value = (short) dbl_value;
-			    if (fabs (dbl_value - int16_value) > 1.0)
-				goto error;
+			    int16_value = truncate_16 (dbl_value);
 			    *p_int16++ = int16_value;
 			    break;
 			case RL2_SAMPLE_UINT16:
-			    uint16_value = (unsigned short) dbl_value;
-			    if (fabs (dbl_value - uint16_value) > 1.0)
-				goto error;
+			    uint16_value = truncate_u16 (dbl_value);
 			    *p_uint16++ = uint16_value;
 			    break;
 			case RL2_SAMPLE_INT32:
-			    int32_value = (int) dbl_value;
-			    if (fabs (dbl_value - int32_value) > 1.0)
-				goto error;
+			    int32_value = truncate_32 (dbl_value);
 			    *p_int32++ = int32_value;
 			    break;
 			case RL2_SAMPLE_UINT32:
-			    uint32_value = (unsigned int) dbl_value;
-			    if (fabs (dbl_value - uint32_value) > 1.0)
-				goto error;
+			    uint32_value = truncate_u32 (dbl_value);
 			    *p_uint32++ = uint32_value;
 			    break;
 			case RL2_SAMPLE_FLOAT:
 			    flt_value = (float) dbl_value;
-			    if (fabs (dbl_value - flt_value) > 1.0)
-				goto error;
 			    *p_float++ = flt_value;
 			    break;
 			case RL2_SAMPLE_DOUBLE:
@@ -448,22 +465,22 @@ rl2_create_ascii_origin (const char *path, int srid, unsigned char sample_type)
 
     fclose (in);
     free (scanline);
-    return (rl2AsciiOriginPtr) ascii;
+    return (rl2AsciiGridOriginPtr) ascii;
 
   error:
     if (scanline != NULL)
 	free (scanline);
     if (ascii != NULL)
-	rl2_destroy_ascii_origin ((rl2AsciiOriginPtr) ascii);
+	rl2_destroy_ascii_grid_origin ((rl2AsciiGridOriginPtr) ascii);
     if (in != NULL)
 	fclose (in);
     return NULL;
 }
 
 RL2_DECLARE void
-rl2_destroy_ascii_origin (rl2AsciiOriginPtr ascii)
+rl2_destroy_ascii_grid_origin (rl2AsciiGridOriginPtr ascii)
 {
-/* memory cleanup - destroying an ASCII Grid object */
+/* memory cleanup - destroying an ASCII Grid Origin object */
     rl2PrivAsciiOriginPtr org = (rl2PrivAsciiOriginPtr) ascii;
     if (org == NULL)
 	return;
@@ -475,7 +492,7 @@ rl2_destroy_ascii_origin (rl2AsciiOriginPtr ascii)
 }
 
 RL2_DECLARE const char *
-rl2_get_ascii_origin_path (rl2AsciiOriginPtr ascii)
+rl2_get_ascii_grid_origin_path (rl2AsciiGridOriginPtr ascii)
 {
 /* retrieving the input path from an ASCII Grid origin */
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
@@ -486,8 +503,8 @@ rl2_get_ascii_origin_path (rl2AsciiOriginPtr ascii)
 }
 
 RL2_DECLARE int
-rl2_get_ascii_origin_size (rl2AsciiOriginPtr ascii, unsigned short *width,
-			   unsigned short *height)
+rl2_get_ascii_grid_origin_size (rl2AsciiGridOriginPtr ascii,
+				unsigned short *width, unsigned short *height)
 {
 /* retrieving Width and Height from an ASCII Grid origin */
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
@@ -500,7 +517,7 @@ rl2_get_ascii_origin_size (rl2AsciiOriginPtr ascii, unsigned short *width,
 }
 
 RL2_DECLARE int
-rl2_get_ascii_origin_srid (rl2AsciiOriginPtr ascii, int *srid)
+rl2_get_ascii_grid_origin_srid (rl2AsciiGridOriginPtr ascii, int *srid)
 {
 /* retrieving the SRID from an ASCII Grid origin */
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
@@ -512,8 +529,8 @@ rl2_get_ascii_origin_srid (rl2AsciiOriginPtr ascii, int *srid)
 }
 
 RL2_DECLARE int
-rl2_get_ascii_origin_extent (rl2AsciiOriginPtr ascii, double *minX,
-			     double *minY, double *maxX, double *maxY)
+rl2_get_ascii_grid_origin_extent (rl2AsciiGridOriginPtr ascii, double *minX,
+				  double *minY, double *maxX, double *maxY)
 {
 /* retrieving the Extent from an ASCII Grid origin */
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
@@ -528,8 +545,8 @@ rl2_get_ascii_origin_extent (rl2AsciiOriginPtr ascii, double *minX,
 }
 
 RL2_DECLARE int
-rl2_get_ascii_origin_resolution (rl2AsciiOriginPtr ascii, double *hResolution,
-				 double *vResolution)
+rl2_get_ascii_grid_origin_resolution (rl2AsciiGridOriginPtr ascii,
+				      double *hResolution, double *vResolution)
 {
 /* retrieving the Pixel Resolution from an ASCII Grid origin */
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
@@ -542,8 +559,10 @@ rl2_get_ascii_origin_resolution (rl2AsciiOriginPtr ascii, double *hResolution,
 }
 
 RL2_DECLARE int
-rl2_get_ascii_origin_type (rl2AsciiOriginPtr ascii, unsigned char *sample_type,
-			   unsigned char *pixel_type, unsigned char *num_bands)
+rl2_get_ascii_grid_origin_type (rl2AsciiGridOriginPtr ascii,
+				unsigned char *sample_type,
+				unsigned char *pixel_type,
+				unsigned char *num_bands)
 {
 /* retrieving the sample/pixel type from an ASCII Grid origin */
     rl2PrivAsciiOriginPtr origin = (rl2PrivAsciiOriginPtr) ascii;
@@ -557,8 +576,8 @@ rl2_get_ascii_origin_type (rl2AsciiOriginPtr ascii, unsigned char *sample_type,
 }
 
 RL2_DECLARE int
-rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
-				     rl2AsciiOriginPtr ascii)
+rl2_eval_ascii_grid_origin_compatibility (rl2CoveragePtr cvg,
+					  rl2AsciiGridOriginPtr ascii)
 {
 /* testing if a Coverage and an ASCII Grid origin are mutually compatible */
     unsigned char sample_type;
@@ -572,8 +591,8 @@ rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
 
     if (coverage == NULL || ascii == NULL)
 	return RL2_ERROR;
-    if (rl2_get_ascii_origin_type (ascii, &sample_type, &pixel_type, &num_bands)
-	!= RL2_OK)
+    if (rl2_get_ascii_grid_origin_type
+	(ascii, &sample_type, &pixel_type, &num_bands) != RL2_OK)
 	return RL2_ERROR;
 
     if (coverage->sampleType != sample_type)
@@ -584,12 +603,12 @@ rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
 	return RL2_FALSE;
 
 /* checking for resolution compatibility */
-    if (rl2_get_ascii_origin_srid (ascii, &srid) != RL2_OK)
+    if (rl2_get_ascii_grid_origin_srid (ascii, &srid) != RL2_OK)
 	return RL2_FALSE;
     if (coverage->Srid != srid)
 	return RL2_FALSE;
-    if (rl2_get_ascii_origin_resolution (ascii, &hResolution, &vResolution) !=
-	RL2_OK)
+    if (rl2_get_ascii_grid_origin_resolution (ascii, &hResolution, &vResolution)
+	!= RL2_OK)
 	return RL2_FALSE;
     confidence = coverage->hResolution / 100.0;
     if (hResolution < (coverage->hResolution - confidence)
@@ -931,8 +950,10 @@ read_from_ascii (rl2PrivAsciiOriginPtr origin, unsigned short width,
 }
 
 RL2_DECLARE rl2RasterPtr
-rl2_get_tile_from_ascii_origin (rl2CoveragePtr cvg, rl2AsciiOriginPtr ascii,
-				unsigned int startRow, unsigned int startCol)
+rl2_get_tile_from_ascii_grid_origin (rl2CoveragePtr cvg,
+				     rl2AsciiGridOriginPtr ascii,
+				     unsigned int startRow,
+				     unsigned int startCol)
 {
 /* attempting to create a Coverage-tile from an ASCII Grid origin */
     unsigned int x;
@@ -948,7 +969,7 @@ rl2_get_tile_from_ascii_origin (rl2CoveragePtr cvg, rl2AsciiOriginPtr ascii,
 
     if (coverage == NULL || ascii == NULL)
 	return NULL;
-    if (rl2_eval_ascii_origin_compatibility (cvg, ascii) != RL2_TRUE)
+    if (rl2_eval_ascii_grid_origin_compatibility (cvg, ascii) != RL2_TRUE)
 	return NULL;
     if (origin->tmp == NULL)
 	return NULL;
@@ -1013,4 +1034,343 @@ rl2_get_tile_from_ascii_origin (rl2CoveragePtr cvg, rl2AsciiOriginPtr ascii,
     if (mask != NULL)
 	free (mask);
     return NULL;
+}
+
+static rl2PrivAsciiDestinationPtr
+alloc_ascii_destination (const char *path, unsigned short width,
+			 unsigned short height, double x, double y,
+			 double res, int is_centered, double no_data,
+			 int decimal_digits)
+{
+/* allocating and initializing an ASCII Grid detination */
+    int len;
+    rl2PrivAsciiDestinationPtr ascii =
+	malloc (sizeof (rl2PrivAsciiDestination));
+    if (ascii == NULL)
+	return NULL;
+    len = strlen (path);
+    ascii->path = malloc (len + 1);
+    strcpy (ascii->path, path);
+    ascii->out = NULL;
+    ascii->width = width;
+    ascii->height = height;
+    ascii->Resolution = res;
+    ascii->X = x;
+    ascii->Y = y;
+    ascii->isCentered = is_centered;
+    ascii->noData = no_data;
+    if (decimal_digits < 0)
+	ascii->decimalDigits = 0;
+    else if (decimal_digits > 18)
+	ascii->decimalDigits = 18;
+    else
+	ascii->decimalDigits = decimal_digits;
+    ascii->headerDone = 'N';
+    ascii->nextLineNo = 0;
+    ascii->pixels = NULL;
+    ascii->sampleType = RL2_SAMPLE_UNKNOWN;
+    return ascii;
+}
+
+RL2_DECLARE rl2AsciiGridDestinationPtr
+rl2_create_ascii_grid_destination (const char *path, unsigned short width,
+				   unsigned short height, double resolution,
+				   double x, double y, int is_centered,
+				   double no_data, int decimal_digits,
+				   void *pixels, int pixels_size,
+				   unsigned char sample_type)
+{
+/* creating an ASCII Grid Destination */
+    FILE *out;
+    rl2PrivAsciiDestinationPtr ascii = NULL;
+    int pix_sz = 0;
+
+    if (path == NULL)
+	return NULL;
+    if (pixels == NULL)
+	return NULL;
+
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT8:
+      case RL2_SAMPLE_UINT8:
+	  pix_sz = 1;
+	  break;
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pix_sz = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pix_sz = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pix_sz = 8;
+	  break;
+      };
+    if (pix_sz < 1)
+	return NULL;
+    if (pixels_size != (width * height * pix_sz))
+	return NULL;
+
+    out = fopen (path, "w");
+    if (out == NULL)
+      {
+	  fprintf (stderr, "ASCII Destination: Unable to open %s\n", path);
+	  return NULL;
+      }
+
+    ascii =
+	alloc_ascii_destination (path, width, height, x, y, resolution,
+				 is_centered, no_data, decimal_digits);
+    if (ascii == NULL)
+	goto error;
+
+/* creating the output File */
+    out = fopen (path, "wb");
+    if (out == NULL)
+	goto error;
+    ascii->out = out;
+    ascii->pixels = pixels;
+    ascii->sampleType = sample_type;
+
+    return (rl2AsciiGridDestinationPtr) ascii;
+
+  error:
+    if (ascii != NULL)
+	rl2_destroy_ascii_grid_destination ((rl2AsciiGridDestinationPtr) ascii);
+    if (out != NULL)
+	fclose (out);
+    return NULL;
+}
+
+RL2_DECLARE void
+rl2_destroy_ascii_grid_destination (rl2AsciiGridDestinationPtr ascii)
+{
+/* memory cleanup - destroying an ASCII Grid destination object */
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+    if (dst == NULL)
+	return;
+    if (dst->path != NULL)
+	free (dst->path);
+    if (dst->out != NULL)
+	fclose (dst->out);
+    if (dst->pixels != NULL)
+	free (dst->pixels);
+    free (dst);
+}
+
+RL2_DECLARE const char *
+rl2_get_ascii_grid_destination_path (rl2AsciiGridDestinationPtr ascii)
+{
+/* retrieving the input path from an ASCII Grid destination */
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+    if (dst == NULL)
+	return NULL;
+
+    return dst->path;
+}
+
+RL2_DECLARE int
+rl2_get_ascii_grid_destination_size (rl2AsciiGridDestinationPtr ascii,
+				     unsigned short *width,
+				     unsigned short *height)
+{
+/* retrieving Width and Height from an ASCII Grid destination */
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+    if (dst == NULL)
+	return RL2_ERROR;
+
+    *width = dst->width;
+    *height = dst->height;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_ascii_grid_destination_tiepoint (rl2AsciiGridDestinationPtr ascii,
+					 double *X, double *Y)
+{
+/* retrieving the tiepoint from an ASCII Grid destination */
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+    if (dst == NULL)
+	return RL2_ERROR;
+
+    *X = dst->X;
+    *Y = dst->Y;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_ascii_grid_destination_resolution (rl2AsciiGridDestinationPtr ascii,
+					   double *resolution)
+{
+/* retrieving the Pixel Resolution from an ASCII Grid destination */
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+    if (dst == NULL)
+	return RL2_ERROR;
+
+    *resolution = dst->Resolution;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_write_ascii_grid_header (rl2AsciiGridDestinationPtr ascii)
+{
+/* attempting to write the ASCII Grid header */
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+    if (dst == NULL)
+	return RL2_ERROR;
+    if (dst->out == NULL)
+	return RL2_ERROR;
+    if (dst->headerDone != 'N')
+	return RL2_ERROR;
+
+    fprintf (dst->out, "ncols %u\r\n", dst->width);
+    fprintf (dst->out, "nrows %u\r\n", dst->height);
+    if (dst->isCentered)
+      {
+	  fprintf (dst->out, "xllcenter %1.8f\r\n", dst->X);
+	  fprintf (dst->out, "yllcenter %1.8f\r\n", dst->Y);
+      }
+    else
+      {
+	  fprintf (dst->out, "xllcorner %1.8f\r\n", dst->X);
+	  fprintf (dst->out, "yllcorner %1.8f\r\n", dst->Y);
+      }
+    fprintf (dst->out, "cellsize %1.8f\r\n", dst->Resolution);
+    fprintf (dst->out, "NODATA_value %1.8f\r\n", dst->noData);
+    dst->headerDone = 'Y';
+    return RL2_OK;
+}
+
+static char *
+format_pixel (double cell_value, int decimal_digits)
+{
+/* well formatting an ASCII pixel */
+    char format[32];
+    char *pixel;
+    char *p;
+    sprintf (format, " %%1.%df", decimal_digits);
+    pixel = sqlite3_mprintf (format, cell_value);
+    if (decimal_digits == 0)
+	return pixel;
+    p = pixel + strlen (pixel) - 1;
+    while (1)
+      {
+	  if (*p == '0')
+	      *p = '\0';
+	  else if (*p == '.')
+	    {
+		*p = '\0';
+		break;
+	    }
+	  else
+	      break;
+	  p--;
+      }
+    return pixel;
+}
+
+RL2_DECLARE int
+rl2_write_ascii_grid_scanline (rl2AsciiGridDestinationPtr ascii,
+			       unsigned short *line_no)
+{
+/* attempting to write a scanline into an ASCII Grid */
+    char *p8;
+    unsigned char *pu8;
+    short *p16;
+    unsigned short *pu16;
+    int *p32;
+    unsigned short *pu32;
+    float *pflt;
+    double *pdbl;
+    double cell_value;
+    char *pxl;
+    int x;
+    rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;
+
+    if (dst == NULL)
+	return RL2_ERROR;
+    if (dst->out == NULL)
+	return RL2_ERROR;
+    if (dst->headerDone != 'Y')
+	return RL2_ERROR;
+    if (dst->nextLineNo >= dst->height)
+	return RL2_ERROR;
+
+    switch (dst->sampleType)
+      {
+      case RL2_SAMPLE_INT8:
+	  p8 = dst->pixels;
+	  p8 += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  pu8 = dst->pixels;
+	  pu8 += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  p16 = dst->pixels;
+	  p16 += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  pu16 = dst->pixels;
+	  pu16 += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  p32 = dst->pixels;
+	  p32 += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  pu32 = dst->pixels;
+	  pu32 += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  pflt = dst->pixels;
+	  pflt += (dst->nextLineNo * dst->width);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pdbl = dst->pixels;
+	  pdbl += (dst->nextLineNo * dst->width);
+	  break;
+      };
+
+    for (x = 0; x < dst->width; x++)
+      {
+	  switch (dst->sampleType)
+	    {
+	    case RL2_SAMPLE_INT8:
+		cell_value = *p8++;
+		break;
+	    case RL2_SAMPLE_UINT8:
+		cell_value = *pu8++;
+		break;
+	    case RL2_SAMPLE_INT16:
+		cell_value = *p16++;
+		break;
+	    case RL2_SAMPLE_UINT16:
+		cell_value = *pu16++;
+		break;
+	    case RL2_SAMPLE_INT32:
+		cell_value = *p32++;
+		break;
+	    case RL2_SAMPLE_UINT32:
+		cell_value = *pu32++;
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		cell_value = *pflt++;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		cell_value = *pdbl++;
+		break;
+	    };
+	  pxl = format_pixel (cell_value, dst->decimalDigits);
+	  fprintf (dst->out, "%s", pxl);
+	  sqlite3_free (pxl);
+      }
+    fprintf (dst->out, "\r\n");
+
+    dst->nextLineNo += 1;
+    *line_no = dst->nextLineNo;
+    return RL2_OK;
 }

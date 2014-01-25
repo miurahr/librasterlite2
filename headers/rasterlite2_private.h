@@ -382,6 +382,25 @@ extern "C"
     } rl2PrivAsciiOrigin;
     typedef rl2PrivAsciiOrigin *rl2PrivAsciiOriginPtr;
 
+    typedef struct rl2_priv_ascii_destination
+    {
+	char *path;
+	FILE *out;
+	unsigned short width;
+	unsigned short height;
+	double Resolution;
+	double X;
+	double Y;
+	int isCentered;
+	double noData;
+	int decimalDigits;
+	unsigned short nextLineNo;
+	char headerDone;
+	void *pixels;
+	unsigned char sampleType;
+    } rl2PrivAsciiDestination;
+    typedef rl2PrivAsciiDestination *rl2PrivAsciiDestinationPtr;
+
     typedef struct rl2_pool_variance
     {
 	double variance;
@@ -468,6 +487,18 @@ extern "C"
 	rl2_decode_tiff_mono4 (const unsigned char *tiff, int tiff_sz,
 			       unsigned short *width, unsigned short *height,
 			       unsigned char **pixels, int *pixels_sz);
+
+    RL2_PRIVATE char truncate_8 (double val);
+
+    RL2_PRIVATE unsigned char truncate_u8 (double val);
+
+    RL2_PRIVATE short truncate_16 (double val);
+
+    RL2_PRIVATE unsigned short truncate_u16 (double val);
+
+    RL2_PRIVATE int truncate_32 (double val);
+
+    RL2_PRIVATE unsigned int truncate_u32 (double val);
 
 #ifdef __cplusplus
 }

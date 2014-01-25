@@ -11,7 +11,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_nile_8 test_map_nile_u8 \
 	test_map_nile_u16 test_map_nile_32 \
 	test_map_nile_u32 test_map_nile_flt \
-	test_map_nile_dbl \
+	test_map_nile_dbl test_map_ascii \
 	test_map_rgb test_map_gray \
 	test_map_srtm test_map_mono 
 
@@ -52,7 +52,9 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/usgs-nile-dbl/nile1-dbl.tif \
 	map_samples/usgs-nile-dbl/nile2-dbl.tif \
 	map_samples/ctrt/cap1.tif \
-	map_samples/ctrt/cap2.tif 
+	map_samples/ctrt/cap2.tif \
+	map_samples/ascii/ascii1.asc \
+	map_samples/ascii/ascii2.asc
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

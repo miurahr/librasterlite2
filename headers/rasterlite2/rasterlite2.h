@@ -287,17 +287,30 @@ extern "C"
     typedef rl2TiffDestination *rl2TiffDestinationPtr;
 
 /**
- Typedef for RL2 ASCII Origin object (opaque, hidden)
+ Typedef for RL2 ASCII Grid Origin object (opaque, hidden)
 
- \sa rl2AsciiOriginPtr
+ \sa rl2AsciiGridOriginPtr
  */
-    typedef struct rl2_ascii_origin rl2AsciiOrigin;
+    typedef struct rl2_ascii_origin rl2AsciiGridOrigin;
 /**
- Typedef for RL2 ASCII Origin object pointer (opaque, hidden)
+ Typedef for RL2 ASCII Grid Origin object pointer (opaque, hidden)
 
- \sa rl2AsciiOrigin
+ \sa rl2AsciiGridOrigin
  */
-    typedef rl2AsciiOrigin *rl2AsciiOriginPtr;
+    typedef rl2AsciiGridOrigin *rl2AsciiGridOriginPtr;
+
+/**
+ Typedef for RL2 ASCII Grid Destination object (opaque, hidden)
+
+ \sa rl2AsciiGridDestinationPtr
+ */
+    typedef struct rl2_ascii_destination rl2AsciiGridDestination;
+/**
+ Typedef for RL2 ASCII Grid Destination object pointer (opaque, hidden)
+
+ \sa rl2AsciiHridDestination
+ */
+    typedef rl2AsciiGridOrigin *rl2AsciiGridDestinationPtr;
 
 /**
  Typedef for RL2 Raster Statistics object (opaque, hidden)
@@ -2803,47 +2816,94 @@ extern "C"
     RL2_DECLARE rl2PixelPtr
 	rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size);
 
-    RL2_DECLARE rl2AsciiOriginPtr rl2_create_ascii_origin (const char *path,
-							   int srid,
-							   unsigned char
-							   sample_type);
+    RL2_DECLARE rl2AsciiGridOriginPtr rl2_create_ascii_grid_origin (const char
+								    *path,
+								    int srid,
+								    unsigned
+								    char
+								    sample_type);
 
-    RL2_DECLARE void rl2_destroy_ascii_origin (rl2AsciiOriginPtr ascii);
-
-    RL2_DECLARE int
-	rl2_eval_ascii_origin_compatibility (rl2CoveragePtr cvg,
-					     rl2AsciiOriginPtr ascii);
-
-    RL2_DECLARE const char *rl2_get_ascii_origin_path (rl2AsciiOriginPtr ascii);
+    RL2_DECLARE void rl2_destroy_ascii_grid_origin (rl2AsciiGridOriginPtr
+						    ascii);
 
     RL2_DECLARE int
-	rl2_get_ascii_origin_size (rl2AsciiOriginPtr ascii,
-				   unsigned short *width,
-				   unsigned short *height);
+	rl2_eval_ascii_grid_origin_compatibility (rl2CoveragePtr cvg,
+						  rl2AsciiGridOriginPtr ascii);
+
+    RL2_DECLARE const char
+	*rl2_get_ascii_grid_origin_path (rl2AsciiGridOriginPtr ascii);
 
     RL2_DECLARE int
-	rl2_get_ascii_origin_type (rl2AsciiOriginPtr ascii,
-				   unsigned char *sample_type,
-				   unsigned char *pixel_type,
-				   unsigned char *num_bands);
-
-    RL2_DECLARE int rl2_get_ascii_origin_srid (rl2AsciiOriginPtr ascii,
-					       int *srid);
+	rl2_get_ascii_grid_origin_size (rl2AsciiGridOriginPtr ascii,
+					unsigned short *width,
+					unsigned short *height);
 
     RL2_DECLARE int
-	rl2_get_ascii_origin_extent (rl2AsciiOriginPtr ascii, double *minX,
-				     double *minY, double *maxX, double *maxY);
+	rl2_get_ascii_grid_origin_type (rl2AsciiGridOriginPtr ascii,
+					unsigned char *sample_type,
+					unsigned char *pixel_type,
+					unsigned char *num_bands);
+
+    RL2_DECLARE int rl2_get_ascii_grid_origin_srid (rl2AsciiGridOriginPtr ascii,
+						    int *srid);
 
     RL2_DECLARE int
-	rl2_get_ascii_origin_resolution (rl2AsciiOriginPtr ascii,
+	rl2_get_ascii_grid_origin_extent (rl2AsciiGridOriginPtr ascii,
+					  double *minX, double *minY,
+					  double *maxX, double *maxY);
+
+    RL2_DECLARE int
+	rl2_get_ascii_origin_resolution (rl2AsciiGridOriginPtr ascii,
 					 double *hResolution,
 					 double *vResolution);
 
     RL2_DECLARE rl2RasterPtr
-	rl2_get_tile_from_ascii_origin (rl2CoveragePtr cvg,
-					rl2AsciiOriginPtr ascii,
-					unsigned int startRow,
-					unsigned int startCol);
+	rl2_get_tile_from_ascii_grid_origin (rl2CoveragePtr cvg,
+					     rl2AsciiGridOriginPtr ascii,
+					     unsigned int startRow,
+					     unsigned int startCol);
+
+    RL2_DECLARE rl2AsciiGridDestinationPtr
+	rl2_create_ascii_grid_destination (const char *path,
+					   unsigned short width,
+					   unsigned short height,
+					   double resolution, double x,
+					   double y, int is_centered,
+					   double no_data, int decimal_digits,
+					   void *pixels, int pixels_size,
+					   unsigned char sample_type);
+
+    RL2_DECLARE void
+	rl2_destroy_ascii_grid_destination (rl2AsciiGridDestinationPtr ascii);
+
+    RL2_DECLARE const char
+	*rl2_get_ascii_grid_destination_path (rl2AsciiGridDestinationPtr ascii);
+
+    RL2_DECLARE int
+	rl2_get_ascii_grid_destination_size (rl2AsciiGridDestinationPtr ascii,
+					     unsigned short *width,
+					     unsigned short *height);
+
+    RL2_DECLARE int
+	rl2_get_ascii_grid_destination_type (rl2AsciiGridDestinationPtr ascii,
+					     unsigned char *sample_type,
+					     unsigned char *pixel_type,
+					     unsigned char *num_bands);
+
+    RL2_DECLARE int
+	rl2_get_ascii_grid_destination_tiepoint (rl2AsciiGridDestinationPtr
+						 ascii, double *X, double *Y);
+
+    RL2_DECLARE int
+	rl2_get_ascii_grid_destination_resolution (rl2AsciiGridDestinationPtr
+						   ascii, double *resolution);
+
+    RL2_DECLARE int
+	rl2_write_ascii_grid_header (rl2AsciiGridDestinationPtr ascii);
+
+    RL2_DECLARE int
+	rl2_write_ascii_grid_scanline (rl2AsciiGridDestinationPtr ascii,
+				       unsigned short *line_no);
 
     RL2_DECLARE int
 	rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
@@ -2888,6 +2948,14 @@ extern "C"
 				   unsigned short height,
 				   unsigned char compression,
 				   unsigned short tile_sz);
+
+    RL2_DECLARE int
+	rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
+					 rl2CoveragePtr coverage, double res,
+					 double minx, double miny, double maxx,
+					 double maxy, unsigned short width,
+					 unsigned short height, int is_centered,
+					 int decimal_digits);
 
 #ifdef __cplusplus
 }

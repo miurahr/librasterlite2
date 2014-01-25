@@ -265,6 +265,19 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
 }
 
 static int
+is_ascii_grid (const char *path)
+{
+/* testing for an ASCII Grid */
+    int len = strlen (path);
+    if (len > 4)
+      {
+	  if (strcasecmp (path + len - 4, ".asc") == 0)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
 exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	     double x_res, double y_res, double minx, double miny, double maxx,
 	     double maxy, unsigned short width, unsigned short height)
@@ -273,10 +286,22 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
     rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	return 0;
-    if (rl2_export_geotiff_from_dbms
-	(handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
-	 width, height, RL2_COMPRESSION_NONE, 256, 0) != RL2_OK)
-	return 0;
+    if (is_ascii_grid (dst_path))
+      {
+	  /* export an ASCII Grid */
+	  if (rl2_export_ascii_grid_from_dbms
+	      (handle, dst_path, cvg, x_res, minx, miny, maxx, maxy, width,
+	       height, 0, 4) != RL2_OK)
+	      return 0;
+      }
+    else
+      {
+	  /* export a GeoTIFF */
+	  if (rl2_export_geotiff_from_dbms
+	      (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
+	       width, height, RL2_COMPRESSION_NONE, 256, 0) != RL2_OK)
+	      return 0;
+      }
     return 1;
 }
 

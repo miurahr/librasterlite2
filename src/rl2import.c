@@ -371,7 +371,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 {
 /* importing an ASCII Data Grid file */
     int ret;
-    rl2AsciiOriginPtr origin = NULL;
+    rl2AsciiGridOriginPtr origin = NULL;
     rl2RasterPtr raster = NULL;
     rl2RasterStatisticsPtr section_stats = NULL;
     rl2PixelPtr no_data = NULL;
@@ -397,19 +397,19 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     char *dumb2;
     sqlite3_int64 section_id;
 
-    origin = rl2_create_ascii_origin (src_path, srid, sample_type);
+    origin = rl2_create_ascii_grid_origin (src_path, srid, sample_type);
     if (origin == NULL)
 	goto error;
 
-    printf ("Importing: %s\n", rl2_get_ascii_origin_path (origin));
+    printf ("Importing: %s\n", rl2_get_ascii_grid_origin_path (origin));
     printf ("------------------\n");
-    ret = rl2_get_ascii_origin_size (origin, &width, &height);
+    ret = rl2_get_ascii_grid_origin_size (origin, &width, &height);
     if (ret == RL2_OK)
 	printf ("    Image Size (pixels): %d x %d\n", width, height);
-    ret = rl2_get_ascii_origin_srid (origin, &srid);
+    ret = rl2_get_ascii_grid_origin_srid (origin, &srid);
     if (ret == RL2_OK)
 	printf ("                   SRID: %d\n", srid);
-    ret = rl2_get_ascii_origin_extent (origin, &minx, &miny, &maxx, &maxy);
+    ret = rl2_get_ascii_grid_origin_extent (origin, &minx, &miny, &maxx, &maxy);
     if (ret == RL2_OK)
       {
 	  dumb1 = formatLong (minx);
@@ -423,7 +423,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
       }
-    ret = rl2_get_ascii_origin_resolution (origin, &res_x, &res_y);
+    ret = rl2_get_ascii_grid_origin_resolution (origin, &res_x, &res_y);
     if (ret == RL2_OK)
       {
 	  dumb1 = formatFloat (res_x);
@@ -433,7 +433,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	  sqlite3_free (dumb2);
       }
 
-    if (rl2_eval_ascii_origin_compatibility (cvg, origin) != RL2_TRUE)
+    if (rl2_eval_ascii_grid_origin_compatibility (cvg, origin) != RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/ASCII mismatch\n");
 	  goto error;
@@ -458,7 +458,8 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster = rl2_get_tile_from_ascii_origin (cvg, origin, row, col);
+		raster =
+		    rl2_get_tile_from_ascii_grid_origin (cvg, origin, row, col);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,
@@ -496,7 +497,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
 	goto error;
 
-    rl2_destroy_ascii_origin (origin);
+    rl2_destroy_ascii_grid_origin (origin);
     rl2_destroy_raster_statistics (section_stats);
 
     return 1;
@@ -507,7 +508,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     if (blob_even != NULL)
 	free (blob_even);
     if (origin != NULL)
-	rl2_destroy_ascii_origin (origin);
+	rl2_destroy_ascii_grid_origin (origin);
     if (raster != NULL)
 	rl2_destroy_raster (raster);
     if (section_stats != NULL)
@@ -516,13 +517,13 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 }
 
 static int
-is_ascii_grid (const char *src_path)
+is_ascii_grid (const char *path)
 {
 /* testing for an ASCII Grid */
-    int len = strlen (src_path);
+    int len = strlen (path);
     if (len > 4)
       {
-	  if (strcasecmp (src_path + len - 4, ".asc") == 0)
+	  if (strcasecmp (path + len - 4, ".asc") == 0)
 	      return 1;
       }
     return 0;
@@ -1753,6 +1754,146 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	rl2_destroy_tiff_destination (tiff);
     if (outbuf != NULL)
 	free (outbuf);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
+				 rl2CoveragePtr cvg, double res,
+				 double minx, double miny, double maxx,
+				 double maxy, unsigned short width,
+				 unsigned short height, int is_centered,
+				 int decimal_digits)
+{
+/* exporting an ASCII Grid from the DBMS into the file-system */
+    rl2PalettePtr palette = NULL;
+    rl2AsciiGridDestinationPtr ascii = NULL;
+    rl2PixelPtr pixel;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = res;
+    double yy_res = res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    double no_data = -9999.0;
+    int base_x;
+    int base_y;
+    unsigned char *pixels = NULL;
+    int pixels_size;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+
+    if (pixel_type != RL2_PIXEL_DATAGRID || num_bands != 1)
+	goto error;
+
+    pixel = rl2_get_coverage_no_data (cvg);
+    if (pixel != NULL)
+      {
+	  /* attempting to retrieve the NO-DATA value */
+	  unsigned char st;
+	  unsigned char pt;
+	  unsigned char nb;
+	  if (rl2_get_pixel_type (pixel, &st, &pt, &nb) == RL2_OK)
+	    {
+		if (st == RL2_SAMPLE_INT8)
+		  {
+		      char v8;
+		      if (rl2_get_pixel_sample_int8 (pixel, &v8) == RL2_OK)
+			  no_data = v8;
+		  }
+		if (st == RL2_SAMPLE_UINT8)
+		  {
+		      unsigned char vu8;
+		      if (rl2_get_pixel_sample_uint8 (pixel, 0, &vu8) == RL2_OK)
+			  no_data = vu8;
+		  }
+		if (st == RL2_SAMPLE_INT16)
+		  {
+		      short v16;
+		      if (rl2_get_pixel_sample_int16 (pixel, &v16) == RL2_OK)
+			  no_data = v16;
+		  }
+		if (st == RL2_SAMPLE_UINT16)
+		  {
+		      unsigned short vu16;
+		      if (rl2_get_pixel_sample_uint16 (pixel, 0, &vu16) ==
+			  RL2_OK)
+			  no_data = vu16;
+		  }
+		if (st == RL2_SAMPLE_INT32)
+		  {
+		      int v32;
+		      if (rl2_get_pixel_sample_int32 (pixel, &v32) == RL2_OK)
+			  no_data = v32;
+		  }
+		if (st == RL2_SAMPLE_UINT32)
+		  {
+		      unsigned int vu32;
+		      if (rl2_get_pixel_sample_uint32 (pixel, &vu32) == RL2_OK)
+			  no_data = vu32;
+		  }
+		if (st == RL2_SAMPLE_FLOAT)
+		  {
+		      float vflt;
+		      if (rl2_get_pixel_sample_float (pixel, &vflt) == RL2_OK)
+			  no_data = vflt;
+		  }
+		if (st == RL2_SAMPLE_DOUBLE)
+		  {
+		      double vdbl;
+		      if (rl2_get_pixel_sample_double (pixel, &vdbl) == RL2_OK)
+			  no_data = vdbl;
+		  }
+	    }
+      }
+
+    if (rl2_get_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, res, res, &pixels,
+	 &pixels_size, &palette) != RL2_OK)
+	goto error;
+
+    ascii =
+	rl2_create_ascii_grid_destination (dst_path, width, height,
+					   xx_res, minx, miny, is_centered,
+					   no_data, decimal_digits, pixels,
+					   pixels_size, sample_type);
+    if (ascii == NULL)
+	goto error;
+    pixels = NULL;		/* pix-buffer ownership now belongs to the ASCII object */
+/* writing the ASCII Grid header */
+    if (rl2_write_ascii_grid_header (ascii) != RL2_OK)
+	goto error;
+    for (base_y = 0; base_y < height; base_y++)
+      {
+	  /* exporting all scanlines from the output buffer */
+	  unsigned short line_no;
+	  if (rl2_write_ascii_grid_scanline (ascii, &line_no) != RL2_OK)
+	      goto error;
+      }
+
+    rl2_destroy_ascii_grid_destination (ascii);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_OK;
+
+  error:
+    if (ascii != NULL)
+	rl2_destroy_ascii_grid_destination (ascii);
+    if (pixels != NULL)
+	free (pixels);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
     return RL2_ERROR;

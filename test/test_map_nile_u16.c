@@ -88,7 +88,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample, int tile_sz,
     const char *pixel_name;
     unsigned char num_bands;
     const char *compression_name;
-    int qlty;
+    int qlty = 100;
     char *sql;
     int tile_size;
 

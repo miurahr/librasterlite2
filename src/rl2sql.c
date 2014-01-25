@@ -1802,9 +1802,9 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     if (argc > 2)
 	file_ext = (const char *) sqlite3_value_text (argv[2]);
     if (argc > 3)
-	worldfile = sqlite3_value_int (argv[2]);
+	worldfile = sqlite3_value_int (argv[3]);
     if (argc > 4)
-	force_srid = sqlite3_value_int (argv[3]);
+	force_srid = sqlite3_value_int (argv[4]);
     if (argc > 5)
 	transaction = sqlite3_value_int (argv[5]);
     if (transaction)
@@ -2333,6 +2333,160 @@ fnct_WriteTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteAsciiGrid(text coverage, text tiff_path, int width,
+/           int height, BLOB geom, double resolution)
+/ WriteTiff(text coverage, text tiff_path, int width,
+/           int height, BLOB geom, double resolution, 
+/           int is_centered)
+/ WriteTiff(text coverage, text tiff_path, int width,
+/           int height, BLOB geom, double resolution, 
+/           int is_centered, int decimal_digits)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    const char *path;
+    int width;
+    int height;
+    const unsigned char *blob;
+    int blob_sz;
+    double resolution;
+    rl2CoveragePtr coverage;
+    sqlite3 *sqlite;
+    int ret;
+    int errcode = -1;
+    gaiaGeomCollPtr geom;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    int is_centered = 1;
+    int decimal_digits = 4;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
+	err = 1;
+    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
+	err = 1;
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* retrieving any other argument */
+    path = (const char *) sqlite3_value_text (argv[1]);
+    width = sqlite3_value_int (argv[2]);
+    height = sqlite3_value_int (argv[3]);
+    blob = sqlite3_value_blob (argv[4]);
+    blob_sz = sqlite3_value_bytes (argv[4]);
+    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+      {
+	  int ival = sqlite3_value_int (argv[5]);
+	  resolution = ival;
+      }
+    else
+	resolution = sqlite3_value_double (argv[5]);
+    if (argc > 6)
+	is_centered = sqlite3_value_int (argv[6]);
+    if (argc > 7)
+	decimal_digits = sqlite3_value_int (argv[7]);
+
+    if (decimal_digits < 1)
+	decimal_digits = 0;
+    if (decimal_digits > 18)
+	decimal_digits = 18;
+
+/* coarse args validation */
+    if (width < 0 || width > UINT16_MAX)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    if (height < 0 || height > UINT16_MAX)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+
+/* checking the Geometry */
+    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
+    if (geom == NULL)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    if (is_point (geom))
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  gaiaPointPtr pt = geom->FirstPoint;
+	  double ext_x = (double) width * resolution;
+	  double ext_y = (double) height * resolution;
+	  minx = pt->X - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt->Y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else
+      {
+	  /* assumed to be any possible Geometry defining a BBOX */
+	  minx = geom->MinX;
+	  maxx = geom->MaxX;
+	  miny = geom->MinY;
+	  maxy = geom->MaxY;
+      }
+    gaiaFreeGeomColl (geom);
+
+    ret =
+	rl2_export_ascii_grid_from_dbms (sqlite, path, coverage,
+					 resolution, minx,
+					 miny, maxx, maxy, width,
+					 height, is_centered, decimal_digits);
+    if (ret != RL2_OK)
+      {
+	  errcode = 0;
+	  goto error;
+      }
+    rl2_destroy_coverage (coverage);
+    sqlite3_result_int (context, 1);
+    return;
+
+  error:
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    sqlite3_result_int (context, errcode);
+}
+
+static void
 register_rl2_sql_functions (void *p_db)
 {
     sqlite3 *db = p_db;
@@ -2548,6 +2702,18 @@ register_rl2_sql_functions (void *p_db)
 				   0, fnct_WriteTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_ANY,
 				   0, fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 6, SQLITE_ANY,
+				   0, fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 6, SQLITE_ANY,
+				   0, fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 7, SQLITE_ANY,
+				   0, fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 7, SQLITE_ANY,
+				   0, fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 8, SQLITE_ANY,
+				   0, fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY,
+				   0, fnct_WriteAsciiGrid, 0, 0);
       }
 }
 

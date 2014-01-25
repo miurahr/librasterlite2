@@ -2046,7 +2046,7 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     return RL2_TRUE;
 }
 
-static char
+RL2_PRIVATE char
 truncate_8 (double val)
 {
 /* truncating to signed 8 bit integer */
@@ -2057,7 +2057,7 @@ truncate_8 (double val)
     return (char) val;
 }
 
-static unsigned char
+RL2_PRIVATE unsigned char
 truncate_u8 (double val)
 {
 /* truncating to unsigned 8 bit integer */
@@ -2068,7 +2068,7 @@ truncate_u8 (double val)
     return (unsigned char) val;
 }
 
-static short
+RL2_PRIVATE short
 truncate_16 (double val)
 {
 /* truncating to signed 16 bit integer */
@@ -2079,7 +2079,7 @@ truncate_16 (double val)
     return (char) val;
 }
 
-static unsigned short
+RL2_PRIVATE unsigned short
 truncate_u16 (double val)
 {
 /* truncating to unsigned 16 bit integer */
@@ -2090,7 +2090,7 @@ truncate_u16 (double val)
     return (unsigned char) val;
 }
 
-static int
+RL2_PRIVATE int
 truncate_32 (double val)
 {
 /* truncating to signed 32 bit integer */
@@ -2101,7 +2101,7 @@ truncate_32 (double val)
     return (char) val;
 }
 
-static unsigned int
+RL2_PRIVATE unsigned int
 truncate_u32 (double val)
 {
 /* truncating to unsigned 32 bit integer */

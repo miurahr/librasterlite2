@@ -432,6 +432,25 @@ extern "C"
     } rl2PrivRasterStatistics;
     typedef rl2PrivRasterStatistics *rl2PrivRasterStatisticsPtr;
 
+    typedef struct wms_retry_item
+    {
+	int done;
+	int count;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
+	struct wms_retry_item *next;
+    } WmsRetryItem;
+    typedef WmsRetryItem *WmsRetryItemPtr;
+
+    typedef struct wms_retry_list
+    {
+	WmsRetryItemPtr first;
+	WmsRetryItemPtr last;
+    } WmsRetryList;
+    typedef WmsRetryList *WmsRetryListPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);

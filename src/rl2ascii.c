@@ -416,7 +416,7 @@ rl2_create_ascii_grid_origin (const char *path, int srid,
 			{
 			case RL2_SAMPLE_INT8:
 			    int8_value = truncate_8 (dbl_value);
-			    *p_int8++ = uint8_value;
+			    *p_int8++ = int8_value;
 			    break;
 			case RL2_SAMPLE_UINT8:
 			    uint8_value = truncate_u8 (dbl_value);
@@ -1282,7 +1282,7 @@ rl2_write_ascii_grid_scanline (rl2AsciiGridDestinationPtr ascii,
     short *p16;
     unsigned short *pu16;
     int *p32;
-    unsigned short *pu32;
+    unsigned int *pu32;
     float *pflt;
     double *pdbl;
     double cell_value;

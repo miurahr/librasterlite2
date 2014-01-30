@@ -3953,14 +3953,30 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     if (origin->photometric == PHOTOMETRIC_PALETTE)
       {
 	  /* creating an ordinary Palette */
-	  if (origin->maxPalette > 0)
+	  if (origin->remapMaxPalette > 0)
 	    {
-		palette = rl2_create_palette (origin->maxPalette);
+		palette = rl2_create_palette (origin->remapMaxPalette);
 		for (x = 0; x < origin->maxPalette; x++)
 		  {
-		      rl2_set_palette_color (palette, x, origin->red[x],
-					     origin->green[x],
-					     origin->blue[x], origin->alpha[x]);
+		      rl2_set_palette_color (palette, x,
+					     origin->remapRed[x],
+					     origin->remapGreen[x],
+					     origin->remapBlue[x],
+					     origin->remapAlpha[x]);
+		  }
+	    }
+	  else
+	    {
+		if (origin->maxPalette > 0)
+		  {
+		      palette = rl2_create_palette (origin->maxPalette);
+		      for (x = 0; x < origin->maxPalette; x++)
+			{
+			    rl2_set_palette_color (palette, x, origin->red[x],
+						   origin->green[x],
+						   origin->blue[x],
+						   origin->alpha[x]);
+			}
 		  }
 	    }
       }

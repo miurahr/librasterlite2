@@ -13,11 +13,12 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_nile_u32 test_map_nile_flt \
 	test_map_nile_dbl test_map_ascii \
 	test_map_rgb test_map_gray \
-	test_map_srtm test_map_mono 
+	test_map_srtm test_map_mono \
+	test_map_indiana test_load_wms
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
-	 @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ \
+	@LIBWEBP_LIBS@ @LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ \
 	@LIBCURL_LIBS@ @LIBXML2_LIBS@ $(GCOV_FLAGS)
 
 TESTS = $(check_PROGRAMS)
@@ -51,10 +52,12 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/usgs-nile-flt/nile2-flt.tif \
 	map_samples/usgs-nile-dbl/nile1-dbl.tif \
 	map_samples/usgs-nile-dbl/nile2-dbl.tif \
+	map_samples/usgs-indiana/indiana1.tif \
+	map_samples/usgs-indiana/indiana2.tif \
 	map_samples/ctrt/cap1.tif \
 	map_samples/ctrt/cap2.tif \
 	map_samples/ascii/ascii1.asc \
-	map_samples/ascii/ascii2.asc
+	map_samples/ascii/ascii2.asc 
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

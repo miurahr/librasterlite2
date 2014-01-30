@@ -1083,7 +1083,8 @@ rl2_prime_void_tile_palette (void *pixels, unsigned short width,
 	;
     else
       {
-	  /* searching for WHITE */ rl2PrivPaletteEntryPtr entry;
+	  /* searching for WHITE */
+	  rl2PrivPaletteEntryPtr entry;
 	  for (j = 0; j < plt->nEntries; j++)
 	    {
 		entry = plt->entries + j;
@@ -1929,7 +1930,8 @@ void_raw_buffer_palette (unsigned char *buffer, unsigned short width,
 	;
     else
       {
-	  /* searching for WHITE */ rl2PrivPaletteEntryPtr entry;
+	  /* searching for WHITE */
+	  rl2PrivPaletteEntryPtr entry;
 	  for (j = 0; j < plt->nEntries; j++)
 	    {
 		entry = plt->entries + j;
@@ -2061,7 +2063,7 @@ copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
 		      rl2_get_pixel_sample_int8 (no_data, &sample);
 		      if (sample == *p_in++)
 			  match = 1;
-		      if (match)
+		      if (!match)
 			{
 			    /* opaque pixel */
 			    p_in = p_save;
@@ -2305,7 +2307,7 @@ copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
 		      rl2_get_pixel_sample_int16 (no_data, &sample);
 		      if (sample == *p_in++)
 			  match = 1;
-		      if (match)
+		      if (!match)
 			{
 			    /* opaque pixel */
 			    p_in = p_save;
@@ -2532,7 +2534,7 @@ copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
 		      rl2_get_pixel_sample_int32 (no_data, &sample);
 		      if (sample == *p_in++)
 			  match = 1;
-		      if (match)
+		      if (!match)
 			{
 			    /* opaque pixel */
 			    p_in = p_save;
@@ -2640,7 +2642,7 @@ copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
 		      rl2_get_pixel_sample_uint32 (no_data, &sample);
 		      if (sample == *p_in++)
 			  match = 1;
-		      if (match)
+		      if (!match)
 			{
 			    /* opaque pixel */
 			    p_in = p_save;
@@ -2748,7 +2750,7 @@ copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
 		      rl2_get_pixel_sample_float (no_data, &sample);
 		      if (sample == *p_in++)
 			  match = 1;
-		      if (match)
+		      if (!match)
 			{
 			    /* opaque pixel */
 			    p_in = p_save;
@@ -2856,7 +2858,7 @@ copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
 		      rl2_get_pixel_sample_double (no_data, &sample);
 		      if (sample == *p_in++)
 			  match = 1;
-		      if (match)
+		      if (!match)
 			{
 			    /* opaque pixel */
 			    p_in = p_save;

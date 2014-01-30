@@ -78,7 +78,7 @@ execute_check (sqlite3 * sqlite, const char *sql)
 
 static int
 do_export_ascii (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		   int scale)
+		 int scale)
 {
 /* exporting an ASCII Grid */
     char *sql;
@@ -88,7 +88,7 @@ do_export_ascii (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     unsigned char *blob;
     int blob_size;
     int retcode = 0;
-    double res = 1.0 * (double)scale;
+    double res = 1.0 * (double) scale;
 
     path = sqlite3_mprintf ("./%s_%d.asc", coverage, scale);
 
@@ -114,7 +114,7 @@ do_export_ascii (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	      retcode = 1;
       }
     sqlite3_finalize (stmt);
-    // unlink (path);
+    unlink (path);
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
@@ -605,7 +605,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -5;
 	  return 0;
       }
-    if (!do_export_ascii(sqlite, coverage, geom, 1))
+    if (!do_export_ascii (sqlite, coverage, geom, 1))
       {
 	  *retcode += -6;
 	  return 0;
@@ -1062,7 +1062,8 @@ main (int argc, char *argv[])
 	return ret;
     ret = -370;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -400;
     if (!test_coverage
@@ -1128,7 +1129,8 @@ main (int argc, char *argv[])
 	return ret;
     ret = -380;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
 	return ret;
     ret = -410;
     if (!drop_coverage

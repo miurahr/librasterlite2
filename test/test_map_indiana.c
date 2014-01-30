@@ -1,6 +1,6 @@
 /*
 
- test_map_gray.c -- RasterLite-2 Test Case
+ test_map_indiana.c -- RasterLite-2 Test Case
 
  Author: Sandro Furieri <a.furieri@lqt.it>
 
@@ -207,7 +207,7 @@ do_export_tiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     sqlite3_bind_blob (stmt, 5, blob, blob_size, free);
     sqlite3_bind_double (stmt, 6, xx_res);
     sqlite3_bind_double (stmt, 7, yy_res);
-    sqlite3_bind_text (stmt, 8, "LZW", 3, SQLITE_TRANSIENT);
+    sqlite3_bind_text (stmt, 8, "DEFLATE", 7, SQLITE_TRANSIENT);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
       {
@@ -278,81 +278,6 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* setting the coverage name */
     switch (pixel)
       {
-      case RL2_PIXEL_GRAYSCALE:
-	  switch (compression)
-	    {
-	    case RL2_COMPRESSION_NONE:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_none_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_none_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_none_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_PNG:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_png_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_png_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_png_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_JPEG:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_jpeg_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_jpeg_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_jpeg_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSY_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_webp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_webp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_webp_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSLESS_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_llwebp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_llwebp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_llwebp_1024";
-		      break;
-		  };
-		break;
-	    };
-	  break;
       case RL2_PIXEL_PALETTE:
 	  switch (compression)
 	    {
@@ -389,16 +314,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       };
 
 /* preparing misc Coverage's parameters */
-    sample_name = "UINT8";
-    switch (pixel)
-      {
-      case RL2_PIXEL_GRAYSCALE:
-	  pixel_name = "GRAYSCALE";
-	  break;
-      case RL2_PIXEL_PALETTE:
-	  pixel_name = "PALETTE";
-	  break;
-      };
+    sample_name = "4-BIT";
+    pixel_name = "PALETTE";
     num_bands = 1;
     switch (compression)
       {
@@ -408,18 +325,6 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  break;
       case RL2_COMPRESSION_PNG:
 	  compression_name = "PNG";
-	  qlty = 100;
-	  break;
-      case RL2_COMPRESSION_JPEG:
-	  compression_name = "JPEG";
-	  qlty = 80;
-	  break;
-      case RL2_COMPRESSION_LOSSY_WEBP:
-	  compression_name = "WEBP";
-	  qlty = 80;
-	  break;
-      case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  compression_name = "LL_WEBP";
 	  qlty = 100;
 	  break;
       };
@@ -438,10 +343,11 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 
 /* creating the DBMS Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_CreateCoverage("
-			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %d, %d)",
+			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %1.4f, %1.4f, "
+			   "RL2_SetPixelValue(RL2_CreatePixel(%Q, %Q, 1), 0, 0))",
 			   coverage, sample_name, pixel_name, num_bands,
-			   compression_name, qlty, tile_size, tile_size, 26914,
-			   1, 1);
+			   compression_name, qlty, tile_size, tile_size, 26716,
+			   2.4384, 2.4384, sample_name, pixel_name);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -456,8 +362,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* loading from directory */
     sql =
 	sqlite3_mprintf
-	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 26914, 1)", coverage,
-	 "map_samples/usgs-gray", ".tif");
+	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 26716, 1)", coverage,
+	 "map_samples/usgs-indiana", ".tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -471,7 +377,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 
 /* deleting the first section */
     sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
-			   coverage, "gray1");
+			   coverage, "indiana1");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -484,8 +390,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* re-loading yet again the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 26914, 1)",
-			   coverage, "map_samples/usgs-gray/gray1.tif");
+    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 26716, 1)",
+			   coverage, "map_samples/usgs-indiana/indiana1.tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -508,39 +414,9 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -6;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 2))
-      {
-	  *retcode += -7;
-	  return 0;
-      }
-    if (!do_export_geotiff (sqlite, coverage, geom, 4))
-      {
-	  *retcode += -8;
-	  return 0;
-      }
-    if (!do_export_geotiff (sqlite, coverage, geom, 8))
-      {
-	  *retcode += -9;
-	  return 0;
-      }
     if (!do_export_tiff (sqlite, coverage, geom, 1))
       {
-	  *retcode += -10;
-	  return 0;
-      }
-    if (!do_export_tiff (sqlite, coverage, geom, 2))
-      {
-	  *retcode += -11;
-	  return 0;
-      }
-    if (!do_export_tiff (sqlite, coverage, geom, 4))
-      {
-	  *retcode += -12;
-	  return 0;
-      }
-    if (!do_export_tiff (sqlite, coverage, geom, 8))
-      {
-	  *retcode += -13;
+	  *retcode += -7;
 	  return 0;
       }
     gaiaFreeGeomColl (geom);
@@ -561,81 +437,6 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* setting the coverage name */
     switch (pixel)
       {
-      case RL2_PIXEL_GRAYSCALE:
-	  switch (compression)
-	    {
-	    case RL2_COMPRESSION_NONE:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_none_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_none_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_none_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_PNG:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_png_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_png_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_png_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_JPEG:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_jpeg_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_jpeg_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_jpeg_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSY_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_webp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_webp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_webp_1024";
-		      break;
-		  };
-		break;
-	    case RL2_COMPRESSION_LOSSLESS_WEBP:
-		switch (tile_sz)
-		  {
-		  case TILE_256:
-		      coverage = "gray_llwebp_256";
-		      break;
-		  case TILE_512:
-		      coverage = "gray_llwebp_512";
-		      break;
-		  case TILE_1024:
-		      coverage = "gray_llwebp_1024";
-		      break;
-		  };
-		break;
-	    };
-	  break;
       case RL2_PIXEL_PALETTE:
 	  switch (compression)
 	    {
@@ -740,187 +541,51 @@ main (int argc, char *argv[])
 /* GRAYSCALE tests */
     ret = -100;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
     ret = -120;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_512, &ret))
 	return ret;
     ret = -140;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -200;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -220;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_512, &ret))
-	return ret;
-    ret = -240;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
-	return ret;
-    ret = -300;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_256, &ret))
-	return ret;
-    ret = -320;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_512, &ret))
-	return ret;
-    ret = -340;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
-	return ret;
-    ret = -400;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
-	 &ret))
-	return ret;
-    ret = -420;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_512,
-	 &ret))
-	return ret;
-    ret = -440;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_1024,
-	 &ret))
-	return ret;
-    ret = -500;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_256, &ret))
-	return ret;
-    ret = -520;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_512, &ret))
-	return ret;
-    ret = -540;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_1024, &ret))
-	return ret;
-
-/* PALETTE tests */
-    ret = -600;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_256, &ret))
-	return ret;
-    ret = -620;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -640;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
-	return ret;
-    ret = -700;
-    if (!test_coverage
-	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_256, &ret))
-	return ret;
-    ret = -720;
-    if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
-    ret = -740;
+    ret = -240;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
 
-/* dropping all GRAYSCALE Coverages */
-    ret = -170;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_256, &ret))
-	return ret;
-    ret = -180;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_512, &ret))
-	return ret;
-    ret = -190;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
-	return ret;
-    ret = -270;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256, &ret))
-	return ret;
-    ret = -280;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_512, &ret))
-	return ret;
-    ret = -290;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
-	return ret;
-    ret = -370;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_256, &ret))
-	return ret;
-    ret = -380;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_512, &ret))
-	return ret;
-    ret = -390;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
-	return ret;
-    ret = -470;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
-	 &ret))
-	return ret;
-    ret = -480;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_512,
-	 &ret))
-	return ret;
-    ret = -490;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_1024,
-	 &ret))
-	return ret;
-    ret = -570;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_256, &ret))
-	return ret;
-    ret = -580;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_512, &ret))
-	return ret;
-    ret = -590;
-    if (!drop_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
-	 TILE_1024, &ret))
-	return ret;
-
 /* dropping all PALETTE Coverages */
-    ret = -670;
+    ret = -170;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_256, &ret))
 	return ret;
-    ret = -680;
+    ret = -180;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_512, &ret))
 	return ret;
-    ret = -690;
+    ret = -190;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
-    ret = -770;
+    ret = -270;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
-    ret = -780;
+    ret = -280;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
-    ret = -790;
+    ret = -290;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;

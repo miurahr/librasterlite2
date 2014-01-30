@@ -80,7 +80,7 @@ static int
 get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 		     double *y_res)
 {
-/* attempting to retrieve the Coverage's Center Point */
+/* attempting to retrieve the Coverage's base resolution */
     char *sql;
     sqlite3_stmt *stmt;
     int ret;
@@ -640,10 +640,12 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 
 /* creating the DBMS Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_CreateCoverage("
-			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %1.8f, %1.8f)",
+			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %1.8f, %1.8f, "
+			   "RL2_SetPixelValue(RL2_CreatePixel(%Q, %Q, 1), 0, 0))",
 			   coverage, sample_name, pixel_name, num_bands,
 			   compression_name, qlty, tile_size, tile_size, 4326,
-			   0.0008333333333333, 0.0008333333333333);
+			   0.0008333333333333, 0.0008333333333333, sample_name,
+			   pixel_name);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)

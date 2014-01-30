@@ -292,7 +292,26 @@ EXTRA_DIST = loadraster1.testcase \
 	loadrasterdir21.testcase \
 	loadrasterdir22.testcase \
 	loadrasterdir23.testcase \
-	loadrasterdir24.testcase
+	loadrasterdir24.testcase \
+	loadrasterwms1.testcase \
+	loadrasterwms2.testcase \
+	loadrasterwms3.testcase \
+	loadrasterwms4.testcase \
+	loadrasterwms5.testcase \
+	loadrasterwms6.testcase \
+	loadrasterwms7.testcase \
+	loadrasterwms8.testcase \
+	loadrasterwms9.testcase \
+	loadrasterwms10.testcase \
+	loadrasterwms11.testcase \
+	loadrasterwms12.testcase \
+	loadrasterwms13.testcase \
+	loadrasterwms14.testcase \
+	loadrasterwms15.testcase \
+	loadrasterwms16.testcase \
+	loadrasterwms17.testcase \
+	loadrasterwms18.testcase \
+	loadrasterwms19.testcase
 
 all: all-am
 

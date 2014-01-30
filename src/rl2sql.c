@@ -46,6 +46,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -60,7 +61,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #endif
 
 #include "rasterlite2/rasterlite2.h"
+#include "rasterlite2/rl2wms.h"
 #include "rasterlite2_private.h"
+
+#include <spatialite/gaiaaux.h>
 
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
@@ -1844,6 +1848,912 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     sqlite3_result_int (context, 1);
 }
 
+static WmsRetryListPtr
+alloc_retry_list ()
+{
+/* initializing an empty WMS retry-list */
+    WmsRetryListPtr lst = malloc (sizeof (WmsRetryList));
+    lst->first = NULL;
+    lst->last = NULL;
+    return lst;
+}
+
+static void
+free_retry_list (WmsRetryListPtr lst)
+{
+/* memory cleanup - destroying a list of WMS retry requests */
+    WmsRetryItemPtr p;
+    WmsRetryItemPtr pn;
+    if (lst == NULL)
+	return;
+    p = lst->first;
+    while (p != NULL)
+      {
+	  pn = p->next;
+	  free (p);
+	  p = pn;
+      }
+    free (lst);
+}
+
+static void
+add_retry (WmsRetryListPtr lst, double minx, double miny, double maxx,
+	   double maxy)
+{
+/* inserting a WMS retry request into the list */
+    WmsRetryItemPtr p;
+    if (lst == NULL)
+	return;
+    p = malloc (sizeof (WmsRetryItem));
+    p->done = 0;
+    p->count = 0;
+    p->minx = minx;
+    p->miny = miny;
+    p->maxx = maxx;
+    p->maxy = maxy;
+    p->next = NULL;
+    if (lst->first == NULL)
+	lst->first = p;
+    if (lst->last != NULL)
+	lst->last->next = p;
+    lst->last = p;
+}
+
+static gaiaGeomCollPtr
+build_extent (int srid, double minx, double miny, double maxx, double maxy)
+{
+/* building an MBR (Envelope) */
+    gaiaPolygonPtr pg;
+    gaiaRingPtr rng;
+    gaiaGeomCollPtr geom = gaiaAllocGeomColl ();
+    geom->Srid = srid;
+    pg = gaiaAddPolygonToGeomColl (geom, 5, 0);
+    rng = pg->Exterior;
+    gaiaSetPoint (rng->Coords, 0, minx, miny);
+    gaiaSetPoint (rng->Coords, 1, maxx, miny);
+    gaiaSetPoint (rng->Coords, 2, maxx, maxy);
+    gaiaSetPoint (rng->Coords, 3, minx, maxy);
+    gaiaSetPoint (rng->Coords, 4, minx, miny);
+    return geom;
+}
+
+static int
+do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
+		unsigned char *blob_even, int blob_even_sz,
+		sqlite3_int64 section_id, int srid, double res_x, double res_y,
+		unsigned short tile_w, unsigned short tile_h, double minx,
+		double miny, double maxx, double maxy, double tile_minx,
+		double tile_miny, double tile_maxx, double tile_maxy,
+		rl2PalettePtr aux_palette, rl2PixelPtr no_data,
+		sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
+		rl2RasterStatisticsPtr section_stats)
+{
+/* INSERTing the tile */
+    int ret;
+    sqlite3_int64 tile_id;
+    unsigned char *blob;
+    int blob_size;
+    gaiaGeomCollPtr geom;
+    rl2RasterStatisticsPtr stats = NULL;
+
+    stats = rl2_get_raster_statistics
+	(blob_odd, blob_odd_sz, blob_even, blob_even_sz, aux_palette, no_data);
+    if (stats == NULL)
+	goto error;
+    rl2_aggregate_raster_statistics (stats, section_stats);
+    sqlite3_reset (stmt_tils);
+    sqlite3_clear_bindings (stmt_tils);
+    sqlite3_bind_int64 (stmt_tils, 1, section_id);
+    tile_maxx = tile_minx + ((double) tile_w * res_x);
+    if (tile_maxx > maxx)
+	tile_maxx = maxx;
+    tile_miny = tile_maxy - ((double) tile_h * res_y);
+    if (tile_miny < miny)
+	tile_miny = miny;
+    geom = build_extent (srid, tile_minx, tile_miny, tile_maxx, tile_maxy);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    gaiaFreeGeomColl (geom);
+    sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
+    ret = sqlite3_step (stmt_tils);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO tiles; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    tile_id = sqlite3_last_insert_rowid (handle);
+    /* INSERTing tile data */
+    sqlite3_reset (stmt_data);
+    sqlite3_clear_bindings (stmt_data);
+    sqlite3_bind_int64 (stmt_data, 1, tile_id);
+    sqlite3_bind_blob (stmt_data, 2, blob_odd, blob_odd_sz, free);
+    if (blob_even == NULL)
+	sqlite3_bind_null (stmt_data, 3);
+    else
+	sqlite3_bind_blob (stmt_data, 3, blob_even, blob_even_sz, free);
+    ret = sqlite3_step (stmt_data);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO tile_data; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    rl2_destroy_raster_statistics (stats);
+    return 1;
+  error:
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
+    return 0;
+}
+
+static int
+do_insert_levels (sqlite3 * handle, double res_x, double res_y,
+		  sqlite3_stmt * stmt_levl)
+{
+/* INSERTing the base-levels */
+    int ret;
+    sqlite3_reset (stmt_levl);
+    sqlite3_clear_bindings (stmt_levl);
+    sqlite3_bind_double (stmt_levl, 1, res_x);
+    sqlite3_bind_double (stmt_levl, 2, res_y);
+    sqlite3_bind_double (stmt_levl, 3, res_x * 2.0);
+    sqlite3_bind_double (stmt_levl, 4, res_y * 2.0);
+    sqlite3_bind_double (stmt_levl, 5, res_x * 4.0);
+    sqlite3_bind_double (stmt_levl, 6, res_y * 4.0);
+    sqlite3_bind_double (stmt_levl, 7, res_x * 8.0);
+    sqlite3_bind_double (stmt_levl, 8, res_y * 8.0);
+    ret = sqlite3_step (stmt_levl);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO levels; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    return 1;
+  error:
+    return 0;
+}
+
+static int
+do_insert_stats (sqlite3 * handle, rl2RasterStatisticsPtr section_stats,
+		 sqlite3_int64 section_id, sqlite3_stmt * stmt_upd_sect)
+{
+/* updating the Section's Statistics */
+    unsigned char *blob_stats;
+    int blob_stats_sz;
+    int ret;
+
+    sqlite3_reset (stmt_upd_sect);
+    sqlite3_clear_bindings (stmt_upd_sect);
+    rl2_serialize_dbms_raster_statistics (section_stats, &blob_stats,
+					  &blob_stats_sz);
+    sqlite3_bind_blob (stmt_upd_sect, 1, blob_stats, blob_stats_sz, free);
+    sqlite3_bind_int64 (stmt_upd_sect, 2, section_id);
+    ret = sqlite3_step (stmt_upd_sect);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "UPDATE sections; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    return 1;
+  error:
+    return 0;
+}
+
+static int
+do_insert_section (sqlite3 * handle, const char *src_path, const char *section,
+		   int srid, unsigned short width, unsigned short height,
+		   double minx, double miny, double maxx, double maxy,
+		   sqlite3_stmt * stmt_sect, sqlite3_int64 * id)
+{
+/* INSERTing the section */
+    int ret;
+    unsigned char *blob;
+    int blob_size;
+    gaiaGeomCollPtr geom;
+    sqlite3_int64 section_id;
+
+    sqlite3_reset (stmt_sect);
+    sqlite3_clear_bindings (stmt_sect);
+    if (section != NULL)
+	sqlite3_bind_text (stmt_sect, 1, section, strlen (section),
+			   SQLITE_STATIC);
+    sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
+		       SQLITE_STATIC);
+    sqlite3_bind_int (stmt_sect, 3, width);
+    sqlite3_bind_int (stmt_sect, 4, height);
+    geom = build_extent (srid, minx, miny, maxx, maxy);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    gaiaFreeGeomColl (geom);
+    sqlite3_bind_blob (stmt_sect, 5, blob, blob_size, free);
+    ret = sqlite3_step (stmt_sect);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	section_id = sqlite3_last_insert_rowid (handle);
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO sections; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    *id = section_id;
+    return 1;
+  error:
+    return 0;
+}
+
+static rl2RasterPtr
+build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
+{
+/* building a raster starting from an RGBA buffer */
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+    rl2RasterPtr raster = NULL;
+    rl2PalettePtr palette = NULL;
+    unsigned char *pixels = NULL;
+    int pixels_sz = 0;
+    unsigned char *mask = NULL;
+    int mask_size = 0;
+    int unused_width = 0;
+    int unused_height = 0;
+    const unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    int requires_mask = 0;
+    int x;
+    int y;
+
+    if (coverage == NULL || rgba_tile == NULL)
+	return NULL;
+
+    /* supporting only RGB, GRAYSCALE or MONOCHROME coverages */
+    if (cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+	pixels_sz = cvg->tileWidth * cvg->tileHeight * 3;
+    if (cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	pixels_sz = cvg->tileWidth * cvg->tileHeight;
+    if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
+	pixels_sz = cvg->tileWidth * cvg->tileHeight;
+    if (pixels_sz <= 0)
+	return NULL;
+    mask_size = cvg->tileWidth * cvg->tileHeight;
+
+    /* allocating the raster and mask buffers */
+    pixels = malloc (pixels_sz);
+    if (pixels == NULL)
+	return NULL;
+    mask = malloc (mask_size);
+    if (mask == NULL)
+      {
+	  free (pixels);
+	  return NULL;
+      }
+
+    p_msk = mask;
+    for (x = 0; x < mask_size; x++)
+      {
+	  /* priming a full opaque mask */
+	  *p_msk++ = 1;
+      }
+
+    /* copying pixels */
+    p_in = rgba_tile;
+    p_out = pixels;
+    p_msk = mask;
+    if (cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+      {
+	  for (y = 0; y < cvg->tileHeight; y++)
+	    {
+		for (x = 0; x < cvg->tileWidth; x++)
+		  {
+		      unsigned char red = *p_in++;
+		      unsigned char green = *p_in++;
+		      unsigned char blue = *p_in++;
+		      unsigned char alpha = *p_in++;
+		      *p_out++ = red;
+		      *p_out++ = green;
+		      *p_out++ = blue;
+		      if (alpha < 128)
+			{
+			    /* transparent pixel */
+			    *p_msk++ = 0;
+			    requires_mask = 1;
+			}
+		  }
+	    }
+      }
+    if (cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+      {
+	  for (y = 0; y < cvg->tileHeight; y++)
+	    {
+		for (x = 0; x < cvg->tileWidth; x++)
+		  {
+		      unsigned char red = *p_in++;
+		      unsigned char green = *p_in++;
+		      unsigned char blue = *p_in++;
+		      unsigned char alpha = *p_in++;
+		      *p_out++ = red;
+		      if (alpha < 128)
+			{
+			    /* transparent pixel */
+			    *p_msk++ = 0;
+			    requires_mask = 1;
+			}
+		  }
+	    }
+      }
+    if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
+      {
+	  for (y = 0; y < cvg->tileHeight; y++)
+	    {
+		for (x = 0; x < cvg->tileWidth; x++)
+		  {
+		      unsigned char red = *p_in++;
+		      unsigned char green = *p_in++;
+		      unsigned char blue = *p_in++;
+		      unsigned char alpha = *p_in++;
+		      if (red == 255)
+			  *p_out++ = 0;
+		      else
+			  *p_out++ = 1;
+		      if (alpha < 128)
+			{
+			    /* transparent pixel */
+			    *p_msk++ = 0;
+			    requires_mask = 1;
+			}
+		  }
+	    }
+      }
+
+    if (!requires_mask)
+      {
+	  /* no mask required */
+	  free (mask);
+	  mask = NULL;
+	  mask_size = 0;
+      }
+
+    raster =
+	rl2_create_raster (cvg->tileWidth, cvg->tileHeight,
+			   cvg->sampleType, cvg->pixelType,
+			   cvg->nBands, pixels, pixels_sz, NULL, mask,
+			   mask_size, NULL);
+    if (raster == NULL)
+	goto error;
+    return raster;
+
+  error:
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (pixels != NULL)
+	free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return NULL;
+}
+
+static void
+fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
+			sqlite3_value ** argv)
+{
+/* SQL function:
+/ LoadRasterFromWMS(text coverage, text section, text getmap_url,
+/                   BLOB geom, text wms_version, text wms_layer, 
+/                   text wms_style, text wms_format, double res)
+/ LoadRasterFromWMS(text coverage, text section, text getmap_url,
+/                   BLOB geom, text wms_version, text wms_layer,
+/                   text wms_style, text wms_format, double horz_res, 
+/                   double vert_res)
+/ LoadRasterFromWMS(text coverage, text section, text getmap_url,
+/                   BLOB geom, text wms_version, text wms_layer, 
+/                   text wms_style, text wms_format, text wms_crs,
+/                   double horz_res, double vert_res, int opaque)
+/ LoadRasterFromWMS(text coverage, text section, text getmap_url,
+/                   BLOB geom, text wms_version, text wms_layer, 
+/                   text wms_style, text wms_format, double horz_res,
+/                   double vert_res, int opaque,
+/                   int swap_xy)
+/ LoadRasterFromWMS(text coverage, text section, text getmap_url,
+/                   BLOB geom, text wms_version, text wms_layer, 
+/                   text wms_style, text wms_format, double horz_res,
+/                   double vert_res, int opaque, int swap_xy, text proxy)
+/ LoadRasterFromWMS(text coverage, text section, text getmap_url,
+/                   BLOB geom, text wms_version, text wms_layer, 
+/                   text wms_style, text wms_format, double horz_res,
+/                   double vert_res,  int opaque, int swap_xy, 
+/                   text proxy, int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    const char *sect_name;
+    const char *url;
+    const char *proxy = NULL;
+    const char *wms_version;
+    const char *wms_layer;
+    const char *wms_style = NULL;
+    const char *wms_format;
+    char *wms_crs = NULL;
+    const unsigned char *blob;
+    int blob_sz;
+    double horz_res;
+    double vert_res;
+    int opaque = 0;
+    int swap_xy = 0;
+    int srid;
+    int transaction = 1;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    int errcode = -1;
+    gaiaGeomCollPtr geom;
+    rl2CoveragePtr coverage = NULL;
+    sqlite3 *sqlite;
+    int ret;
+    double x;
+    double y;
+    double tilew;
+    double tileh;
+    unsigned short tile_width;
+    unsigned short tile_height;
+    WmsRetryListPtr retry_list = NULL;
+    char *table;
+    char *xtable;
+    char *sql;
+    sqlite3_stmt *stmt_data = NULL;
+    sqlite3_stmt *stmt_tils = NULL;
+    sqlite3_stmt *stmt_sect = NULL;
+    sqlite3_stmt *stmt_levl = NULL;
+    sqlite3_stmt *stmt_upd_sect = NULL;
+    int first = 1;
+    double ext_x;
+    double ext_y;
+    int width;
+    int height;
+    sqlite3_int64 section_id;
+    rl2RasterStatisticsPtr section_stats = NULL;
+    rl2RasterPtr raster = NULL;
+    rl2PixelPtr no_data = NULL;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned char compression;
+    int quality;
+    double tile_minx;
+    double tile_miny;
+    double tile_maxx;
+    double tile_maxy;
+    unsigned char *blob_odd;
+    int blob_odd_sz;
+    unsigned char *blob_even;
+    int blob_even_sz;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_BLOB)
+	err = 1;
+    if (sqlite3_value_type (argv[4]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[5]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[6]) != SQLITE_TEXT
+	&& sqlite3_value_type (argv[6]) != SQLITE_NULL)
+	err = 1;
+    if (sqlite3_value_type (argv[7]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[8]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[8]) != SQLITE_FLOAT)
+	err = 1;
+    if (argc > 10 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[9]) != SQLITE_FLOAT)
+	err = 1;
+    if (argc > 10 && sqlite3_value_type (argv[10]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 11 && sqlite3_value_type (argv[11]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 12)
+      {
+	  if (sqlite3_value_type (argv[12]) == SQLITE_TEXT)
+	      ;
+	  else if (sqlite3_value_type (argv[12]) == SQLITE_NULL)
+	      ;
+	  else
+	      err = 1;
+      }
+    if (argc > 13 && sqlite3_value_type (argv[13]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* retrieving all arguments */
+    sqlite = sqlite3_context_db_handle (context);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    sect_name = (const char *) sqlite3_value_text (argv[1]);
+    url = (const char *) sqlite3_value_text (argv[2]);
+    blob = sqlite3_value_blob (argv[3]);
+    blob_sz = sqlite3_value_bytes (argv[3]);
+    wms_version = (const char *) sqlite3_value_text (argv[4]);
+    wms_layer = (const char *) sqlite3_value_text (argv[5]);
+    if (sqlite3_value_type (argv[6]) == SQLITE_TEXT)
+	wms_style = (const char *) sqlite3_value_text (argv[6]);
+    wms_format = (const char *) sqlite3_value_text (argv[7]);
+    if (sqlite3_value_type (argv[8]) == SQLITE_INTEGER)
+      {
+	  int ival = sqlite3_value_int (argv[8]);
+	  horz_res = ival;
+      }
+    else
+	horz_res = sqlite3_value_double (argv[8]);
+    if (argc > 9)
+      {
+	  if (sqlite3_value_type (argv[9]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[9]);
+		vert_res = ival;
+	    }
+	  else
+	      vert_res = sqlite3_value_double (argv[9]);
+      }
+    else
+	vert_res = horz_res;
+    if (argc > 10)
+	opaque = sqlite3_value_int (argv[10]);
+    if (argc > 11)
+	swap_xy = sqlite3_value_int (argv[11]);
+    if (argc > 12 && sqlite3_value_type (argv[12]) == SQLITE_TEXT)
+	proxy = (const char *) sqlite3_value_text (argv[12]);
+    if (argc > 13)
+	transaction = sqlite3_value_int (argv[13]);
+
+/* checking the Geometry */
+    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
+    if (geom == NULL)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    /* retrieving the BBOX */
+    minx = geom->MinX;
+    maxx = geom->MaxX;
+    miny = geom->MinY;
+    maxy = geom->MaxY;
+    gaiaFreeGeomColl (geom);
+
+/* attempting to load the Coverage definitions from the DBMS */
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (rl2_get_coverage_tile_size (coverage, &tile_width, &tile_height) !=
+	RL2_OK)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (rl2_get_coverage_type (coverage, &sample_type, &pixel_type, &num_bands)
+	!= RL2_OK)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    no_data = rl2_get_coverage_no_data (coverage);
+    if (rl2_get_coverage_compression (coverage, &compression, &quality)
+	!= RL2_OK)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    tilew = (double) tile_width *horz_res;
+    tileh = (double) tile_height *vert_res;
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    width = ext_x / horz_res;
+    height = ext_y / horz_res;
+    if (((double) width * horz_res) < ext_x)
+	width++;
+    if (((double) height * vert_res) < ext_y)
+	height++;
+    if (width < tile_width || width > UINT16_MAX)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (height < tile_height || height > UINT16_MAX)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		rl2_destroy_coverage (coverage);
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+
+/* SQL prepared statements */
+    table = sqlite3_mprintf ("%s_sections", cvg_name);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
+	 "width, height, geometry) VALUES (NULL, ?, ?, ?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_sect, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO sections SQL error: %s\n",
+		  sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_sections", cvg_name);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("UPDATE \"%s\" SET statistics = ? WHERE section_id = ?", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_upd_sect, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE sections SQL error: %s\n", sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_levels", cvg_name);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	 "x_resolution_1_1, y_resolution_1_1, "
+	 "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
+	 "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
+	 "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_levl, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO levels SQL error: %s\n",
+		  sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_tiles", cvg_name);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	 "VALUES (NULL, 0, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_tils, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO tiles SQL error: %s\n", sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_tile_data", cvg_name);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	 "VALUES (?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_data, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO tile_data SQL error: %s\n",
+		  sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+
+/* preparing the WMS requests */
+    wms_crs = sqlite3_mprintf ("EPSG:%d", srid);
+    tilew = (double) tile_width *horz_res;
+    tileh = (double) tile_height *vert_res;
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    width = ext_x / horz_res;
+    height = ext_y / horz_res;
+    if ((width * horz_res) < ext_x)
+	width++;
+    if ((height * vert_res) < ext_y)
+	height++;
+    retry_list = alloc_retry_list ();
+    for (y = maxy; y > miny; y -= tileh)
+      {
+	  for (x = minx; x < maxx; x += tilew)
+	    {
+		char *err_msg = NULL;
+		unsigned char *rgba_tile =
+		    do_wms_GetMap_get (NULL, url, proxy, wms_version, wms_layer,
+				       wms_crs, swap_xy, x, y - tileh,
+				       x + tilew, y, tile_width, tile_height,
+				       wms_style, wms_format, opaque, 0,
+				       &err_msg);
+		if (rgba_tile == NULL)
+		  {
+		      add_retry (retry_list, x, y - tileh, x + tilew, y);
+		      continue;
+		  }
+
+		if (first)
+		  {
+		      /* INSERTing the section */
+		      first = 0;
+		      if (!do_insert_section
+			  (sqlite, "WMS Service", sect_name, srid, width,
+			   height, minx, miny, maxx, maxy, stmt_sect,
+			   &section_id))
+			  goto error;
+		      section_stats =
+			  rl2_create_raster_statistics (sample_type, num_bands);
+		      if (section_stats == NULL)
+			  goto error;
+		      /* INSERTing the base-levels */
+		      if (!do_insert_levels
+			  (sqlite, horz_res, vert_res, stmt_levl))
+			  goto error;
+		  }
+
+		/* building the raster tile */
+		raster = build_wms_tile (coverage, rgba_tile);
+		if (raster == NULL)
+		  {
+		      fprintf (stderr, "ERROR: unable to get a WMS tile\n");
+		      goto error;
+		  }
+		if (rl2_raster_encode
+		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
+		     &blob_even_sz, 100, 1) != RL2_OK)
+		  {
+		      fprintf (stderr, "ERROR: unable to encode a WMS tile\n");
+		      goto error;
+		  }
+
+		/* INSERTing the tile */
+		tile_minx = x;
+		tile_maxx = tile_minx + tilew;
+		tile_maxy = y;
+		tile_miny = tile_maxy - tileh;
+		if (!do_insert_tile
+		    (sqlite, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     section_id, srid, horz_res, vert_res, tile_width,
+		     tile_height, minx, miny, maxx, maxy, tile_minx, tile_miny,
+		     tile_maxx, tile_maxy, NULL, no_data, stmt_tils, stmt_data,
+		     section_stats))
+		    goto error;
+		blob_odd = NULL;
+		blob_even = NULL;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+		free (rgba_tile);
+	    }
+      }
+
+
+    if (!do_insert_stats (sqlite, section_stats, section_id, stmt_upd_sect))
+	goto error;
+    free_retry_list (retry_list);
+    retry_list = NULL;
+    sqlite3_free (wms_crs);
+    wms_crs = NULL;
+
+    sqlite3_finalize (stmt_upd_sect);
+    sqlite3_finalize (stmt_sect);
+    sqlite3_finalize (stmt_levl);
+    sqlite3_finalize (stmt_tils);
+    sqlite3_finalize (stmt_data);
+    stmt_upd_sect = NULL;
+    stmt_sect = NULL;
+    stmt_levl = NULL;
+    stmt_tils = NULL;
+    stmt_data = NULL;
+
+    rl2_destroy_raster_statistics (section_stats);
+    section_stats = NULL;
+    rl2_destroy_coverage (coverage);
+    coverage = NULL;
+    if (ret != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  if (transaction)
+	    {
+		/* invalidating the pending transaction */
+		sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	    }
+	  return;
+      }
+
+    if (rl2_update_dbms_coverage (sqlite, cvg_name) != RL2_OK)
+      {
+	  fprintf (stderr, "unable to update the Coverage\n");
+	  goto error;
+      }
+
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
+    return;
+
+  error:
+    if (wms_crs != NULL)
+	sqlite3_free (wms_crs);
+    if (stmt_upd_sect != NULL)
+	sqlite3_finalize (stmt_upd_sect);
+    if (stmt_sect != NULL)
+	sqlite3_finalize (stmt_sect);
+    if (stmt_levl != NULL)
+	sqlite3_finalize (stmt_levl);
+    if (stmt_tils != NULL)
+	sqlite3_finalize (stmt_tils);
+    if (stmt_data != NULL)
+	sqlite3_finalize (stmt_data);
+    if (retry_list != NULL)
+	free_retry_list (retry_list);
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    if (section_stats != NULL)
+	rl2_destroy_raster_statistics (section_stats);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    sqlite3_result_int (context, errcode);
+}
+
 static int
 is_point (gaiaGeomCollPtr geom)
 {
@@ -2650,70 +3560,94 @@ register_rl2_sql_functions (void *p_db)
 				   0, fnct_LoadRastersFromDir, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 6, SQLITE_ANY,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 6, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 6, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 7, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 7, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 8, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 8, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 9, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 9, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 10, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 10, SQLITE_ANY,
-				   0, fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 6, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 6, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 7, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 7, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 8, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 8, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 9, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 9, SQLITE_ANY,
-				   0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 6, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 6, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 7, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 7, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 8, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 8, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 9, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_ANY,
-				   0, fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteAsciiGrid", 6, SQLITE_ANY,
-				   0, fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 6, SQLITE_ANY,
-				   0, fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "WriteAsciiGrid", 7, SQLITE_ANY,
-				   0, fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 7, SQLITE_ANY,
-				   0, fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "WriteAsciiGrid", 8, SQLITE_ANY,
-				   0, fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY,
-				   0, fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 9, SQLITE_ANY, 0,
+				   fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 9, SQLITE_ANY,
+				   0, fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 10, SQLITE_ANY, 0,
+				   fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 10, SQLITE_ANY,
+				   0, fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 11, SQLITE_ANY, 0,
+				   fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 11, SQLITE_ANY,
+				   0, fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 12, SQLITE_ANY, 0,
+				   fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 12, SQLITE_ANY,
+				   0, fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 13, SQLITE_ANY, 0,
+				   fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 13, SQLITE_ANY,
+				   0, fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 14, SQLITE_ANY, 0,
+				   fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 14, SQLITE_ANY,
+				   0, fnct_LoadRasterFromWMS, 0, 0);
+	  sqlite3_create_function (db, "WriteGeoTiff", 6, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 6, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteGeoTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteGeoTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteGeoTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteGeoTiff", 10, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 10, SQLITE_ANY, 0,
+				   fnct_WriteGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTiffTfw", 6, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 6, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTiffTfw", 7, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 7, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTiffTfw", 8, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 8, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTiffTfw", 9, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 9, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTiff", 6, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiff", 6, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 6, SQLITE_ANY, 0,
+				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 6, SQLITE_ANY, 0,
+				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 7, SQLITE_ANY, 0,
+				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 7, SQLITE_ANY, 0,
+				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 8, SQLITE_ANY, 0,
+				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY, 0,
+				   fnct_WriteAsciiGrid, 0, 0);
       }
 }
 

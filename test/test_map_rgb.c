@@ -81,7 +81,7 @@ static int
 get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 		     double *y_res)
 {
-/* attempting to retrieve the Coverage's Center Point */
+/* attempting to retrieve the Coverage's base resolution */
     char *sql;
     sqlite3_stmt *stmt;
     int ret;

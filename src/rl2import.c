@@ -225,8 +225,8 @@ do_insert_section (sqlite3 * handle, const char *src_path, const char *section,
 }
 
 static int
-do_insert_levels (sqlite3 * handle, double res_x, double res_y,
-		  sqlite3_stmt * stmt_levl)
+do_insert_levels (sqlite3 * handle, unsigned char sample_type, double res_x,
+		  double res_y, sqlite3_stmt * stmt_levl)
 {
 /* INSERTing the base-levels */
     int ret;
@@ -234,12 +234,25 @@ do_insert_levels (sqlite3 * handle, double res_x, double res_y,
     sqlite3_clear_bindings (stmt_levl);
     sqlite3_bind_double (stmt_levl, 1, res_x);
     sqlite3_bind_double (stmt_levl, 2, res_y);
-    sqlite3_bind_double (stmt_levl, 3, res_x * 2.0);
-    sqlite3_bind_double (stmt_levl, 4, res_y * 2.0);
-    sqlite3_bind_double (stmt_levl, 5, res_x * 4.0);
-    sqlite3_bind_double (stmt_levl, 6, res_y * 4.0);
-    sqlite3_bind_double (stmt_levl, 7, res_x * 8.0);
-    sqlite3_bind_double (stmt_levl, 8, res_y * 8.0);
+    if (sample_type == RL2_SAMPLE_1_BIT || sample_type == RL2_SAMPLE_2_BIT
+	|| sample_type == RL2_SAMPLE_4_BIT)
+      {
+	  sqlite3_bind_null (stmt_levl, 3);
+	  sqlite3_bind_null (stmt_levl, 4);
+	  sqlite3_bind_null (stmt_levl, 5);
+	  sqlite3_bind_null (stmt_levl, 6);
+	  sqlite3_bind_null (stmt_levl, 7);
+	  sqlite3_bind_null (stmt_levl, 8);
+      }
+    else
+      {
+	  sqlite3_bind_double (stmt_levl, 3, res_x * 2.0);
+	  sqlite3_bind_double (stmt_levl, 4, res_y * 2.0);
+	  sqlite3_bind_double (stmt_levl, 5, res_x * 4.0);
+	  sqlite3_bind_double (stmt_levl, 6, res_y * 4.0);
+	  sqlite3_bind_double (stmt_levl, 7, res_x * 8.0);
+	  sqlite3_bind_double (stmt_levl, 8, res_y * 8.0);
+      }
     ret = sqlite3_step (stmt_levl);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	;
@@ -449,7 +462,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     if (section_stats == NULL)
 	goto error;
 /* INSERTing the base-levels */
-    if (!do_insert_levels (handle, res_x, res_y, stmt_levl))
+    if (!do_insert_levels (handle, sample_type, res_x, res_y, stmt_levl))
 	goto error;
 
     tile_maxy = maxy;
@@ -655,7 +668,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     if (section_stats == NULL)
 	goto error;
 /* INSERTing the base-levels */
-    if (!do_insert_levels (handle, res_x, res_y, stmt_levl))
+    if (!do_insert_levels (handle, sample_type, res_x, res_y, stmt_levl))
 	goto error;
 
     tile_maxy = maxy;

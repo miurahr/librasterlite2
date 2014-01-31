@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = headers src test tools examples
 
-EXTRA_DIST = mainpage.doxy
+EXTRA_DIST = mainpage.doxy Makefile-static-MinGW
 
 AUTOMAKE_OPTIONS = dist-zip
 

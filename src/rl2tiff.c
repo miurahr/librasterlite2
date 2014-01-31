@@ -71,7 +71,7 @@ memory_realloc (struct memfile *mem, tsize_t req_size)
 /* expanding the allocated memory */
     unsigned char *new_buffer;
     tsize_t new_size = mem->size;
-    while (new_size < req_size)
+    while (new_size <= req_size)
 	new_size += mem->malloc_block;
     new_buffer = realloc (mem->buffer, new_size);
     if (!new_buffer)

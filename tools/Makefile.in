@@ -78,7 +78,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = rl2tool$(EXEEXT)
+bin_PROGRAMS = rl2tool$(EXEEXT) wmslite$(EXEEXT)
 subdir = tools
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp
@@ -97,12 +97,14 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am_rl2tool_OBJECTS = rl2tool.$(OBJEXT)
 rl2tool_OBJECTS = $(am_rl2tool_OBJECTS)
-rl2tool_LDADD = $(LDADD)
 rl2tool_DEPENDENCIES =
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+am_wmslite_OBJECTS = wmslite.$(OBJEXT)
+wmslite_OBJECTS = $(am_wmslite_OBJECTS)
+wmslite_DEPENDENCIES =
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -137,8 +139,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(rl2tool_SOURCES)
-DIST_SOURCES = $(rl2tool_SOURCES)
+SOURCES = $(rl2tool_SOURCES) $(wmslite_SOURCES)
+DIST_SOURCES = $(rl2tool_SOURCES) $(wmslite_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -309,10 +311,21 @@ AM_CFLAGS = @LIBPNG_CFLAGS@ @LIBWEBP_CFLAGS@ @LIBLZMA_CFLAGS@ \
 AM_LDFLAGS = -L../src 
 AM_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers
 rl2tool_SOURCES = rl2tool.c
-LDADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
+wmslite_SOURCES = wmslite.c
+rl2tool_LDADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
 	@LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \
 	@LIBXML2_LIBS@ \
 	-lrasterlite2 
+
+@MINGW_FALSE@wmslite_LDADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
+@MINGW_FALSE@	@LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \
+@MINGW_FALSE@	@LIBXML2_LIBS@ \
+@MINGW_FALSE@	-lrasterlite2 
+
+@MINGW_TRUE@wmslite_LDADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
+@MINGW_TRUE@	@LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \
+@MINGW_TRUE@	@LIBXML2_LIBS@ \
+@MINGW_TRUE@	-lrasterlite2 -lws2_32
 
 all: all-am
 
@@ -402,6 +415,10 @@ rl2tool$(EXEEXT): $(rl2tool_OBJECTS) $(rl2tool_DEPENDENCIES) $(EXTRA_rl2tool_DEP
 	@rm -f rl2tool$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(rl2tool_OBJECTS) $(rl2tool_LDADD) $(LIBS)
 
+wmslite$(EXEEXT): $(wmslite_OBJECTS) $(wmslite_DEPENDENCIES) $(EXTRA_wmslite_DEPENDENCIES) 
+	@rm -f wmslite$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(wmslite_OBJECTS) $(wmslite_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -409,6 +426,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2tool.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wmslite.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

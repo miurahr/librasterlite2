@@ -1164,7 +1164,7 @@ test_GetFeatureInfo_xml ()
 	  return -305;
       }
     str = get_wms_feature_attribute_value (ftr, 0);
-    if (strcmp (str, "329") != 0)
+    if (strcmp (str, "5") != 0)
       {
 	  fprintf (stderr,
 		   "GetFeatureAttributeValue (XML): unexpected result \"%s\"\n",
@@ -1179,7 +1179,7 @@ test_GetFeatureInfo_xml ()
 	  return -307;
       }
     str = get_wms_feature_attribute_name (ftr, 2);
-    if (strcmp (str, "Nm_prv") != 0)
+    if (strcmp (str, "Istat") != 0)
       {
 	  fprintf (stderr,
 		   "GetFeatureAttributeName (XML): unexpected result \"%s\"\n",
@@ -1187,7 +1187,7 @@ test_GetFeatureInfo_xml ()
 	  return -309;
       }
     str = get_wms_feature_attribute_value (ftr, 2);
-    if (strcmp (str, "Bologna") != 0)
+    if (strcmp (str, "37") != 0)
       {
 	  fprintf (stderr,
 		   "GetFeatureAttributeValue (XML): unexpected result \"%s\"\n",

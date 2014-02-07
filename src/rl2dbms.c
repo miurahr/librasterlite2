@@ -299,6 +299,7 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 			   xxtrigger, xcoverage, xcoverage, coverage);
     sqlite3_free (xcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
@@ -319,7 +320,9 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 			   "invalid statistics')\nWHERE NEW.statistics IS NOT NULL AND "
 			   "IsValidRasterStatistics(%Q, NEW.statistics) <> 1;\nEND",
 			   xxtrigger, xcoverage, xcoverage, coverage);
+    sqlite3_free (xcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
@@ -555,6 +558,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (xcoverage);
     free (xxtiles);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
@@ -581,6 +585,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sqlite3_free (xcoverage);
     free (xxtiles);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "CREATE TRIGGER \"%s\" error: %s\n", xxtrigger,
@@ -3893,6 +3898,7 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
 		  }
 
 		rl2_aggregate_raster_statistics (stats, coverage_stats);
+		rl2_destroy_raster_statistics (stats);
 	    }
 	  else
 	    {

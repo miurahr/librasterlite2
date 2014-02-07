@@ -1220,6 +1220,42 @@ rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
     return 1;
 }
 
+RL2_DECLARE int
+rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr context,
+				rl2GraphicsBitmapPtr bitmap, double scale_x,
+				double scale_y, int x, int y)
+{
+/* drawing a rescaled bitmap */
+    cairo_t *cairo;
+    cairo_surface_t *surface;
+    RL2GraphBitmapPtr bmp = (RL2GraphBitmapPtr) bitmap;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+
+    if (ctx == NULL)
+	return 0;
+    if (bmp == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+      {
+	  surface = ctx->clip_surface;
+	  cairo = ctx->clip_cairo;
+      }
+    else
+      {
+	  surface = ctx->surface;
+	  cairo = ctx->cairo;
+      }
+
+    cairo_save (cairo);
+    cairo_translate (cairo, x, y);
+    cairo_scale (cairo, scale_x, scale_y);
+    cairo_set_source (cairo, bmp->pattern);
+    cairo_paint (cairo);
+    cairo_restore (cairo);
+    cairo_surface_flush (surface);
+    return 1;
+}
+
 RL2_DECLARE unsigned char *
 rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context)
 {
@@ -1285,6 +1321,7 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *alpha;
+    int little_endian = gg_endian_arch ();
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)
@@ -1302,8 +1339,16 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
       {
 	  for (x = 0; x < width; x++)
 	    {
-		p_in += 3;	/* skipping RGB */
-		*p_out++ = *p_in++;
+		if (little_endian)
+		  {
+		      p_in += 3;	/* skipping RGB */
+		      *p_out++ = *p_in++;
+		  }
+		else
+		  {
+		      *p_out++ = *p_in++;
+		      p_in += 3;	/* skipping RGB */
+		  }
 	    }
       }
     return alpha;

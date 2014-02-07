@@ -396,6 +396,8 @@ extern "C"
 	rl2_create_pixel (unsigned char sample_type, unsigned char pixel_type,
 			  unsigned char num_samples);
 
+    RL2_DECLARE rl2PixelPtr rl2_clone_pixel (rl2PixelPtr org);
+
 /**
  Destroys a Pixel Object
 
@@ -2847,6 +2849,11 @@ extern "C"
     RL2_DECLARE int rl2_get_ascii_grid_origin_srid (rl2AsciiGridOriginPtr ascii,
 						    int *srid);
 
+    RL2_DECLARE int rl2_get_ascii_grid_origin_resolution (rl2AsciiGridOriginPtr
+							  ascii,
+							  double *res_horz,
+							  double *res_vert);
+
     RL2_DECLARE int
 	rl2_get_ascii_grid_origin_extent (rl2AsciiGridOriginPtr ascii,
 					  double *minX, double *minY,
@@ -2956,6 +2963,14 @@ extern "C"
 					 double maxy, unsigned short width,
 					 unsigned short height, int is_centered,
 					 int decimal_digits);
+
+    RL2_DECLARE int
+	rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
+				   const char *section, int forced_rebuild);
+
+    RL2_DECLARE int
+	rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
+					int forced_rebuild);
 
 #ifdef __cplusplus
 }

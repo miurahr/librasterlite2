@@ -472,10 +472,28 @@ rescale_pixels (struct pyramid_params *params, int row, int col,
       }
 }
 
+static gaiaGeomCollPtr
+build_extent (int srid, double minx, double miny, double maxx, double maxy)
+{
+/* building an MBR (Envelope) */
+    gaiaPolygonPtr pg;
+    gaiaRingPtr rng;
+    gaiaGeomCollPtr geom = gaiaAllocGeomColl ();
+    geom->Srid = srid;
+    pg = gaiaAddPolygonToGeomColl (geom, 5, 0);
+    rng = pg->Exterior;
+    gaiaSetPoint (rng->Coords, 0, minx, miny);
+    gaiaSetPoint (rng->Coords, 1, maxx, miny);
+    gaiaSetPoint (rng->Coords, 2, maxx, maxy);
+    gaiaSetPoint (rng->Coords, 3, minx, maxy);
+    gaiaSetPoint (rng->Coords, 4, minx, miny);
+    return geom;
+}
+
 static int
 build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 {
-/* building a single Pyramid tile /
+/* building a single Pyramid tile */
     int row;
     int col;
     int ret;
@@ -500,7 +518,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 	      params->tile_minx + ((params->tile_width * params->x_res) / 2.0);
 	  for (col = 0; col < 16; col++)
 	    {
-		/ retrieving lower-level tiles /
+		/* retrieving lower-level tiles */
 		int done = 0;
 		sqlite3_reset (stmt);
 		sqlite3_clear_bindings (stmt);
@@ -509,12 +527,13 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 		sqlite3_bind_double (stmt, 3, cy);
 		sqlite3_bind_double (stmt, 4, cx);
 		sqlite3_bind_double (stmt, 5, cy);
+		fprintf (stderr, "%1.2f %1.2f\n", cx, cy);
 		while (1)
 		  {
-		      / scrolling the result set rows /
+		      /* scrolling the result set rows */
 		      int ret = sqlite3_step (stmt);
 		      if (ret == SQLITE_DONE)
-			  break;	/ end of result set /
+			  break;	/* end of result set */
 		      if (ret == SQLITE_ROW)
 			{
 			    rl2RasterPtr rst;
@@ -524,6 +543,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 			    int blob_even_sz = 0;
 			    sqlite3_int64 tile_id =
 				sqlite3_column_int64 (stmt, 0);
+			    fprintf (stderr, "\trd=%lld\n", tile_id);
 			    if (sqlite3_column_type (stmt, 1) == SQLITE_BLOB)
 			      {
 				  blob_odd = sqlite3_column_blob (stmt, 1);
@@ -537,7 +557,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 			    rst =
 				rl2_raster_decode (RL2_SCALE_1, blob_odd,
 						   blob_odd_sz, blob_even,
-						   blob_even_sz);
+						   blob_even_sz, NULL);
 			    if (rst == NULL)
 			      {
 				  fprintf (stderr,
@@ -558,19 +578,20 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 		cx += params->tile_width * params->x_res;
 		if (!done)
 		  {
-		      / lower-level tile not found - updating the Mask /
+		      /* lower-level tile not found - updating the Mask */
 		      do_transparent_mask (params, col, row);
 		  }
 	    }
 	  cy -= params->tile_height * params->y_res;
       }
 
-/ saving the current Pyramid Tile /
+/* saving the current Pyramid Tile */
     raster =
 	rl2_create_raster (params->tile_width, params->tile_height,
 			   params->sample_type, params->pixel_type,
 			   params->bands, params->bufpix, params->bufpix_size,
 			   NULL, params->mask, params->mask_size, NULL);
+    fprintf (stderr, "Encode %d/%d\n", row, col);
     if (rl2_raster_encode
 	(raster, params->compression, &blob_odd, &blob_odd_sz, &blob_even,
 	 &blob_even_sz, params->quality, 1) != RL2_OK)
@@ -582,14 +603,14 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
       }
     rl2_destroy_raster (raster);
     raster = NULL;
-/ INSERTing the tile /
+/* INSERTing the tile */
     sqlite3_reset (stmt_tils);
     sqlite3_clear_bindings (stmt_tils);
     sqlite3_bind_int64 (stmt_tils, 1, params->section_id);
-    /
+    /*
        tile_maxx = tile_minx + ((double) tile_w * res_x);
        tile_miny = tile_maxy - ((double) tile_h * res_y);
-     /
+     */
     geom =
 	build_extent (params->srid, params->tile_minx, params->tile_miny,
 		      params->tile_maxx, params->tile_maxy);
@@ -607,7 +628,7 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
 	  return 0;
       }
     tile_id = sqlite3_last_insert_rowid (handle);
-/ INSERTing tile data /
+/* INSERTing tile data */
     sqlite3_reset (stmt_data);
     sqlite3_clear_bindings (stmt_data);
     tile_id = sqlite3_bind_int64 (stmt_data, 1, tile_id);
@@ -630,7 +651,6 @@ build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
     blob_even = NULL;
 
     return 1;
-	*/
     return 0;
 }
 
@@ -793,187 +813,14 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
 {
 /* building Pyramid levels */
     int ret;
-    char *sql;
-    rl2CoveragePtr cvg = NULL;
-    struct pyramid_params params;
-    int pix_sz = 1;
-    char *table_levels;
-    char *xtable_levels;
-    char *table_sections;
-    char *xtable_sections;
-    unsigned char sample_type;
-    unsigned char pixel_type;
-    unsigned char num_bands;
-    unsigned char compression;
-    int quality;
-    unsigned short tileWidth;
-    unsigned short tileHeight;
-    int srid;
-    sqlite3_stmt *stmt = NULL;
-
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
-    if (cvg == NULL)
-	goto error;
-
-    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
-	RL2_OK)
-	goto error;
-    if (rl2_get_coverage_compression (cvg, &compression, &quality) != RL2_OK)
-	goto error;
-    if (rl2_get_coverage_tile_size (cvg, &tileWidth, &tileHeight) != RL2_OK)
-	goto error;
-    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
-	goto error;
-
-    params.coverage = coverage;
-    params.sample_type = sample_type;
-    params.pixel_type = pixel_type;
-    params.bands = num_bands;
-    params.compression = compression;
-    params.quality = quality;
-    params.tile_width = tileWidth;
-    params.tile_height = tileHeight;
-    params.srid = srid;
-    params.bufpix = NULL;
-    params.mask = NULL;
-    params.query_stmt = NULL;
-    params.tiles_stmt = NULL;
-    params.data_stmt = NULL;
-
-/* allocating the pixels buffer and transparency mask */
-    switch (params.sample_type)
-      {
-      case RL2_SAMPLE_INT16:
-      case RL2_SAMPLE_UINT16:
-	  pix_sz = 2;
-	  break;
-      case RL2_SAMPLE_INT32:
-      case RL2_SAMPLE_UINT32:
-      case RL2_SAMPLE_FLOAT:
-	  pix_sz = 4;
-	  break;
-      case RL2_SAMPLE_DOUBLE:
-	  pix_sz = 8;
-	  break;
-      };
-    params.bufpix_size =
-	params.tile_width * params.tile_height * pix_sz * params.bands;
-    params.bufpix = malloc (params.bufpix_size);
-    if (params.bufpix == NULL)
-      {
-	  fprintf (stderr, "Pyramidize: Insufficient Memory [pixels]\n");
-	  goto error;
-      }
-    params.mask_size = params.tile_width * params.tile_height;
-    params.mask = malloc (params.mask_size);
-    if (params.mask == NULL)
-      {
-	  fprintf (stderr, "Pyramidize: Insufficient Memory [mask]\n");
-	  goto error;
-      }
-    rl2_prime_void_tile (params.bufpix, params.tile_width, params.tile_height,
-			 params.sample_type, params.bands);
-
-    if (section != NULL)
-      {
-	  /* only a single selected Section */
-	  if (rl2_get_dbms_section_id
-	      (handle, coverage, section, &(params.section_id)) != RL2_OK)
-	    {
-		fprintf (stderr,
-			 "Section \"%s\" does not exists in Coverage \"%s\"\n",
-			 section, coverage);
-		goto error;
-	    }
-	  table_sections = sqlite3_mprintf ("%s_sections", coverage);
-	  xtable_sections = gaiaDoubleQuotedSql (table_sections);
-	  sqlite3_free (table_sections);
-	  table_levels = sqlite3_mprintf ("%s_levels", coverage);
-	  xtable_levels = gaiaDoubleQuotedSql (table_levels);
-	  sqlite3_free (table_levels);
-	  sql =
-	      sqlite3_mprintf ("SELECT l.x_resolution_1_1, l.y_resolution_1_1, "
-			       "s.section_id, s.section_name, s.width, s.height, MbrMinX(s.geometry), "
-			       "MbrMinY(s.geometry), MbrMaxX(s.geometry), MbrMaxY(s.geometry) "
-			       "FROM \"%s\" AS l, \"%s\" AS s WHERE l.pyramid_level = 0 "
-			       "AND s.section_id = %d", xtable_levels,
-			       xtable_sections);
-	  free (xtable_sections);
-	  free (xtable_levels);
-      }
+    if (section == NULL)
+	ret = rl2_build_all_section_pyramids (handle, coverage, force_pyramid);
     else
-      {
-	  /* all Sections */
-	  table_sections = sqlite3_mprintf ("%s_sections", coverage);
-	  xtable_sections = gaiaDoubleQuotedSql (table_sections);
-	  sqlite3_free (table_sections);
-	  table_levels = sqlite3_mprintf ("%s_levels", coverage);
-	  xtable_levels = gaiaDoubleQuotedSql (table_levels);
-	  sqlite3_free (table_levels);
-	  sql =
-	      sqlite3_mprintf ("SELECT l.x_resolution_1_1, l.y_resolution_1_1, "
-			       "s.section_id, s.section_name, s.width, s.height, MbrMinX(s.geometry), "
-			       "MbrMinY(s.geometry), MbrMaxX(s.geometry), MbrMaxY(s.geometry) "
-			       "FROM \"%s\" AS l, \"%s\" AS s WHERE l.pyramid_level = 0",
-			       xtable_levels, xtable_sections);
-	  free (xtable_sections);
-	  free (xtable_levels);
-      }
-
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
-	  goto error;
-      }
-    while (1)
-      {
-	  /* scrolling the result set rows */
-	  ret = sqlite3_step (stmt);
-	  if (ret == SQLITE_DONE)
-	      break;		/* end of result set */
-	  if (ret == SQLITE_ROW)
-	    {
-		params.x_res = sqlite3_column_double (stmt, 0);
-		params.y_res = sqlite3_column_double (stmt, 1);
-		params.section_id = sqlite3_column_int64 (stmt, 2);
-		params.name = (const char *) sqlite3_column_text (stmt, 3);
-		params.width = sqlite3_column_int (stmt, 4);
-		params.height = sqlite3_column_int (stmt, 5);
-		params.min_x = sqlite3_column_double (stmt, 6);
-		params.min_y = sqlite3_column_double (stmt, 7);
-		params.max_x = sqlite3_column_double (stmt, 8);
-		params.max_y = sqlite3_column_double (stmt, 9);
-		if (!build_pyramids (handle, &params))
-		  {
-		      /* some unexpected error occurred */
-		      sqlite3_finalize (stmt);
-		      goto error;
-		  }
-	    }
-      }
-    sqlite3_finalize (stmt);
-    rl2_destroy_coverage (cvg);
-    free (params.bufpix);
-    free (params.mask);
-    return 1;
-
-  error:
-    if (stmt != NULL)
-	sqlite3_finalize (stmt);
-    if (params.query_stmt != NULL)
-	sqlite3_finalize (params.query_stmt);
-    if (params.tiles_stmt != NULL)
-	sqlite3_finalize (params.tiles_stmt);
-    if (params.data_stmt != NULL)
-	sqlite3_finalize (params.data_stmt);
-    if (cvg != NULL)
-	rl2_destroy_coverage (cvg);
-    if (params.bufpix)
-	free (params.bufpix);
-    if (params.mask)
-	free (params.mask);
+	ret =
+	    rl2_build_section_pyramid (handle, coverage, section,
+				       force_pyramid);
+    if (ret == RL2_OK)
+	return 1;
     return 0;
 }
 

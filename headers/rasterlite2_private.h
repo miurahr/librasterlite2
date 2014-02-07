@@ -451,6 +451,65 @@ extern "C"
     } WmsRetryList;
     typedef WmsRetryList *WmsRetryListPtr;
 
+    typedef struct section_pyramid_tile_in
+    {
+	sqlite3_int64 tile_id;
+	double cx;
+	double cy;
+	struct section_pyramid_tile_in *next;
+    } SectionPyramidTileIn;
+    typedef SectionPyramidTileIn *SectionPyramidTileInPtr;
+
+    typedef struct section_pyramid_tile_ref
+    {
+	SectionPyramidTileInPtr child;
+	struct section_pyramid_tile_ref *next;
+    } SectionPyramidTileRef;
+    typedef SectionPyramidTileRef *SectionPyramidTileRefPtr;
+
+    typedef struct section_pyramid_tile_out
+    {
+	unsigned short row;
+	unsigned short col;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
+	SectionPyramidTileRefPtr first;
+	SectionPyramidTileRefPtr last;
+	struct section_pyramid_tile_out *next;
+    } SectionPyramidTileOut;
+    typedef SectionPyramidTileOut *SectionPyramidTileOutPtr;
+
+    typedef struct section_pyramid
+    {
+	sqlite3_int64 section_id;
+	int scale;
+	unsigned char sample_type;
+	unsigned char pixel_type;
+	unsigned char num_samples;
+	unsigned char compression;
+	int quality;
+	int srid;
+	unsigned short full_width;
+	unsigned short full_height;
+	double res_x;
+	double res_y;
+	unsigned short scaled_width;
+	unsigned short scaled_height;
+	double tile_width;
+	double tile_height;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
+	SectionPyramidTileInPtr first_in;
+	SectionPyramidTileInPtr last_in;
+	SectionPyramidTileOutPtr first_out;
+	SectionPyramidTileOutPtr last_out;
+    } SectionPyramid;
+    typedef SectionPyramid *SectionPyramidPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);

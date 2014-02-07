@@ -666,11 +666,34 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap
+ \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap,
+ rl2_graph_draw_rescaled_bitmap
  */
     RL2_DECLARE int rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
 					   rl2GraphicsBitmapPtr bitmap, int x,
 					   int y);
+
+/**
+ Draws a Rescaled Bitmap into the Canvass
+
+ \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param bitmap the pointer to a valid Graphics Bitmap to be rendered.
+ \param scale_x the Scale Factor for X axis
+ \param scale_y the Scale Factor for Y axis
+ \param x the X coordinate of the top left corner of the image.
+ \param y the Y coordinate of the top left corner of the image.
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap,
+ rl2_graph_draw_bitmap
+ */
+    RL2_DECLARE int rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr
+						    context,
+						    rl2GraphicsBitmapPtr bitmap,
+						    double scale_x,
+						    double scale_y, int x,
+						    int y);
 
 /**
  Creates an RGB Array corresponding to the current Canvass

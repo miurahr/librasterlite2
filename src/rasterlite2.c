@@ -1774,6 +1774,59 @@ rl2_create_pixel (unsigned char sample_type, unsigned char pixel_type,
     return (rl2PixelPtr) pxl;
 }
 
+RL2_DECLARE rl2PixelPtr
+rl2_clone_pixel (rl2PixelPtr org)
+{
+/* cloning a Pixel object */
+    int b;
+    rl2PixelPtr dst;
+    rl2PrivPixelPtr px_out;
+    rl2PrivPixelPtr px_in = (rl2PrivPixelPtr) org;
+    if (px_in == NULL)
+	return NULL;
+    dst = rl2_create_pixel (px_in->sampleType, px_in->pixelType, px_in->nBands);
+    if (dst == NULL)
+	return NULL;
+    px_out = (rl2PrivPixelPtr) dst;
+    for (b = 0; b < px_in->nBands; b++)
+      {
+	  /* copying all samples */
+	  rl2PrivSamplePtr sample_in = px_in->Samples + b;
+	  rl2PrivSamplePtr sample_out = px_out->Samples + b;
+	  switch (px_in->sampleType)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_UINT8:
+		sample_out->uint8 = sample_in->uint8;
+		break;
+	    case RL2_SAMPLE_INT8:
+		sample_out->int8 = sample_in->int8;
+		break;
+	    case RL2_SAMPLE_INT16:
+		sample_out->int16 = sample_in->int16;
+		break;
+	    case RL2_SAMPLE_UINT16:
+		sample_out->uint16 = sample_in->uint16;
+		break;
+	    case RL2_SAMPLE_INT32:
+		sample_out->int32 = sample_in->int32;
+		break;
+	    case RL2_SAMPLE_UINT32:
+		sample_out->uint32 = sample_in->uint32;
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		sample_out->float32 = sample_in->float32;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		sample_out->float64 = sample_in->float64;
+		break;
+	    }
+      }
+    return dst;
+}
+
 RL2_DECLARE void
 rl2_destroy_pixel (rl2PixelPtr ptr)
 {

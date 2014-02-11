@@ -292,7 +292,7 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	  if (rl2_export_ascii_grid_from_dbms
 	      (handle, dst_path, cvg, x_res, minx, miny, maxx, maxy, width,
 	       height, 0, 4) != RL2_OK)
-	      return 0;
+	      goto error;
       }
     else
       {
@@ -300,9 +300,13 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	  if (rl2_export_geotiff_from_dbms
 	      (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
 	       width, height, RL2_COMPRESSION_NONE, 256, 0) != RL2_OK)
-	      return 0;
+	      goto error;
       }
+    rl2_destroy_coverage (cvg);
     return 1;
+  error:
+    rl2_destroy_coverage (cvg);
+    return 0;
 }
 
 static int

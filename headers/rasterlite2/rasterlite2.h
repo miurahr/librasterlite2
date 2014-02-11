@@ -2752,7 +2752,8 @@ extern "C"
 				 double minx, double miny, double maxx,
 				 double maxy, double x_res, double y_res,
 				 unsigned char **buffer, int *buf_size,
-				 rl2PalettePtr * palette);
+				 rl2PalettePtr * palette,
+				 unsigned char out_pixel);
 
     RL2_DECLARE int
 	rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
@@ -2971,6 +2972,25 @@ extern "C"
     RL2_DECLARE int
 	rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
 					int forced_rebuild);
+
+/**
+ Exports an RGB buffer as an in-memory stored PNG image
+
+ \param width the PNG image width.
+ \param height the PNG image height.
+ \param rgb pointer to the RGB buffer.
+ \param png on completion will point to the memory block storing the created PNG image.
+ \param png_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the PNG image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_raster, rl2_raster_from_png
+ */
+    RL2_DECLARE int
+	rl2_rgb_to_png (unsigned short width, unsigned short height,
+			const unsigned char *rgb, unsigned char **png,
+			int *png_size);
 
 #ifdef __cplusplus
 }

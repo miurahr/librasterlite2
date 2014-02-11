@@ -246,7 +246,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample, int tile_sz,
 /* loading from directory */
     sql =
 	sqlite3_mprintf
-	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 4326, 1)", coverage,
+	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 4326, 0, 1)", coverage,
 	 "map_samples/usgs-nile-dbl", ".tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -274,7 +274,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample, int tile_sz,
       }
 
 /* re-loading yet again the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 4326, 1)",
+    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 4326, 0, 1)",
 			   coverage, "map_samples/usgs-nile-dbl/nile1-dbl.tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);

@@ -158,7 +158,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	      retcode = 1;
       }
     sqlite3_finalize (stmt);
-   // unlink (path);
+    // unlink (path);
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
@@ -305,8 +305,8 @@ main (int argc, char *argv[])
 	("SELECT RL2_LoadRasterFromWMS(%Q, %Q, %Q, %s, %Q, %Q, NULL, %Q, %1.1f)",
 	 "rgb10k", "firenze",
 	 "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsofc&map_resolution=91&language=ita&",
-	 "BuildCircleMbr(1681700, 4849150, 500.0, 3003)", "1.3.0", "rt_ofc.10k10",
-	 "image/jpeg", 0.5);
+	 "BuildCircleMbr(1681700, 4849150, 500.0, 3003)", "1.3.0",
+	 "rt_ofc.10k10", "image/jpeg", 0.5);
     ret = execute_check (db_handle, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -323,8 +323,8 @@ main (int argc, char *argv[])
 	("SELECT RL2_LoadRasterFromWMS(%Q, %Q, %Q, %s, %Q, %Q, NULL, %Q, %1.1f)",
 	 "gray10k", "firenze",
 	 "http://www502.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsofc&map_resolution=91&language=ita&",
-	 "BuildCircleMbr(1681700, 4849150, 1000.0, 3003)", "1.3.0", "rt_ofc.10k88",
-	 "image/jpeg", 1.0);
+	 "BuildCircleMbr(1681700, 4849150, 1000.0, 3003)", "1.3.0",
+	 "rt_ofc.10k88", "image/jpeg", 1.0);
     ret = execute_check (db_handle, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -356,33 +356,33 @@ main (int argc, char *argv[])
 /* export tests */
     geom = get_center_point (db_handle, "rgb10k");
     if (geom == NULL)
-      return -10;
+	return -10;
     if (!do_export_geotiff (db_handle, "rgb10k", geom, 1))
-      return -11;
+	return -11;
     if (!do_export_geotiff (db_handle, "rgb10k", geom, 2))
-      return -12;
+	return -12;
     if (!do_export_geotiff (db_handle, "rgb10k", geom, 4))
-      return -13;
+	return -13;
     if (!do_export_geotiff (db_handle, "rgb10k", geom, 8))
-      return -14;
+	return -14;
     gaiaFreeGeomColl (geom);
     geom = get_center_point (db_handle, "rgb10k");
     if (geom == NULL)
-      return -15;
+	return -15;
     if (!do_export_geotiff (db_handle, "gray10k", geom, 1))
-      return -16;
+	return -16;
     if (!do_export_geotiff (db_handle, "gray10k", geom, 2))
-      return -17;
+	return -17;
     if (!do_export_geotiff (db_handle, "gray10k", geom, 4))
-      return -18;
+	return -18;
     if (!do_export_geotiff (db_handle, "gray10k", geom, 8))
-      return -19;
+	return -19;
     gaiaFreeGeomColl (geom);
     geom = get_center_point (db_handle, "ctrt10k");
     if (geom == NULL)
-      return -20;
+	return -20;
     if (!do_export_geotiff (db_handle, "ctrt10k", geom, 1))
-      return -21;
+	return -21;
 /*
     if (!do_export_geotiff (db_handle, "ctrt10k", geom, 2))
       return -22;

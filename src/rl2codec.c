@@ -1849,6 +1849,8 @@ odd_even_rows (rl2PrivRasterPtr raster, int *odd_rows, int *row_stride_odd,
 	  free (pix_odd);
 	  return 0;
       }
+    memset (pix_odd, 0, o_size);
+    memset (pix_even, 0, e_size);
 
 /* feeding the pixel buffers */
     switch (raster->sampleType)
@@ -4378,7 +4380,6 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
     unsigned char xpixel_type;
     unsigned char xnum_bands;
     unsigned char xcompression;
-    unsigned short row_stride_odd;
     uLong crc;
     if (!check_blob_odd
 	(blob_odd, blob_odd_sz, &width, &height, &xsample_type, &xpixel_type,
@@ -4393,10 +4394,58 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
       }
     if (width != tile_width || height != tile_height)
 	return RL2_ERROR;
-    if (sample_type != xsample_type || pixel_type != xpixel_type
-	|| num_bands != xnum_bands || compression != xcompression)
-	return RL2_ERROR;
-    return RL2_OK;
+    if (level == 0)
+      {
+	  /* base-level tile */
+	  if (sample_type == xsample_type || pixel_type == xpixel_type
+	      || num_bands == xnum_bands || compression == xcompression)
+	      return RL2_OK;
+      }
+    else
+      {
+	  /* Pyramid-level tile */
+	  if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_RGB
+	      && num_bands == 3)
+	    {
+		/* expecting an RGB/JPEG Pyramid tile */
+		if (xsample_type == RL2_SAMPLE_UINT8
+		    && xpixel_type == RL2_PIXEL_RGB && xnum_bands == 3
+		    && xcompression == RL2_COMPRESSION_JPEG)
+		    return RL2_OK;
+	    }
+	  if (sample_type == RL2_SAMPLE_UINT8
+	      && pixel_type == RL2_PIXEL_GRAYSCALE && num_bands == 1)
+	    {
+		/* expecting a GRAYSCALE/JPEG Pyramid tile */
+		if (xsample_type == RL2_SAMPLE_UINT8
+		    && xpixel_type == RL2_PIXEL_GRAYSCALE && xnum_bands == 1
+		    && xcompression == RL2_COMPRESSION_JPEG)
+		    return RL2_OK;
+	    }
+	  if (sample_type == RL2_SAMPLE_1_BIT
+	      && pixel_type == RL2_PIXEL_MONOCHROME && num_bands == 1)
+	    {
+		/* expecting a GRAYSCALE/PNG Pyramid tile */
+		if (xsample_type == RL2_SAMPLE_UINT8
+		    && xpixel_type == RL2_PIXEL_GRAYSCALE && xnum_bands == 1
+		    && xcompression == RL2_COMPRESSION_PNG)
+		    return RL2_OK;
+	    }
+	  if ((sample_type == RL2_SAMPLE_1_BIT
+	       && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1) ||
+	      (sample_type == RL2_SAMPLE_2_BIT
+	       && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1) ||
+	      (sample_type == RL2_SAMPLE_4_BIT
+	       && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1))
+	    {
+		/* expecting an RGB/PNG Pyramid tile */
+		if (xsample_type == RL2_SAMPLE_UINT8
+		    && xpixel_type == RL2_PIXEL_RGB && xnum_bands == 3
+		    && xcompression == RL2_COMPRESSION_PNG)
+		    return RL2_OK;
+	    }
+      }
+    return RL2_ERROR;
 }
 
 RL2_DECLARE rl2RasterPtr

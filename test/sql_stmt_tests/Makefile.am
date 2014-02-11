@@ -283,6 +283,22 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	pixelequals6.testcase \
 	pixelequals7.testcase \
 	pixelequals8.testcase \
+	pyramidize1.testcase \
+	pyramidize2.testcase \
+	pyramidize3.testcase \
+	pyramidize4.testcase \
+	pyramidize5.testcase \
+	pyramidize6.testcase \
+	pyramidize7.testcase \
+	pyramidize8.testcase \
+	pyramidize9.testcase \
+	pyramidize10.testcase \
+	pyramidize11.testcase \
+	pyramidize12.testcase \
+	pyramidize13.testcase \
+	pyramidize14.testcase \
+	pyramidize15.testcase \
+	pyramidize16.testcase \
 	setpixelopaque2.testcase \
 	setpixeltransparent1.testcase \
 	setpixeltransparent2.testcase \
@@ -331,4 +347,5 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	testpixel_uint8_mband.testcase \
 	testpixel_uint8_plt.testcase \
 	testpixel_uint8_rgb.testcase \
+	targetcpu.testcase 
 	version.testcase 

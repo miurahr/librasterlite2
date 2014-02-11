@@ -224,6 +224,60 @@ do_export_tiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     return retcode;
 }
 
+static int
+do_export_tiff_tfw (sqlite3 * sqlite, const char *coverage,
+		    gaiaGeomCollPtr geom, int scale, const char *compression)
+{
+/* exporting a Tiff (+ Worldfile) */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+
+    path = sqlite3_mprintf ("./%s_plain_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteTiffTfw(?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 5, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 6, xx_res);
+    sqlite3_bind_double (stmt, 7, yy_res);
+    sqlite3_bind_text (stmt, 8, compression, strlen (compression),
+		       SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
 static gaiaGeomCollPtr
 get_center_point (sqlite3 * sqlite, const char *coverage)
 {
@@ -272,6 +326,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     const char *pixel_name;
     unsigned char num_bands;
     const char *compression_name;
+    const char *alt_compression_name = "NONE";
     int qlty;
     char *sql;
     int tile_size;
@@ -423,7 +478,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* loading from directory */
     sql =
 	sqlite3_mprintf
-	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 3003, 1)", coverage,
+	("SELECT RL2_LoadRastersFromDir(%Q, %Q, %Q, 0, 3003, 0, 1)", coverage,
 	 "map_samples/ctrt", ".tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -451,7 +506,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* re-loading yet again the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 3003, 1)",
+    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 3003, 1, 1)",
 			   coverage, "map_samples/ctrt/cap1.tif");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -463,6 +518,18 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
 
+/* building the Pyramid Levels */
+    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, NULL, 0, 1)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "Pyramidize \"%s\" error: %s\n", coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -5;
+	  return 0;
+      }
+
 /* export tests */
     if (pixel == RL2_PIXEL_MONOCHROME)
 	compression_name = "FAX3";
@@ -471,53 +538,64 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     geom = get_center_point (sqlite, coverage);
     if (geom == NULL)
       {
-	  *retcode += -5;
+	  *retcode += -6;
 	  return 0;
       }
     if (!do_export_geotiff (sqlite, coverage, geom, 1, compression_name))
       {
-	  *retcode += -6;
-	  return 0;
-      }
-/*
-    if (!do_export_geotiff (sqlite, coverage, geom, 2, compression_name))
-      {
 	  *retcode += -7;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 4, compression_name))
+
+    if (!do_export_geotiff (sqlite, coverage, geom, 2, alt_compression_name))
       {
 	  *retcode += -8;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 8, compression_name))
+    if (!do_export_geotiff (sqlite, coverage, geom, 4, alt_compression_name))
       {
 	  *retcode += -9;
 	  return 0;
       }
-*/
-    if (!do_export_tiff (sqlite, coverage, geom, 1, compression_name))
+    if (!do_export_geotiff (sqlite, coverage, geom, 8, alt_compression_name))
       {
 	  *retcode += -10;
 	  return 0;
       }
-/*
-    if (!do_export_tiff (sqlite, coverage, geom, 2, compression_name))
+
+    if (!do_export_tiff (sqlite, coverage, geom, 1, compression_name))
       {
 	  *retcode += -11;
 	  return 0;
       }
-    if (!do_export_tiff (sqlite, coverage, geom, 4, compression_name))
+
+    if (!do_export_tiff (sqlite, coverage, geom, 2, alt_compression_name))
       {
 	  *retcode += -12;
 	  return 0;
       }
-    if (!do_export_tiff (sqlite, coverage, geom, 8, compression_name))
+    if (!do_export_tiff (sqlite, coverage, geom, 4, alt_compression_name))
       {
 	  *retcode += -13;
 	  return 0;
       }
-*/
+    if (!do_export_tiff (sqlite, coverage, geom, 8, alt_compression_name))
+      {
+	  *retcode += -14;
+	  return 0;
+      }
+
+    if (!do_export_tiff_tfw (sqlite, coverage, geom, 2, alt_compression_name))
+      {
+	  *retcode += -15;
+	  return 0;
+      }
+    if (!do_export_tiff_tfw (sqlite, coverage, geom, 4, alt_compression_name))
+      {
+	  *retcode += -16;
+	  return 0;
+      }
+
     gaiaFreeGeomColl (geom);
 
     return 1;

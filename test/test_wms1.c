@@ -156,7 +156,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 	    }
       }
     count = get_wms_layer_crs_count (layer);
-    if (count != 4)
+    if (count != 5)
       {
 	  fprintf (stderr, "GetWmsLayerCrsCount: unexpected result %d\n",
 		   count);
@@ -273,7 +273,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 	    }
       }
     count = get_wms_layer_crs_count (child);
-    if (count != 5)
+    if (count != 6)
       {
 	  fprintf (stderr,
 		   "GetWmsLayerCrsCount (Child): unexpected result %d\n",
@@ -288,7 +288,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 	  return -31;
       }
     count = get_wms_layer_style_count (child);
-    if (count != 8)
+    if (count != 9)
       {
 	  fprintf (stderr,
 		   "GetWmsLayerStyleCount (Child): unexpected result %d\n",
@@ -296,7 +296,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 	  return -32;
       }
     str = get_wms_layer_style_name (child, 5);
-    if (strcmp (str, "filtro_campo_codcom_not_equal") != 0)
+    if (strcmp (str, "contorno_avorio_con_etichette") != 0)
       {
 	  fprintf (stderr,
 		   "GetWmsLayerStyleName (Child): unexpected result \"%s\"\n",
@@ -1394,7 +1394,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
     dblval = get_wms_total_download_size (cache);
-    if (dblval != 46478.00)
+    if (dblval != 50136.00)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n",
 		   dblval);

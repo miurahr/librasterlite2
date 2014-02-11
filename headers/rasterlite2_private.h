@@ -533,7 +533,7 @@ extern "C"
 				unsigned char **mask, int *mask_sz);
 
     RL2_PRIVATE int
-	rl2_data_to_png (unsigned char *pixels, unsigned char *mask,
+	rl2_data_to_png (const unsigned char *pixels, unsigned char *mask,
 			 rl2PalettePtr plt, unsigned short width,
 			 unsigned short height, unsigned char sample_type,
 			 unsigned char pixel_type, unsigned char **compr_data,
@@ -577,6 +577,46 @@ extern "C"
     RL2_PRIVATE int truncate_32 (double val);
 
     RL2_PRIVATE unsigned int truncate_u32 (double val);
+
+    RL2_PRIVATE void void_raw_buffer_palette (unsigned char *buffer,
+					      unsigned short width,
+					      unsigned short height,
+					      rl2PalettePtr palette,
+					      rl2PixelPtr no_data);
+
+    RL2_PRIVATE void void_raw_buffer (unsigned char *buffer,
+				      unsigned short width,
+				      unsigned short height,
+				      unsigned char sample_type,
+				      unsigned char num_bands,
+				      rl2PixelPtr no_data);
+
+    RL2_PRIVATE int load_dbms_tiles (sqlite3 * handle,
+				     sqlite3_stmt * stmt_tiles,
+				     sqlite3_stmt * stmt_data,
+				     unsigned char *outbuf,
+				     unsigned short width,
+				     unsigned short height,
+				     unsigned char sample_type,
+				     unsigned char num_bands, double x_res,
+				     double y_res, double minx, double miny,
+				     double maxx, double maxy, int level,
+				     int scale, rl2PalettePtr palette,
+				     rl2PixelPtr no_data);
+
+    RL2_PRIVATE int load_dbms_tiles_section (sqlite3 * handle,
+					     sqlite3_int64 section_id,
+					     sqlite3_stmt * stmt_tiles,
+					     sqlite3_stmt * stmt_data,
+					     unsigned char *outbuf,
+					     unsigned short width,
+					     unsigned short height,
+					     unsigned char sample_type,
+					     unsigned char num_bands,
+					     double x_res, double y_res,
+					     double minx, double maxy,
+					     int scale, rl2PalettePtr palette,
+					     rl2PixelPtr no_data);
 
 #ifdef __cplusplus
 }

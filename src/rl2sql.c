@@ -1658,7 +1658,9 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / LoadRaster(text coverage, text path_to_raster, int with_worldfile,
 /            int force_srid)
 / LoadRaster(text coverage, text path_to_raster, int with_worldfile,
-/            int force_srid, int transaction)
+/            int force_srid, int pyramidize)
+/ LoadRaster(text coverage, text path_to_raster, int with_worldfile,
+/            int force_srid, int pyramidize, int transaction)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
@@ -1670,6 +1672,7 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int worldfile = 0;
     int force_srid = -1;
     int transaction = 1;
+    int pyramidize = 1;
     rl2CoveragePtr coverage;
     sqlite3 *sqlite;
     int ret;
@@ -1684,6 +1687,8 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (argc > 3 && sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
 	err = 1;
     if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_INTEGER)
 	err = 1;
     if (err)
       {
@@ -1706,7 +1711,9 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (argc > 3)
 	force_srid = sqlite3_value_int (argv[3]);
     if (argc > 4)
-	transaction = sqlite3_value_int (argv[4]);
+	pyramidize = sqlite3_value_int (argv[4]);
+    if (argc > 5)
+	transaction = sqlite3_value_int (argv[5]);
     if (transaction)
       {
 	  /* starting a DBMS Transaction */
@@ -1719,7 +1726,7 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	    }
       }
     ret = rl2_load_raster_into_dbms (sqlite, path, coverage,
-				     worldfile, force_srid, 0);
+				     worldfile, force_srid, pyramidize);
     rl2_destroy_coverage (coverage);
     if (ret != RL2_OK)
       {
@@ -1757,7 +1764,10 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
 /                    int with_worldfile, int force_srid)
 / LoadRastersFromDir(text coverage, text dir_path, text file_ext,
 /                    int with_worldfile, int force_srid, 
-/                    int transaction)
+/                    int pyramidize)
+/ LoadRastersFromDir(text coverage, text dir_path, text file_ext,
+/                    int with_worldfile, int force_srid, 
+/                    int pyramidize, int transaction)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
@@ -1770,6 +1780,7 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     int worldfile = 0;
     int force_srid = -1;
     int transaction = 1;
+    int pyramidize = 1;
     rl2CoveragePtr coverage;
     sqlite3 *sqlite;
     int ret;
@@ -1786,6 +1797,8 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
 	err = 1;
     if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
 	err = 1;
     if (err)
       {
@@ -1810,7 +1823,9 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     if (argc > 4)
 	force_srid = sqlite3_value_int (argv[4]);
     if (argc > 5)
-	transaction = sqlite3_value_int (argv[5]);
+	pyramidize = sqlite3_value_int (argv[5]);
+    if (argc > 6)
+	transaction = sqlite3_value_int (argv[6]);
     if (transaction)
       {
 	  /* starting a DBMS Transaction */
@@ -1823,8 +1838,96 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
 	    }
       }
     ret = rl2_load_mrasters_into_dbms (sqlite, path, file_ext, coverage,
-				       worldfile, force_srid, 0);
+				       worldfile, force_srid, pyramidize);
     rl2_destroy_coverage (coverage);
+    if (ret != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  if (transaction)
+	    {
+		/* invalidating the pending transaction */
+		sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	    }
+	  return;
+      }
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
+}
+
+static void
+fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ Pyramidize(text coverage)
+/ Pyramidize(text coverage, text section)
+/ Pyramidize(text coverage, text section, int force_rebuild)
+/ Pyramidize(text coverage, text section, int force_rebuild,
+/            int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    const char *sect_name = NULL;
+    int forced_rebuild = 0;
+    int transaction = 1;
+    sqlite3 *sqlite;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_TEXT
+	&& sqlite3_value_type (argv[1]) != SQLITE_NULL)
+	err = 1;
+    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 3 && sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+/* attempting to (re)build Pyramid levels */
+    sqlite = sqlite3_context_db_handle (context);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    if (argc > 1)
+      {
+	  if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
+	      sect_name = (const char *) sqlite3_value_text (argv[1]);
+      }
+    if (argc > 2)
+	forced_rebuild = sqlite3_value_int (argv[2]);
+    if (argc > 3)
+	transaction = sqlite3_value_int (argv[3]);
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    if (sect_name == NULL)
+	ret = rl2_build_all_section_pyramids (sqlite, cvg_name, forced_rebuild);
+    else
+	ret =
+	    rl2_build_section_pyramid (sqlite, cvg_name, sect_name,
+				       forced_rebuild);
     if (ret != RL2_OK)
       {
 	  sqlite3_result_int (context, 0);
@@ -1921,8 +2024,8 @@ static int
 do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 		unsigned char *blob_even, int blob_even_sz,
 		sqlite3_int64 section_id, int srid, double res_x, double res_y,
-		unsigned short tile_w, unsigned short tile_h, double minx,
-		double miny, double maxx, double maxy, double tile_minx,
+		unsigned short tile_w, unsigned short tile_h,
+		double miny, double maxx, double tile_minx,
 		double tile_miny, double tile_maxx, double tile_maxy,
 		rl2PalettePtr aux_palette, rl2PixelPtr no_data,
 		sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
@@ -2106,8 +2209,6 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
     int pixels_sz = 0;
     unsigned char *mask = NULL;
     int mask_size = 0;
-    int unused_width = 0;
-    int unused_height = 0;
     const unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *p_msk;
@@ -2180,9 +2281,8 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		for (x = 0; x < cvg->tileWidth; x++)
 		  {
 		      unsigned char red = *p_in++;
-		      unsigned char green = *p_in++;
-		      unsigned char blue = *p_in++;
 		      unsigned char alpha = *p_in++;
+		      p_in += 2;
 		      *p_out++ = red;
 		      if (alpha < 128)
 			{
@@ -2200,9 +2300,8 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		for (x = 0; x < cvg->tileWidth; x++)
 		  {
 		      unsigned char red = *p_in++;
-		      unsigned char green = *p_in++;
-		      unsigned char blue = *p_in++;
 		      unsigned char alpha = *p_in++;
+		      p_in += 2;
 		      if (red == 255)
 			  *p_out++ = 0;
 		      else
@@ -2665,7 +2764,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		if (!do_insert_tile
 		    (sqlite, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
 		     section_id, srid, horz_res, vert_res, tile_width,
-		     tile_height, minx, miny, maxx, maxy, tile_minx, tile_miny,
+		     tile_height, minx, maxy, tile_minx, tile_miny,
 		     tile_maxx, tile_maxy, NULL, no_data, stmt_tils, stmt_data,
 		     section_stats))
 		    goto error;
@@ -3497,6 +3596,22 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_PixelEquals, 0, 0);
     sqlite3_create_function (db, "RL2_PixelEquals", 2, SQLITE_ANY, 0,
 			     fnct_PixelEquals, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 1, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 1, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 2, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 2, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 3, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 3, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 4, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 4, SQLITE_ANY, 0,
+			     fnct_Pyramidize, 0, 0);
 
 /*
 // enabling ImportRaster and ExportRaster
@@ -3532,6 +3647,8 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_LoadRaster, 0, 0);
 	  sqlite3_create_function (db, "LoadRaster", 5, SQLITE_ANY, 0,
 				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "LoadRaster", 6, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRaster", 2, SQLITE_ANY, 0,
 				   fnct_LoadRaster, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRaster", 3, SQLITE_ANY, 0,
@@ -3539,6 +3656,8 @@ register_rl2_sql_functions (void *p_db)
 	  sqlite3_create_function (db, "RL2_LoadRaster", 4, SQLITE_ANY, 0,
 				   fnct_LoadRaster, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRaster", 5, SQLITE_ANY, 0,
+				   fnct_LoadRaster, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRaster", 6, SQLITE_ANY, 0,
 				   fnct_LoadRaster, 0, 0);
 	  sqlite3_create_function (db, "LoadRastersFromDir", 2, SQLITE_ANY, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
@@ -3550,6 +3669,8 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_LoadRastersFromDir, 0, 0);
 	  sqlite3_create_function (db, "LoadRastersFromDir", 6, SQLITE_ANY, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "LoadRastersFromDir", 7, SQLITE_ANY, 0,
+				   fnct_LoadRastersFromDir, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 2, SQLITE_ANY,
 				   0, fnct_LoadRastersFromDir, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 3, SQLITE_ANY,
@@ -3559,6 +3680,8 @@ register_rl2_sql_functions (void *p_db)
 	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 5, SQLITE_ANY,
 				   0, fnct_LoadRastersFromDir, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 6, SQLITE_ANY,
+				   0, fnct_LoadRastersFromDir, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 7, SQLITE_ANY,
 				   0, fnct_LoadRastersFromDir, 0, 0);
 	  sqlite3_create_function (db, "LoadRasterFromWMS", 9, SQLITE_ANY, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);

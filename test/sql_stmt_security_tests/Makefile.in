@@ -269,6 +269,10 @@ EXTRA_DIST = loadraster1.testcase \
 	loadraster18.testcase \
 	loadraster19.testcase \
 	loadraster20.testcase \
+	loadraster21.testcase \
+	loadraster22.testcase \
+	loadraster23.testcase \
+	loadraster24.testcase \
 	loadrasterdir1.testcase \
 	loadrasterdir2.testcase \
 	loadrasterdir3.testcase \
@@ -293,6 +297,10 @@ EXTRA_DIST = loadraster1.testcase \
 	loadrasterdir22.testcase \
 	loadrasterdir23.testcase \
 	loadrasterdir24.testcase \
+	loadrasterdir25.testcase \
+	loadrasterdir26.testcase \
+	loadrasterdir27.testcase \
+	loadrasterdir28.testcase \
 	loadrasterwms1.testcase \
 	loadrasterwms2.testcase \
 	loadrasterwms3.testcase \

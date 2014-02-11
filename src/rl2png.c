@@ -109,7 +109,7 @@ rl2_png_flush (png_structp png_ptr)
 }
 
 static int
-compress_palette_png (unsigned char *pixels, unsigned short width,
+compress_palette_png (const unsigned char *pixels, unsigned short width,
 		      unsigned short height, rl2PalettePtr plt,
 		      unsigned char sample_type, unsigned char **png,
 		      int *png_size)
@@ -129,7 +129,7 @@ compress_palette_png (unsigned char *pixels, unsigned short width,
     unsigned char *blue = NULL;
     unsigned char *alpha = NULL;
     int i;
-    unsigned char *p_in;
+    const unsigned char *p_in;
     struct png_memory_buffer membuf;
     membuf.buffer = NULL;
     membuf.size = 0;
@@ -235,7 +235,7 @@ compress_palette_png (unsigned char *pixels, unsigned short width,
 }
 
 static int
-compress_grayscale_png (unsigned char *pixels, unsigned char *mask,
+compress_grayscale_png (const unsigned char *pixels, const unsigned char *mask,
 			unsigned short width, unsigned short height,
 			unsigned char sample_type, unsigned char pixel_type,
 			unsigned char **png, int *png_size)
@@ -248,8 +248,8 @@ compress_grayscale_png (unsigned char *pixels, unsigned char *mask,
     png_bytep p_out;
     int row;
     int col;
-    unsigned char *p_in;
-    unsigned char *p_mask;
+    const unsigned char *p_in;
+    const unsigned char *p_mask;
     int nBands;
     int type;
     int is_monochrome = 0;
@@ -337,6 +337,7 @@ compress_grayscale_png (unsigned char *pixels, unsigned char *mask,
 		  }
 	    }
       }
+
     png_write_image (png_ptr, row_pointers);
     png_write_end (png_ptr, info_ptr);
     for (row = 0; row < height; ++row)
@@ -358,7 +359,7 @@ compress_grayscale_png (unsigned char *pixels, unsigned char *mask,
 }
 
 static int
-compress_rgb_png (unsigned char *pixels, unsigned char *mask,
+compress_rgb_png (const unsigned char *pixels, const unsigned char *mask,
 		  unsigned short width, unsigned short height,
 		  unsigned char **png, int *png_size)
 {
@@ -369,8 +370,8 @@ compress_rgb_png (unsigned char *pixels, unsigned char *mask,
     png_bytep p_out;
     int row;
     int col;
-    unsigned char *p_in;
-    unsigned char *p_mask;
+    const unsigned char *p_in;
+    const unsigned char *p_mask;
     int nBands;
     int type;
     struct png_memory_buffer membuf;
@@ -587,9 +588,28 @@ rl2_raster_to_png (rl2RasterPtr rst, unsigned char **png, int *png_size)
     return RL2_OK;
 }
 
+RL2_DECLARE int
+rl2_rgb_to_png (unsigned short width, unsigned short height,
+		const unsigned char *rgb, unsigned char **png, int *png_size)
+{
+/* creating a PNG image from a raster */
+    unsigned char *blob;
+    int blob_size;
+    if (rgb == NULL)
+	return RL2_ERROR;
+
+    if (rl2_data_to_png
+	(rgb, NULL, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, &blob,
+	 &blob_size) != RL2_OK)
+	return RL2_ERROR;
+    *png = blob;
+    *png_size = blob_size;
+    return RL2_OK;
+}
+
 RL2_PRIVATE int
-rl2_data_to_png (unsigned char *pixels, unsigned char *mask, rl2PalettePtr plt,
-		 unsigned short width, unsigned short height,
+rl2_data_to_png (const unsigned char *pixels, unsigned char *mask,
+		 rl2PalettePtr plt, unsigned short width, unsigned short height,
 		 unsigned char sample_type, unsigned char pixel_type,
 		 unsigned char **png, int *png_size)
 {

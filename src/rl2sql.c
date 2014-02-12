@@ -1673,7 +1673,7 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int force_srid = -1;
     int transaction = 1;
     int pyramidize = 1;
-    rl2CoveragePtr coverage;
+    rl2CoveragePtr coverage = NULL;
     sqlite3 *sqlite;
     int ret;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
@@ -1695,16 +1695,9 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-/* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
+
+/* retrieving the arguments */
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
-    if (coverage == NULL)
-      {
-	  sqlite3_result_int (context, -1);
-	  return;
-      }
-/* attempting to load the Raster into the DBMS */
     path = (const char *) sqlite3_value_text (argv[1]);
     if (argc > 2)
 	worldfile = sqlite3_value_int (argv[2]);
@@ -1714,6 +1707,18 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	pyramidize = sqlite3_value_int (argv[4]);
     if (argc > 5)
 	transaction = sqlite3_value_int (argv[5]);
+
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* attempting to load the Raster into the DBMS */
     if (transaction)
       {
 	  /* starting a DBMS Transaction */
@@ -1781,7 +1786,7 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
     int force_srid = -1;
     int transaction = 1;
     int pyramidize = 1;
-    rl2CoveragePtr coverage;
+    rl2CoveragePtr coverage = NULL;
     sqlite3 *sqlite;
     int ret;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
@@ -1805,16 +1810,9 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-/* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
+
+/* retrieving the arguments */
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
-    if (coverage == NULL)
-      {
-	  sqlite3_result_int (context, -1);
-	  return;
-      }
-/* attempting to load the Rasters into the DBMS */
     path = (const char *) sqlite3_value_text (argv[1]);
     if (argc > 2)
 	file_ext = (const char *) sqlite3_value_text (argv[2]);
@@ -1826,6 +1824,17 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
 	pyramidize = sqlite3_value_int (argv[5]);
     if (argc > 6)
 	transaction = sqlite3_value_int (argv[6]);
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* attempting to load the Rasters into the DBMS */
     if (transaction)
       {
 	  /* starting a DBMS Transaction */
@@ -2464,7 +2473,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     if (sqlite3_value_type (argv[8]) != SQLITE_INTEGER
 	&& sqlite3_value_type (argv[8]) != SQLITE_FLOAT)
 	err = 1;
-    if (argc > 10 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER
+    if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER
 	&& sqlite3_value_type (argv[9]) != SQLITE_FLOAT)
 	err = 1;
     if (argc > 10 && sqlite3_value_type (argv[10]) != SQLITE_INTEGER)
@@ -2489,7 +2498,6 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
       }
 
 /* retrieving all arguments */
-    sqlite = sqlite3_context_db_handle (context);
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
     sect_name = (const char *) sqlite3_value_text (argv[1]);
     url = (const char *) sqlite3_value_text (argv[2]);
@@ -2535,7 +2543,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 	  errcode = -1;
 	  goto error;
       }
-    /* retrieving the BBOX */
+/* retrieving the BBOX */
     minx = geom->MinX;
     maxx = geom->MaxX;
     miny = geom->MinY;
@@ -2543,6 +2551,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -2573,6 +2582,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 	  sqlite3_result_int (context, -1);
 	  return;
       }
+
     tilew = (double) tile_width *horz_res;
     tileh = (double) tile_height *vert_res;
     ext_x = maxx - minx;
@@ -2923,7 +2933,7 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int worldfile = 0;
     unsigned char compression = RL2_COMPRESSION_NONE;
     int tile_sz = 256;
-    rl2CoveragePtr coverage;
+    rl2CoveragePtr coverage = NULL;
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
@@ -2962,17 +2972,8 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  return;
       }
 
-/* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
+/* retrieving all arguments */
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
-    if (coverage == NULL)
-      {
-	  sqlite3_result_int (context, -1);
-	  return;
-      }
-
-/* retrieving any other argument */
     path = (const char *) sqlite3_value_text (argv[1]);
     width = sqlite3_value_int (argv[2]);
     height = sqlite3_value_int (argv[3]);
@@ -3069,6 +3070,15 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
       }
     gaiaFreeGeomColl (geom);
 
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
     ret =
 	rl2_export_geotiff_from_dbms (sqlite, path, coverage, horz_res,
 				      vert_res, minx, miny, maxx, maxy, width,
@@ -3120,7 +3130,7 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
     double vert_res;
     unsigned char compression = RL2_COMPRESSION_NONE;
     int tile_sz = 256;
-    rl2CoveragePtr coverage;
+    rl2CoveragePtr coverage = NULL;
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
@@ -3157,17 +3167,8 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
 	  return;
       }
 
-/* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
+/* retrieving all arguments */
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
-    if (coverage == NULL)
-      {
-	  sqlite3_result_int (context, -1);
-	  return;
-      }
-
-/* retrieving any other argument */
     path = (const char *) sqlite3_value_text (argv[1]);
     width = sqlite3_value_int (argv[2]);
     height = sqlite3_value_int (argv[3]);
@@ -3261,6 +3262,15 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
 	  maxy = geom->MaxY;
       }
     gaiaFreeGeomColl (geom);
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
 
     if (with_worldfile)
       {
@@ -3366,7 +3376,7 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     const unsigned char *blob;
     int blob_sz;
     double resolution;
-    rl2CoveragePtr coverage;
+    rl2CoveragePtr coverage = NULL;
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
@@ -3402,17 +3412,8 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  return;
       }
 
-/* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
+/* retrieving all arguments */
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
-    if (coverage == NULL)
-      {
-	  sqlite3_result_int (context, -1);
-	  return;
-      }
-
-/* retrieving any other argument */
     path = (const char *) sqlite3_value_text (argv[1]);
     width = sqlite3_value_int (argv[2]);
     height = sqlite3_value_int (argv[3]);
@@ -3475,6 +3476,15 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
       }
     gaiaFreeGeomColl (geom);
 
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
     ret =
 	rl2_export_ascii_grid_from_dbms (sqlite, path, coverage,
 					 resolution, minx,
@@ -3493,6 +3503,144 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (coverage != NULL)
 	rl2_destroy_coverage (coverage);
     sqlite3_result_int (context, errcode);
+}
+
+static void
+fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetMapImage(text coverage, BLOB geom, int width, int height)
+/ GetMapImage(text coverage, BLOB geom, int width, int height,
+/             text style)
+/ GetMapImage(text coverage, BLOB geom, int width, int height,
+/             text style, text format)
+/ GetMapImage(text coverage, BLOB geom, int width, int height,
+/             text style, text format, int transparent)
+/ GetMapImage(text coverage, BLOB geom, int width, int height,
+/             text style, text format, int transparent,
+/             int quality)
+/ GetMapImage(text coverage, BLOB geom, int width, int height,
+/             text style, text format, int transparent,
+/             int quality, int reaspect)
+/
+/ will return a BLOB containing the Image payload
+/ or NULL (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    rl2CoveragePtr coverage = NULL;
+    int width;
+    int height;
+    const unsigned char *blob;
+    int blob_sz;
+    const char *style = "default";
+    const char *format = "image/png";
+    int transparent = 0;
+    int quality = 80;
+    int reaspect = 0;
+    sqlite3 *sqlite;
+    int ret;
+    gaiaGeomCollPtr geom;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    double ext_x;
+    double ext_y;
+    double x_res;
+    double y_res;
+    int ok_style;
+    int ok_format;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_BLOB)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+
+/* retrieving the arguments */
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    blob = sqlite3_value_blob (argv[1]);
+    blob_sz = sqlite3_value_bytes (argv[1]);
+    width = sqlite3_value_int (argv[2]);
+    height = sqlite3_value_int (argv[3]);
+    if (argc > 4)
+	style = (const char *) sqlite3_value_text (argv[4]);
+    if (argc > 5)
+	format = (const char *) sqlite3_value_text (argv[5]);
+    if (argc > 6)
+	transparent = sqlite3_value_int (argv[6]);
+    if (argc > 7)
+	quality = sqlite3_value_int (argv[7]);
+    if (argc > 8)
+	quality = sqlite3_value_int (argv[8]);
+
+/* coarse args validation */
+    if (width < 64 || width > 5000)
+	goto error;
+    if (height < 64 || height > 5000)
+	goto error;
+/* validating the style */
+    ok_style = 0;
+    if (strcmp (style, "default") == 0)
+	ok_style = 1;
+    if (!ok_style)
+	goto error;
+/* validating the format */
+    ok_format = 0;
+    if (strcmp (format, "image/png") == 0)
+	ok_format = 1;
+    if (strcmp (format, "image/jpeg") == 0)
+	ok_format = 1;
+    if (!ok_format)
+	goto error;
+
+/* checking the Geometry */
+    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
+    if (geom == NULL)
+	goto error;
+    minx = geom->MinX;
+    maxx = geom->MaxX;
+    miny = geom->MinY;
+    maxy = geom->MaxY;
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    if (ext_x <= 0.0 || ext_y <= 0.0)
+	goto error;
+    x_res = ext_x / (double) width;
+    y_res = ext_y / (double) height;
+    gaiaFreeGeomColl (geom);
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      goto error;
+
+  error:
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    sqlite3_result_null (context);
 }
 
 static void
@@ -3771,6 +3919,30 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_WriteAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "GetMapImage", 4, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "RL2_GetMapImage", 4, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "GetMapImage", 5, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "RL2_GetMapImage", 5, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "GetMapImage", 6, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "RL2_GetMapImage", 6, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "GetMapImage", 7, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "RL2_GetMapImage", 7, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "GetMapImage", 8, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "RL2_GetMapImage", 8, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "GetMapImage", 9, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
+	  sqlite3_create_function (db, "RL2_GetMapImage", 9, SQLITE_ANY, 0,
+				   fnct_GetMapImage, 0, 0);
       }
 }
 

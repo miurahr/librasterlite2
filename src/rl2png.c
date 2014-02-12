@@ -592,7 +592,7 @@ RL2_DECLARE int
 rl2_rgb_to_png (unsigned short width, unsigned short height,
 		const unsigned char *rgb, unsigned char **png, int *png_size)
 {
-/* creating a PNG image from a raster */
+/* creating a PNG image from an RGB buffer */
     unsigned char *blob;
     int blob_size;
     if (rgb == NULL)
@@ -607,8 +607,67 @@ rl2_rgb_to_png (unsigned short width, unsigned short height,
     return RL2_OK;
 }
 
+RL2_DECLARE int
+rl2_rgb_alpha_to_png (unsigned short width, unsigned short height,
+		      const unsigned char *rgb, const unsigned char *alpha,
+		      unsigned char **png, int *png_size)
+{
+/* creating a PNG image from two distinct RGB + Alpha buffer */
+    unsigned char *blob;
+    int blob_size;
+    if (rgb == NULL)
+	return RL2_ERROR;
+
+    if (rl2_data_to_png
+	(rgb, alpha, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB,
+	 &blob, &blob_size) != RL2_OK)
+	return RL2_ERROR;
+    *png = blob;
+    *png_size = blob_size;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_gray_to_png (unsigned short width, unsigned short height,
+		 const unsigned char *gray, unsigned char **png, int *png_size)
+{
+/* creating a PNG image from a Grayscale buffer */
+    unsigned char *blob;
+    int blob_size;
+    if (gray == NULL)
+	return RL2_ERROR;
+
+    if (rl2_data_to_png
+	(gray, NULL, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE,
+	 &blob, &blob_size) != RL2_OK)
+	return RL2_ERROR;
+    *png = blob;
+    *png_size = blob_size;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
+		       const unsigned char *gray, const unsigned char *alpha,
+		       unsigned char **png, int *png_size)
+{
+/* creating a PNG image from two distinct Grayscale + Alpha buffer */
+    unsigned char *blob;
+    int blob_size;
+    if (gray == NULL)
+	return RL2_ERROR;
+
+    if (rl2_data_to_png
+	(gray, alpha, NULL, width, height, RL2_SAMPLE_UINT8,
+	 RL2_PIXEL_GRAYSCALE, &blob, &blob_size) != RL2_OK)
+	return RL2_ERROR;
+    *png = blob;
+    *png_size = blob_size;
+    return RL2_OK;
+}
+
 RL2_PRIVATE int
-rl2_data_to_png (const unsigned char *pixels, unsigned char *mask,
+rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
 		 rl2PalettePtr plt, unsigned short width, unsigned short height,
 		 unsigned char sample_type, unsigned char pixel_type,
 		 unsigned char **png, int *png_size)

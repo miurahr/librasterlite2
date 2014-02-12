@@ -533,7 +533,7 @@ extern "C"
 				unsigned char **mask, int *mask_sz);
 
     RL2_PRIVATE int
-	rl2_data_to_png (const unsigned char *pixels, unsigned char *mask,
+	rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
 			 rl2PalettePtr plt, unsigned short width,
 			 unsigned short height, unsigned char sample_type,
 			 unsigned char pixel_type, unsigned char **compr_data,
@@ -548,7 +548,7 @@ extern "C"
 			rl2PalettePtr * palette);
 
     RL2_PRIVATE int
-	rl2_data_to_gif (unsigned char *pixels, unsigned char *mask,
+	rl2_data_to_gif (const unsigned char *pixels, const unsigned char *mask,
 			 rl2PalettePtr plt, unsigned short width,
 			 unsigned short height, unsigned char sample_type,
 			 unsigned char pixel_type, unsigned char **compr_data,
@@ -560,6 +560,13 @@ extern "C"
 			unsigned char *sample_type, unsigned char *pixel_type,
 			unsigned char **pixels, int *pixels_sz,
 			rl2PalettePtr * palette);
+
+    RL2_PRIVATE int
+	rl2_data_to_jpeg (const unsigned char *pixels,
+			  const unsigned char *mask, rl2PalettePtr plt,
+			  unsigned short width, unsigned short height,
+			  unsigned char sample_type, unsigned char pixel_type,
+			  unsigned char **jpeg, int *jpeg_size, int quality);
 
     RL2_PRIVATE int
 	rl2_decode_tiff_mono4 (const unsigned char *tiff, int tiff_sz,

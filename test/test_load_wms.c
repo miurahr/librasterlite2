@@ -311,7 +311,7 @@ main (int argc, char *argv[])
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "LoadRastersFromWMS \"%s\" error: %s\n", "rgb10k",
+	  fprintf (stderr, "LoadRasterFromWMS \"%s\" error: %s\n", "rgb10k",
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  return -7;
@@ -329,7 +329,7 @@ main (int argc, char *argv[])
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "LoadRastersFromWMS \"%s\" error: %s\n", "gray10k",
+	  fprintf (stderr, "LoadRasterFromWMS \"%s\" error: %s\n", "gray10k",
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  return -8;
@@ -347,7 +347,7 @@ main (int argc, char *argv[])
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "LoadRastersFromWMS \"%s\" error: %s\n", "ctrt10k",
+	  fprintf (stderr, "LoadRasterFromWMS \"%s\" error: %s\n", "ctrt10k",
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  return -9;

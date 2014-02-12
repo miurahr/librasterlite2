@@ -207,8 +207,8 @@ compress_gif (rl2RasterPtr rst, unsigned char **gif, int *gif_size)
 }
 
 RL2_PRIVATE int
-rl2_data_to_gif (unsigned char *pixels, unsigned char *mask, rl2PalettePtr plt,
-		 unsigned short width, unsigned short height,
+rl2_data_to_gif (const unsigned char *pixels, const unsigned char *mask,
+		 rl2PalettePtr plt, unsigned short width, unsigned short height,
 		 unsigned char sample_type, unsigned char pixel_type,
 		 unsigned char **gif, int *gif_size)
 {
@@ -223,7 +223,7 @@ rl2_data_to_gif (unsigned char *pixels, unsigned char *mask, rl2PalettePtr plt,
     int i;
     int row;
     int col;
-    unsigned char *p_data;
+    const unsigned char *p_data;
     rl2PrivPalettePtr palette = (rl2PrivPalettePtr) plt;
     int max_palette;
 

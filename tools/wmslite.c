@@ -1108,8 +1108,8 @@ wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
     gaiaAppendToOutBuffer (&xml_text,
 			   "<AccessConstraints>none</AccessConstraints>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "<LayerLimit>1</LayerLimit>\r\n");
-    gaiaAppendToOutBuffer (&xml_text, "<MaxWidth>10000</MaxWidth>\r\n");
-    gaiaAppendToOutBuffer (&xml_text, "<MaxHeight>10000</MaxHeight>\r\n");
+    gaiaAppendToOutBuffer (&xml_text, "<MaxWidth>5000</MaxWidth>\r\n");
+    gaiaAppendToOutBuffer (&xml_text, "<MaxHeight>5000</MaxHeight>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "</Service>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
 			   "<Capability>\r\n<Request>\r\n<GetCapabilities>\r\n");

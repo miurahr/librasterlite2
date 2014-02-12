@@ -2985,12 +2985,112 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_create_raster, rl2_raster_from_png
+ \sa rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg
  */
     RL2_DECLARE int
 	rl2_rgb_to_png (unsigned short width, unsigned short height,
 			const unsigned char *rgb, unsigned char **png,
 			int *png_size);
+
+/**
+ Exports two separate RGB + Alpha buffers as an in-memory stored PNG image
+
+ \param width the PNG image width.
+ \param height the PNG image height.
+ \param rgb pointer to the RGB buffer.
+ \param alpha pointer to the Alpha channel buffer.
+ \param png on completion will point to the memory block storing the created PNG image.
+ \param png_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the PNG image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rgb_to_png, rl2_rgb_to_jpeg
+ */
+    RL2_DECLARE int
+	rl2_rgb_alpha_to_png (unsigned short width, unsigned short height,
+			      const unsigned char *rgb,
+			      const unsigned char *alpha, unsigned char **png,
+			      int *png_size);
+
+/**
+ Exports an RGB buffer as an in-memory stored JPEG image
+
+ \param width the JPEG image width.
+ \param height the JPEG image height.
+ \param rgb pointer to the RGB buffer.
+ \param quality compression quality factor (0-100) 
+ \param jpeg on completion will point to the memory block storing the created JPEG image.
+ \param jpeg_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the JPEG image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png
+ */
+    RL2_DECLARE int
+	rl2_rgb_to_jpeg (unsigned short width, unsigned short height,
+			 const unsigned char *rgb, int quality,
+			 unsigned char **jpeg, int *jpeg_size);
+
+/**
+ Exports a Grayscale buffer as an in-memory stored PNG image
+
+ \param width the PNG image width.
+ \param height the PNG image height.
+ \param gray pointer to the Grayscale buffer.
+ \param png on completion will point to the memory block storing the created PNG image.
+ \param png_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the PNG image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_gray_alpha_to_png, rl2_gray_to_jpeg
+ */
+    RL2_DECLARE int
+	rl2_gray_to_png (unsigned short width, unsigned short height,
+			 const unsigned char *gray, unsigned char **png,
+			 int *png_size);
+/**
+ Exports two separate Grayscale + Alpha buffers as an in-memory stored PNG image
+
+ \param width the PNG image width.
+ \param height the PNG image height.
+ \param gray pointer to the Grayscale buffer.
+ \param alpha pointer to the Alpha channel buffer.
+ \param png on completion will point to the memory block storing the created PNG image.
+ \param png_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the PNG image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_gray_to_png, rl2_gray_to_jpeg
+ */
+    RL2_DECLARE int
+	rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
+			       const unsigned char *gray,
+			       const unsigned char *alpha, unsigned char **png,
+			       int *png_size);
+
+/**
+ Exports a Grayscale buffer as an in-memory stored JPEG image
+
+ \param width the JPEG image width.
+ \param height the JPEG image height.
+ \param gray pointer to the Grayscale buffer.
+ \param quality compression quality factor (0-100) 
+ \param jpeg on completion will point to the memory block storing the created JPEG image.
+ \param jpeg_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the JPEG image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_gray_to_png, rl2_gray_alpha_to_png
+ */
+    RL2_DECLARE int
+	rl2_gray_to_jpeg (unsigned short width, unsigned short height,
+			  const unsigned char *gray, int quality,
+			  unsigned char **jpeg, int *jpeg_size);
 
 #ifdef __cplusplus
 }

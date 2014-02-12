@@ -158,6 +158,24 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	dropcoverage1.testcase \
 	dropcoverage2.testcase \
 	dropcoverage3.testcase \
+	getmapimage1.testcase \
+	getmapimage2.testcase \
+	getmapimage3.testcase \
+	getmapimage4.testcase \
+	getmapimage5.testcase \
+	getmapimage6.testcase \
+	getmapimage7.testcase \
+	getmapimage8.testcase \
+	getmapimage9.testcase \
+	getmapimage10.testcase \
+	getmapimage1.testcase \
+	getmapimage12.testcase \
+	getmapimage13.testcase \
+	getmapimage14.testcase \
+	getmapimage15.testcase \
+	getmapimage16.testcase \
+	getmapimage17.testcase \
+	getmapimage18.testcase \
 	getpixelnumbands1.testcase \
 	getpixelnumbands2.testcase \
 	getpixelnumbands3.testcase \

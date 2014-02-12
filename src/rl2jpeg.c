@@ -390,11 +390,13 @@ check_jpeg_compatibility (unsigned char sample_type, unsigned char pixel_type,
 }
 
 static int
-compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
-	       int quality)
+compress_jpeg (unsigned short width, unsigned short height,
+	       unsigned char sample_type, unsigned char pixel_type,
+	       const unsigned char *pixel_buffer,
+	       const unsigned char *mask_buffer, rl2PalettePtr palette,
+	       unsigned char **jpeg, int *jpeg_size, int quality)
 {
 /* compressing a JPG image */
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     unsigned char *outbuffer = NULL;
@@ -403,8 +405,8 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
     JSAMPROW rowptr[1];
     JSAMPROW p_row;
     const char *comment;
-    unsigned char *p_data;
-    unsigned char *p_mask;
+    const unsigned char *p_data;
+    const unsigned char *p_mask;
     int row;
     int col;
     unsigned short num_entries;
@@ -416,10 +418,9 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
     cinfo.err = jpeg_std_error (&jerr);
     jpeg_create_compress (&cinfo);
     rl2_jpeg_dest (&cinfo, &outbuffer, &outsize);
-    cinfo.image_width = rst->width;
-    cinfo.image_height = rst->height;
-    if (rst->pixelType == RL2_PIXEL_MONOCHROME
-	|| rst->pixelType == RL2_PIXEL_GRAYSCALE)
+    cinfo.image_width = width;
+    cinfo.image_height = height;
+    if (pixel_type == RL2_PIXEL_MONOCHROME || pixel_type == RL2_PIXEL_GRAYSCALE)
       {
 	  /* GRAYSCALE */
 	  cinfo.input_components = 1;
@@ -448,26 +449,25 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
     comment = "CREATOR: RasterLite2\n";
     jpeg_write_marker (&cinfo, JPEG_COM, (unsigned char *) comment,
 		       (unsigned int) strlen (comment));
-    p_data = rst->rasterBuffer;
-    p_mask = rst->maskBuffer;
-    if (rst->pixelType == RL2_PIXEL_PALETTE)
+    p_data = pixel_buffer;
+    p_mask = mask_buffer;
+    if (pixel_type == RL2_PIXEL_PALETTE)
       {
 	  /* retrieving the palette */
-	  if (rl2_get_palette_colors
-	      ((rl2PalettePtr) (rst->Palette), &num_entries, &red, &green,
-	       &blue, &alpha) != RL2_OK)
+	  if (rl2_get_palette_colors (palette, &num_entries, &red, &green,
+				      &blue, &alpha) != RL2_OK)
 	      goto error;
       }
-    for (row = 0; row < (int) (rst->height); row++)
+    for (row = 0; row < (int) height; row++)
       {
 	  p_row = scanline;
-	  for (col = 0; col < (int) (rst->width); col++)
+	  for (col = 0; col < (int) width; col++)
 	    {
 		int transparent = 1;
 		if (p_mask != NULL)
 		    transparent = *p_mask++;
 		transparent = !transparent;
-		if (rst->pixelType == RL2_PIXEL_PALETTE)
+		if (pixel_type == RL2_PIXEL_PALETTE)
 		  {
 		      unsigned char index = *p_data++;
 		      if (transparent || *(alpha + index) == 0)
@@ -495,7 +495,7 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
 			      }
 			}
 		  }
-		else if (rst->pixelType == RL2_PIXEL_GRAYSCALE)
+		else if (pixel_type == RL2_PIXEL_GRAYSCALE)
 		  {
 		      if (transparent)
 			{
@@ -506,7 +506,7 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
 		      else
 			{
 			    /* opaque pixel */
-			    switch (rst->sampleType)
+			    switch (sample_type)
 			      {
 			      case RL2_SAMPLE_2_BIT:
 				  switch (*p_data++)
@@ -587,7 +587,7 @@ compress_jpeg (rl2RasterPtr ptr, unsigned char **jpeg, int *jpeg_size,
 			      };
 			}
 		  }
-		else if (rst->pixelType == RL2_PIXEL_MONOCHROME)
+		else if (pixel_type == RL2_PIXEL_MONOCHROME)
 		  {
 		      if (transparent)
 			{
@@ -751,25 +751,85 @@ rl2_section_to_jpeg (rl2SectionPtr scn, const char *path, int quality)
 }
 
 RL2_DECLARE int
-rl2_raster_to_jpeg (rl2RasterPtr rst, unsigned char **jpeg, int *jpeg_size,
+rl2_raster_to_jpeg (rl2RasterPtr raster, unsigned char **jpeg, int *jpeg_size,
 		    int quality)
 {
 /* creating a JPEG image from a raster */
-    unsigned char sample_type;
-    unsigned char pixel_type;
-    unsigned char num_samples;
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
     unsigned char *blob;
     int blob_size;
 
     if (rst == NULL)
 	return RL2_ERROR;
-    if (rl2_get_raster_type (rst, &sample_type, &pixel_type, &num_samples) !=
-	RL2_OK)
+    if (check_jpeg_compatibility (rst->sampleType, rst->pixelType, rst->nBands)
+	!= RL2_OK)
 	return RL2_ERROR;
-    if (check_jpeg_compatibility (sample_type, pixel_type, num_samples) !=
-	RL2_OK)
+    if (rl2_data_to_jpeg
+	(rst->rasterBuffer, rst->maskBuffer, (rl2PalettePtr) (rst->Palette),
+	 rst->width, rst->height, rst->sampleType, rst->pixelType, &blob,
+	 &blob_size, quality) != RL2_OK)
 	return RL2_ERROR;
-    if (compress_jpeg (rst, &blob, &blob_size, quality) != RL2_OK)
+    *jpeg = blob;
+    *jpeg_size = blob_size;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_rgb_to_jpeg (unsigned short width, unsigned short height,
+		 const unsigned char *rgb, int quality, unsigned char **jpeg,
+		 int *jpeg_size)
+{
+/* creating a PNG image from an RGB buffer */
+    unsigned char *blob;
+    int blob_size;
+    if (rgb == NULL)
+	return RL2_ERROR;
+
+    if (rl2_data_to_jpeg
+	(rgb, NULL, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, &blob,
+	 &blob_size, quality) != RL2_OK)
+	return RL2_ERROR;
+    *jpeg = blob;
+    *jpeg_size = blob_size;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_gray_to_jpeg (unsigned short width, unsigned short height,
+		  const unsigned char *gray, int quality, unsigned char **jpeg,
+		  int *jpeg_size)
+{
+/* creating a PNG image from a Grayscale buffer */
+    unsigned char *blob;
+    int blob_size;
+    if (gray == NULL)
+	return RL2_ERROR;
+
+    if (rl2_data_to_jpeg
+	(gray, NULL, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE,
+	 &blob, &blob_size, quality) != RL2_OK)
+	return RL2_ERROR;
+    *jpeg = blob;
+    *jpeg_size = blob_size;
+    return RL2_OK;
+}
+
+RL2_PRIVATE int
+rl2_data_to_jpeg (const unsigned char *pixels, const unsigned char *mask,
+		  rl2PalettePtr palette, unsigned short width,
+		  unsigned short height, unsigned char sample_type,
+		  unsigned char pixel_type, unsigned char **jpeg,
+		  int *jpeg_size, int quality)
+{
+/* encoding a JPEG image */
+    unsigned char *blob;
+    int blob_size;
+
+    if (pixels == NULL)
+	return RL2_ERROR;
+    if (compress_jpeg
+	(width, height, sample_type, pixel_type, pixels, mask, palette, &blob,
+	 &blob_size, quality) != RL2_OK)
 	return RL2_ERROR;
     *jpeg = blob;
     *jpeg_size = blob_size;

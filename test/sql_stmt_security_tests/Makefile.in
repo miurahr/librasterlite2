@@ -319,7 +319,59 @@ EXTRA_DIST = loadraster1.testcase \
 	loadrasterwms16.testcase \
 	loadrasterwms17.testcase \
 	loadrasterwms18.testcase \
-	loadrasterwms19.testcase
+	loadrasterwms19.testcase \
+	writeascii1.testcase \
+	writeascii2.testcase \
+	writeascii3.testcase \
+	writeascii4.testcase \
+	writeascii5.testcase \
+	writeascii6.testcase \
+	writeascii7.testcase \
+	writeascii9.testcase \
+	writeascii10.testcase \
+	writeascii11.testcase \
+	writeascii12.testcase \
+	writeascii13.testcase \
+	writeascii14.testcase \
+	writeascii15.testcase \
+	writeascii16.testcase \
+	writegeotiff1.testcase \
+	writegeotiff2.testcase \
+	writegeotiff3.testcase \
+	writegeotiff4.testcase \
+	writegeotiff5.testcase \
+	writegeotiff6.testcase \
+	writegeotiff7.testcase \
+	writegeotiff8.testcase \
+	writegeotiff9.testcase \
+	writegeotiff10.testcase \
+	writegeotiff11.testcase \
+	writegeotiff12.testcase \
+	writegeotiff13.testcase \
+	writegeotiff14.testcase \
+	writegeotiff15.testcase \
+	writegeotiff16.testcase \
+	writegeotiff17.testcase \
+	writegeotiff18.testcase \
+	writegeotiff19.testcase \
+	writetiff1.testcase \
+	writetiff2.testcase \
+	writetiff3.testcase \
+	writetiff4.testcase \
+	writetiff5.testcase \
+	writetiff6.testcase \
+	writetiff7.testcase \
+	writetiff8.testcase \
+	writetiff9.testcase \
+	writetiff10.testcase \
+	writetiff11.testcase \
+	writetiff12.testcase \
+	writetiff13.testcase \
+	writetiff14.testcase \
+	writetiff15.testcase \
+	writetiff16.testcase \
+	writetiff17.testcase \
+	writetiff18.testcase
 
 all: all-am
 

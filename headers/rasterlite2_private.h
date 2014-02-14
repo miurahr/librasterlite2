@@ -510,6 +510,25 @@ extern "C"
     } SectionPyramid;
     typedef SectionPyramid *SectionPyramidPtr;
 
+    typedef struct resolution_level
+    {
+	int level;
+	int scale;
+	int real_scale;
+	double x_resolution;
+	double y_resolution;
+	struct resolution_level *prev;
+	struct resolution_level *next;
+    } ResolutionLevel;
+    typedef ResolutionLevel *ResolutionLevelPtr;
+
+    typedef struct resolutions_list
+    {
+	ResolutionLevelPtr first;
+	ResolutionLevelPtr last;
+    } ResolutionsList;
+    typedef ResolutionsList *ResolutionsListPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);

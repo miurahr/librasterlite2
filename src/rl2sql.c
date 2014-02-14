@@ -62,6 +62,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2/rl2wms.h"
+#include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
 
 #include <spatialite/gaiaaux.h>
@@ -3505,6 +3506,223 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     sqlite3_result_int (context, errcode);
 }
 
+static ResolutionsListPtr
+alloc_resolutions_list ()
+{
+/* allocating an empty list */
+    ResolutionsListPtr list = malloc (sizeof (ResolutionsList));
+    if (list == NULL)
+	return NULL;
+    list->first = NULL;
+    list->last = NULL;
+    return list;
+}
+
+static void
+destroy_resolutions_list (ResolutionsListPtr list)
+{
+/* memory cleanup - destroying a list */
+    ResolutionLevelPtr res;
+    ResolutionLevelPtr resn;
+    if (list == NULL)
+	return;
+    res = list->first;
+    while (res != NULL)
+      {
+	  resn = res->next;
+	  free (res);
+	  res = resn;
+      }
+}
+
+static void
+add_base_resolution (ResolutionsListPtr list, int level, int scale,
+		     double x_res, double y_res)
+{
+/* inserting a base resolution into the list */
+    ResolutionLevelPtr res;
+    if (list == NULL)
+	return;
+
+    res = list->first;
+    while (res != NULL)
+      {
+	  if (res->x_resolution == x_res && res->y_resolution == y_res)
+	    {
+		/* already defined: skipping */
+		return;
+	    }
+	  res = res->next;
+      }
+
+/* inserting */
+    res = malloc (sizeof (ResolutionLevel));
+    res->level = level;
+    res->scale = scale;
+    res->x_resolution = x_res;
+    res->y_resolution = y_res;
+    res->prev = list->last;
+    res->next = NULL;
+    if (list->first == NULL)
+	list->first = res;
+    if (list->last != NULL)
+	list->last->next = res;
+    list->last = res;
+}
+
+static int
+find_best_resolution_level (sqlite3 * handle, const char *coverage,
+			    double x_res, double y_res, int *level_id,
+			    int *scale, int *real_scale, double *xx_res,
+			    double *yy_res)
+{
+/* attempting to identify the optimal resolution level */
+    int ret;
+    int found = 0;
+    int z_level;
+    int z_scale;
+    int z_real;
+    double z_x_res;
+    double z_y_res;
+    char *xcoverage;
+    char *xxcoverage;
+    char *sql;
+    sqlite3_stmt *stmt = NULL;
+    ResolutionsListPtr list = NULL;
+    ResolutionLevelPtr res;
+
+    if (coverage == NULL)
+	return 0;
+
+    xcoverage = sqlite3_mprintf ("%s_levels", coverage);
+    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
+    sqlite3_free (xcoverage);
+    sql =
+	sqlite3_mprintf
+	("SELECT pyramid_level, x_resolution_1_8, y_resolution_1_8, "
+	 "x_resolution_1_4, y_resolution_1_4, x_resolution_1_2, y_resolution_1_2, "
+	 "x_resolution_1_1, y_resolution_1_1 FROM \"%s\" "
+	 "ORDER BY pyramid_level DESC", xxcoverage);
+    free (xxcoverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_free (sql);
+
+    list = alloc_resolutions_list ();
+    if (list == NULL)
+	goto error;
+
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		double xx_res;
+		double yy_res;
+		int lvl = sqlite3_column_int (stmt, 0);
+		if (sqlite3_column_type (stmt, 1) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 2) == SQLITE_FLOAT)
+		  {
+		      z_x_res = sqlite3_column_double (stmt, 1);
+		      z_y_res = sqlite3_column_double (stmt, 2);
+		      add_base_resolution (list, lvl, RL2_SCALE_8, z_x_res,
+					   z_y_res);
+		  }
+		if (sqlite3_column_type (stmt, 3) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 4) == SQLITE_FLOAT)
+		  {
+		      z_x_res = sqlite3_column_double (stmt, 3);
+		      z_y_res = sqlite3_column_double (stmt, 4);
+		      add_base_resolution (list, lvl, RL2_SCALE_4, z_x_res,
+					   z_y_res);
+		  }
+		if (sqlite3_column_type (stmt, 5) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 6) == SQLITE_FLOAT)
+		  {
+		      z_x_res = sqlite3_column_double (stmt, 5);
+		      z_y_res = sqlite3_column_double (stmt, 6);
+		      add_base_resolution (list, lvl, RL2_SCALE_2, z_x_res,
+					   z_y_res);
+		  }
+		if (sqlite3_column_type (stmt, 7) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 8) == SQLITE_FLOAT)
+		  {
+		      z_x_res = sqlite3_column_double (stmt, 7);
+		      z_y_res = sqlite3_column_double (stmt, 8);
+		      add_base_resolution (list, lvl, RL2_SCALE_1, z_x_res,
+					   z_y_res);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+/* adjusting real scale factors */
+    z_real = 1;
+    res = list->last;
+    while (res != NULL)
+      {
+	  res->real_scale = z_real;
+	  z_real *= 2;
+	  res = res->prev;
+      }
+/* retrieving the best resolution level */
+    found = 0;
+    res = list->last;
+    while (res != NULL)
+      {
+	  if (res->x_resolution <= x_res && res->y_resolution <= y_res)
+	    {
+		found = 1;
+		z_level = res->level;
+		z_scale = res->scale;
+		z_real = res->real_scale;
+		z_x_res = res->x_resolution;
+		z_y_res = res->y_resolution;
+	    }
+	  res = res->prev;
+      }
+    if (found)
+      {
+	  *level_id = z_level;
+	  *scale = z_scale;
+	  *real_scale = z_real;
+	  *xx_res = z_x_res;
+	  *yy_res = z_y_res;
+	  return 1;
+      }
+    else if (list->last != NULL)
+      {
+	  res = list->last;
+	  z_level = res->level;
+	  z_scale = res->scale;
+	  z_x_res = res->x_resolution;
+	  z_y_res = res->y_resolution;
+	  return 1;
+      }
+    destroy_resolutions_list (list);
+    return 0;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (list != NULL)
+	destroy_resolutions_list (list);
+    return 0;
+}
+
 static void
 fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
@@ -3532,6 +3750,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     rl2CoveragePtr coverage = NULL;
     int width;
     int height;
+    int base_width;
+    int base_height;
     const unsigned char *blob;
     int blob_sz;
     const char *style = "default";
@@ -3550,8 +3770,24 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     double ext_y;
     double x_res;
     double y_res;
+    int level_id;
+    int scale;
+    int xscale;
+    double xx_res;
+    double yy_res;
+    double aspect_org;
+    double aspect_dst;
+    double rescale_x;
+    double rescale_y;
     int ok_style;
     int ok_format;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *image = NULL;
+    int image_size;
+    unsigned char *rgb = NULL;
+    rl2PalettePtr palette = NULL;
+    unsigned char format_id = RL2_COMPRESSION_NONE;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -3609,9 +3845,15 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 /* validating the format */
     ok_format = 0;
     if (strcmp (format, "image/png") == 0)
-	ok_format = 1;
+      {
+	  format_id = RL2_COMPRESSION_PNG;
+	  ok_format = 1;
+      }
     if (strcmp (format, "image/jpeg") == 0)
-	ok_format = 1;
+      {
+	  format_id = RL2_COMPRESSION_JPEG;
+	  ok_format = 1;
+      }
     if (!ok_format)
 	goto error;
 
@@ -3635,11 +3877,117 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
-      goto error;
+	goto error;
+
+/* retrieving the optimal resolution level */
+    if (!find_best_resolution_level
+	(sqlite, cvg_name, x_res, y_res, &level_id, &scale, &xscale, &xx_res,
+	 &yy_res))
+	goto error;
+    base_width = (int) (ext_x / xx_res);
+    base_height = (int) (ext_y / yy_res);
+    aspect_org = (double) base_width / (double) base_height;
+    aspect_dst = (double) width / (double) height;
+    if (aspect_org != aspect_dst && !reaspect)
+	goto error;
+    rescale_x =  (double) width / (double) base_width;
+    rescale_y = (double) height / (double) base_height;
+
+    if (rl2_get_raw_raster_data
+	(sqlite, coverage, base_width, base_height, minx, miny, maxx, maxy,
+	 xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	 RL2_PIXEL_RGB) != RL2_OK)
+	goto error;
+    if (base_width == width && base_height == height)
+      {
+	  if (format_id == RL2_COMPRESSION_JPEG)
+	    {
+		if (rl2_rgb_to_jpeg
+		    (base_width, base_height, outbuf, quality, &image,
+		     &image_size) != RL2_OK)
+		    goto error;
+	    }
+	  else if (format_id == RL2_COMPRESSION_PNG)
+	    {
+		if (rl2_rgb_to_png
+		    (base_width, base_height, outbuf, &image,
+		     &image_size) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	      goto error;
+	  sqlite3_result_blob (context, image, image_size, free);
+      }
+    else
+      {
+	  /* rescaling */
+	  int row;
+	  int col;
+	  unsigned char *p_in;
+	  unsigned char *p_out;
+	  unsigned char *rgba = NULL;
+	  rl2GraphicsBitmapPtr base_img = NULL;
+	  rl2GraphicsContextPtr ctx = rl2_graph_create_context (width, height);
+	  if (ctx == NULL)
+	      goto error;
+	  rgba = malloc (base_width * base_height * 4);
+	  p_in = outbuf;
+	  p_out = rgba;
+	  for (row = 0; row < base_height; row++)
+	    {
+		for (col = 0; col < base_width; col++)
+		  {
+		      *p_out++ = *p_in++;	/* red */
+		      *p_out++ = *p_in++;	/* green */
+		      *p_out++ = *p_in++;	/* blue */
+		      *p_out++ = 255;	/* alpha */
+		  }
+	    }
+	  free (outbuf);
+	  outbuf = NULL;
+	  base_img = rl2_graph_create_bitmap (rgba, base_width, base_height);
+	  if (base_img == NULL)
+	      goto error;
+	  rgba = NULL;
+	  rl2_graph_draw_rescaled_bitmap (ctx, base_img, rescale_x, rescale_y,
+					  0, 0);
+	  rl2_graph_destroy_bitmap (base_img);
+	  rgb = rl2_graph_get_context_rgb_array (ctx);
+	  rl2_graph_destroy_context (ctx);
+	  if (rgb == NULL)
+	      goto error;
+	  if (format_id == RL2_COMPRESSION_JPEG)
+	    {
+		if (rl2_rgb_to_jpeg
+		    (width, height, rgb, quality, &image, &image_size) != RL2_OK)
+		    goto error;
+	    }
+	  else if (format_id == RL2_COMPRESSION_PNG)
+	    {
+		if (rl2_rgb_to_png (width, height, rgb, &image, &image_size) !=
+		    RL2_OK)
+		    goto error;
+	    }
+	  else
+	      goto error;
+	  free (rgb);
+	  rgb = NULL;
+	  sqlite3_result_blob (context, image, image_size, free);
+      }
+
+
+    rl2_destroy_coverage (coverage);
+    if (outbuf != NULL)
+	free (outbuf);
+    return;
 
   error:
     if (coverage != NULL)
 	rl2_destroy_coverage (coverage);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (rgb != NULL)
+	free (rgb);
     sqlite3_result_null (context);
 }
 
@@ -3760,6 +4108,30 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_Pyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_Pyramidize", 4, SQLITE_ANY, 0,
 			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 4, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 4, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 5, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 5, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 6, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 6, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 7, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 7, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 8, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 8, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 9, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 9, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
 
 /*
 // enabling ImportRaster and ExportRaster
@@ -3919,30 +4291,6 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_WriteAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "GetMapImage", 4, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "RL2_GetMapImage", 4, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "GetMapImage", 5, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "RL2_GetMapImage", 5, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "GetMapImage", 6, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "RL2_GetMapImage", 6, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "GetMapImage", 7, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "RL2_GetMapImage", 7, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "GetMapImage", 8, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "RL2_GetMapImage", 8, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "GetMapImage", 9, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
-	  sqlite3_create_function (db, "RL2_GetMapImage", 9, SQLITE_ANY, 0,
-				   fnct_GetMapImage, 0, 0);
       }
 }
 

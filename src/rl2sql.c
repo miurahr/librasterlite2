@@ -1490,10 +1490,14 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	sqlite3_result_int (context, 1);
     else
 	sqlite3_result_int (context, 0);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
     return;
 
   error:
     sqlite3_result_int (context, -1);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
 }
 
 static void
@@ -2291,8 +2295,8 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		for (x = 0; x < cvg->tileWidth; x++)
 		  {
 		      unsigned char red = *p_in++;
-		      unsigned char alpha = *p_in++;
 		      p_in += 2;
+		      unsigned char alpha = *p_in++;
 		      *p_out++ = red;
 		      if (alpha < 128)
 			{
@@ -2310,18 +2314,15 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		for (x = 0; x < cvg->tileWidth; x++)
 		  {
 		      unsigned char red = *p_in++;
-		      unsigned char alpha = *p_in++;
 		      p_in += 2;
-		      if (red == 255)
+		      unsigned char alpha = *p_in++;
+
+		      if (alpha < 128)
+			  *p_out++ = 0;
+		      else if (red == 255)
 			  *p_out++ = 0;
 		      else
 			  *p_out++ = 1;
-		      if (alpha < 128)
-			{
-			    /* transparent pixel */
-			    *p_msk++ = 0;
-			    requires_mask = 1;
-			}
 		  }
 	    }
       }
@@ -2351,6 +2352,85 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
     if (mask != NULL)
 	free (mask);
     return NULL;
+}
+
+static int
+insert_wms_tile (InsertWmsPtr ptr, int *first,
+		 rl2RasterStatisticsPtr * section_stats,
+		 sqlite3_int64 * section_id)
+{
+    double tile_minx;
+    double tile_miny;
+    double tile_maxx;
+    double tile_maxy;
+    unsigned char *blob_odd;
+    int blob_odd_sz;
+    unsigned char *blob_even;
+    int blob_even_sz;
+    rl2RasterPtr raster = NULL;
+
+    if (*first)
+      {
+	  /* INSERTing the section */
+	  *first = 0;
+	  if (!do_insert_section
+	      (ptr->sqlite, "WMS Service", ptr->sect_name, ptr->srid,
+	       ptr->width, ptr->height, ptr->minx, ptr->miny, ptr->maxx,
+	       ptr->maxy, ptr->stmt_sect, section_id))
+	      goto error;
+	  *section_stats =
+	      rl2_create_raster_statistics (ptr->sample_type, ptr->num_bands);
+	  if (*section_stats == NULL)
+	      goto error;
+	  /* INSERTing the base-levels */
+	  if (!do_insert_levels
+	      (ptr->sqlite, ptr->horz_res, ptr->vert_res, ptr->stmt_levl))
+	      goto error;
+      }
+
+    /* building the raster tile */
+    raster = build_wms_tile (ptr->coverage, ptr->rgba_tile);
+    if (raster == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to get a WMS tile\n");
+	  goto error;
+      }
+    if (rl2_raster_encode
+	(raster, ptr->compression, &blob_odd, &blob_odd_sz, &blob_even,
+	 &blob_even_sz, 100, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to encode a WMS tile\n");
+	  goto error;
+      }
+
+    /* INSERTing the tile */
+    tile_minx = ptr->x;
+    tile_maxx = tile_minx + ptr->tilew;
+    tile_maxy = ptr->y;
+    tile_miny = tile_maxy - ptr->tileh;
+    if (!do_insert_tile
+	(ptr->sqlite, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+	 *section_id, ptr->srid, ptr->horz_res, ptr->vert_res, ptr->tile_width,
+	 ptr->tile_height, ptr->minx, ptr->maxy, tile_minx, tile_miny,
+	 tile_maxx, tile_maxy, NULL, ptr->no_data, ptr->stmt_tils,
+	 ptr->stmt_data, *section_stats))
+	goto error;
+    blob_odd = NULL;
+    blob_even = NULL;
+    rl2_destroy_raster (raster);
+    free (ptr->rgba_tile);
+    ptr->rgba_tile = NULL;
+    return 1;
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (blob_odd != NULL)
+	free (blob_odd);
+    if (blob_even != NULL)
+	free (blob_even);
+    free (ptr->rgba_tile);
+    ptr->rgba_tile = NULL;
+    return 0;
 }
 
 static void
@@ -2413,8 +2493,10 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     int errcode = -1;
     gaiaGeomCollPtr geom;
     rl2CoveragePtr coverage = NULL;
+    rl2RasterStatisticsPtr section_stats = NULL;
     sqlite3 *sqlite;
     int ret;
+    int n;
     double x;
     double y;
     double tilew;
@@ -2436,22 +2518,13 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     int width;
     int height;
     sqlite3_int64 section_id;
-    rl2RasterStatisticsPtr section_stats = NULL;
-    rl2RasterPtr raster = NULL;
     rl2PixelPtr no_data = NULL;
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
     unsigned char compression;
     int quality;
-    double tile_minx;
-    double tile_miny;
-    double tile_maxx;
-    double tile_maxy;
-    unsigned char *blob_odd;
-    int blob_odd_sz;
-    unsigned char *blob_even;
-    int blob_even_sz;
+    InsertWms params;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -2733,60 +2806,97 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		      continue;
 		  }
 
-		if (first)
-		  {
-		      /* INSERTing the section */
-		      first = 0;
-		      if (!do_insert_section
-			  (sqlite, "WMS Service", sect_name, srid, width,
-			   height, minx, miny, maxx, maxy, stmt_sect,
-			   &section_id))
-			  goto error;
-		      section_stats =
-			  rl2_create_raster_statistics (sample_type, num_bands);
-		      if (section_stats == NULL)
-			  goto error;
-		      /* INSERTing the base-levels */
-		      if (!do_insert_levels
-			  (sqlite, horz_res, vert_res, stmt_levl))
-			  goto error;
-		  }
-
-		/* building the raster tile */
-		raster = build_wms_tile (coverage, rgba_tile);
-		if (raster == NULL)
-		  {
-		      fprintf (stderr, "ERROR: unable to get a WMS tile\n");
-		      goto error;
-		  }
-		if (rl2_raster_encode
-		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
-		     &blob_even_sz, 100, 1) != RL2_OK)
-		  {
-		      fprintf (stderr, "ERROR: unable to encode a WMS tile\n");
-		      goto error;
-		  }
-
-		/* INSERTing the tile */
-		tile_minx = x;
-		tile_maxx = tile_minx + tilew;
-		tile_maxy = y;
-		tile_miny = tile_maxy - tileh;
-		if (!do_insert_tile
-		    (sqlite, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     section_id, srid, horz_res, vert_res, tile_width,
-		     tile_height, minx, maxy, tile_minx, tile_miny,
-		     tile_maxx, tile_maxy, NULL, no_data, stmt_tils, stmt_data,
-		     section_stats))
+		params.sqlite = sqlite;
+		params.rgba_tile = rgba_tile;
+		params.coverage = coverage;
+		params.sect_name = sect_name;
+		params.x = x;
+		params.y = y;
+		params.width = width;
+		params.height = height;
+		params.tilew = tilew;
+		params.tileh = tileh;
+		params.srid = srid;
+		params.minx = minx;
+		params.miny = miny;
+		params.maxx = maxx;
+		params.maxy = maxy;
+		params.sample_type = sample_type;
+		params.num_bands = num_bands;
+		params.compression = compression;
+		params.horz_res = horz_res;
+		params.vert_res = vert_res;
+		params.tile_width = tile_width;
+		params.tile_height = tile_height;
+		params.no_data = no_data;
+		params.stmt_sect = stmt_sect;
+		params.stmt_levl = stmt_levl;
+		params.stmt_tils = stmt_tils;
+		params.stmt_data = stmt_data;
+		if (!insert_wms_tile
+		    (&params, &first, &section_stats, &section_id))
 		    goto error;
-		blob_odd = NULL;
-		blob_even = NULL;
-		rl2_destroy_raster (raster);
-		raster = NULL;
-		free (rgba_tile);
 	    }
       }
+    for (n = 0; n < 5; n++)
+      {
+	  WmsRetryItemPtr retry = retry_list->first;
+	  while (retry != NULL)
+	    {
+		char *err_msg = NULL;
+		unsigned char *rgba_tile = NULL;
+		if (retry->done)
+		  {
+		      retry = retry->next;
+		      continue;
+		  }
+		retry->count += 1;
+		rgba_tile =
+		    do_wms_GetMap_get (NULL, url, proxy, wms_version, wms_layer,
+				       wms_crs, swap_xy, retry->minx,
+				       retry->miny, retry->maxx, retry->maxy,
+				       tile_width, tile_height, wms_style,
+				       wms_format, opaque, 0, &err_msg);
+		if (rgba_tile == NULL)
+		  {
+		      retry = retry->next;
+		      continue;
+		  }
 
+		params.sqlite = sqlite;
+		params.rgba_tile = rgba_tile;
+		params.coverage = coverage;
+		params.sect_name = sect_name;
+		params.x = x;
+		params.y = y;
+		params.width = width;
+		params.height = height;
+		params.tilew = tilew;
+		params.tileh = tileh;
+		params.srid = srid;
+		params.minx = minx;
+		params.miny = miny;
+		params.maxx = maxx;
+		params.maxy = maxy;
+		params.sample_type = sample_type;
+		params.num_bands = num_bands;
+		params.compression = compression;
+		params.horz_res = horz_res;
+		params.vert_res = vert_res;
+		params.tile_width = tile_width;
+		params.tile_height = tile_height;
+		params.no_data = no_data;
+		params.stmt_sect = stmt_sect;
+		params.stmt_levl = stmt_levl;
+		params.stmt_tils = stmt_tils;
+		params.stmt_data = stmt_data;
+		if (!insert_wms_tile
+		    (&params, &first, &section_stats, &section_id))
+		    goto error;
+		retry->done = 1;
+		retry = retry->next;
+	    }
+      }
 
     if (!do_insert_stats (sqlite, section_stats, section_id, stmt_upd_sect))
 	goto error;
@@ -2859,8 +2969,6 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 	rl2_destroy_coverage (coverage);
     if (section_stats != NULL)
 	rl2_destroy_raster_statistics (section_stats);
-    if (raster != NULL)
-	rl2_destroy_raster (raster);
     sqlite3_result_int (context, errcode);
 }
 
@@ -3533,6 +3641,7 @@ destroy_resolutions_list (ResolutionsListPtr list)
 	  free (res);
 	  res = resn;
       }
+    free (list);
 }
 
 static void
@@ -3624,8 +3733,6 @@ find_best_resolution_level (sqlite3 * handle, const char *coverage,
 	      break;		/* end of result set */
 	  if (ret == SQLITE_ROW)
 	    {
-		double xx_res;
-		double yy_res;
 		int lvl = sqlite3_column_int (stmt, 0);
 		if (sqlite3_column_type (stmt, 1) == SQLITE_FLOAT
 		    && sqlite3_column_type (stmt, 2) == SQLITE_FLOAT)
@@ -3701,19 +3808,19 @@ find_best_resolution_level (sqlite3 * handle, const char *coverage,
 	  *real_scale = z_real;
 	  *xx_res = z_x_res;
 	  *yy_res = z_y_res;
-	  return 1;
       }
     else if (list->last != NULL)
       {
 	  res = list->last;
-	  z_level = res->level;
-	  z_scale = res->scale;
-	  z_x_res = res->x_resolution;
-	  z_y_res = res->y_resolution;
-	  return 1;
+	  *level_id = res->level;
+	  *scale = res->scale;
+	  *xx_res = res->x_resolution;
+	  *yy_res = res->y_resolution;
       }
+    else
+	goto error;
     destroy_resolutions_list (list);
-    return 0;
+    return 1;
 
   error:
     if (stmt != NULL)
@@ -3721,6 +3828,24 @@ find_best_resolution_level (sqlite3 * handle, const char *coverage,
     if (list != NULL)
 	destroy_resolutions_list (list);
     return 0;
+}
+
+static unsigned char
+get_palette_format (rl2PrivPalettePtr plt)
+{
+/* testing for a Grayscale or RGB palette */
+    int is_gray = 0;
+    int i;
+    for (i = 0; i < plt->nEntries; i++)
+      {
+	  rl2PrivPaletteEntryPtr entry = plt->entries + i;
+	  if (entry->red == entry->green && entry->red == entry->blue)
+	      is_gray++;
+      }
+    if (is_gray == plt->nEntries)
+	return RL2_PIXEL_GRAYSCALE;
+    else
+	return RL2_PIXEL_RGB;
 }
 
 static void
@@ -3748,6 +3873,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int err = 0;
     const char *cvg_name;
     rl2CoveragePtr coverage = NULL;
+    rl2PrivCoveragePtr cvg;
     int width;
     int height;
     int base_width;
@@ -3760,7 +3886,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int quality = 80;
     int reaspect = 0;
     sqlite3 *sqlite;
-    int ret;
     gaiaGeomCollPtr geom;
     double minx;
     double maxx;
@@ -3787,7 +3912,19 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int image_size;
     unsigned char *rgb = NULL;
     rl2PalettePtr palette = NULL;
-    unsigned char format_id = RL2_COMPRESSION_NONE;
+    rl2PrivPalettePtr plt;
+    double confidence;
+    unsigned char format_id = RL2_COMPRESSION_UNKNOWN;
+    unsigned char out_pixel = RL2_PIXEL_UNKNOWN;
+    unsigned char out_format = RL2_COMPRESSION_UNKNOWN;
+    int row;
+    int col;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *rgba = NULL;
+    unsigned char *gray = NULL;
+    rl2GraphicsBitmapPtr base_img = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -3878,6 +4015,23 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
 	goto error;
+    cvg = (rl2PrivCoveragePtr) coverage;
+    out_pixel = RL2_PIXEL_UNKNOWN;
+    if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
+	&& cvg->nBands == 3)
+	out_pixel = RL2_PIXEL_RGB;
+    if (cvg->sampleType == RL2_SAMPLE_UINT8
+	&& cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	out_pixel = RL2_PIXEL_GRAYSCALE;
+    if (cvg->pixelType == RL2_PIXEL_PALETTE && cvg->nBands == 1)
+	out_pixel = RL2_PIXEL_PALETTE;
+    if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
+	out_pixel = RL2_PIXEL_MONOCHROME;
+    if (out_pixel == RL2_PIXEL_UNKNOWN)
+      {
+	  fprintf (stderr, "*** Unsupported Pixel !!!!\n");
+	  goto error;
+      }
 
 /* retrieving the optimal resolution level */
     if (!find_best_resolution_level
@@ -3888,59 +4042,335 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     base_height = (int) (ext_y / yy_res);
     aspect_org = (double) base_width / (double) base_height;
     aspect_dst = (double) width / (double) height;
-    if (aspect_org != aspect_dst && !reaspect)
+    confidence = aspect_org / 100.0;
+    if (aspect_dst >= (aspect_org - confidence)
+	|| aspect_dst <= (aspect_org + confidence))
+	;
+    else if (aspect_org != aspect_dst && !reaspect)
 	goto error;
-    rescale_x =  (double) width / (double) base_width;
+    rescale_x = (double) width / (double) base_width;
     rescale_y = (double) height / (double) base_height;
+
+    if (out_pixel == RL2_PIXEL_MONOCHROME)
+      {
+	  if (level_id != 0 && scale != 1)
+	      out_pixel = RL2_PIXEL_GRAYSCALE;
+      }
+    if (out_pixel == RL2_PIXEL_PALETTE)
+      {
+	  if (level_id != 0 && scale != 1)
+	      out_pixel = RL2_PIXEL_RGB;
+      }
 
     if (rl2_get_raw_raster_data
 	(sqlite, coverage, base_width, base_height, minx, miny, maxx, maxy,
-	 xx_res, yy_res, &outbuf, &outbuf_size, &palette,
-	 RL2_PIXEL_RGB) != RL2_OK)
+	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, out_pixel) != RL2_OK)
+	goto error;
+    if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
 	goto error;
     if (base_width == width && base_height == height)
       {
-	  if (format_id == RL2_COMPRESSION_JPEG)
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
-		if (rl2_rgb_to_jpeg
-		    (base_width, base_height, outbuf, quality, &image,
-		     &image_size) != RL2_OK)
+		/* converting from Monochrome to Grayscale */
+		gray = malloc (base_width * base_height);
+		p_in = outbuf;
+		p_out = gray;
+		for (row = 0; row < base_height; row++)
+		  {
+		      for (col = 0; col < base_width; col++)
+			{
+			    if (*p_in++ == 1)
+				*p_out++ = 0;	/* Black */
+			    else
+				*p_out++ = 255;	/* White */
+			}
+		  }
+		free (outbuf);
+		outbuf = NULL;
+		if (format_id == RL2_COMPRESSION_JPEG)
+		  {
+		      if (rl2_gray_to_jpeg
+			  (base_width, base_height, gray, quality, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else if (format_id == RL2_COMPRESSION_PNG)
+		  {
+		      if (rl2_gray_to_png
+			  (base_width, base_height, gray, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else
 		    goto error;
+		free (gray);
+		gray = NULL;
 	    }
-	  else if (format_id == RL2_COMPRESSION_PNG)
+	  else if (out_pixel == RL2_PIXEL_PALETTE)
 	    {
-		if (rl2_rgb_to_png
-		    (base_width, base_height, outbuf, &image,
-		     &image_size) != RL2_OK)
+		/* Palette */
+		plt = (rl2PrivPalettePtr) palette;
+		out_format = get_palette_format (plt);
+		if (out_format == RL2_PIXEL_RGB)
+		  {
+		      /* converting from Palette to RGB */
+		      rgb = malloc (base_width * base_height * 3);
+		      p_in = outbuf;
+		      p_out = rgb;
+		      for (row = 0; row < base_height; row++)
+			{
+			    for (col = 0; col < base_width; col++)
+			      {
+				  unsigned char red = 0;
+				  unsigned char green = 0;
+				  unsigned char blue = 0;
+				  unsigned char index = *p_in++;
+				  if (index < plt->nEntries)
+				    {
+					rl2PrivPaletteEntryPtr entry =
+					    plt->entries + index;
+					red = entry->red;
+					green = entry->green;
+					blue = entry->blue;
+				    }
+				  *p_out++ = red;	/* red */
+				  *p_out++ = green;	/* green */
+				  *p_out++ = blue;	/* blue */
+			      }
+			}
+		      free (outbuf);
+		      outbuf = NULL;
+		      if (format_id == RL2_COMPRESSION_JPEG)
+			{
+			    if (rl2_rgb_to_jpeg
+				(base_width, base_height, rgb, quality, &image,
+				 &image_size) != RL2_OK)
+				goto error;
+			}
+		      else if (format_id == RL2_COMPRESSION_PNG)
+			{
+			    if (rl2_rgb_to_png
+				(base_width, base_height, rgb, &image,
+				 &image_size) != RL2_OK)
+				goto error;
+			}
+		      else
+			  goto error;
+		      free (rgb);
+		      rgb = NULL;
+		  }
+		else if (out_format == RL2_PIXEL_GRAYSCALE)
+		  {
+		      /* converting from Palette to Grayscale */
+		      gray = malloc (base_width * base_height);
+		      p_in = outbuf;
+		      p_out = gray;
+		      for (row = 0; row < base_height; row++)
+			{
+			    for (col = 0; col < base_width; col++)
+			      {
+				  unsigned char value = 0;
+				  unsigned char index = *p_in++;
+				  if (index < plt->nEntries)
+				    {
+					rl2PrivPaletteEntryPtr entry =
+					    plt->entries + index;
+					value = entry->red;
+				    }
+				  *p_out++ = value;	/* gray */
+			      }
+			}
+		      free (outbuf);
+		      outbuf = NULL;
+		      if (format_id == RL2_COMPRESSION_JPEG)
+			{
+			    if (rl2_gray_to_jpeg
+				(base_width, base_height, gray, quality, &image,
+				 &image_size) != RL2_OK)
+				goto error;
+			}
+		      else if (format_id == RL2_COMPRESSION_PNG)
+			{
+			    if (rl2_gray_to_png
+				(base_width, base_height, gray, &image,
+				 &image_size) != RL2_OK)
+				goto error;
+			}
+		      else
+			  goto error;
+		  }
+		else
+		    goto error;
+		free (gray);
+		gray = NULL;
+	    }
+	  else if (out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		/* Grayscale */
+		if (format_id == RL2_COMPRESSION_JPEG)
+		  {
+		      if (rl2_gray_to_jpeg
+			  (base_width, base_height, outbuf, quality, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else if (format_id == RL2_COMPRESSION_PNG)
+		  {
+		      if (rl2_gray_to_png
+			  (base_width, base_height, outbuf, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else
 		    goto error;
 	    }
 	  else
-	      goto error;
+	    {
+		/* RGB */
+		if (format_id == RL2_COMPRESSION_JPEG)
+		  {
+		      if (rl2_rgb_to_jpeg
+			  (base_width, base_height, outbuf, quality, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else if (format_id == RL2_COMPRESSION_PNG)
+		  {
+		      if (rl2_rgb_to_png
+			  (base_width, base_height, outbuf, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else
+		    goto error;
+	    }
 	  sqlite3_result_blob (context, image, image_size, free);
       }
     else
       {
 	  /* rescaling */
-	  int row;
-	  int col;
-	  unsigned char *p_in;
-	  unsigned char *p_out;
-	  unsigned char *rgba = NULL;
-	  rl2GraphicsBitmapPtr base_img = NULL;
-	  rl2GraphicsContextPtr ctx = rl2_graph_create_context (width, height);
+	  ctx = rl2_graph_create_context (width, height);
 	  if (ctx == NULL)
 	      goto error;
 	  rgba = malloc (base_width * base_height * 4);
 	  p_in = outbuf;
 	  p_out = rgba;
-	  for (row = 0; row < base_height; row++)
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
-		for (col = 0; col < base_width; col++)
+		/* converting from Monochrome to Grayscale */
+		for (row = 0; row < base_height; row++)
 		  {
-		      *p_out++ = *p_in++;	/* red */
-		      *p_out++ = *p_in++;	/* green */
-		      *p_out++ = *p_in++;	/* blue */
-		      *p_out++ = 255;	/* alpha */
+		      for (col = 0; col < base_width; col++)
+			{
+			    if (*p_in++ == 1)
+			      {
+				  *p_out++ = 0;	/* Black */
+				  *p_out++ = 0;
+				  *p_out++ = 0;
+				  *p_out++ = 255;	/* alpha */
+			      }
+			    else
+			      {
+				  *p_out++ = 255;	/* White */
+				  *p_out++ = 255;
+				  *p_out++ = 255;
+				  *p_out++ = 255;	/* alpha */
+			      }
+			}
+		  }
+		free (outbuf);
+		outbuf = NULL;
+	    }
+	  else if (out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		/* Palette */
+		plt = (rl2PrivPalettePtr) palette;
+		out_format = get_palette_format (plt);
+		if (out_format == RL2_PIXEL_RGB)
+		  {
+		      /* converting from Palette to RGB */
+		      for (row = 0; row < base_height; row++)
+			{
+			    for (col = 0; col < base_width; col++)
+			      {
+				  unsigned char red = 0;
+				  unsigned char green = 0;
+				  unsigned char blue = 0;
+				  unsigned char index = *p_in++;
+				  if (index < plt->nEntries)
+				    {
+					rl2PrivPaletteEntryPtr entry =
+					    plt->entries + index;
+					red = entry->red;
+					green = entry->green;
+					blue = entry->blue;
+				    }
+				  *p_out++ = red;	/* red */
+				  *p_out++ = green;	/* green */
+				  *p_out++ = blue;	/* blue */
+				  *p_out++ = 255;	/* alpha */
+			      }
+			}
+		      free (outbuf);
+		      outbuf = NULL;
+		  }
+		else if (out_format == RL2_PIXEL_GRAYSCALE)
+		  {
+		      /* converting from Palette to Grayscale */
+		      for (row = 0; row < base_height; row++)
+			{
+			    for (col = 0; col < base_width; col++)
+			      {
+				  unsigned char value = 0;
+				  unsigned char alpha = 255;
+				  unsigned char index = *p_in++;
+				  if (index < plt->nEntries)
+				    {
+					rl2PrivPaletteEntryPtr entry =
+					    plt->entries + index;
+					value = entry->red;
+					alpha = entry->alpha;
+				    }
+				  *p_out++ = value;	/* red */
+				  *p_out++ = value;	/* green */
+				  *p_out++ = value;	/* blue */
+				  *p_out++ = alpha;	/* alpha */
+			      }
+			}
+		      free (outbuf);
+		      outbuf = NULL;
+		  }
+		else
+		    goto error;
+	    }
+	  else if (out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		/* Grayscale */
+		for (row = 0; row < base_height; row++)
+		  {
+		      for (col = 0; col < base_width; col++)
+			{
+			    unsigned char gray = *p_in++;
+			    *p_out++ = gray;	/* red */
+			    *p_out++ = gray;	/* green */
+			    *p_out++ = gray;	/* blue */
+			    *p_out++ = 255;	/* alpha */
+			}
+		  }
+	    }
+	  else
+	    {
+		/* RGB */
+		for (row = 0; row < base_height; row++)
+		  {
+		      for (col = 0; col < base_width; col++)
+			{
+			    *p_out++ = *p_in++;	/* red */
+			    *p_out++ = *p_in++;	/* green */
+			    *p_out++ = *p_in++;	/* blue */
+			    *p_out++ = 255;	/* alpha */
+			}
 		  }
 	    }
 	  free (outbuf);
@@ -3956,22 +4386,61 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  rl2_graph_destroy_context (ctx);
 	  if (rgb == NULL)
 	      goto error;
-	  if (format_id == RL2_COMPRESSION_JPEG)
+	  if (out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
-		if (rl2_rgb_to_jpeg
-		    (width, height, rgb, quality, &image, &image_size) != RL2_OK)
+		/* Grayscale */
+		unsigned char *gray = malloc (width * height);
+		p_in = rgb;
+		p_out = gray;
+		for (row = 0; row < height; row++)
+		  {
+		      for (col = 0; col < width; col++)
+			{
+			    *p_out++ = *p_in++;
+			    p_in += 2;
+			}
+		  }
+		free (rgb);
+		rgb = NULL;
+		if (format_id == RL2_COMPRESSION_JPEG)
+		  {
+		      if (rl2_gray_to_jpeg
+			  (width, height, gray, quality, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else if (format_id == RL2_COMPRESSION_PNG)
+		  {
+		      if (rl2_gray_to_png
+			  (width, height, gray, &image, &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else
 		    goto error;
-	    }
-	  else if (format_id == RL2_COMPRESSION_PNG)
-	    {
-		if (rl2_rgb_to_png (width, height, rgb, &image, &image_size) !=
-		    RL2_OK)
-		    goto error;
+		free (gray);
+		gray = NULL;
 	    }
 	  else
-	      goto error;
-	  free (rgb);
-	  rgb = NULL;
+	    {
+		/* RGB */
+		if (format_id == RL2_COMPRESSION_JPEG)
+		  {
+		      if (rl2_rgb_to_jpeg
+			  (width, height, rgb, quality, &image,
+			   &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else if (format_id == RL2_COMPRESSION_PNG)
+		  {
+		      if (rl2_rgb_to_png
+			  (width, height, rgb, &image, &image_size) != RL2_OK)
+			  goto error;
+		  }
+		else
+		    goto error;
+		free (rgb);
+		rgb = NULL;
+	    }
 	  sqlite3_result_blob (context, image, image_size, free);
       }
 
@@ -3979,6 +4448,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     rl2_destroy_coverage (coverage);
     if (outbuf != NULL)
 	free (outbuf);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     return;
 
   error:
@@ -3988,6 +4459,12 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	free (outbuf);
     if (rgb != NULL)
 	free (rgb);
+    if (rgba != NULL)
+	free (rgba);
+    if (gray != NULL)
+	free (gray);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     sqlite3_result_null (context);
 }
 

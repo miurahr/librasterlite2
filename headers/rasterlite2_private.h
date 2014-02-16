@@ -529,6 +529,38 @@ extern "C"
     } ResolutionsList;
     typedef ResolutionsList *ResolutionsListPtr;
 
+    typedef struct insert_wms
+    {
+	sqlite3 *sqlite;
+	unsigned char *rgba_tile;
+	rl2CoveragePtr coverage;
+	const char *sect_name;
+	double x;
+	double y;
+	int width;
+	int height;
+	double tilew;
+	double tileh;
+	int srid;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
+	unsigned char sample_type;
+	unsigned char num_bands;
+	unsigned char compression;
+	double horz_res;
+	double vert_res;
+	unsigned short tile_width;
+	unsigned short tile_height;
+	rl2PixelPtr no_data;
+	sqlite3_stmt *stmt_sect;
+	sqlite3_stmt *stmt_levl;
+	sqlite3_stmt *stmt_tils;
+	sqlite3_stmt *stmt_data;
+    } InsertWms;
+    typedef InsertWms *InsertWmsPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);

@@ -275,6 +275,9 @@ do_export_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
+    path = sqlite3_mprintf ("./%s_plain_%d.tfw", coverage, scale);
+    unlink (path);
+    sqlite3_free (path);
     return retcode;
 }
 
@@ -312,6 +315,65 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
       }
     sqlite3_finalize (stmt);
     return geom;
+}
+
+static int
+do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
+		 double radius, const char *suffix)
+{
+/* exporting a PNG/JPEG image */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    const char *mime_type = "text/plain";
+
+    path = sqlite3_mprintf ("./%s_%1.0f%s", coverage, radius, suffix);
+
+    sql =
+	"SELECT RL2_GetMapImage(?, ST_Buffer(?, ?), 512, 512, 'default', ?, 0, 80)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 2, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 3, radius);
+    if (strcmp (suffix, ".png") == 0)
+	mime_type = "image/png";
+    if (strcmp (suffix, ".jpg") == 0)
+	mime_type = "image/jpeg";
+    sqlite3_bind_text (stmt, 4, mime_type, strlen (mime_type),
+		       SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+	    {
+		FILE *out;
+		blob = (unsigned char *) sqlite3_column_blob (stmt, 0);
+		blob_size = sqlite3_column_bytes (stmt, 0);
+		out = fopen (path, "wb");
+		if (out != NULL)
+		  {
+		      /* writing the output image */
+		      if ((int) fwrite (blob, 1, blob_size, out) == blob_size)
+			  retcode = 1;
+		      fclose (out);
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to GetMap \"%s\"\n", path);
+    unlink (path);
+    sqlite3_free (path);
+    return retcode;
 }
 
 static int
@@ -593,6 +655,26 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     if (!do_export_tiff_tfw (sqlite, coverage, geom, 4, alt_compression_name))
       {
 	  *retcode += -16;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 128.0, ".jpg"))
+      {
+	  *retcode += -17;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 290.0, ".jpg"))
+      {
+	  *retcode += -18;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 128.0, ".png"))
+      {
+	  *retcode += -19;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 60.0, ".png"))
+      {
+	  *retcode += -20;
 	  return 0;
       }
 

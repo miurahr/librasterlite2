@@ -845,6 +845,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* deleting the TILES Geometry definition */
     table = sqlite3_mprintf ("%s_tiles", coverage);
     xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
     sql = sqlite3_mprintf ("DELETE FROM geometry_columns "
 			   "WHERE Lower(f_table_name) = Lower(%Q)", xtable);
     free (xtable);
@@ -864,6 +865,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
     sql = sqlite3_mprintf ("DELETE FROM geometry_columns "
 			   "WHERE Lower(f_table_name) = Lower(%Q)", xtable);
     free (xtable);
+    sqlite3_free (table);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)

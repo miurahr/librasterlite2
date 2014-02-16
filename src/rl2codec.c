@@ -2161,16 +2161,16 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		/* ok, lossless WEBP compression was successful */
 		uncompressed = raster->width * raster->height * raster->nBands;
 		to_clean1 = compr_data;
-		odd_rows = raster->height;
-		if (mask_pix == NULL)
-		    uncompressed_mask = 0;
-		else
-		    uncompressed_mask = raster->width * raster->height;
-		compressed_mask = mask_pix_size;
-		compr_mask = mask_pix;
 	    }
 	  else
 	      goto error;
+	  odd_rows = raster->height;
+	  if (mask_pix == NULL)
+	      uncompressed_mask = 0;
+	  else
+	      uncompressed_mask = raster->width * raster->height;
+	  compressed_mask = mask_pix_size;
+	  compr_mask = mask_pix;
       }
     else if (compression == RL2_COMPRESSION_LOSSY_WEBP)
       {
@@ -2181,16 +2181,16 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		/* ok, lossy WEBP compression was successful */
 		uncompressed = raster->width * raster->height * raster->nBands;
 		to_clean1 = compr_data;
-		odd_rows = raster->height;
-		if (mask_pix == NULL)
-		    uncompressed_mask = 0;
-		else
-		    uncompressed_mask = raster->width * raster->height;
-		compressed_mask = mask_pix_size;
-		compr_mask = mask_pix;
 	    }
 	  else
 	      goto error;
+	  odd_rows = raster->height;
+	  if (mask_pix == NULL)
+	      uncompressed_mask = 0;
+	  else
+	      uncompressed_mask = raster->width * raster->height;
+	  compressed_mask = mask_pix_size;
+	  compr_mask = mask_pix;
       }
     else if (compression == RL2_COMPRESSION_PNG)
       {
@@ -4642,25 +4642,25 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    {
 	    case RL2_SCALE_1:
 		ret =
-		    rl2_decode_jpeg_scaled (1, pixels_odd, uncompressed_odd,
+		    rl2_decode_jpeg_scaled (1, pixels_odd, compressed_odd,
 					    &width, &height, &pix_typ, &pixels,
 					    &pixels_sz);
 		break;
 	    case RL2_SCALE_2:
 		ret =
-		    rl2_decode_jpeg_scaled (2, pixels_odd, uncompressed_odd,
+		    rl2_decode_jpeg_scaled (2, pixels_odd, compressed_odd,
 					    &width, &height, &pix_typ, &pixels,
 					    &pixels_sz);
 		break;
 	    case RL2_SCALE_4:
 		ret =
-		    rl2_decode_jpeg_scaled (4, pixels_odd, uncompressed_odd,
+		    rl2_decode_jpeg_scaled (4, pixels_odd, compressed_odd,
 					    &width, &height, &pix_typ, &pixels,
 					    &pixels_sz);
 		break;
 	    case RL2_SCALE_8:
 		ret =
-		    rl2_decode_jpeg_scaled (8, pixels_odd, uncompressed_odd,
+		    rl2_decode_jpeg_scaled (8, pixels_odd, compressed_odd,
 					    &width, &height, &pix_typ, &pixels,
 					    &pixels_sz);
 		break;
@@ -4678,28 +4678,28 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    {
 	    case RL2_SCALE_1:
 		ret =
-		    rl2_decode_webp_scaled (1, pixels_odd, uncompressed_odd,
+		    rl2_decode_webp_scaled (1, pixels_odd, compressed_odd,
 					    &width, &height, pixel_type,
 					    &pixels, &pixels_sz, &mask,
 					    &mask_sz);
 		break;
 	    case RL2_SCALE_2:
 		ret =
-		    rl2_decode_webp_scaled (2, pixels_odd, uncompressed_odd,
+		    rl2_decode_webp_scaled (2, pixels_odd, compressed_odd,
 					    &width, &height, pixel_type,
 					    &pixels, &pixels_sz, &mask,
 					    &mask_sz);
 		break;
 	    case RL2_SCALE_4:
 		ret =
-		    rl2_decode_webp_scaled (4, pixels_odd, uncompressed_odd,
+		    rl2_decode_webp_scaled (4, pixels_odd, compressed_odd,
 					    &width, &height, pixel_type,
 					    &pixels, &pixels_sz, &mask,
 					    &mask_sz);
 		break;
 	    case RL2_SCALE_8:
 		ret =
-		    rl2_decode_webp_scaled (8, pixels_odd, uncompressed_odd,
+		    rl2_decode_webp_scaled (8, pixels_odd, compressed_odd,
 					    &width, &height, pixel_type,
 					    &pixels, &pixels_sz, &mask,
 					    &mask_sz);
@@ -4720,7 +4720,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		if (scale != RL2_SCALE_1)
 		    goto error;
 		ret =
-		    rl2_decode_png (pixels_odd, uncompressed_odd,
+		    rl2_decode_png (pixels_odd, compressed_odd,
 				    &width, &height, &sample_type, &pixel_type,
 				    &num_bands, &pixels, &pixels_sz, &mask,
 				    &mask_sz, &palette);
@@ -4730,7 +4730,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    }
 	  else
 	    {
-		ret = rl2_decode_png (pixels_odd, uncompressed_odd,
+		ret = rl2_decode_png (pixels_odd, compressed_odd,
 				      &width, &odd_rows, &sample_type,
 				      &pixel_type, &num_bands, &odd_data,
 				      &pixels_sz, &odd_mask, &odd_mask_sz,
@@ -4740,7 +4740,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		pixels_odd = odd_data;
 		if (scale == RL2_SCALE_1)
 		  {
-		      ret = rl2_decode_png (pixels_even, uncompressed_even,
+		      ret = rl2_decode_png (pixels_even, compressed_even,
 					    &width, &even_rows, &sample_type,
 					    &pixel_type, &num_bands, &even_data,
 					    &pixels_sz, &even_mask,
@@ -4766,7 +4766,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	  else
 	      goto error;
 	  ret =
-	      rl2_decode_tiff_mono4 (pixels_odd, uncompressed_odd,
+	      rl2_decode_tiff_mono4 (pixels_odd, compressed_odd,
 				     &width, &height, &pixels, &pixels_sz);
 	  if (ret != RL2_OK)
 	      goto error;
@@ -4830,7 +4830,15 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
       }
 
     if (palette == NULL)
-	palette = ext_palette;
+      {
+	  palette = ext_palette;
+	  ext_palette = NULL;
+      }
+    else
+      {
+	  if (ext_palette != NULL)
+	      rl2_destroy_palette (ext_palette);
+      }
     raster =
 	rl2_create_raster (width, height, sample_type, pixel_type, num_bands,
 			   pixels, pixels_sz, palette, mask, mask_sz, NULL);
@@ -4854,6 +4862,10 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	free (pixels);
     if (mask != NULL)
 	free (mask);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (ext_palette != NULL)
+	rl2_destroy_palette (ext_palette);
     return NULL;
 }
 

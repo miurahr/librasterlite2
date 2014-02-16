@@ -1464,6 +1464,8 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		    free (origin->green);
 		if (origin->blue != NULL)
 		    free (origin->blue);
+		if (origin->alpha != NULL)
+		    free (origin->alpha);
 		if (!alloc_palette (origin, max))
 		    goto error;
 		for (j = 0; j < max; j++)
@@ -3933,9 +3935,9 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 				       origin->remapAlpha[x]);
 	    }
       }
-    if ((origin->photometric < PHOTOMETRIC_RGB
-	 && origin->forced_pixel_type == RL2_PIXEL_PALETTE)
-	|| origin->forced_conversion == RL2_CONVERT_MONOCHROME_TO_PALETTE)
+    else if ((origin->photometric < PHOTOMETRIC_RGB
+	      && origin->forced_pixel_type == RL2_PIXEL_PALETTE)
+	     || origin->forced_conversion == RL2_CONVERT_MONOCHROME_TO_PALETTE)
       {
 	  /* creating a remapped Palette */
 	  if (origin->remapMaxPalette == 0 && origin->maxPalette > 0

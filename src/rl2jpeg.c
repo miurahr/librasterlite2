@@ -715,7 +715,7 @@ rl2_blob_to_file (const char *path, unsigned char *blob, int blob_size)
     if (out == NULL)
 	return RL2_ERROR;
 
-/* attempting to load the BLOB from the file */
+/* attempting to store the BLOB into the file */
     wr = fwrite (blob, 1, blob_size, out);
     fclose (out);
     if (wr != blob_size)

@@ -159,7 +159,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	      retcode = 1;
       }
     sqlite3_finalize (stmt);
-    // unlink (path);
+    unlink (path);
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
@@ -297,13 +297,13 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	  if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
 	    {
 		FILE *out;
-		blob = sqlite3_column_blob (stmt, 0);
+		blob = (unsigned char *) sqlite3_column_blob (stmt, 0);
 		blob_size = sqlite3_column_bytes (stmt, 0);
 		out = fopen (path, "wb");
 		if (out != NULL)
 		  {
 		      /* writing the output image */
-		      if (fwrite (blob, 1, blob_size, out) == blob_size)
+		      if ((int) fwrite (blob, 1, blob_size, out) == blob_size)
 			  retcode = 1;
 		      fclose (out);
 		  }
@@ -312,7 +312,7 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     sqlite3_finalize (stmt);
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to GetMap \"%s\"\n", path);
-//   unlink (path);
+    unlink (path);
     sqlite3_free (path);
     return retcode;
 }
@@ -657,22 +657,22 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -14;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 50.0, ".jpg"))
+    if (!do_export_image (sqlite, coverage, geom, 39.015, ".jpg"))
       {
 	  *retcode += -15;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 75.0, ".jpg"))
+    if (!do_export_image (sqlite, coverage, geom, 69.0, ".jpg"))
       {
 	  *retcode += -16;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 50.0, ".png"))
+    if (!do_export_image (sqlite, coverage, geom, 39.015, ".png"))
       {
 	  *retcode += -17;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 75.0, ".png"))
+    if (!do_export_image (sqlite, coverage, geom, 16.0, ".png"))
       {
 	  *retcode += -18;
 	  return 0;

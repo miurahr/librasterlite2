@@ -407,9 +407,12 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 			  index = 255;
 		      else
 			  index = 0;
-		      r = *p_out++ = index;
-		      g = *p_out++ = index;
-		      b = *p_out++ = index;
+		      r = index;
+		      g = index;
+		      b = index;
+		      *p_out++ = index;
+		      *p_out++ = index;
+		      *p_out++ = index;
 		      break;
 		  case RL2_PIXEL_PALETTE:
 		      index = *p_in++;

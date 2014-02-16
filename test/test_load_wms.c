@@ -158,7 +158,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	      retcode = 1;
       }
     sqlite3_finalize (stmt);
-    // unlink (path);
+    unlink (path);
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
@@ -352,47 +352,55 @@ main (int argc, char *argv[])
 	  sqlite3_free (err_msg);
 	  return -9;
       }
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", "ctrt10k", "firenze");
+    ret = execute_check (db_handle, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "Pyramidize \"%s\" error: %s\n", "ctrt10k", err_msg);
+	  sqlite3_free (err_msg);
+	  return -10;
+      }
 
 /* export tests */
     geom = get_center_point (db_handle, "rgb10k");
     if (geom == NULL)
-	return -10;
-    if (!do_export_geotiff (db_handle, "rgb10k", geom, 1))
 	return -11;
-    if (!do_export_geotiff (db_handle, "rgb10k", geom, 2))
+    if (!do_export_geotiff (db_handle, "rgb10k", geom, 1))
 	return -12;
-    if (!do_export_geotiff (db_handle, "rgb10k", geom, 4))
+    if (!do_export_geotiff (db_handle, "rgb10k", geom, 2))
 	return -13;
-    if (!do_export_geotiff (db_handle, "rgb10k", geom, 8))
+    if (!do_export_geotiff (db_handle, "rgb10k", geom, 4))
 	return -14;
+    if (!do_export_geotiff (db_handle, "rgb10k", geom, 8))
+	return -15;
     gaiaFreeGeomColl (geom);
     geom = get_center_point (db_handle, "rgb10k");
     if (geom == NULL)
-	return -15;
-    if (!do_export_geotiff (db_handle, "gray10k", geom, 1))
 	return -16;
-    if (!do_export_geotiff (db_handle, "gray10k", geom, 2))
+    if (!do_export_geotiff (db_handle, "gray10k", geom, 1))
 	return -17;
-    if (!do_export_geotiff (db_handle, "gray10k", geom, 4))
+    if (!do_export_geotiff (db_handle, "gray10k", geom, 2))
 	return -18;
-    if (!do_export_geotiff (db_handle, "gray10k", geom, 8))
+    if (!do_export_geotiff (db_handle, "gray10k", geom, 4))
 	return -19;
+    if (!do_export_geotiff (db_handle, "gray10k", geom, 8))
+	return -20;
     gaiaFreeGeomColl (geom);
     geom = get_center_point (db_handle, "ctrt10k");
     if (geom == NULL)
-	return -20;
-    if (!do_export_geotiff (db_handle, "ctrt10k", geom, 1))
 	return -21;
-/*
+    if (!do_export_geotiff (db_handle, "ctrt10k", geom, 1))
+	return -22;
     if (!do_export_geotiff (db_handle, "ctrt10k", geom, 2))
-      return -22;
+	return -23;
     if (!do_export_geotiff (db_handle, "ctrt10k", geom, 4))
-      return -23;
+	return -24;
     if (!do_export_geotiff (db_handle, "ctrt10k", geom, 8))
-      return -23;
-*/
+	return -25;
     gaiaFreeGeomColl (geom);
-
 
 /* closing the DB */
     spatialite_shutdown ();

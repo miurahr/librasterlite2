@@ -2842,8 +2842,8 @@ build_palette (const unsigned char *rgb, int *r, int *g, int *b)
       }
     palette = rl2_create_palette (256);
     for (row = 0; row < 256; row++)
-	rl2_set_palette_color (palette, row, *(r + row), *(g + row), *(b + row),
-			       255);
+	rl2_set_palette_color (palette, row, *(r + row), *(g + row),
+			       *(b + row));
     return palette;
 }
 
@@ -2961,7 +2961,7 @@ do_one_palette_test (const unsigned char *rgb, const char *path, int tiled,
 				  green = *p_in++;
 				  blue = *p_in++;
 				  rl2_get_palette_index (palette2, &index, red,
-							 green, blue, 255);
+							 green, blue);
 				  *p_out++ = index;
 			      }
 			}
@@ -3007,8 +3007,8 @@ do_one_palette_test (const unsigned char *rgb, const char *path, int tiled,
 		      red = *p_in++;
 		      green = *p_in++;
 		      blue = *p_in++;
-		      rl2_get_palette_index (palette2, &index, red, green, blue,
-					     255);
+		      rl2_get_palette_index (palette2, &index, red, green,
+					     blue);
 		      *p_out++ = index;
 		  }
 		raster = rl2_create_raster (1024, 1,

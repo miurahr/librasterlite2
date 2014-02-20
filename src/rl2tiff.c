@@ -213,12 +213,10 @@ create_tiff_origin (const char *path, unsigned char force_sample_type,
     origin->red = NULL;
     origin->green = NULL;
     origin->blue = NULL;
-    origin->alpha = NULL;
     origin->remapMaxPalette = 0;
     origin->remapRed = NULL;
     origin->remapGreen = NULL;
     origin->remapBlue = NULL;
-    origin->remapAlpha = NULL;
     origin->isGeoReferenced = 0;
     origin->Srid = -1;
     origin->srsName = NULL;
@@ -258,20 +256,11 @@ alloc_palette (rl2PrivTiffOriginPtr tiff, int max_palette)
 	  free (origin->green);
 	  return 0;
       }
-    origin->alpha = malloc (max_palette);
-    if (origin->alpha == NULL)
-      {
-	  free (origin->red);
-	  free (origin->green);
-	  free (origin->blue);
-	  return 0;
-      }
     for (i = 0; i < max_palette; i++)
       {
 	  origin->red[i] = 0;
 	  origin->green[i] = 0;
 	  origin->blue[i] = 0;
-	  origin->alpha[i] = 255;
       }
     return 1;
 }
@@ -295,16 +284,12 @@ rl2_destroy_tiff_origin (rl2TiffOriginPtr tiff)
 	free (origin->green);
     if (origin->blue != NULL)
 	free (origin->blue);
-    if (origin->alpha != NULL)
-	free (origin->alpha);
     if (origin->remapRed != NULL)
 	free (origin->remapRed);
     if (origin->remapGreen != NULL)
 	free (origin->remapGreen);
     if (origin->remapBlue != NULL)
 	free (origin->remapBlue);
-    if (origin->remapAlpha != NULL)
-	free (origin->remapAlpha);
     if (origin->srsName != NULL)
 	free (origin->srsName);
     if (origin->proj4text != NULL)
@@ -1403,7 +1388,6 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		    origin->blue[i] = blue[i];
 		else
 		    origin->blue[i] = blue[i] / 256;
-		origin->alpha[i] = 255;
 	    }
 	  if ((origin->forced_sample_type == RL2_SAMPLE_1_BIT
 	       || origin->forced_sample_type == RL2_SAMPLE_2_BIT
@@ -1428,7 +1412,7 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		      for (j = 0; j < max_palette; j++)
 			  rl2_set_palette_color (pltx, j, origin->red[j],
 						 origin->green[j],
-						 origin->blue[j], 255);
+						 origin->blue[j]);
 		      if (read_from_tiff
 			  (origin, origin->width, height, RL2_SAMPLE_UINT8,
 			   RL2_PIXEL_PALETTE, 1, row, 0, &pixels, &pixels_sz,
@@ -1464,8 +1448,6 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		    free (origin->green);
 		if (origin->blue != NULL)
 		    free (origin->blue);
-		if (origin->alpha != NULL)
-		    free (origin->alpha);
 		if (!alloc_palette (origin, max))
 		    goto error;
 		for (j = 0; j < max; j++)
@@ -1483,7 +1465,6 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 			  origin->blue[j] = blue[plt[j]];
 		      else
 			  origin->blue[j] = blue[plt[j]] / 256;
-		      origin->alpha[j] = 255;
 		  }
 	    }
       }
@@ -1501,7 +1482,6 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
 		origin->red[i] = i;
 		origin->green[i] = i;
 		origin->blue[i] = i;
-		origin->alpha[i] = 255;
 	    }
       }
     if (origin->forced_conversion == RL2_CONVERT_MONOCHROME_TO_PALETTE)
@@ -3420,7 +3400,6 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
     unsigned char red;
     unsigned char green;
     unsigned char blue;
-    unsigned char alpha;
 
     tiff_tile =
 	malloc (sizeof (uint32) * origin->tileWidth * origin->tileHeight);
@@ -3482,7 +3461,6 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 			    red = TIFFGetR (pix);
 			    green = TIFFGetG (pix);
 			    blue = TIFFGetB (pix);
-			    alpha = TIFFGetA (pix);
 			    if (origin->forced_conversion ==
 				RL2_CONVERT_RGB_TO_GRAYSCALE)
 			      {
@@ -3538,7 +3516,7 @@ read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 				  /* PALETTE image */
 				  if (rl2_get_palette_index
 				      (palette, &index, red, green,
-				       blue, alpha) != RL2_OK)
+				       blue) != RL2_OK)
 				      index = 0;
 				  *p_out++ = index;
 			      }
@@ -3597,7 +3575,6 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
     unsigned char red;
     unsigned char green;
     unsigned char blue;
-    unsigned char alpha;
 
     tiff_strip =
 	malloc (sizeof (uint32) * origin->width * origin->rowsPerStrip);
@@ -3642,7 +3619,6 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 		      red = TIFFGetR (pix);
 		      green = TIFFGetG (pix);
 		      blue = TIFFGetB (pix);
-		      alpha = TIFFGetA (pix);
 		      if (origin->forced_conversion ==
 			  RL2_CONVERT_RGB_TO_GRAYSCALE)
 			{
@@ -3697,8 +3673,7 @@ read_RGBA_strips (rl2PrivTiffOriginPtr origin, unsigned short width,
 			{
 			    /* PALETTE image */
 			    if (rl2_get_palette_index
-				(palette, &index, red, green, blue,
-				 alpha) != RL2_OK)
+				(palette, &index, red, green, blue) != RL2_OK)
 				index = 0;
 			    *p_out++ = index;
 			}
@@ -3867,19 +3842,15 @@ build_remap (rl2PrivTiffOriginPtr origin)
 	free (origin->remapGreen);
     if (origin->remapBlue != NULL)
 	free (origin->remapBlue);
-    if (origin->remapAlpha != NULL)
-	free (origin->remapAlpha);
     origin->remapMaxPalette = origin->maxPalette;
     origin->remapRed = malloc (origin->remapMaxPalette);
     origin->remapGreen = malloc (origin->remapMaxPalette);
     origin->remapBlue = malloc (origin->remapMaxPalette);
-    origin->remapAlpha = malloc (origin->remapMaxPalette);
     for (j = 0; j < origin->maxPalette; j++)
       {
 	  origin->remapRed[j] = origin->red[j];
 	  origin->remapGreen[j] = origin->green[j];
 	  origin->remapBlue[j] = origin->blue[j];
-	  origin->remapAlpha[j] = origin->alpha[j];
       }
 }
 
@@ -3931,8 +3902,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	    {
 		rl2_set_palette_color (palette, x, origin->remapRed[x],
 				       origin->remapGreen[x],
-				       origin->remapBlue[x],
-				       origin->remapAlpha[x]);
+				       origin->remapBlue[x]);
 	    }
       }
     else if ((origin->photometric < PHOTOMETRIC_RGB
@@ -3948,8 +3918,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	    {
 		rl2_set_palette_color (palette, x, origin->remapRed[x],
 				       origin->remapGreen[x],
-				       origin->remapBlue[x],
-				       origin->remapAlpha[x]);
+				       origin->remapBlue[x]);
 	    }
       }
     if (origin->photometric == PHOTOMETRIC_PALETTE)
@@ -3963,8 +3932,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 		      rl2_set_palette_color (palette, x,
 					     origin->remapRed[x],
 					     origin->remapGreen[x],
-					     origin->remapBlue[x],
-					     origin->remapAlpha[x]);
+					     origin->remapBlue[x]);
 		  }
 	    }
 	  else
@@ -3976,8 +3944,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 			{
 			    rl2_set_palette_color (palette, x, origin->red[x],
 						   origin->green[x],
-						   origin->blue[x],
-						   origin->alpha[x]);
+						   origin->blue[x]);
 			}
 		  }
 	    }
@@ -4297,9 +4264,8 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
 	  unsigned char *red;
 	  unsigned char *green;
 	  unsigned char *blue;
-	  unsigned char *alpha;
 	  if (rl2_get_palette_colors
-	      (plt, &max_palette, &red, &green, &blue, &alpha) == RL2_ERROR)
+	      (plt, &max_palette, &red, &green, &blue) == RL2_ERROR)
 	    {
 		fprintf (stderr, "RL2-TIFF writer: invalid Palette\n");
 		goto error;
@@ -4319,7 +4285,6 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
 	  rl2_free (red);
 	  rl2_free (green);
 	  rl2_free (blue);
-	  rl2_free (alpha);
 	  destination->sampleFormat = SAMPLEFORMAT_UINT;
 	  destination->bitsPerSample = 8;
 	  destination->samplesPerPixel = 1;

@@ -67,9 +67,9 @@ create_palette ()
     rl2PalettePtr palette = rl2_create_palette (2);
     if (palette == NULL)
 	goto error;
-    if (rl2_set_palette_color (palette, 0, 255, 255, 204, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 0, 255, 255, 204) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 1, 128, 204, 232, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 1, 128, 204, 232) != RL2_OK)
 	goto error;
     return palette;
   error:

@@ -53,7 +53,7 @@ build_palette (int num)
     int i;
     rl2PalettePtr plt = rl2_create_palette (num);
     for (i = 0; i < num; i++)
-	rl2_set_palette_color (plt, i, 255 - i, 255 - i, 255 - i, 255);
+	rl2_set_palette_color (plt, i, 255 - i, 255 - i, 255 - i);
     return plt;
 }
 

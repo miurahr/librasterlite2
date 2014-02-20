@@ -67,13 +67,13 @@ create_palette ()
     rl2PalettePtr palette = rl2_create_palette (4);
     if (palette == NULL)
 	goto error;
-    if (rl2_set_palette_color (palette, 0, 255, 255, 204, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 0, 255, 255, 204) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 1, 204, 255, 255, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 1, 204, 255, 255) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 2, 255, 204, 255, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 2, 255, 204, 255) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 3, 204, 204, 204, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 3, 204, 204, 204) != RL2_OK)
 	goto error;
     return palette;
   error:

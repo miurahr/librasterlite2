@@ -413,7 +413,6 @@ compress_jpeg (unsigned short width, unsigned short height,
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
 
     cinfo.err = jpeg_std_error (&jerr);
     jpeg_create_compress (&cinfo);
@@ -455,7 +454,7 @@ compress_jpeg (unsigned short width, unsigned short height,
       {
 	  /* retrieving the palette */
 	  if (rl2_get_palette_colors (palette, &num_entries, &red, &green,
-				      &blue, &alpha) != RL2_OK)
+				      &blue) != RL2_OK)
 	      goto error;
       }
     for (row = 0; row < (int) height; row++)
@@ -470,7 +469,7 @@ compress_jpeg (unsigned short width, unsigned short height,
 		if (pixel_type == RL2_PIXEL_PALETTE)
 		  {
 		      unsigned char index = *p_data++;
-		      if (transparent || *(alpha + index) == 0)
+		      if (transparent)
 			{
 			    /* transparent pixel - defaulting to WHITE */
 			    *p_row++ = 255;
@@ -637,8 +636,6 @@ compress_jpeg (unsigned short width, unsigned short height,
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     *jpeg = outbuffer;
     *jpeg_size = outsize;
     return RL2_OK;
@@ -654,8 +651,6 @@ compress_jpeg (unsigned short width, unsigned short height,
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     return RL2_ERROR;
 }
 

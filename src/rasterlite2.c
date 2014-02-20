@@ -1233,7 +1233,6 @@ rl2_create_palette (int num_entries)
 	  entry->red = 0;
 	  entry->green = 0;
 	  entry->blue = 0;
-	  entry->alpha = 255;
       }
     return (rl2PalettePtr) plt;
 }
@@ -1269,7 +1268,6 @@ rl2_clone_palette (rl2PalettePtr in)
 	  entry_out->red = entry_in->red;
 	  entry_out->green = entry_in->green;
 	  entry_out->blue = entry_in->blue;
-	  entry_out->alpha = entry_in->alpha;
       }
     return out;
 }
@@ -1365,7 +1363,6 @@ rl2_get_palette_type (rl2PalettePtr ptr, unsigned char *sample_type,
     unsigned char red[256];
     unsigned char green[256];
     unsigned char blue[256];
-    unsigned char alpha[256];
     int max = 0;
     int index;
     int i;
@@ -1383,7 +1380,7 @@ rl2_get_palette_type (rl2PalettePtr ptr, unsigned char *sample_type,
 	  for (i = 0; i < max; i++)
 	    {
 		if (entry->red == red[i] && entry->green == green[i]
-		    && entry->blue == blue[i] && entry->alpha == alpha[i])
+		    && entry->blue == blue[i])
 		  {
 		      already_defined = 1;
 		      break;
@@ -1395,7 +1392,6 @@ rl2_get_palette_type (rl2PalettePtr ptr, unsigned char *sample_type,
 		red[max] = entry->red;
 		green[max] = entry->green;
 		blue[max] = entry->blue;
-		alpha[max] = entry->alpha;
 		max++;
 	    }
       }
@@ -1417,7 +1413,7 @@ rl2_get_palette_type (rl2PalettePtr ptr, unsigned char *sample_type,
 
 RL2_DECLARE int
 rl2_set_palette_color (rl2PalettePtr ptr, int index, unsigned char r,
-		       unsigned char g, unsigned char b, unsigned char alpha)
+		       unsigned char g, unsigned char b)
 {
 /* setting a Palette entry */
     rl2PrivPaletteEntryPtr entry;
@@ -1430,13 +1426,12 @@ rl2_set_palette_color (rl2PalettePtr ptr, int index, unsigned char r,
     entry->red = r;
     entry->green = g;
     entry->blue = b;
-    entry->alpha = alpha;
     return RL2_OK;
 }
 
 RL2_DECLARE int
 rl2_get_palette_index (rl2PalettePtr ptr, unsigned char *index, unsigned char r,
-		       unsigned char g, unsigned char b, unsigned char alpha)
+		       unsigned char g, unsigned char b)
 {
 /* finding the index corresponding to the given color (if any) */
     int i;
@@ -1447,8 +1442,7 @@ rl2_get_palette_index (rl2PalettePtr ptr, unsigned char *index, unsigned char r,
     for (i = 0; i < plt->nEntries; i++)
       {
 	  entry = plt->entries + i;
-	  if (entry->red == r && entry->green == g && entry->blue == b
-	      && entry->alpha == alpha)
+	  if (entry->red == r && entry->green == g && entry->blue == b)
 	    {
 		*index = i;
 		return RL2_OK;
@@ -1627,7 +1621,6 @@ rl2_set_palette_hexrgb (rl2PalettePtr ptr, int index, const char *hex)
     entry->red = r;
     entry->green = g;
     entry->blue = b;
-    entry->alpha = 255;
     return RL2_OK;
 }
 
@@ -1644,28 +1637,24 @@ rl2_get_palette_entries (rl2PalettePtr ptr, unsigned short *num_entries)
 
 RL2_DECLARE int
 rl2_get_palette_colors (rl2PalettePtr ptr, unsigned short *num_entries,
-			unsigned char **r, unsigned char **g, unsigned char **b,
-			unsigned char **a)
+			unsigned char **r, unsigned char **g, unsigned char **b)
 {
 /* return the Palette colors */
     rl2PrivPalettePtr plt = (rl2PrivPalettePtr) ptr;
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     int i;
     *num_entries = 0;
     *r = NULL;
     *g = NULL;
     *b = NULL;
-    *a = NULL;
     if (plt == NULL)
 	return RL2_ERROR;
     red = malloc (plt->nEntries);
     green = malloc (plt->nEntries);
     blue = malloc (plt->nEntries);
-    alpha = malloc (plt->nEntries);
-    if (red == NULL || green == NULL || blue == NULL || alpha == NULL)
+    if (red == NULL || green == NULL || blue == NULL)
       {
 	  if (red != NULL)
 	      free (red);
@@ -1673,8 +1662,6 @@ rl2_get_palette_colors (rl2PalettePtr ptr, unsigned short *num_entries,
 	      free (green);
 	  if (blue != NULL)
 	      free (blue);
-	  if (alpha != NULL)
-	      free (alpha);
 	  return RL2_ERROR;
       }
     for (i = 0; i < plt->nEntries; i++)
@@ -1683,13 +1670,11 @@ rl2_get_palette_colors (rl2PalettePtr ptr, unsigned short *num_entries,
 	  *(red + i) = entry->red;
 	  *(green + i) = entry->green;
 	  *(blue + i) = entry->blue;
-	  *(alpha + i) = entry->alpha;
       }
     *num_entries = plt->nEntries;
     *r = red;
     *g = green;
     *b = blue;
-    *a = alpha;
     return RL2_OK;
 }
 

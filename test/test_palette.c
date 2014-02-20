@@ -49,8 +49,8 @@ create_monochrome_palette ()
 {
 /* creating a MONOCHROME palette */
     rl2PalettePtr palette = rl2_create_palette (2);
-    rl2_set_palette_color (palette, 0, 255, 255, 255, 255);
-    rl2_set_palette_color (palette, 1, 0, 0, 0, 255);
+    rl2_set_palette_color (palette, 0, 255, 255, 255);
+    rl2_set_palette_color (palette, 1, 0, 0, 0);
     return palette;
 }
 
@@ -59,10 +59,10 @@ create_gray4_palette ()
 {
 /* creating a GRAY-4 palette */
     rl2PalettePtr palette = rl2_create_palette (4);
-    rl2_set_palette_color (palette, 0, 0, 0, 0, 255);
-    rl2_set_palette_color (palette, 1, 86, 86, 86, 255);
-    rl2_set_palette_color (palette, 2, 170, 170, 170, 255);
-    rl2_set_palette_color (palette, 3, 255, 255, 255, 255);
+    rl2_set_palette_color (palette, 0, 0, 0, 0);
+    rl2_set_palette_color (palette, 1, 86, 86, 86);
+    rl2_set_palette_color (palette, 2, 170, 170, 170);
+    rl2_set_palette_color (palette, 3, 255, 255, 255);
     return palette;
 }
 
@@ -71,22 +71,22 @@ create_gray16_palette ()
 {
 /* creating a GRAY-16 palette */
     rl2PalettePtr palette = rl2_create_palette (16);
-    rl2_set_palette_color (palette, 0, 0, 0, 0, 255);
-    rl2_set_palette_color (palette, 1, 17, 17, 17, 255);
-    rl2_set_palette_color (palette, 2, 34, 34, 34, 255);
-    rl2_set_palette_color (palette, 3, 51, 51, 51, 255);
-    rl2_set_palette_color (palette, 4, 68, 68, 68, 255);
-    rl2_set_palette_color (palette, 5, 85, 85, 85, 255);
-    rl2_set_palette_color (palette, 6, 102, 102, 102, 255);
-    rl2_set_palette_color (palette, 7, 119, 119, 119, 255);
-    rl2_set_palette_color (palette, 8, 137, 137, 137, 255);
-    rl2_set_palette_color (palette, 9, 154, 154, 154, 255);
-    rl2_set_palette_color (palette, 10, 171, 171, 171, 255);
-    rl2_set_palette_color (palette, 11, 188, 188, 188, 255);
-    rl2_set_palette_color (palette, 12, 205, 205, 205, 255);
-    rl2_set_palette_color (palette, 13, 222, 222, 222, 255);
-    rl2_set_palette_color (palette, 14, 239, 239, 239, 255);
-    rl2_set_palette_color (palette, 15, 255, 255, 255, 255);
+    rl2_set_palette_color (palette, 0, 0, 0, 0);
+    rl2_set_palette_color (palette, 1, 17, 17, 17);
+    rl2_set_palette_color (palette, 2, 34, 34, 34);
+    rl2_set_palette_color (palette, 3, 51, 51, 51);
+    rl2_set_palette_color (palette, 4, 68, 68, 68);
+    rl2_set_palette_color (palette, 5, 85, 85, 85);
+    rl2_set_palette_color (palette, 6, 102, 102, 102);
+    rl2_set_palette_color (palette, 7, 119, 119, 119);
+    rl2_set_palette_color (palette, 8, 137, 137, 137);
+    rl2_set_palette_color (palette, 9, 154, 154, 154);
+    rl2_set_palette_color (palette, 10, 171, 171, 171);
+    rl2_set_palette_color (palette, 11, 188, 188, 188);
+    rl2_set_palette_color (palette, 12, 205, 205, 205);
+    rl2_set_palette_color (palette, 13, 222, 222, 222);
+    rl2_set_palette_color (palette, 14, 239, 239, 239);
+    rl2_set_palette_color (palette, 15, 255, 255, 255);
     return palette;
 }
 
@@ -97,7 +97,7 @@ create_gray256_palette ()
     int i;
     rl2PalettePtr palette = rl2_create_palette (256);
     for (i = 0; i < 256; i++)
-	rl2_set_palette_color (palette, i, i, i, i, 255);
+	rl2_set_palette_color (palette, i, i, i, i);
     return palette;
 }
 
@@ -106,8 +106,8 @@ create_bicolor_palette ()
 {
 /* creating a BICOLOR palette */
     rl2PalettePtr palette = rl2_create_palette (2);
-    rl2_set_palette_color (palette, 0, 255, 0, 255, 255);
-    rl2_set_palette_color (palette, 1, 255, 0, 255, 255);
+    rl2_set_palette_color (palette, 0, 255, 0, 255);
+    rl2_set_palette_color (palette, 1, 255, 0, 255);
     return palette;
 }
 
@@ -116,10 +116,10 @@ create_rgb4_palette ()
 {
 /* creating an RGB-4 palette */
     rl2PalettePtr palette = rl2_create_palette (4);
-    rl2_set_palette_color (palette, 0, 255, 0, 0, 255);
-    rl2_set_palette_color (palette, 1, 255, 86, 86, 255);
-    rl2_set_palette_color (palette, 2, 255, 170, 170, 255);
-    rl2_set_palette_color (palette, 3, 255, 255, 255, 255);
+    rl2_set_palette_color (palette, 0, 255, 0, 0);
+    rl2_set_palette_color (palette, 1, 255, 86, 86);
+    rl2_set_palette_color (palette, 2, 255, 170, 170);
+    rl2_set_palette_color (palette, 3, 255, 255, 255);
     return palette;
 }
 
@@ -128,22 +128,22 @@ create_rgb16_palette ()
 {
 /* creating an RGB-16 palette */
     rl2PalettePtr palette = rl2_create_palette (16);
-    rl2_set_palette_color (palette, 0, 255, 0, 0, 255);
-    rl2_set_palette_color (palette, 1, 255, 17, 17, 255);
-    rl2_set_palette_color (palette, 2, 255, 34, 34, 255);
-    rl2_set_palette_color (palette, 3, 255, 51, 51, 255);
-    rl2_set_palette_color (palette, 4, 68, 255, 68, 255);
-    rl2_set_palette_color (palette, 5, 85, 255, 85, 255);
-    rl2_set_palette_color (palette, 6, 102, 255, 102, 255);
-    rl2_set_palette_color (palette, 7, 119, 255, 119, 255);
-    rl2_set_palette_color (palette, 8, 137, 255, 137, 255);
-    rl2_set_palette_color (palette, 9, 154, 255, 154, 255);
-    rl2_set_palette_color (palette, 10, 171, 171, 255, 255);
-    rl2_set_palette_color (palette, 11, 188, 188, 255, 255);
-    rl2_set_palette_color (palette, 12, 205, 205, 255, 255);
-    rl2_set_palette_color (palette, 13, 222, 222, 255, 255);
-    rl2_set_palette_color (palette, 14, 239, 239, 255, 255);
-    rl2_set_palette_color (palette, 15, 255, 255, 255, 255);
+    rl2_set_palette_color (palette, 0, 255, 0, 0);
+    rl2_set_palette_color (palette, 1, 255, 17, 17);
+    rl2_set_palette_color (palette, 2, 255, 34, 34);
+    rl2_set_palette_color (palette, 3, 255, 51, 51);
+    rl2_set_palette_color (palette, 4, 68, 255, 68);
+    rl2_set_palette_color (palette, 5, 85, 255, 85);
+    rl2_set_palette_color (palette, 6, 102, 255, 102);
+    rl2_set_palette_color (palette, 7, 119, 255, 119);
+    rl2_set_palette_color (palette, 8, 137, 255, 137);
+    rl2_set_palette_color (palette, 9, 154, 255, 154);
+    rl2_set_palette_color (palette, 10, 171, 171, 255);
+    rl2_set_palette_color (palette, 11, 188, 188, 255);
+    rl2_set_palette_color (palette, 12, 205, 205, 255);
+    rl2_set_palette_color (palette, 13, 222, 222, 255);
+    rl2_set_palette_color (palette, 14, 239, 239, 255);
+    rl2_set_palette_color (palette, 15, 255, 255, 255);
     return palette;
 }
 
@@ -154,7 +154,7 @@ create_rgb256_palette ()
     int i;
     rl2PalettePtr palette = rl2_create_palette (256);
     for (i = 0; i < 256; i++)
-	rl2_set_palette_color (palette, i, 255 - i, i, 128, 255);
+	rl2_set_palette_color (palette, i, 255 - i, i, 128);
     return palette;
 }
 
@@ -167,7 +167,6 @@ main (int argc, char *argv[])
     unsigned char *r;
     unsigned char *g;
     unsigned char *b;
-    unsigned char *a;
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char *blob;
@@ -203,7 +202,7 @@ main (int argc, char *argv[])
 	  return -4;
       }
 
-    if (rl2_set_palette_color (palette, 0, 0, 0, 0, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to set palette color #0\n");
 	  return -5;
@@ -227,8 +226,7 @@ main (int argc, char *argv[])
 	  return -8;
       }
 
-    if (rl2_get_palette_colors (palette, &num_entries, &r, &g, &b, &a) !=
-	RL2_OK)
+    if (rl2_get_palette_colors (palette, &num_entries, &r, &g, &b) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to retrieve palette colors\n");
 	  return -9;
@@ -238,13 +236,12 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unexpected palette # colors\n");
 	  return -10;
       }
-    if (*(r + 0) != 0 || *(g + 0) != 0 || *(b + 0) != 0 || *(a + 0) != 255)
+    if (*(r + 0) != 0 || *(g + 0) != 0 || *(b + 0) != 0)
       {
 	  fprintf (stderr, "Mismatching color #0\n");
 	  return -11;
       }
-    if (*(r + 1) != 0xab || *(g + 1) != 0xcd || *(b + 1) != 0xef
-	|| *(a + 0) != 255)
+    if (*(r + 1) != 0xab || *(g + 1) != 0xcd || *(b + 1) != 0xef)
       {
 	  fprintf (stderr, "Mismatching color #1\n");
 	  return -11;
@@ -252,21 +249,20 @@ main (int argc, char *argv[])
     rl2_free (r);
     rl2_free (g);
     rl2_free (b);
-    rl2_free (a);
 
-    if (rl2_set_palette_color (NULL, 0, 0, 0, 0, 255) != RL2_ERROR)
+    if (rl2_set_palette_color (NULL, 0, 0, 0, 0) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL palette set color\n");
 	  return -12;
       }
 
-    if (rl2_set_palette_color (palette, -1, 0, 0, 0, 255) != RL2_ERROR)
+    if (rl2_set_palette_color (palette, -1, 0, 0, 0) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: palette set color (negative index)\n");
 	  return -13;
       }
 
-    if (rl2_set_palette_color (palette, 2, 0, 0, 0, 255) != RL2_ERROR)
+    if (rl2_set_palette_color (palette, 2, 0, 0, 0) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: palette set color (exceeding index)\n");
 	  return -14;
@@ -338,8 +334,7 @@ main (int argc, char *argv[])
 	  return -24;
       }
 
-    if (rl2_get_palette_colors (NULL, &num_entries, &r, &g, &b, &a) !=
-	RL2_ERROR)
+    if (rl2_get_palette_colors (NULL, &num_entries, &r, &g, &b) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL palette - get colors\n");
 	  return -25;
@@ -541,14 +536,6 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "ERROR: unable to clone a palette\n");
 	  return 51;
       }
-    rl2_destroy_palette (plt2);
-    if (rl2_create_default_dbms_palette (&blob, &blob_size) != RL2_OK)
-      {
-	  fprintf (stderr,
-		   "ERROR: unable to create a default serialized palette\n");
-	  return -52;
-      }
-    free (blob);
     if (rl2_serialize_dbms_palette (NULL, &blob, &blob_size) == RL2_OK)
       {
 	  fprintf (stderr, "ERROR: unexpected NULL palette serialization\n");

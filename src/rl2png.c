@@ -127,7 +127,6 @@ compress_palette_png (const unsigned char *pixels, unsigned short width,
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     int i;
     const unsigned char *p_in;
     struct png_memory_buffer membuf;
@@ -170,7 +169,7 @@ compress_palette_png (const unsigned char *pixels, unsigned short width,
 /* setting the palette */
     if (plt == NULL)
 	goto error;
-    if (rl2_get_palette_colors (plt, &num_entries, &red, &green, &blue, &alpha)
+    if (rl2_get_palette_colors (plt, &num_entries, &red, &green, &blue)
 	!= RL2_OK)
 	goto error;
     for (i = 0; i < num_entries; i++)
@@ -208,8 +207,6 @@ compress_palette_png (const unsigned char *pixels, unsigned short width,
 	rl2_free (green);
     if (blue != NULL)
 	rl2_free (blue);
-    if (alpha != NULL)
-	rl2_free (alpha);
     *png = membuf.buffer;
     *png_size = membuf.size;
     return RL2_OK;
@@ -227,10 +224,6 @@ compress_palette_png (const unsigned char *pixels, unsigned short width,
 	rl2_free (green);
     if (blue != NULL)
 	rl2_free (blue);
-    if (alpha != NULL)
-	rl2_free (alpha);
-    if (alpha != NULL)
-	rl2_free (alpha);
     return RL2_ERROR;
 }
 
@@ -1009,8 +1002,7 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 	  if (rl_palette == NULL)
 	      goto error;
 	  for (i = 0; i < nPalette; i++)
-	      rl2_set_palette_color (rl_palette, i, red[i], green[i], blue[i],
-				     alpha[i]);
+	      rl2_set_palette_color (rl_palette, i, red[i], green[i], blue[i]);
       }
     *xwidth = width;
     *xheight = height;

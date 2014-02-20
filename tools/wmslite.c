@@ -123,6 +123,7 @@ struct wms_argument
 struct wms_args
 {
 /* a struct wrapping a WMS request URL */
+    sqlite3 *db_handle;
     char *service_name;
     struct wms_argument *first;
     struct wms_argument *last;
@@ -135,6 +136,7 @@ struct wms_args
     double maxy;
     unsigned short width;
     unsigned short height;
+    char *style;
     unsigned char format;
     int transparent;
     unsigned char red;
@@ -146,6 +148,7 @@ struct http_request
 {
 /* a struct wrapping an HTTP request */
     unsigned int id;		/* request ID */
+    int port_no;
 #ifdef _WIN32
     SOCKET socket;		/* Socket on which to receive data */
     SOCKADDR_IN addr;		/* Address from which data is coming */
@@ -154,6 +157,7 @@ struct http_request
     struct sockaddr addr;	/* Address from which data is coming */
 #endif
     struct wms_list *list;
+    sqlite3 *db_handle;
 };
 
 static struct wms_layer *
@@ -273,6 +277,7 @@ alloc_wms_args (const char *service_name)
     if (service_name == NULL)
 	return NULL;
     args = malloc (sizeof (struct wms_args));
+    args->db_handle = NULL;
     len = strlen (service_name);
     args->service_name = malloc (len + 1);
     strcpy (args->service_name, service_name);
@@ -376,15 +381,19 @@ parse_dim (const char *dim, unsigned short *value)
     return 1;
 }
 
-static int
+static unsigned char *
 parse_style (const char *style)
 {
 /* the unique and only supported style is DEFAULT */
+    char *out_style = NULL;
     if (strlen (style) == 0)
-	return 1;
+	style = "default";
     if (strcasecmp (style, "default") == 0)
-	return 1;
-    return 0;
+      {
+	  out_style = malloc (strlen (style) + 1);
+	  strcpy (out_style, style);
+      }
+    return out_style;
 }
 
 static int
@@ -423,7 +432,9 @@ parse_bbox (const char *bbox, double *minx, double *miny, double *maxx,
 	  if (*in == '\0')
 	    {
 		if (count == 3)
-		    *maxy = atof (buf);
+		  {
+		      *maxy = atof (buf);
+		  }
 		else
 		    return 0;
 		break;
@@ -446,6 +457,7 @@ parse_bbox (const char *bbox, double *minx, double *miny, double *maxx,
 		      return 0;
 		  };
 		out = buf;
+		in++;
 		count++;
 		continue;
 	    }
@@ -630,7 +642,7 @@ exists_layer (struct wms_list *list, const char *layer, int srid, double minx,
     return WMS_NOT_EXISTING_LAYER;
 }
 
-static void
+static int
 check_wms_request (struct wms_list *list, struct wms_args *args)
 {
 /* checking for a valid WMS request */
@@ -650,7 +662,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
     const char *p_transparent = NULL;
 
     if (strcasecmp (args->service_name, "GET /wmslite") != 0)
-	return;
+	return 400;
     arg = args->first;
     while (arg != NULL)
       {
@@ -704,7 +716,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 	  if (ok_wms)
 	    {
 		args->request_type = WMS_GET_CAPABILITIES;
-		return;
+		return 200;
 	    }
       }
     if (is_get_map && !is_get_capabilities)
@@ -722,6 +734,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		double maxy;
 		unsigned short width;
 		unsigned short height;
+		char *style = NULL;
 		int format;
 		int transparent = WMS_OPAQUE;
 		unsigned char red = 255;
@@ -731,39 +744,40 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		if (srid <= 0)
 		  {
 		      args->error = WMS_INVALID_CRS;
-		      return;
+		      return 200;
 		  }
 		layer = parse_layers (p_layers);
 		if (layer == NULL)
 		  {
 		      args->error = WMS_INVALID_LAYER;
-		      return;
+		      return 200;
 		  }
 		if (!parse_bbox (p_bbox, &minx, &miny, &maxx, &maxy))
 		  {
 		      args->error = WMS_INVALID_BBOX;
-		      return;
+		      return 200;
 		  }
 		if (!parse_dim (p_width, &width))
 		  {
 		      args->error = WMS_INVALID_DIMENSION;
-		      return;
+		      return 200;
 		  }
 		if (!parse_dim (p_height, &height))
 		  {
 		      args->error = WMS_INVALID_DIMENSION;
-		      return;
+		      return 200;
 		  }
-		if (!parse_style (p_styles))
+		style = parse_style (p_styles);
+		if (style == NULL)
 		  {
 		      args->error = WMS_INVALID_STYLE;
-		      return;
+		      return 200;
 		  }
 		format = parse_format (p_format);
 		if (format == WMS_UNKNOWN)
 		  {
 		      args->error = WMS_INVALID_FORMAT;
-		      return;
+		      return 200;
 		  }
 		if (p_transparent != NULL)
 		  {
@@ -771,7 +785,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		      if (transparent == WMS_UNKNOWN)
 			{
 			    args->error = WMS_INVALID_TRANSPARENT;
-			    return;
+			    return 200;
 			}
 		  }
 		if (p_bgcolor != NULL)
@@ -779,7 +793,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		      if (!parse_bgcolor (p_bgcolor, &red, &green, &blue))
 			{
 			    args->error = WMS_INVALID_BGCOLOR;
-			    return;
+			    return 200;
 			}
 		  }
 		ret = exists_layer (list, layer, srid, minx, miny, maxx, maxy);
@@ -788,7 +802,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		    || ret == WMS_MISMATCHING_SRID)
 		  {
 		      args->error = ret;
-		      return;
+		      return 200;
 		  }
 		args->request_type = WMS_GET_MAP;
 		args->layer = layer;
@@ -798,6 +812,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		args->maxy = maxy;
 		args->width = width;
 		args->height = height;
+		args->style = style;
 		args->format = format;
 		args->transparent = transparent;
 		args->red = red;
@@ -805,6 +820,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		args->blue = blue;
 	    }
       }
+    return 200;
 }
 
 static struct wms_args *
@@ -871,15 +887,92 @@ parse_http_request (const char *http_hdr)
     return NULL;
 }
 
-static void
-build_wms_exception (struct wms_args *args, gaiaOutBufferPtr xml_response)
+static unsigned char *
+get_current_timestamp ()
 {
-/* preparing an XML exception */
+/* formatting the current timestamp */
     char *dummy;
     struct tm *xtm;
     time_t now;
     const char *day;
     const char *month;
+    time (&now);
+    xtm = gmtime (&now);
+    switch (xtm->tm_wday)
+      {
+      case 0:
+	  day = "Sun";
+	  break;
+      case 1:
+	  day = "Mon";
+	  break;
+      case 2:
+	  day = "Tue";
+	  break;
+      case 3:
+	  day = "Wed";
+	  break;
+      case 4:
+	  day = "Thu";
+	  break;
+      case 5:
+	  day = "Fri";
+	  break;
+      case 6:
+	  day = "Sat";
+	  break;
+      };
+    switch (xtm->tm_mon)
+      {
+      case 0:
+	  month = "Jan";
+	  break;
+      case 1:
+	  month = "Feb";
+	  break;
+      case 2:
+	  month = "Mar";
+	  break;
+      case 3:
+	  month = "Apr";
+	  break;
+      case 4:
+	  month = "May";
+	  break;
+      case 5:
+	  month = "Jun";
+	  break;
+      case 6:
+	  month = "Jul";
+	  break;
+      case 7:
+	  month = "Aug";
+	  break;
+      case 8:
+	  month = "Sep";
+	  break;
+      case 9:
+	  month = "Oct";
+	  break;
+      case 10:
+	  month = "Nov";
+	  break;
+      case 11:
+	  month = "Jan";
+	  break;
+      };
+    dummy =
+	sqlite3_mprintf ("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", day,
+			 xtm->tm_mday, month, xtm->tm_year + 1900, xtm->tm_hour,
+			 xtm->tm_min, xtm->tm_sec);
+    return dummy;
+}
+
+static void
+build_wms_exception (struct wms_args *args, gaiaOutBufferPtr xml_response)
+{
+/* preparing an XML exception */
+    char *dummy;
     gaiaOutBuffer xml_text;
     gaiaOutBufferInitialize (&xml_text);
     gaiaAppendToOutBuffer (&xml_text,
@@ -971,75 +1064,7 @@ build_wms_exception (struct wms_args *args, gaiaOutBufferPtr xml_response)
 			   "</ServiceException>\r\n</ServiceExceptionReport>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "");
     gaiaAppendToOutBuffer (xml_response, "HTTP/1.1 200 OK\r\n");
-    time (&now);
-    xtm = gmtime (&now);
-    switch (xtm->tm_wday)
-      {
-      case 0:
-	  day = "Sun";
-	  break;
-      case 1:
-	  day = "Mon";
-	  break;
-      case 2:
-	  day = "Tue";
-	  break;
-      case 3:
-	  day = "Wed";
-	  break;
-      case 4:
-	  day = "Thu";
-	  break;
-      case 5:
-	  day = "Fri";
-	  break;
-      case 6:
-	  day = "Sat";
-	  break;
-      };
-    switch (xtm->tm_mon)
-      {
-      case 0:
-	  month = "Jan";
-	  break;
-      case 1:
-	  month = "Feb";
-	  break;
-      case 2:
-	  month = "Mar";
-	  break;
-      case 3:
-	  month = "Apr";
-	  break;
-      case 4:
-	  month = "May";
-	  break;
-      case 5:
-	  month = "Jun";
-	  break;
-      case 6:
-	  month = "Jul";
-	  break;
-      case 7:
-	  month = "Aug";
-	  break;
-      case 8:
-	  month = "Sep";
-	  break;
-      case 9:
-	  month = "Oct";
-	  break;
-      case 10:
-	  month = "Nov";
-	  break;
-      case 11:
-	  month = "Jan";
-	  break;
-      };
-    dummy =
-	sqlite3_mprintf ("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", day,
-			 xtm->tm_mday, month, xtm->tm_year + 1900, xtm->tm_hour,
-			 xtm->tm_min, xtm->tm_sec);
+    dummy = get_current_timestamp ();
     gaiaAppendToOutBuffer (xml_response, dummy);
     sqlite3_free (dummy);
     gaiaAppendToOutBuffer (xml_response,
@@ -1053,15 +1078,60 @@ build_wms_exception (struct wms_args *args, gaiaOutBufferPtr xml_response)
 }
 
 static void
+build_http_error (int http_status, gaiaOutBufferPtr xml_response, int port_no)
+{
+/* preparing an HTTP error */
+    char *dummy;
+    gaiaOutBuffer http_text;
+    gaiaOutBufferInitialize (&http_text);
+    gaiaAppendToOutBuffer (&http_text,
+			   "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\r\n");
+    gaiaAppendToOutBuffer (&http_text, "<html><head>\r\n");
+    if (http_status == 400)
+      {
+	  gaiaAppendToOutBuffer (xml_response, "HTTP/1.1 400 Bad Request\r\n");
+	  gaiaAppendToOutBuffer (&http_text,
+				 "<title>400 Bad Request</title>\r\n");
+	  gaiaAppendToOutBuffer (&http_text, "</head><body>\r\n");
+	  gaiaAppendToOutBuffer (&http_text, "<h1>Bad Request</h1>\n");
+      }
+    else
+      {
+	  gaiaAppendToOutBuffer (xml_response,
+				 "HTTP/1.1 500 Internal Server Error\r\n");
+	  gaiaAppendToOutBuffer (&http_text,
+				 "<title>500 Internal Server Error</title>\r\n");
+	  gaiaAppendToOutBuffer (&http_text, "</head><body>\r\n");
+	  gaiaAppendToOutBuffer (&http_text,
+				 "<h1>Internal Server Error</h1>\n");
+      }
+    dummy =
+	sqlite3_mprintf
+	("<address>WmsLite/%s [%s] at localhost (127.0.0.1) Port %d</address>\r\n",
+	 rl2_version (), rl2_target_cpu (), port_no);
+    gaiaAppendToOutBuffer (&http_text, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (&http_text, "</body></html>\r\n");
+    gaiaAppendToOutBuffer (&http_text, "");
+    dummy = get_current_timestamp ();
+    gaiaAppendToOutBuffer (xml_response, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (xml_response,
+			   "Content-Type: text/html;charset=UTF-8\r\n");
+    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", http_text.WriteOffset);
+    gaiaAppendToOutBuffer (xml_response, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (xml_response, "Connection: close\r\n\r\n");
+    gaiaAppendToOutBuffer (xml_response, http_text.Buffer);
+    gaiaOutBufferReset (&http_text);
+}
+
+static void
 wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
 {
 /* preparing the WMS GetCapabilities XML document */
     struct wms_layer *lyr;
     char *dummy;
-    struct tm *xtm;
-    time_t now;
-    const char *day;
-    const char *month;
     gaiaOutBuffer xml_text;
     gaiaOutBufferInitialize (&xml_text);
     gaiaAppendToOutBuffer (&xml_text,
@@ -1195,75 +1265,7 @@ wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
 			   "</Layer>\r\n</Capability>\r\n</WMS_Capabilities>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "");
     gaiaAppendToOutBuffer (xml_response, "HTTP/1.1 200 OK\r\n");
-    time (&now);
-    xtm = gmtime (&now);
-    switch (xtm->tm_wday)
-      {
-      case 0:
-	  day = "Sun";
-	  break;
-      case 1:
-	  day = "Mon";
-	  break;
-      case 2:
-	  day = "Tue";
-	  break;
-      case 3:
-	  day = "Wed";
-	  break;
-      case 4:
-	  day = "Thu";
-	  break;
-      case 5:
-	  day = "Fri";
-	  break;
-      case 6:
-	  day = "Sat";
-	  break;
-      };
-    switch (xtm->tm_mon)
-      {
-      case 0:
-	  month = "Jan";
-	  break;
-      case 1:
-	  month = "Feb";
-	  break;
-      case 2:
-	  month = "Mar";
-	  break;
-      case 3:
-	  month = "Apr";
-	  break;
-      case 4:
-	  month = "May";
-	  break;
-      case 5:
-	  month = "Jun";
-	  break;
-      case 6:
-	  month = "Jul";
-	  break;
-      case 7:
-	  month = "Aug";
-	  break;
-      case 8:
-	  month = "Sep";
-	  break;
-      case 9:
-	  month = "Oct";
-	  break;
-      case 10:
-	  month = "Nov";
-	  break;
-      case 11:
-	  month = "Jan";
-	  break;
-      };
-    dummy =
-	sqlite3_mprintf ("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", day,
-			 xtm->tm_mday, month, xtm->tm_year + 1900, xtm->tm_hour,
-			 xtm->tm_min, xtm->tm_sec);
+    dummy = get_current_timestamp ();
     gaiaAppendToOutBuffer (xml_response, dummy);
     sqlite3_free (dummy);
     gaiaAppendToOutBuffer (xml_response,
@@ -1276,6 +1278,112 @@ wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
     gaiaOutBufferReset (&xml_text);
 }
 
+static void
+wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
+	     unsigned char **payload, int *payload_size)
+{
+/* preparing the WMS GetMap payload */
+    int ret;
+    char *dummy;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    unsigned char *black;
+    int black_sz;
+
+    *payload = NULL;
+    *payload_size = 0;
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_GetMapImage(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?)");
+    ret = sqlite3_prepare_v2 (args->db_handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, args->layer, strlen (args->layer),
+		       SQLITE_STATIC);
+    sqlite3_bind_double (stmt, 2, args->minx);
+    sqlite3_bind_double (stmt, 3, args->miny);
+    sqlite3_bind_double (stmt, 4, args->maxx);
+    sqlite3_bind_double (stmt, 5, args->maxy);
+    sqlite3_bind_int (stmt, 6, args->width);
+    sqlite3_bind_int (stmt, 7, args->height);
+    sqlite3_bind_text (stmt, 8, args->style, strlen (args->style),
+		       SQLITE_STATIC);
+    if (args->format == WMS_PNG)
+	sqlite3_bind_text (stmt, 9, "image/png", strlen ("image/png"),
+			   SQLITE_TRANSIENT);
+    else
+	sqlite3_bind_text (stmt, 9, "image/jpeg", strlen ("image/jpeg"),
+			   SQLITE_TRANSIENT);
+    sqlite3_bind_int (stmt, 10, args->transparent);
+    if (args->format == WMS_PNG)
+	sqlite3_bind_int (stmt, 11, 100);
+    else
+	sqlite3_bind_int (stmt, 11, 80);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      *payload_size = sqlite3_column_bytes (stmt, 0);
+		      *payload = malloc (*payload_size);
+		      memcpy (*payload, blob, *payload_size);
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (*payload == NULL)
+	goto error;
+
+    gaiaAppendToOutBuffer (http_response, "HTTP/1.1 200 OK\r\n");
+    dummy = get_current_timestamp ();
+    gaiaAppendToOutBuffer (http_response, dummy);
+    sqlite3_free (dummy);
+    if (args->format == WMS_JPEG)
+	gaiaAppendToOutBuffer (http_response, "Content-Type: image/jpeg\r\n");
+    if (args->format == WMS_PNG)
+	gaiaAppendToOutBuffer (http_response, "Content-Type: image/png\r\n");
+    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", *payload_size);
+    gaiaAppendToOutBuffer (http_response, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (http_response, "Connection: close\r\n\r\n");
+    free (args->style);
+    return;
+
+  error:
+/* returning a black image */
+    black_sz = args->width * args->height;
+    black = malloc (black_sz);
+    memset (black, 0, black_sz);
+    if (args->format == WMS_JPEG)
+	rl2_gray_to_jpeg (args->width, args->height, black, 80, payload,
+			  payload_size);
+    if (args->format == WMS_PNG)
+	rl2_gray_to_png (args->width, args->height, black, payload,
+			 payload_size);
+    free (black);
+    gaiaAppendToOutBuffer (http_response, "HTTP/1.1 200 OK\r\n");
+    dummy = get_current_timestamp ();
+    gaiaAppendToOutBuffer (http_response, dummy);
+    sqlite3_free (dummy);
+    if (args->format == WMS_JPEG)
+	gaiaAppendToOutBuffer (http_response, "Content-Type: image/jpeg\r\n");
+    if (args->format == WMS_PNG)
+	gaiaAppendToOutBuffer (http_response, "Content-Type: image/png\r\n");
+    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", *payload_size);
+    gaiaAppendToOutBuffer (http_response, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (http_response, "Connection: close\r\n\r\n");
+    free (args->style);
+}
+
 static int
 get_xml_bytes (gaiaOutBufferPtr xml_response, int curr, int block_sz)
 {
@@ -1283,8 +1391,18 @@ get_xml_bytes (gaiaOutBufferPtr xml_response, int curr, int block_sz)
     int wr = block_sz;
     if (xml_response->Buffer == NULL || xml_response->Error)
 	return 0;
-    if ((xml_response->BufferSize + curr + wr) > xml_response->WriteOffset)
+    if (curr + wr > xml_response->WriteOffset)
 	wr = xml_response->WriteOffset - curr;
+    return wr;
+}
+
+static int
+get_payload_bytes (int total, int curr, int block_sz)
+{
+/* determining how many bytes will be sent on the output socket */
+    int wr = block_sz;
+    if (curr + wr > total)
+	wr = total - curr;
     return wr;
 }
 
@@ -1299,8 +1417,12 @@ win32_http_request (void *data)
     struct wms_args *args = NULL;
     int curr;
     int rd;
+    int wr;
     char *ptr;
     char http_hdr[2000];	/* The HTTP request header */
+    int http_status;
+    unsigned char *payload = NULL;
+    int payload_size;
 
     curr = 0;
     while ((unsigned int) curr < sizeof (http_hdr))
@@ -1318,13 +1440,21 @@ win32_http_request (void *data)
 	      break;
       }
     if ((unsigned int) curr >= sizeof (http_hdr))
-	goto illegal_request;
+      {
+	  http_status = 400;
+	  goto http_error;
+      }
 
     args = parse_http_request (http_hdr);
     if (args == NULL)
-	goto illegal_request;
+      {
+	  http_status = 400;
+	  goto http_error;
+      }
 
-    check_wms_request (req->list, args);
+    http_status = check_wms_request (req->list, args);
+    if (http_status != 200)
+	goto http_error;
     if (args->request_type == WMS_ILLEGAL_REQUEST)
 	goto illegal_request;
     if (args->request_type == WMS_GET_CAPABILITIES)
@@ -1338,12 +1468,61 @@ win32_http_request (void *data)
 		rd = get_xml_bytes (&xml_response, curr, 1024);
 		if (rd == 0)
 		    break;
-		send (req->socket, xml_response.Buffer + curr, rd, 0);
-		curr += rd;
+		wr = send (req->socket, xml_response.Buffer + curr, rd, 0);
+		if (wr < 0)
+		    break;
+		curr += wr;
 	    }
 	  gaiaOutBufferReset (&xml_response);
       }
+    if (args->request_type == WMS_GET_MAP)
+      {
+	  /* preparing the WMS GetMap payload */
+	  gaiaOutBufferInitialize (&xml_response);
+	  args->db_handle = req->db_handle;
+	  wms_get_map (args, &xml_response, &payload, &payload_size);
+	  curr = 0;
+	  while (1)
+	    {
+		rd = get_xml_bytes (&xml_response, curr, 1024);
+		if (rd == 0)
+		    break;
+		wr = send (req->socket, xml_response.Buffer + curr, rd, 0);
+		if (wr < 0)
+		    break;
+		curr += wr;
+	    }
+	  curr = 0;
+	  while (1)
+	    {
+		rd = get_payload_bytes (payload_size, curr, 1024);
+		if (rd == 0)
+		    break;
+		wr = send (req->socket, payload + curr, rd, 0);
+		if (wr < 0)
+		    break;
+		curr += wr;
+	    }
+      }
     destroy_wms_args (args);
+    goto end_request;
+
+/* preparing an HTTP error code */
+  http_error:
+    gaiaOutBufferInitialize (&xml_response);
+    build_http_error (http_status, &xml_response, req->port_no);
+    if (args != NULL)
+	destroy_wms_args (args);
+    curr = 0;
+    while (1)
+      {
+	  rd = get_xml_bytes (&xml_response, curr, 1024);
+	  if (rd == 0)
+	      break;
+	  send (req->socket, xml_response.Buffer + curr, rd, 0);
+	  curr += rd;
+      }
+    gaiaOutBufferReset (&xml_response);
     goto end_request;
 
 /* preparing an XML WMS Exception message */
@@ -1380,6 +1559,9 @@ berkeley_http_request (void *data)
     int rd;
     char *ptr;
     char http_hdr[2000];	/* The HTTP request header */
+    int http_status;
+    unsigned char *payload = NULL;
+    int payload_size;
 
     curr = 0;
     while ((unsigned int) curr < sizeof (http_hdr))
@@ -1397,13 +1579,21 @@ berkeley_http_request (void *data)
 	      break;
       }
     if ((unsigned int) curr >= sizeof (http_hdr))
-	goto illegal_request;
+      {
+	  http_status = 400;
+	  goto http_error;
+      }
 
     args = parse_http_request (http_hdr);
     if (args == NULL)
-	goto illegal_request;
+      {
+	  http_status = 400;
+	  goto http_error;
+      }
 
-    check_wms_request (req->list, args);
+    http_status = check_wms_request (req->list, args);
+    if (http_status != 200)
+	goto http_error;
     if (args->request_type == WMS_ILLEGAL_REQUEST)
 	goto illegal_request;
     if (args->request_type == WMS_GET_CAPABILITIES)
@@ -1422,7 +1612,52 @@ berkeley_http_request (void *data)
 	    }
 	  gaiaOutBufferReset (&xml_response);
       }
+    if (args->request_type == WMS_GET_MAP)
+      {
+	  /* preparing the WMS GetMap payload */
+	  gaiaOutBufferInitialize (&xml_response);
+	  args->db_handle = req->db_handle;
+	  wms_get_map (req->list, &xml_response, &payload, &payload_size);
+	  curr = 0;
+	  while (1)
+	    {
+		rd = get_xml_bytes (&xml_response, curr, 1024);
+		if (rd == 0)
+		    break;
+		send (req->socket, xml_response.Buffer + curr, rd, 0);
+		curr += rd;
+	    }
+	  gaiaOutBufferReset (&xml_response);
+	  curr = 0;
+	  while (1)
+	    {
+		rd = get_payload_bytes (payload_size, curr, 1024);
+		if (rd == 0)
+		    break;
+		send (req->socket, payload + curr, rd, 0);
+		curr += rd;
+	    }
+	  free (payload);
+      }
     destroy_wms_args (args);
+    goto end_request;
+
+/* preparing an HTTP error code */
+  http_error:
+    gaiaOutBufferInitialize (&xml_response);
+    build_http_error (http_status, &xml_response, req->port_no);
+    if (args != NULL)
+	destroy_wms_args (args);
+    curr = 0;
+    while (1)
+      {
+	  rd = get_xml_bytes (&xml_response, curr, 1024);
+	  if (rd == 0)
+	      break;
+	  send (req->socket, xml_response.Buffer + curr, rd, 0);
+	  curr += rd;
+      }
+    gaiaOutBufferReset (&xml_response);
     goto end_request;
 
 /* preparing an XML WMS Exception message */
@@ -1450,7 +1685,8 @@ berkeley_http_request (void *data)
 #endif
 
 static int
-do_accept_loop (struct neutral_socket *skt, struct wms_list *list)
+do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
+		sqlite3 * db_handle)
 {
 /* implementing the ACCEPT loop */
     unsigned int id = 0;
@@ -1485,9 +1721,11 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list)
 	    }
 	  req = malloc (sizeof (struct http_request));
 	  req->id = id++;
+	  req->port_no = port_no;
 	  req->socket = client;
 	  req->addr = client_addr;
 	  req->list = list;
+	  req->db_handle = db_handle;
 	  _beginthread (win32_http_request, 0, (void *) req);
       }
     return 1;
@@ -1512,9 +1750,11 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list)
 	    }
 	  req = malloc (sizeof (struct http_request));
 	  req->id = id++;
+	  req->port_no = port_no;
 	  req->socket = client;
 	  req->addr = client_addr;
 	  req->list = list;
+	  req->db_handle = db_handle;
 	  pthread_attr_init (&attr);
 	  pthread_create (&thread_id, NULL, berkeley_http_request,
 			  (void *) req);
@@ -1908,7 +2148,7 @@ main (int argc, char *argv[])
 	goto stop;
 
 /* looping on requests */
-    if (!do_accept_loop (&skt_ptr, list))
+    if (!do_accept_loop (&skt_ptr, list, port_no, handle))
 	goto stop;
 
   stop:

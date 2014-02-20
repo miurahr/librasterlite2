@@ -215,7 +215,6 @@ extern "C"
 	unsigned char red;
 	unsigned char green;
 	unsigned char blue;
-	unsigned char alpha;
     } rl2PrivPaletteEntry;
     typedef rl2PrivPaletteEntry *rl2PrivPaletteEntryPtr;
 
@@ -305,12 +304,10 @@ extern "C"
 	unsigned char *red;
 	unsigned char *green;
 	unsigned char *blue;
-	unsigned char *alpha;
 	unsigned short remapMaxPalette;
 	unsigned char *remapRed;
 	unsigned char *remapGreen;
 	unsigned char *remapBlue;
-	unsigned char *remapAlpha;
 	int isGeoReferenced;
 	int Srid;
 	double hResolution;

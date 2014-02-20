@@ -216,6 +216,118 @@ set_connection (sqlite3 * handle, int journal_off)
     return 1;
 }
 
+static rl2PixelPtr
+default_nodata (unsigned char sample, unsigned char pixel,
+		unsigned char num_bands)
+{
+/* creating a default NO-DATA value */
+    int nb;
+    rl2PixelPtr pxl = rl2_create_pixel (sample, pixel, num_bands);
+    if (pxl == NULL)
+	return NULL;
+    switch (pixel)
+      {
+      case RL2_PIXEL_MONOCHROME:
+	  rl2_set_pixel_sample_1bit (pxl, 0);
+	  break;
+      case RL2_PIXEL_PALETTE:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+		rl2_set_pixel_sample_1bit (pxl, 0);
+		break;
+	    case RL2_SAMPLE_2_BIT:
+		rl2_set_pixel_sample_2bit (pxl, 0);
+		break;
+	    case RL2_SAMPLE_4_BIT:
+		rl2_set_pixel_sample_4bit (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_GRAYSCALE:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+		rl2_set_pixel_sample_1bit (pxl, 1);
+		break;
+	    case RL2_SAMPLE_2_BIT:
+		rl2_set_pixel_sample_2bit (pxl, 3);
+		break;
+	    case RL2_SAMPLE_4_BIT:
+		rl2_set_pixel_sample_4bit (pxl, 15);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 255);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		rl2_set_pixel_sample_uint16 (pxl, 0, 0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_RGB:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 255);
+		rl2_set_pixel_sample_uint8 (pxl, 1, 255);
+		rl2_set_pixel_sample_uint8 (pxl, 2, 255);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		rl2_set_pixel_sample_uint16 (pxl, 0, 0);
+		rl2_set_pixel_sample_uint16 (pxl, 1, 0);
+		rl2_set_pixel_sample_uint16 (pxl, 2, 0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_INT8:
+		rl2_set_pixel_sample_int8 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 0);
+		break;
+	    case RL2_SAMPLE_INT16:
+		rl2_set_pixel_sample_int16 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		rl2_set_pixel_sample_uint16 (pxl, 0, 0);
+		break;
+	    case RL2_SAMPLE_INT32:
+		rl2_set_pixel_sample_int32 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT32:
+		rl2_set_pixel_sample_uint32 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		rl2_set_pixel_sample_float (pxl, 0.0);
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		rl2_set_pixel_sample_double (pxl, 0.0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_MULTIBAND:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_UINT8:
+		for (nb = 0; nb < num_bands; nb++)
+		    rl2_set_pixel_sample_uint8 (pxl, nb, 255);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		for (nb = 0; nb < num_bands; nb++)
+		    rl2_set_pixel_sample_uint16 (pxl, nb, 0);
+		break;
+	    };
+	  break;
+      };
+    return pxl;
+}
+
 static int
 exec_create (sqlite3 * handle, const char *coverage,
 	     unsigned char sample, unsigned char pixel, unsigned char num_bands,
@@ -224,9 +336,24 @@ exec_create (sqlite3 * handle, const char *coverage,
 	     rl2PixelPtr no_data)
 {
 /* performing CREATE */
+    rl2PalettePtr palette = NULL;
+
+    if (no_data == NULL)
+      {
+	  /* creating a default NO-DATA value */
+	  no_data = default_nodata (sample, pixel, num_bands);
+      }
+    if (pixel == RL2_PIXEL_PALETTE)
+      {
+/* creating a default PALETTE */
+	  palette = rl2_create_palette (1);
+	  rl2_set_palette_color (palette, 0, 255, 255, 255);
+      }
+
     if (rl2_create_dbms_coverage
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
-	 tile_width, tile_height, srid, x_res, y_res, no_data) != RL2_OK)
+	 tile_width, tile_height, srid, x_res, y_res, no_data,
+	 palette) != RL2_OK)
 	return 0;
 
     fprintf (stderr, "\rRaster Coverage \"%s\" successfully created\n",

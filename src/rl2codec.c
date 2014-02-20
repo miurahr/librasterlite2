@@ -5782,35 +5782,6 @@ rl2_get_raster_statistics (const unsigned char *blob_odd,
 }
 
 RL2_DECLARE int
-rl2_create_default_dbms_palette (unsigned char **blob, int *blob_size)
-{
-/* creating a default empty Palette (DBMS serialized format) */
-    int sz = 12;
-    uLong crc;
-    int endian_arch = endianArch ();
-    unsigned char *p = malloc (sz);
-    unsigned char *ptr = p;
-    if (p == NULL)
-	return RL2_ERROR;
-
-    *ptr++ = 0x00;		/* start marker */
-    *ptr++ = RL2_DATA_START;
-    *ptr++ = RL2_LITTLE_ENDIAN;
-    exportU16 (ptr, 0, 1, endian_arch);	/* # Palette entries */
-    ptr += 2;
-    *ptr++ = RL2_PALETTE_START;
-    *ptr++ = RL2_PALETTE_END;
-/* computing the CRC32 */
-    crc = crc32 (0L, p, ptr - p);
-    exportU32 (ptr, crc, 1, endian_arch);	/* the Palette own CRC */
-    ptr += 4;
-    *ptr++ = RL2_DATA_END;
-    *blob = p;
-    *blob_size = sz;
-    return RL2_OK;
-}
-
-RL2_DECLARE int
 rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
 			    int *blob_size)
 {
@@ -5827,7 +5798,7 @@ rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
     if (plt == NULL)
 	return RL2_ERROR;
 
-    sz += plt->nEntries * 4;
+    sz += plt->nEntries * 3;
     p = malloc (sz);
     if (p == NULL)
 	return RL2_ERROR;
@@ -5845,7 +5816,6 @@ rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,
 	  *ptr++ = entry->red;
 	  *ptr++ = entry->green;
 	  *ptr++ = entry->blue;
-	  *ptr++ = entry->alpha;
       }
     *ptr++ = RL2_PALETTE_END;
 /* computing the CRC32 */
@@ -5884,11 +5854,11 @@ check_serialized_palette (const unsigned char *blob, int blob_size)
 	return 0;		/* invalid endiannes */
     nEntries = importU16 (ptr, endian, endian_arch);
     ptr += 2;
-    if (blob_size != 12 + (nEntries * 4))
+    if (blob_size != 12 + (nEntries * 3))
 	return 0;		/* invalid size */
     if (*ptr++ != RL2_PALETTE_START)
 	return 0;		/* invalid start marker */
-    ptr += nEntries * 4;
+    ptr += nEntries * 3;
     if (*ptr++ != RL2_PALETTE_END)
 	return 0;
 /* computing the CRC32 */
@@ -5966,8 +5936,7 @@ rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size)
 	  unsigned char r = *ptr++;
 	  unsigned char g = *ptr++;
 	  unsigned char b = *ptr++;
-	  unsigned char a = *ptr++;
-	  rl2_set_palette_color (palette, ip, r, g, b, a);
+	  rl2_set_palette_color (palette, ip, r, g, b);
       }
     return palette;
 }

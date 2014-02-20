@@ -1292,6 +1292,118 @@ fnct_PixelEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	rl2_destroy_pixel (pxl2);
 }
 
+static rl2PixelPtr
+default_nodata (unsigned char sample, unsigned char pixel,
+		unsigned char num_bands)
+{
+/* creating a default NO-DATA value */
+    int nb;
+    rl2PixelPtr pxl = rl2_create_pixel (sample, pixel, num_bands);
+    if (pxl == NULL)
+	return NULL;
+    switch (pixel)
+      {
+      case RL2_PIXEL_MONOCHROME:
+	  rl2_set_pixel_sample_1bit (pxl, 0);
+	  break;
+      case RL2_PIXEL_PALETTE:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+		rl2_set_pixel_sample_1bit (pxl, 0);
+		break;
+	    case RL2_SAMPLE_2_BIT:
+		rl2_set_pixel_sample_2bit (pxl, 0);
+		break;
+	    case RL2_SAMPLE_4_BIT:
+		rl2_set_pixel_sample_4bit (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_GRAYSCALE:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+		rl2_set_pixel_sample_1bit (pxl, 1);
+		break;
+	    case RL2_SAMPLE_2_BIT:
+		rl2_set_pixel_sample_2bit (pxl, 3);
+		break;
+	    case RL2_SAMPLE_4_BIT:
+		rl2_set_pixel_sample_4bit (pxl, 15);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 255);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		rl2_set_pixel_sample_uint16 (pxl, 0, 0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_RGB:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 255);
+		rl2_set_pixel_sample_uint8 (pxl, 1, 255);
+		rl2_set_pixel_sample_uint8 (pxl, 2, 255);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		rl2_set_pixel_sample_uint16 (pxl, 0, 0);
+		rl2_set_pixel_sample_uint16 (pxl, 1, 0);
+		rl2_set_pixel_sample_uint16 (pxl, 2, 0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_INT8:
+		rl2_set_pixel_sample_int8 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_set_pixel_sample_uint8 (pxl, 0, 0);
+		break;
+	    case RL2_SAMPLE_INT16:
+		rl2_set_pixel_sample_int16 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		rl2_set_pixel_sample_uint16 (pxl, 0, 0);
+		break;
+	    case RL2_SAMPLE_INT32:
+		rl2_set_pixel_sample_int32 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_UINT32:
+		rl2_set_pixel_sample_uint32 (pxl, 0);
+		break;
+	    case RL2_SAMPLE_FLOAT:
+		rl2_set_pixel_sample_float (pxl, 0.0);
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		rl2_set_pixel_sample_double (pxl, 0.0);
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_MULTIBAND:
+	  switch (sample)
+	    {
+	    case RL2_SAMPLE_UINT8:
+		for (nb = 0; nb < num_bands; nb++)
+		    rl2_set_pixel_sample_uint8 (pxl, nb, 255);
+		break;
+	    case RL2_SAMPLE_UINT16:
+		for (nb = 0; nb < num_bands; nb++)
+		    rl2_set_pixel_sample_uint16 (pxl, nb, 0);
+		break;
+	    };
+	  break;
+      };
+    return pxl;
+}
+
 static void
 fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
@@ -1331,6 +1443,7 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     sqlite3 *sqlite;
     int ret;
     rl2PixelPtr no_data = NULL;
+    rl2PalettePtr palette = NULL;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -1478,6 +1591,18 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (strcasecmp (compression, "FAX4") == 0)
 	compr = RL2_COMPRESSION_CCITTFAX4;
 
+    if (no_data == NULL)
+      {
+	  /* creating a default NO-DATA value */
+	  no_data = default_nodata (sample, pixel, num_bands);
+      }
+    if (pixel == RL2_PIXEL_PALETTE)
+      {
+/* creating a default PALETTE */
+	  palette = rl2_create_palette (1);
+	  rl2_set_palette_color (palette, 0, 255, 255, 255);
+      }
+
 /* attempting to create the DBMS Coverage */
     sqlite = sqlite3_context_db_handle (context);
     ret = rl2_create_dbms_coverage (sqlite, coverage, sample, pixel,
@@ -1485,19 +1610,23 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 				    compr, quality,
 				    (unsigned short) tile_width,
 				    (unsigned short) tile_height, srid,
-				    horz_res, vert_res, no_data);
+				    horz_res, vert_res, no_data, palette);
     if (ret == RL2_OK)
 	sqlite3_result_int (context, 1);
     else
 	sqlite3_result_int (context, 0);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     return;
 
   error:
     sqlite3_result_int (context, -1);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
 }
 
 static void
@@ -2037,13 +2166,12 @@ build_extent (int srid, double minx, double miny, double maxx, double maxy)
 static int
 do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 		unsigned char *blob_even, int blob_even_sz,
-		sqlite3_int64 section_id, int srid, double res_x, double res_y,
-		unsigned short tile_w, unsigned short tile_h,
-		double miny, double maxx, double tile_minx,
-		double tile_miny, double tile_maxx, double tile_maxy,
-		rl2PalettePtr aux_palette, rl2PixelPtr no_data,
-		sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
-		rl2RasterStatisticsPtr section_stats)
+		sqlite3_int64 section_id, int srid, double res_x,
+		double res_y, unsigned short tile_w, unsigned short tile_h,
+		double miny, double maxx, double tile_minx, double tile_miny,
+		double tile_maxx, double tile_maxy, rl2PalettePtr aux_palette,
+		rl2PixelPtr no_data, sqlite3_stmt * stmt_tils,
+		sqlite3_stmt * stmt_data, rl2RasterStatisticsPtr section_stats)
 {
 /* INSERTing the tile */
     int ret;
@@ -2171,10 +2299,11 @@ do_insert_stats (sqlite3 * handle, rl2RasterStatisticsPtr section_stats,
 }
 
 static int
-do_insert_section (sqlite3 * handle, const char *src_path, const char *section,
-		   int srid, unsigned short width, unsigned short height,
-		   double minx, double miny, double maxx, double maxy,
-		   sqlite3_stmt * stmt_sect, sqlite3_int64 * id)
+do_insert_section (sqlite3 * handle, const char *src_path,
+		   const char *section, int srid, unsigned short width,
+		   unsigned short height, double minx, double miny,
+		   double maxx, double maxy, sqlite3_stmt * stmt_sect,
+		   sqlite3_int64 * id)
 {
 /* INSERTing the section */
     int ret;
@@ -2275,16 +2404,9 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		      unsigned char red = *p_in++;
 		      unsigned char green = *p_in++;
 		      unsigned char blue = *p_in++;
-		      unsigned char alpha = *p_in++;
 		      *p_out++ = red;
 		      *p_out++ = green;
 		      *p_out++ = blue;
-		      if (alpha < 128)
-			{
-			    /* transparent pixel */
-			    *p_msk++ = 0;
-			    requires_mask = 1;
-			}
 		  }
 	    }
       }
@@ -2295,15 +2417,8 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		for (x = 0; x < cvg->tileWidth; x++)
 		  {
 		      unsigned char red = *p_in++;
-		      p_in += 2;
-		      unsigned char alpha = *p_in++;
+		      p_in += 3;
 		      *p_out++ = red;
-		      if (alpha < 128)
-			{
-			    /* transparent pixel */
-			    *p_msk++ = 0;
-			    requires_mask = 1;
-			}
 		  }
 	    }
       }
@@ -2314,12 +2429,8 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		for (x = 0; x < cvg->tileWidth; x++)
 		  {
 		      unsigned char red = *p_in++;
-		      p_in += 2;
-		      unsigned char alpha = *p_in++;
-
-		      if (alpha < 128)
-			  *p_out++ = 0;
-		      else if (red == 255)
+		      p_in += 3;
+		      if (red == 255)
 			  *p_out++ = 0;
 		      else
 			  *p_out++ = 1;
@@ -4323,19 +4434,17 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    for (col = 0; col < base_width; col++)
 			      {
 				  unsigned char value = 0;
-				  unsigned char alpha = 255;
 				  unsigned char index = *p_in++;
 				  if (index < plt->nEntries)
 				    {
 					rl2PrivPaletteEntryPtr entry =
 					    plt->entries + index;
 					value = entry->red;
-					alpha = entry->alpha;
 				    }
 				  *p_out++ = value;	/* red */
 				  *p_out++ = value;	/* green */
 				  *p_out++ = value;	/* blue */
-				  *p_out++ = alpha;	/* alpha */
+				  *p_out++ = 255;	/* alpha */
 			      }
 			}
 		      free (outbuf);

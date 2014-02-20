@@ -630,10 +630,6 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
     unsigned char red[256];
     unsigned char green[256];
     unsigned char blue[256];
-    unsigned char alpha[256];
-
-    for (i = 0; i < 256; i++)
-	alpha[i] = 255;
 
     membuf.buffer = (unsigned char *) gif;
     membuf.size = gif_size;
@@ -752,11 +748,6 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
 #endif
 		      goto error;
 		  }
-		if (ExtCode == GRAPHICS_EXT_FUNC_CODE)
-		  {
-		      if (Extension[1] & 0x01)
-			  alpha[Extension[4]] = 0;
-		  }
 		for (;;)
 		  {
 		      if (DGifGetExtensionNext (GifFile, &Extension) ==
@@ -794,8 +785,7 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned short *xwidth,
     if (already_done)
       {
 	  for (i = 0; i < nPalette; i++)
-	      rl2_set_palette_color (rl_palette, i, red[i], green[i], blue[i],
-				     alpha[i]);
+	      rl2_set_palette_color (rl_palette, i, red[i], green[i], blue[i]);
 	  if (rl2_get_palette_type (rl_palette, &sample_typ, &pixel_typ) !=
 	      RL2_OK)
 	      goto error;

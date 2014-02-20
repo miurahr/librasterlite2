@@ -841,7 +841,6 @@ extern "C"
  \param r Red component
  \param g Green component
  \param b Blue component
- \param alpha Alpha component
  
  \return RL2_OK on success: RL2_ERROR on failure (invald Palette or invalid Index).
 
@@ -851,7 +850,7 @@ extern "C"
     RL2_DECLARE int
 	rl2_set_palette_color (rl2PalettePtr plt, int index,
 			       unsigned char r, unsigned char g,
-			       unsigned char b, unsigned char alpha);
+			       unsigned char b);
 
 /**
  Assigns a Palette Color (Hex RGB)
@@ -878,7 +877,6 @@ extern "C"
  \param r Red component
  \param g Green component
  \param b Blue component
- \param alpha Alpha component
  
  \return RL2_OK on success: RL2_ERROR on failure (invald Palette or no matching Entry).
 
@@ -887,7 +885,7 @@ extern "C"
     RL2_DECLARE int
 	rl2_get_palette_index (rl2PalettePtr plt, unsigned char *index,
 			       unsigned char r, unsigned char g,
-			       unsigned char b, unsigned char alpha);
+			       unsigned char b);
 
 /**
  Retrieving the total number of Palette Entries
@@ -914,7 +912,6 @@ extern "C"
  \param r on completion will point to an array of Red components
  \param g on completion will point to an array of Green components
  \param b on completion will point to an array of Blue components
- \param alpha on completion will point to an array of Alpha components
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
@@ -926,7 +923,7 @@ extern "C"
     RL2_DECLARE int
 	rl2_get_palette_colors (rl2PalettePtr plt, unsigned short *num_entries,
 				unsigned char **r, unsigned char **g,
-				unsigned char **b, unsigned char **alpha);
+				unsigned char **b);
 
 /**
  Return the best fit Sample Type and Pixel Type for a given Palette Object
@@ -2763,7 +2760,7 @@ extern "C"
 				  unsigned short tile_width,
 				  unsigned short tile_height, int srid,
 				  double x_res, double y_res,
-				  rl2PixelPtr no_data);
+				  rl2PixelPtr no_data, rl2PalettePtr palette);
 
     RL2_DECLARE int
 	rl2_delete_dbms_section (sqlite3 * handle, const char *coverage,
@@ -2779,9 +2776,6 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage);
-
-    RL2_DECLARE int
-	rl2_create_default_dbms_palette (unsigned char **blob, int *blob_size);
 
     RL2_DECLARE int
 	rl2_serialize_dbms_palette (rl2PalettePtr palette, unsigned char **blob,

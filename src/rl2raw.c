@@ -181,7 +181,6 @@ rl2_raster_data_to_RGB (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     unsigned char index;
     unsigned char r;
     unsigned char g;
@@ -200,7 +199,7 @@ rl2_raster_data_to_RGB (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
 	  /* there is a palette */
 	  if (rl2_get_palette_colors
 	      ((rl2PalettePtr) (rst->Palette), &max_palette, &red, &green,
-	       &blue, &alpha) != RL2_OK)
+	       &blue) != RL2_OK)
 	      return RL2_ERROR;
       }
 
@@ -265,8 +264,6 @@ rl2_raster_data_to_RGB (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     return RL2_OK;
 }
 
@@ -301,12 +298,11 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     unsigned char index;
-    unsigned char a;
     unsigned char r;
     unsigned char g;
     unsigned char b;
+    unsigned char a;
     unsigned char transpR;
     unsigned char transpG;
     unsigned char transpB;
@@ -324,7 +320,7 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 	  /* there is a palette */
 	  if (rl2_get_palette_colors
 	      ((rl2PalettePtr) (rst->Palette), &max_palette, &red, &green,
-	       &blue, &alpha) != RL2_OK)
+	       &blue) != RL2_OK)
 	      return RL2_ERROR;
       }
 
@@ -391,15 +387,6 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
       {
 	  for (col = 0; col < rst->width; col++)
 	    {
-		if (p_mask == NULL)
-		    a = 255;
-		else
-		  {
-		      if (*p_mask++ == 0)
-			  a = 0;
-		      else
-			  a = 255;
-		  }
 		switch (rst->pixelType)
 		  {
 		  case RL2_PIXEL_MONOCHROME:
@@ -410,42 +397,15 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 		      r = index;
 		      g = index;
 		      b = index;
-		      *p_out++ = index;
-		      *p_out++ = index;
-		      *p_out++ = index;
-		      break;
-		  case RL2_PIXEL_PALETTE:
-		      index = *p_in++;
-		      if (index < max_palette)
-			{
-			    *p_out++ = *(red + index);
-			    *p_out++ = *(green + index);
-			    *p_out++ = *(blue + index);
-			    *p_out++ = *(alpha + index);
-			}
-		      else
-			{
-			    /* default - inserting a BLACK pixel */
-			    *p_out++ = 0;
-			    *p_out++ = 0;
-			    *p_out++ = 0;
-			    *p_out = 255;
-			}
-		      break;
-		  case RL2_PIXEL_GRAYSCALE:
-		      grayscale_as_rgb (rst->sampleType, *p_in++, &r, &g, &b);
 		      *p_out++ = r;
 		      *p_out++ = g;
 		      *p_out++ = b;
-		      break;
-		  case RL2_PIXEL_RGB:
-		      r = *p_out++ = *p_in++;
-		      g = *p_out++ = *p_in++;
-		      b = *p_out++ = *p_in++;
-		      break;
-		  };
-		if (rst->pixelType != RL2_PIXEL_PALETTE)
-		  {
+		      a = 255;
+		      if (p_mask != NULL)
+			{
+			    if (*p_mask++ == 0)
+				a = 0;
+			}
 		      if (rst->noData != NULL)
 			{
 			    /* evaluating transparent color */
@@ -454,7 +414,83 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 				a = 0;
 			}
 		      *p_out++ = a;
-		  }
+		      break;
+		  case RL2_PIXEL_PALETTE:
+		      index = *p_in++;
+		      if (index < max_palette)
+			{
+			    r = *(red + index);
+			    g = *(green + index);
+			    b = *(blue + index);
+			}
+		      else
+			{
+			    /* default - inserting a BLACK pixel */
+			    r = 0;
+			    g = 0;
+			    b = 0;
+			}
+		      *p_out++ = r;
+		      *p_out++ = g;
+		      *p_out++ = b;
+		      a = 255;
+		      if (p_mask != NULL)
+			{
+			    if (*p_mask++ == 0)
+				a = 0;
+			}
+		      if (rst->noData != NULL)
+			{
+			    /* evaluating transparent color */
+			    if (eval_transparent_pixels
+				(r, g, b, transpR, transpG, transpB))
+				a = 0;
+			}
+		      *p_out++ = a;
+		      break;
+		  case RL2_PIXEL_GRAYSCALE:
+		      grayscale_as_rgb (rst->sampleType, *p_in++, &r, &g, &b);
+		      *p_out++ = r;
+		      *p_out++ = g;
+		      *p_out++ = b;
+		      a = 255;
+		      if (p_mask != NULL)
+			{
+			    if (*p_mask++ == 0)
+				a = 0;
+			}
+		      if (rst->noData != NULL)
+			{
+			    /* evaluating transparent color */
+			    if (eval_transparent_pixels
+				(r, g, b, transpR, transpG, transpB))
+				a = 0;
+			}
+		      *p_out++ = a;
+		      break;
+		  case RL2_PIXEL_RGB:
+		      r = *p_in++;
+		      g = *p_in++;
+		      b = *p_in++;
+		      *p_out++ = r;
+		      *p_out++ = g;
+		      *p_out++ = b;
+		      a = 255;
+		      if (p_mask != NULL)
+			{
+			    if (*p_mask++ == 0)
+				a = 0;
+			}
+		      if (rst->noData != NULL)
+			{
+			    /* evaluating transparent color */
+			    if (eval_transparent_pixels
+				(r, g, b, transpR, transpG, transpB))
+				a = 0;
+			}
+		      *p_out++ = a;
+		      break;
+		  };
 	    }
       }
 
@@ -466,8 +502,6 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     return RL2_OK;
 }
 
@@ -487,7 +521,6 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     unsigned char index;
     unsigned char a;
     unsigned char *p_alpha;
@@ -511,7 +544,7 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
 	  /* there is a palette */
 	  if (rl2_get_palette_colors
 	      ((rl2PalettePtr) (rst->Palette), &max_palette, &red, &green,
-	       &blue, &alpha) != RL2_OK)
+	       &blue) != RL2_OK)
 	      return RL2_ERROR;
       }
 
@@ -603,7 +636,7 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
 		      index = *p_in++;
 		      if (index < max_palette)
 			{
-			    *p_out++ = *(alpha + index);
+			    *p_out++ = 255;
 			    *p_out++ = *(red + index);
 			    *p_out++ = *(green + index);
 			    *p_out++ = *(blue + index);
@@ -653,8 +686,6 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     return RL2_OK;
 }
 
@@ -672,7 +703,6 @@ rl2_raster_data_to_BGR (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     unsigned char index;
     unsigned char r;
     unsigned char g;
@@ -691,7 +721,7 @@ rl2_raster_data_to_BGR (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
 	  /* there is a palette */
 	  if (rl2_get_palette_colors
 	      ((rl2PalettePtr) (rst->Palette), &max_palette, &red, &green,
-	       &blue, &alpha) != RL2_OK)
+	       &blue) != RL2_OK)
 	      return RL2_ERROR;
       }
 
@@ -759,8 +789,6 @@ rl2_raster_data_to_BGR (rl2RasterPtr ptr, unsigned char **buffer, int *buf_size)
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     return RL2_OK;
 }
 
@@ -780,7 +808,6 @@ rl2_raster_data_to_BGRA (rl2RasterPtr ptr, unsigned char **buffer,
     unsigned char *red = NULL;
     unsigned char *green = NULL;
     unsigned char *blue = NULL;
-    unsigned char *alpha = NULL;
     unsigned char index;
     unsigned char r;
     unsigned char g;
@@ -803,7 +830,7 @@ rl2_raster_data_to_BGRA (rl2RasterPtr ptr, unsigned char **buffer,
 	  /* there is a palette */
 	  if (rl2_get_palette_colors
 	      ((rl2PalettePtr) (rst->Palette), &max_palette, &red, &green,
-	       &blue, &alpha) != RL2_OK)
+	       &blue) != RL2_OK)
 	      return RL2_ERROR;
       }
 
@@ -897,7 +924,7 @@ rl2_raster_data_to_BGRA (rl2RasterPtr ptr, unsigned char **buffer,
 			    *p_out++ = *(blue + index);
 			    *p_out++ = *(green + index);
 			    *p_out++ = *(red + index);
-			    *p_out++ = *(alpha + index);
+			    *p_out++ = 255;
 			}
 		      else
 			{
@@ -945,8 +972,6 @@ rl2_raster_data_to_BGRA (rl2RasterPtr ptr, unsigned char **buffer,
 	free (green);
     if (blue != NULL)
 	free (blue);
-    if (alpha != NULL)
-	free (alpha);
     return RL2_OK;
 }
 

@@ -604,7 +604,8 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 			  unsigned char num_bands, unsigned char compression,
 			  int quality, unsigned short tile_width,
 			  unsigned short tile_height, int srid, double x_res,
-			  double y_res, rl2PixelPtr no_data)
+			  double y_res, rl2PixelPtr no_data,
+			  rl2PalettePtr palette)
 {
 /* creating a DBMS-based Coverage */
     unsigned char *blob = NULL;
@@ -614,7 +615,7 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
     if (pixel == RL2_PIXEL_PALETTE)
       {
 	  /* installing a default (empty) Palette */
-	  if (rl2_create_default_dbms_palette (&blob, &blob_size) != RL2_OK)
+	  if (rl2_serialize_dbms_palette (palette, &blob, &blob_size) != RL2_OK)
 	      goto error;
       }
     if (no_data != NULL)
@@ -3749,13 +3750,10 @@ set_remapped_palette (rl2PrivTiffOriginPtr origin, rl2PalettePtr palette)
 	      free (origin->remapGreen);
 	  if (origin->remapBlue != NULL)
 	      free (origin->remapBlue);
-	  if (origin->remapAlpha != NULL)
-	      free (origin->remapAlpha);
 	  origin->remapMaxPalette = plt->nEntries;
 	  origin->remapRed = malloc (origin->remapMaxPalette);
 	  origin->remapGreen = malloc (origin->remapMaxPalette);
 	  origin->remapBlue = malloc (origin->remapMaxPalette);
-	  origin->remapAlpha = malloc (origin->remapMaxPalette);
       }
     for (j = 0; j < plt->nEntries; j++)
       {
@@ -3763,7 +3761,6 @@ set_remapped_palette (rl2PrivTiffOriginPtr origin, rl2PalettePtr palette)
 	  origin->remapRed[j] = entry->red;
 	  origin->remapGreen[j] = entry->green;
 	  origin->remapBlue[j] = entry->blue;
-	  origin->remapAlpha[j] = entry->alpha;
       }
 }
 
@@ -3779,7 +3776,6 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
     unsigned char red[256];
     unsigned char green[256];
     unsigned char blue[256];
-    unsigned char alpha[256];
     int ok;
     rl2PalettePtr palette = NULL;
     rl2PrivPaletteEntryPtr entry;
@@ -3799,7 +3795,7 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 	  for (i = 0; i < maxPalette; i++)
 	    {
 		if (red[i] == entry->red && green[i] == entry->green
-		    && blue[i] == entry->blue && alpha[i] == entry->alpha)
+		    && blue[i] == entry->blue)
 		  {
 		      ok = 1;
 		      break;
@@ -3812,7 +3808,6 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 	  red[maxPalette] = entry->red;
 	  green[maxPalette] = entry->green;
 	  blue[maxPalette] = entry->blue;
-	  alpha[maxPalette] = entry->alpha;
 	  maxPalette++;
       }
 
@@ -3822,12 +3817,11 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 	  unsigned char tiff_red = origin->red[i];
 	  unsigned char tiff_green = origin->green[i];
 	  unsigned char tiff_blue = origin->blue[i];
-	  unsigned char tiff_alpha = origin->alpha[i];
 	  ok = 0;
 	  for (j = 0; j < maxPalette; j++)
 	    {
 		if (tiff_red == red[j] && tiff_green == green[j]
-		    && tiff_blue == blue[j] && tiff_alpha == alpha[j])
+		    && tiff_blue == blue[j])
 		  {
 		      /* found a matching color */
 		      ok = 1;
@@ -3842,7 +3836,6 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 		red[maxPalette] = tiff_red;
 		green[maxPalette] = tiff_green;
 		blue[maxPalette] = tiff_blue;
-		alpha[maxPalette] = tiff_alpha;
 		maxPalette++;
 		changed = 1;
 	    }
@@ -3856,8 +3849,7 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
 	  rl2_destroy_palette (palette);
 	  palette = plt2;
 	  for (j = 0; j < maxPalette; j++)
-	      rl2_set_palette_color (palette, j, red[j], green[j], blue[j],
-				     alpha[j]);
+	      rl2_set_palette_color (palette, j, red[j], green[j], blue[j]);
 	  if (rl2_update_dbms_palette (handle, cvg->coverageName, palette) !=
 	      RL2_OK)
 	      goto error;

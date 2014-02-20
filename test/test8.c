@@ -67,37 +67,37 @@ create_palette ()
     rl2PalettePtr palette = rl2_create_palette (16);
     if (palette == NULL)
 	goto error;
-    if (rl2_set_palette_color (palette, 0, 0, 0, 0, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 0, 0, 0, 0) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 1, 157, 157, 157, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 1, 157, 157, 157) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 2, 255, 255, 255, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 2, 255, 255, 255) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 3, 190, 38, 51, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 3, 190, 38, 51) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 4, 224, 111, 139, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 4, 224, 111, 139) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 5, 73, 60, 43, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 5, 73, 60, 43) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 6, 164, 100, 34, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 6, 164, 100, 34) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 7, 235, 137, 49, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 7, 235, 137, 49) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 8, 247, 226, 107, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 8, 247, 226, 107) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 9, 47, 72, 78, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 9, 47, 72, 78) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 10, 68, 137, 26, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 10, 68, 137, 26) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 11, 163, 206, 39, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 11, 163, 206, 39) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 12, 27, 38, 50, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 12, 27, 38, 50) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 13, 0, 87, 132, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 13, 0, 87, 132) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 14, 49, 162, 242, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 14, 49, 162, 242) != RL2_OK)
 	goto error;
-    if (rl2_set_palette_color (palette, 15, 255, 0, 255, 255) != RL2_OK)
+    if (rl2_set_palette_color (palette, 15, 255, 0, 255) != RL2_OK)
 	goto error;
     return palette;
   error:

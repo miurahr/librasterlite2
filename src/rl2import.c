@@ -440,6 +440,31 @@ do_insert_pyramid_tile (sqlite3 * handle, unsigned char *blob_odd,
     return 0;
 }
 
+RL2_PRIVATE void
+compute_aggregate_sq_diff (rl2RasterStatisticsPtr section_stats)
+{
+/* updating aggregate sum_sq_diff */
+    int ib;
+    rl2PoolVariancePtr pV;
+    rl2PrivBandStatisticsPtr st_band;
+    rl2PrivRasterStatisticsPtr st = (rl2PrivRasterStatisticsPtr) section_stats;
+    if (st == NULL)
+	return;
+
+    for (ib = 0; ib < st->nBands; ib++)
+      {
+	  double sum_var = 0.0;
+	  st_band = st->band_stats + ib;
+	  pV = st_band->first;
+	  while (pV != NULL)
+	    {
+		sum_var += (pV->count - 1.0) * pV->variance;
+		pV = pV->next;
+	    }
+	  st_band->sum_sq_diff = sum_var;
+      }
+}
+
 static int
 do_insert_stats (sqlite3 * handle, rl2RasterStatisticsPtr section_stats,
 		 sqlite3_int64 section_id, sqlite3_stmt * stmt_upd_sect)
@@ -604,6 +629,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
       }
 
 /* updating the Section's Statistics */
+    compute_aggregate_sq_diff (section_stats);
     if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
 	goto error;
 
@@ -812,6 +838,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
       }
 
 /* updating the Section's Statistics */
+    compute_aggregate_sq_diff (section_stats);
     if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
 	goto error;
 
@@ -2571,7 +2598,7 @@ set_pyramid_tile_destination (SectionPyramidPtr pyr, double minx, double miny,
 
 static unsigned char *
 load_tile_base (sqlite3_stmt * stmt, sqlite3_int64 tile_id,
-		rl2PalettePtr palette)
+		rl2PalettePtr palette, unsigned char pixel_type)
 {
 /* attempting to read a lower-level tile */
     int ret;
@@ -2623,6 +2650,30 @@ load_tile_base (sqlite3_stmt * stmt, sqlite3_int64 tile_id,
 	  else
 	      return NULL;
       }
+    if (rgba_tile != NULL && pixel_type == RL2_PIXEL_MONOCHROME)
+      {
+	  /* preserving dark pixels */
+	  int i;
+	  unsigned char *p = rgba_tile;
+	  for (i = 0; i < rgba_sz; i += 4)
+	    {
+		unsigned char r = *p++;
+		p += 2;
+		if (*p > 128)
+		  {
+		      if (r >= 192)
+			  *p++ = 32;
+		      else if (r >= 128)
+			  *p++ = 64;
+		      else if (r >= 128)
+			  *p++ = 128;
+		      else
+			  *p++ = 255;
+		  }
+		else
+		    p++;
+	    }
+      }
     return rgba_tile;
 }
 
@@ -2631,7 +2682,8 @@ upate_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		    sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
 		    SectionPyramid * pyr, unsigned short tileWidth,
 		    unsigned short tileHeight, int id_level,
-		    rl2PalettePtr palette, rl2PixelPtr no_data)
+		    rl2PalettePtr palette, rl2PixelPtr no_data,
+		    unsigned char pixel_type)
 {
 /* creating and inserting Pyramid tiles */
     unsigned char *buf_in;
@@ -2679,7 +2731,8 @@ upate_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 	    {
 		/* loading and rescaling the base tiles */
 		buf_in =
-		    load_tile_base (stmt_rd, tile_in->child->tile_id, palette);
+		    load_tile_base (stmt_rd, tile_in->child->tile_id, palette,
+				    pixel_type);
 		if (buf_in == NULL)
 		    goto error;
 		base_tile =
@@ -3128,7 +3181,7 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	      goto error;
 	  if (!upate_sect_pyramid
 	      (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-	       tileHeight, id_level, palette, no_data))
+	       tileHeight, id_level, palette, no_data, pixel_type))
 	      goto error;
 	  delete_sect_pyramid (pyr);
 	  pyr = NULL;
@@ -3141,7 +3194,7 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	      goto error;
 	  if (!upate_sect_pyramid
 	      (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-	       tileHeight, id_level, palette, no_data))
+	       tileHeight, id_level, palette, no_data, pixel_type))
 	      goto error;
 	  delete_sect_pyramid (pyr);
       }
@@ -3515,7 +3568,8 @@ raster_tile_124_rescaled (unsigned char *outbuf,
 		else
 		  {
 		      p_out += x;
-		      *p_out = (unsigned char) red;
+		      if (red < *p_out)
+			  *p_out = (unsigned char) red;
 		  }
 	    }
       }
@@ -3634,7 +3688,9 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 				  unsigned char pixel_type,
 				  unsigned char num_samples, int srid,
 				  unsigned short tileWidth,
-				  unsigned short tileHeight)
+				  unsigned short tileHeight,
+				  unsigned char bgRed, unsigned char bgGreen,
+				  unsigned char bgBlue)
 {
 /* attempting to (re)build a 1,2,4-bit section pyramid from scratch */
     double base_res_x;
@@ -3674,6 +3730,9 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
     unsigned char *blob_even = NULL;
     int blob_odd_sz;
     int blob_even_sz;
+    unsigned int x;
+    unsigned int y;
+    unsigned char *p_out;
 
     if (!get_section_infos
 	(handle, coverage, section, &sect_id, &sect_width, &sect_height, &minx,
@@ -3682,7 +3741,6 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 
     if (!find_base_resolution (handle, coverage, &base_res_x, &base_res_y))
 	goto error;
-
     if (!get_section_raw_raster_data
 	(handle, coverage, sect_id, sect_width, sect_height, sample_type,
 	 pixel_type, num_samples, minx, maxy, base_res_x,
@@ -3716,7 +3774,13 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 		outbuf = malloc (outbuf_sz);
 		if (outbuf == NULL)
 		    goto error;
-		memset (outbuf, 0, outbuf_sz);
+		p_out = outbuf;
+		for (y = 0; y < out_height; y++)
+		  {
+		      /* priming the background color */
+		      for (x = 0; x < out_width; x++)
+			  *p_out++ = bgRed;
+		  }
 	    }
 	  else
 	    {
@@ -3726,7 +3790,17 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 		outbuf = malloc (outbuf_sz);
 		if (outbuf == NULL)
 		    goto error;
-		memset (outbuf, 0, outbuf_sz);
+		p_out = outbuf;
+		for (y = 0; y < out_height; y++)
+		  {
+		      /* priming the background color */
+		      for (x = 0; x < out_width; x++)
+			{
+			    *p_out++ = bgRed;
+			    *p_out++ = bgGreen;
+			    *p_out++ = bgBlue;
+			}
+		  }
 	    }
 	  t_maxy = maxy;
 	  raster_tile_124_rescaled (outbuf, pixel_type, inbuf,
@@ -3749,21 +3823,15 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 				nd = NULL;
 			    else
 			      {
-				  /* converting the NO-DATA pixel */
+				  /* creating a NO-DATA pixel */
 				  rl2PrivPixelPtr pxl =
 				      (rl2PrivPixelPtr) no_data;
-				  rl2PrivSamplePtr sample = pxl->Samples + 0;
 				  nd = rl2_create_pixel (RL2_SAMPLE_UINT8,
 							 RL2_PIXEL_GRAYSCALE,
 							 1);
-				  if (sample->uint8 == 0)
-				      rl2_set_pixel_sample_uint8 (nd,
-								  RL2_GRAYSCALE_BAND,
-								  255);
-				  else
-				      rl2_set_pixel_sample_uint8 (nd,
-								  RL2_GRAYSCALE_BAND,
-								  0);
+				  rl2_set_pixel_sample_uint8 (nd,
+							      RL2_GRAYSCALE_BAND,
+							      bgRed);
 			      }
 			}
 		      else
@@ -3775,14 +3843,13 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 				  /* converting the NO-DATA pixel */
 				  nd = rl2_create_pixel (RL2_SAMPLE_UINT8,
 							 RL2_PIXEL_RGB, 3);
-/* sandro fava, controlla la palette !!!! */
 				  rl2_set_pixel_sample_uint8 (nd, RL2_RED_BAND,
-							      255);
+							      bgRed);
 				  rl2_set_pixel_sample_uint8 (nd,
 							      RL2_GREEN_BAND,
-							      255);
+							      bgGreen);
 				  rl2_set_pixel_sample_uint8 (nd, RL2_BLUE_BAND,
-							      255);
+							      bgBlue);
 			      }
 			}
 		      t_maxx = t_minx + (tileWidth * x_res);
@@ -3876,6 +3943,99 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
     return 0;
 }
 
+static void
+get_background_color (sqlite3 * handle, rl2CoveragePtr coverage,
+		      unsigned char *bgRed, unsigned char *bgGreen,
+		      unsigned char *bgBlue)
+{
+/* retrieving the background color for 1,2,4 bit samples */
+    sqlite3_stmt *stmt = NULL;
+    char *sql;
+    int ret;
+    rl2PrivPalettePtr plt;
+    rl2PalettePtr palette = NULL;
+    rl2PrivSamplePtr smp;
+    rl2PrivPixelPtr pxl;
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+    unsigned char index;
+    *bgRed = 255;
+    *bgGreen = 255;
+    *bgBlue = 255;
+
+    if (cvg == NULL)
+	return;
+    if (cvg->noData == NULL)
+	return;
+    pxl = (rl2PrivPixelPtr) (cvg->noData);
+    smp = pxl->Samples;
+    index = smp->uint8;
+
+    if (cvg->pixelType == RL2_PIXEL_MONOCHROME)
+      {
+	  if (index == 1)
+	    {
+		*bgRed = 0;
+		*bgGreen = 0;
+		*bgBlue = 0;
+	    }
+	  return;
+      }
+
+/* Coverage's palette */
+    sql = sqlite3_mprintf ("SELECT palette FROM raster_coverages "
+			   "WHERE Lower(coverage_name) = Lower(%Q)",
+			   cvg->coverageName);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      palette = rl2_deserialize_dbms_palette (blob, blob_sz);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT section_info; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (palette == NULL)
+	goto error;
+
+    plt = (rl2PrivPalettePtr) palette;
+    if (index < plt->nEntries)
+      {
+	  rl2PrivPaletteEntryPtr rgb = plt->entries + index;
+	  *bgRed = rgb->red;
+	  *bgGreen = rgb->green;
+	  *bgBlue = rgb->blue;
+      }
+    rl2_destroy_palette (palette);
+    return;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+}
+
 RL2_DECLARE int
 rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 			   const char *section, int forced_rebuild)
@@ -3891,6 +4051,9 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
     unsigned short tileHeight;
     int srid;
     int build = 0;
+    unsigned char bgRed;
+    unsigned char bgGreen;
+    unsigned char bgBlue;
 
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
@@ -3933,9 +4096,11 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		  && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1))
 	    {
 		/* special case: 1,2,4 bit Pyramid */
+		get_background_color (handle, cvg, &bgRed, &bgGreen, &bgBlue);
 		if (!do_build_124_bit_section_pyramid
 		    (handle, coverage, section, sample_type, pixel_type,
-		     num_bands, srid, tileWidth, tileHeight))
+		     num_bands, srid, tileWidth, tileHeight, bgRed, bgGreen,
+		     bgBlue))
 		    goto error;
 	    }
 	  else
@@ -4000,4 +4165,42 @@ rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
 
   error:
     return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
+{
+/* deleting all pyramids for a whole Coverage */
+    char *sql;
+    char *table;
+    char *xtable;
+    int ret;
+    char *err_msg = NULL;
+
+    table = sqlite3_mprintf ("%s_tiles", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0", xtable);
+    free (xtable);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &err_msg);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "DELETE FROM \"%s_tiles\" error: %s\n", coverage,
+		   err_msg);
+	  sqlite3_free (err_msg);
+	  return RL2_ERROR;
+      }
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_delete_section_pyramid (sqlite3 * handle, const char *coverage,
+			    const char *section)
+{
+/* deleting section-level pyramid for a single Section */
+    if (!delete_section_pyramid (handle, coverage, section))
+	return RL2_ERROR;
+    return RL2_OK;
 }

@@ -52,10 +52,10 @@
 #define ARG_MODE_EXPORT		4
 #define ARG_MODE_DELETE		5
 #define ARG_MODE_PYRAMIDIZE	6
-#define ARG_MODE_LIST		7
-#define ARG_MODE_CATALOG	8
-#define ARG_MODE_MAP		9
-#define ARG_MODE_CHECK		10
+#define ARG_MODE_DE_PYRAMIDIZE	7
+#define ARG_MODE_LIST		8
+#define ARG_MODE_CATALOG	9
+#define ARG_MODE_MAP		10
 
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
@@ -77,13 +77,13 @@
 #define ARG_RESOLUTION		27
 #define ARG_X_RESOLUTION	28
 #define ARG_Y_RESOLUTION	29
-#define ARG_MINX	30
-#define ARG_MINY	31
-#define ARG_MAXX	32
-#define ARG_MAXY	33
-#define ARG_CX	34
-#define ARG_CY	35
-#define ARG_NO_DATA	36
+#define ARG_MINX		30
+#define ARG_MINY		31
+#define ARG_MAXX		32
+#define ARG_MAXY		33
+#define ARG_CX			34
+#define ARG_CY			35
+#define ARG_NO_DATA		36
 
 #define ARG_CACHE_SIZE		99
 
@@ -124,6 +124,31 @@ struct pyramid_params
     sqlite3_stmt *query_stmt;
     sqlite3_stmt *tiles_stmt;
     sqlite3_stmt *data_stmt;
+};
+
+struct pyramid_virtual
+{
+    double h_res;
+    double v_res;
+    struct pyramid_virtual *next;
+};
+
+struct pyramid_level
+{
+    int level_id;
+    double h_res;
+    double v_res;
+    double tiles_count;
+    double blob_bytes;
+    struct pyramid_virtual *first;
+    struct pyramid_virtual *last;
+    struct pyramid_level *next;
+};
+
+struct pyramid_infos
+{
+    struct pyramid_level *first;
+    struct pyramid_level *last;
 };
 
 static char *
@@ -956,51 +981,376 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
 }
 
 static int
+exec_de_pyramidize (sqlite3 * handle, const char *coverage, const char *section)
+{
+/* deleting Pyramid levels */
+    int ret;
+    if (section == NULL)
+	ret = rl2_delete_all_pyramids (handle, coverage);
+    else
+	ret = rl2_delete_section_pyramid (handle, coverage, section);
+    if (ret == RL2_OK)
+	return 1;
+    return 0;
+}
+
+static void
+add_pyramid_level (struct pyramid_infos *pyramid, int level_id, double h_res,
+		   double v_res)
+{
+/* inserting a physical Pyramid Level into the list */
+    struct pyramid_level *lvl = malloc (sizeof (struct pyramid_level));
+    lvl->level_id = level_id;
+    lvl->h_res = h_res;
+    lvl->v_res = v_res;
+    lvl->tiles_count = 0;
+    lvl->blob_bytes = 0;
+    lvl->first = NULL;
+    lvl->last = NULL;
+    lvl->next = NULL;
+    if (pyramid->first == NULL)
+	pyramid->first = lvl;
+    if (pyramid->last != NULL)
+	pyramid->last->next = lvl;
+    pyramid->last = lvl;
+}
+
+static void
+set_pyramid_level (struct pyramid_infos *pyramid, int level_id,
+		   sqlite3_int64 count, sqlite3_int64 size_odd,
+		   sqlite3_int64 size_even)
+{
+/* setting up values for a physical Pyramid Level */
+    struct pyramid_level *lvl = pyramid->first;
+    while (lvl != NULL)
+      {
+	  if (lvl->level_id == level_id)
+	    {
+		lvl->tiles_count = count;
+		lvl->blob_bytes = size_odd;
+		lvl->blob_bytes += size_even;
+		return;
+	    }
+	  lvl = lvl->next;
+      }
+}
+
+static void
+add_pyramid_virtual (struct pyramid_infos *pyramid, int level_id, double h_res,
+		     double v_res)
+{
+/* inserting a virtual Pyramid Level into the list */
+    struct pyramid_level *lvl = pyramid->first;
+    while (lvl != NULL)
+      {
+	  if (lvl->level_id == level_id)
+	    {
+		struct pyramid_virtual *vrt =
+		    malloc (sizeof (struct pyramid_virtual));
+		vrt->h_res = h_res;
+		vrt->v_res = v_res;
+		vrt->next = NULL;
+		if (lvl->first == NULL)
+		    lvl->first = vrt;
+		if (lvl->last != NULL)
+		    lvl->last->next = vrt;
+		lvl->last = vrt;
+		return;
+	    }
+	  lvl = lvl->next;
+      }
+}
+
+static void
+free_pyramid_level (struct pyramid_level *level)
+{
+/* memory cleanup - destroying a Pyramid Level object */
+    struct pyramid_virtual *lev;
+    struct pyramid_virtual *n_lev;
+    if (level == NULL)
+	return;
+    lev = level->first;
+    while (lev)
+      {
+	  n_lev = lev->next;
+	  free (lev);
+	  lev = n_lev;
+      }
+    free (level);
+}
+
+static void
+free_pyramid_infos (struct pyramid_infos *pyramid)
+{
+/* memory cleanup - destroying a Pyramid Infos object */
+    struct pyramid_level *lev;
+    struct pyramid_level *n_lev;
+    if (pyramid == NULL)
+	return;
+    lev = pyramid->first;
+    while (lev)
+      {
+	  n_lev = lev->next;
+	  free_pyramid_level (lev);
+	  lev = n_lev;
+      }
+    free (pyramid);
+}
+
+static struct pyramid_infos *
+get_pyramid_infos (sqlite3 * handle, const char *coverage)
+{
+    char *sql;
+    char *xtable;
+    char *xxtable;
+    char *xtable2;
+    char *xxtable2;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    struct pyramid_infos *pyramid = malloc (sizeof (struct pyramid_infos));
+    pyramid->first = NULL;
+    pyramid->last = NULL;
+
+    xtable = sqlite3_mprintf ("%s_levels", coverage);
+    xxtable = gaiaDoubleQuotedSql (xtable);
+    sqlite3_free (xtable);
+    sql =
+	sqlite3_mprintf
+	("SELECT pyramid_level, x_resolution_1_1, y_resolution_1_1, "
+	 "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, y_resolution_1_4, "
+	 "x_resolution_1_8, y_resolution_1_8 "
+	 "FROM \"%s\" ORDER BY pyramid_level", xxtable);
+    free (xxtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("Levels SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+    while (1)
+      {
+	  /* querying the Pyramid Levels */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		int level_id = sqlite3_column_int (stmt, 0);
+		double h_res = sqlite3_column_double (stmt, 1);
+		double v_res = sqlite3_column_double (stmt, 2);
+		add_pyramid_level (pyramid, level_id, h_res, v_res);
+		if (sqlite3_column_type (stmt, 3) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 4) == SQLITE_FLOAT)
+		  {
+		      h_res = sqlite3_column_double (stmt, 3);
+		      v_res = sqlite3_column_double (stmt, 4);
+		      add_pyramid_virtual (pyramid, level_id, h_res, v_res);
+		  }
+		if (sqlite3_column_type (stmt, 5) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 6) == SQLITE_FLOAT)
+		  {
+		      h_res = sqlite3_column_double (stmt, 5);
+		      v_res = sqlite3_column_double (stmt, 6);
+		      add_pyramid_virtual (pyramid, level_id, h_res, v_res);
+		  }
+		if (sqlite3_column_type (stmt, 7) == SQLITE_FLOAT
+		    && sqlite3_column_type (stmt, 8) == SQLITE_FLOAT)
+		  {
+		      h_res = sqlite3_column_double (stmt, 7);
+		      v_res = sqlite3_column_double (stmt, 8);
+		      add_pyramid_virtual (pyramid, level_id, h_res, v_res);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "Levels sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (pyramid->first == NULL)
+	goto error;
+
+    xtable = sqlite3_mprintf ("%s_tiles", coverage);
+    xxtable = gaiaDoubleQuotedSql (xtable);
+    sqlite3_free (xtable);
+    xtable2 = sqlite3_mprintf ("%s_tile_data", coverage);
+    xxtable2 = gaiaDoubleQuotedSql (xtable2);
+    sqlite3_free (xtable2);
+    sql =
+	sqlite3_mprintf
+	("SELECT t.pyramid_level, Count(*), Sum(Length(d.tile_data_odd)), "
+	 "Sum(Length(d.tile_data_even)) FROM \"%s\" AS t "
+	 "JOIN \"%s\" AS d ON (d.tile_id = t.tile_id) "
+	 "GROUP BY t.pyramid_level", xxtable, xxtable2);
+    free (xxtable);
+    free (xxtable2);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("Tiles SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+    while (1)
+      {
+	  /* querying the Pyramid Tiles */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		int level_id = sqlite3_column_int (stmt, 0);
+		sqlite3_int64 count = sqlite3_column_int (stmt, 1);
+		sqlite3_int64 size_odd = sqlite3_column_int (stmt, 2);
+		sqlite3_int64 size_even = 0;
+		if (sqlite3_column_type (stmt, 3) != SQLITE_NULL)
+		    size_even = sqlite3_column_int (stmt, 3);
+		set_pyramid_level (pyramid, level_id, count, size_odd,
+				   size_even);
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "Tiles sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    return pyramid;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (pyramid != NULL)
+	free_pyramid_infos (pyramid);
+    return NULL;
+}
+
+static int
 exec_catalog (sqlite3 * handle)
 {
 /* Rasterlite-2 datasources Catalog */
     const char *sql;
     int ret;
     int count = 0;
-    int i;
-    char **results;
-    int rows;
-    int columns;
     char *hres;
     char *vres;
+    sqlite3_stmt *stmt = NULL;
+    rl2PixelPtr no_data = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2RasterStatisticsPtr statistics = NULL;
+    struct pyramid_infos *pyramid = NULL;
 
     sql =
-	"SELECT coverage_name, sample_type, pixel_type, num_bands, compression, "
-	"quality, tile_width, tile_height, horz_resolution, vert_resolution, "
-	"nodata_pixel, srid, auth_name, auth_srid, ref_sys_name "
+	"SELECT coverage_name, title, abstract, sample_type, pixel_type, "
+	"num_bands, compression, quality, tile_width, tile_height, "
+	"horz_resolution, vert_resolution, srid, auth_name, auth_srid, "
+	"ref_sys_name, extent_minx, extent_miny, extent_maxx, extent_maxy, "
+	"nodata_pixel, palette, statistics "
 	"FROM raster_coverages_ref_sys ORDER BY coverage_name";
-    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	goto stop;
-    if (rows < 1)
-	;
-    else
+
+    while (1)
       {
-	  for (i = 1; i <= rows; i++)
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
 	    {
-		const char *name = results[(i * columns) + 0];
-		const char *sample = results[(i * columns) + 1];
-		const char *pixel = results[(i * columns) + 2];
-		int bands = atoi (results[(i * columns) + 3]);
-		const char *compression = results[(i * columns) + 4];
-		int quality = atoi (results[(i * columns) + 5]);
-		int tileW = atoi (results[(i * columns) + 6]);
-		int tileH = atoi (results[(i * columns) + 7]);
-		double x_res = atof (results[(i * columns) + 8]);
-		double y_res = atof (results[(i * columns) + 9]);
-		const char *nodata = "NONE";
-		int srid = atoi (results[(i * columns) + 11]);
-		const char *authName = results[(i * columns) + 12];
-		int authSrid = atoi (results[(i * columns) + 13]);
-		const char *crsName = results[(i * columns) + 14];
+		const char *name = (const char *)sqlite3_column_text (stmt, 0);
+		const char *title = (const char *)sqlite3_column_text (stmt, 1);
+		const char *abstract = (const char *)sqlite3_column_text (stmt, 2);
+		const char *sample = (const char *)sqlite3_column_text (stmt, 3);
+		const char *pixel = (const char *)sqlite3_column_text (stmt, 4);
+		int bands = sqlite3_column_int (stmt, 5);
+		const char *compression = (const char *)sqlite3_column_text (stmt, 6);
+		int quality = sqlite3_column_int (stmt, 7);
+		int tileW = sqlite3_column_int (stmt, 8);
+		int tileH = sqlite3_column_int (stmt, 9);
+		double x_res = sqlite3_column_double (stmt, 10);
+		double y_res = sqlite3_column_double (stmt, 11);
+		int srid = sqlite3_column_int (stmt, 12);
+		const char *authName = (const char *)sqlite3_column_text (stmt, 13);
+		int authSrid = sqlite3_column_int (stmt, 14);
+		const char *crsName = (const char *)sqlite3_column_text (stmt, 15);
+		char *minx = NULL;
+		char *miny = NULL;
+		char *maxx = NULL;
+		char *maxy = NULL;
+		int horz = -1;
+		int vert = -1;
+		double mnx = DBL_MAX;
+		double mny = DBL_MAX;
+		double mxx = DBL_MAX;
+		double mxy = DBL_MAX;
+		const unsigned char *blob;
+		int blob_sz;
+		if (sqlite3_column_type (stmt, 16) == SQLITE_FLOAT)
+		  {
+		      mnx = sqlite3_column_double (stmt, 16);
+		      minx = formatFloat (mnx);
+		  }
+		if (sqlite3_column_type (stmt, 17) == SQLITE_FLOAT)
+		  {
+		      mny = sqlite3_column_double (stmt, 17);
+		      miny = formatFloat (mny);
+		  }
+		if (sqlite3_column_type (stmt, 18) == SQLITE_FLOAT)
+		  {
+		      mxx = sqlite3_column_double (stmt, 18);
+		      maxx = formatFloat (mxx);
+		  }
+		if (sqlite3_column_type (stmt, 19) == SQLITE_FLOAT)
+		  {
+		      mxy = sqlite3_column_double (stmt, 19);
+		      maxy = formatFloat (mxy);
+		  }
+		if (mnx != DBL_MAX && mny != DBL_MAX && mxx != DBL_MAX
+		    && mxy != DBL_MAX)
+		  {
+		      double ext_x = mxx - mnx;
+		      double ext_y = mxy - mny;
+		      horz = (int) (ext_x / x_res);
+		      vert = (int) (ext_y / y_res);
+		  }
+		if (sqlite3_column_type (stmt, 20) == SQLITE_BLOB)
+		  {
+		      blob = sqlite3_column_blob (stmt, 20);
+		      blob_sz = sqlite3_column_bytes (stmt, 20);
+		      no_data = rl2_deserialize_dbms_pixel (blob, blob_sz);
+		  }
+		if (sqlite3_column_type (stmt, 21) == SQLITE_BLOB)
+		  {
+		      blob = sqlite3_column_blob (stmt, 21);
+		      blob_sz = sqlite3_column_bytes (stmt, 21);
+		      palette = rl2_deserialize_dbms_palette (blob, blob_sz);
+		  }
+		if (sqlite3_column_type (stmt, 22) == SQLITE_BLOB)
+		  {
+		      blob = sqlite3_column_blob (stmt, 22);
+		      blob_sz = sqlite3_column_bytes (stmt, 22);
+		      statistics =
+			  rl2_deserialize_dbms_raster_statistics (blob,
+								  blob_sz);
+		  }
+		pyramid = get_pyramid_infos (handle, name);
 		count++;
-		printf ("----------------------\n");
+		printf
+		    ("===============================================================================\n");
 		printf ("             Coverage: %s\n", name);
+		printf ("                Title: %s\n", title);
+		printf ("             Abstract: %s\n", abstract);
+		printf
+		    ("-------------------------------------------------------------------------------\n");
 		printf ("          Sample Type: %s\n", sample);
 		printf ("           Pixel Type: %s\n", pixel);
 		printf ("      Number of Bands: %d\n", bands);
@@ -1010,8 +1360,6 @@ exec_catalog (sqlite3 * handle)
 		    printf ("          Compression: DEFLATE (zip, lossless)\n");
 		else if (strcmp (compression, "LZMA") == 0)
 		    printf ("          Compression: LZMA (7-zip, lossless)\n");
-		else if (strcmp (compression, "GIF") == 0)
-		    printf ("          Compression: GIF, lossless\n");
 		else if (strcmp (compression, "PNG") == 0)
 		    printf ("          Compression: PNG, lossless\n");
 		else if (strcmp (compression, "JPEG") == 0)
@@ -1020,28 +1368,290 @@ exec_catalog (sqlite3 * handle)
 		    printf ("          Compression: WEBP (lossy)\n");
 		else if (strcmp (compression, "LL_WEBP") == 0)
 		    printf ("          Compression: WEBP, lossless\n");
-		else if (strcmp (compression, "FAX3") == 0)
-		    printf ("          Compression: CCITT-FAX3 lossless\n");
 		else if (strcmp (compression, "FAX4") == 0)
 		    printf ("          Compression: CCITT-FAX4 lossless\n");
 		if (strcmp (compression, "JPEG") == 0
 		    || strcmp (compression, "WEBP") == 0)
 		    printf ("  Compression Quality: %d\n", quality);
 		printf ("   Tile Size (pixels): %d x %d\n", tileW, tileH);
-		printf ("                 Srid: %d (%s,%d) %s\n", srid,
-			authName, authSrid, crsName);
 		hres = formatFloat (x_res);
 		vres = formatFloat (y_res);
 		printf ("Pixel base resolution: X=%s Y=%s\n", hres, vres);
+		printf
+		    ("-------------------------------------------------------------------------------\n");
 		sqlite3_free (hres);
 		sqlite3_free (vres);
+		if (horz >= 0 && vert >= 0)
+		    printf ("Overall Size (pixels): %d x %d\n", horz, vert);
+		else
+		    printf ("Overall Size (pixels): *** undefined ***\n");
+		printf ("                 Srid: %d (%s,%d) %s\n", srid,
+			authName, authSrid, crsName);
+		if (minx == NULL || miny == NULL)
+		    printf ("      LowerLeftCorner: *** undefined ***\n");
+		else
+		    printf ("      LowerLeftCorner: X=%s Y=%s\n", minx, miny);
+		if (minx == NULL || miny == NULL)
+		    printf ("     UpperRightCorner: *** undefined ***\n");
+		else
+		    printf ("     UpperRightCorner: X=%s Y=%s\n", minx, miny);
+		printf
+		    ("-------------------------------------------------------------------------------\n");
+		if (no_data == NULL)
+		    printf ("        NO-DATA Pixel: *** undefined ***\n");
+		else
+		  {
+		      unsigned char i;
+		      unsigned char sample_type;
+		      unsigned char pixel_type;
+		      unsigned char num_bands;
+		      rl2_get_pixel_type (no_data, &sample_type, &pixel_type,
+					  &num_bands);
+		      printf ("        NO-DATA Pixel: ");
+		      for (i = 0; i < num_bands; i++)
+			{
+			    char *val;
+			    char val_int8;
+			    short val_int16;
+			    int val_int32;
+			    unsigned char val_uint8;
+			    unsigned short val_uint16;
+			    unsigned int val_uint32;
+			    float val_float;
+			    double val_double;
+			    if (i > 0)
+				printf (", ");
+			    switch (sample_type)
+			      {
+			      case RL2_SAMPLE_1_BIT:
+				  rl2_get_pixel_sample_1bit (no_data,
+							     &val_uint8);
+				  printf ("%u", val_uint8);
+				  break;
+			      case RL2_SAMPLE_2_BIT:
+				  rl2_get_pixel_sample_2bit (no_data,
+							     &val_uint8);
+				  printf ("%u", val_uint8);
+				  break;
+			      case RL2_SAMPLE_4_BIT:
+				  rl2_get_pixel_sample_4bit (no_data,
+							     &val_uint8);
+				  printf ("%u", val_uint8);
+				  break;
+			      case RL2_SAMPLE_INT8:
+				  rl2_get_pixel_sample_int8 (no_data,
+							     &val_int8);
+				  printf ("%d", val_int8);
+				  break;
+			      case RL2_SAMPLE_INT16:
+				  rl2_get_pixel_sample_int16 (no_data,
+							      &val_int16);
+				  printf ("%d", val_int16);
+				  break;
+			      case RL2_SAMPLE_INT32:
+				  rl2_get_pixel_sample_int32 (no_data,
+							      &val_int32);
+				  printf ("%d", val_int32);
+				  break;
+			      case RL2_SAMPLE_UINT8:
+				  rl2_get_pixel_sample_uint8 (no_data, i,
+							      &val_uint8);
+				  printf ("%u", val_uint8);
+				  break;
+			      case RL2_SAMPLE_UINT16:
+				  rl2_get_pixel_sample_uint16 (no_data, i,
+							       &val_uint16);
+				  printf ("%u", val_uint16);
+				  break;
+			      case RL2_SAMPLE_UINT32:
+				  rl2_get_pixel_sample_uint32 (no_data,
+							       &val_uint32);
+				  printf ("%u", val_uint32);
+				  break;
+			      case RL2_SAMPLE_FLOAT:
+				  rl2_get_pixel_sample_float (no_data,
+							      &val_float);
+				  val = formatFloat (val_float);
+				  printf ("%s", val);
+				  sqlite3_free (val);
+				  break;
+			      case RL2_SAMPLE_DOUBLE:
+				  rl2_get_pixel_sample_double (no_data,
+							       &val_double);
+				  val = formatFloat (val_double);
+				  printf ("%s", val);
+				  sqlite3_free (val);
+				  break;
+			      }
+			}
+		      printf ("\n");
+
+		  }
+		if (palette != NULL)
+		  {
+		      /* printing an eventual Palette */
+		      unsigned char i;
+		      unsigned short num_entries;
+		      unsigned char *red = NULL;
+		      unsigned char *green = NULL;
+		      unsigned char *blue = NULL;
+		      rl2_get_palette_colors (palette, &num_entries, &red,
+					      &green, &blue);
+		      for (i = 0; i < num_entries; i++)
+			{
+			    if (i == 0)
+				printf
+				    ("    Color Palette %3d: #%02x%02x%02x\n",
+				     i, *(red + i), *(green + i), *(blue + i));
+			    else
+				printf
+				    ("                  %3d: #%02x%02x%02x\n",
+				     i, *(red + i), *(green + i), *(blue + i));
+			}
+		  }
+		if (statistics != NULL)
+		  {
+		      /* printing the Statistics summary (if any) */
+		      unsigned char i;
+		      double no_data;
+		      double count;
+		      unsigned char sample_type;
+		      unsigned char num_bands;
+		      rl2_get_raster_statistics_summary (statistics, &no_data,
+							 &count, &sample_type,
+							 &num_bands);
+		      printf
+			  ("-------------------------------------------------------------------------------\n");
+		      printf (" NO-DATA Pixels Count: %1.0f\n", no_data);
+		      printf ("   Valid Pixels Count: %1.0f\n", count);
+		      for (i = 0; i < num_bands; i++)
+			{
+			    /* band summary */
+			    double min;
+			    double max;
+			    double mean;
+			    double var;
+			    double stddev;
+			    char *val;
+			    printf
+				("  =========== Band #%u Summary ==========\n",
+				 i);
+			    rl2_get_band_statistics (statistics, i, &min, &max,
+						     &mean, &var, &stddev);
+			    if (sample_type == RL2_SAMPLE_FLOAT
+				|| sample_type == RL2_SAMPLE_DOUBLE)
+			      {
+				  val = formatFloat (min);
+				  printf ("            Min Value: %s\n", val);
+				  sqlite3_free (val);
+				  val = formatFloat (max);
+				  printf ("            Max Value: %s\n", val);
+				  sqlite3_free (val);
+			      }
+			    else
+			      {
+				  printf ("            Min Value: %1.0f\n",
+					  min);
+				  printf ("            Max Value: %1.0f\n",
+					  max);
+			      }
+			    val = formatFloat (mean);
+			    printf ("           Mean Value: %s\n", val);
+			    sqlite3_free (val);
+			    val = formatFloat (var);
+			    printf ("             Variance: %s\n", val);
+			    sqlite3_free (val);
+			    val = formatFloat (stddev);
+			    printf ("   Standard Deviation: %s\n", val);
+			    sqlite3_free (val);
+			}
+		  }
+		if (pyramid != NULL)
+		  {
+		      /* printing Pyramid Level Infos */
+		      struct pyramid_level *lvl;
+		      struct pyramid_virtual *vrt;
+		      printf
+			  ("-------------------------------------------------------------------------------\n");
+		      lvl = pyramid->first;
+		      while (lvl != NULL)
+			{
+			    printf
+				("   ===  Pyramid Level: %d  ==========================\n",
+				 lvl->level_id);
+			    hres = formatFloat (lvl->h_res);
+			    vres = formatFloat (lvl->v_res);
+			    printf ("  Physical resolution: X=%s Y=%s\n", hres,
+				    vres);
+			    sqlite3_free (hres);
+			    sqlite3_free (vres);
+			    vrt = lvl->first;
+			    while (vrt != NULL)
+			      {
+				  hres = formatFloat (vrt->h_res);
+				  vres = formatFloat (vrt->v_res);
+				  printf ("   Virtual resolution: X=%s Y=%s\n",
+					  hres, vres);
+				  sqlite3_free (hres);
+				  sqlite3_free (vres);
+				  vrt = vrt->next;
+			      }
+			    printf ("          Tiles Count: %1.0f\n",
+				    lvl->tiles_count);
+			    printf ("           BLOB Bytes: %1.0f\n",
+				    lvl->blob_bytes);
+			    lvl = lvl->next;
+			}
+		  }
+		if (minx != NULL)
+		    sqlite3_free (minx);
+		if (miny != NULL)
+		    sqlite3_free (miny);
+		if (maxx != NULL)
+		    sqlite3_free (maxx);
+		if (maxy != NULL)
+		    sqlite3_free (maxy);
+		if (no_data != NULL)
+		    rl2_destroy_pixel (no_data);
+		if (palette != NULL)
+		    rl2_destroy_palette (palette);
+		if (statistics != NULL)
+		    rl2_destroy_raster_statistics (statistics);
+		no_data = NULL;
+		palette = NULL;
+		statistics = NULL;
+		if (pyramid != NULL)
+		    free_pyramid_infos (pyramid);
+		pyramid = NULL;
+		printf
+		    ("===============================================================================\n\n\n");
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "CATALOG; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto stop;
 	    }
       }
-    sqlite3_free_table (results);
+
+    sqlite3_finalize (stmt);
+    if (count == 0)
+	printf ("no Rasterlite-2 datasources found\n");
     return 1;
 
   stop:
-    printf ("no Rasterlite-2 datasources\n");
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (statistics != NULL)
+	rl2_destroy_raster_statistics (statistics);
+    if (pyramid != NULL)
+	free_pyramid_infos (pyramid);
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    printf ("no Rasterlite-2 datasources found\n");
     return 0;
 }
 
@@ -1051,17 +1661,18 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 /* Rasterlite-2 datasource Sections list */
     char *sql;
     int ret;
-    int count = 0;
-    int i;
-    char **results;
-    int rows;
-    int columns;
+    sqlite3_stmt *stmt = NULL;
     char *dumb1;
     char *dumb2;
     char *xsections;
     char *xxsections;
     char *xtiles;
     char *xxtiles;
+    char *xdata;
+    char *xxdata;
+    rl2RasterStatisticsPtr statistics = NULL;
+    int last_id;
+    int first;
 
     if (section == NULL)
       {
@@ -1072,15 +1683,23 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 	  xtiles = sqlite3_mprintf ("%s_tiles", coverage);
 	  xxtiles = gaiaDoubleQuotedSql (xtiles);
 	  sqlite3_free (xtiles);
+	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
+	  xxdata = gaiaDoubleQuotedSql (xdata);
+	  sqlite3_free (xdata);
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT s.section_id, s.section_name, s.width, s.height, "
 	       "s.file_path, MbrMinX(s.geometry), MbrMinY(s.geometry), MbrMaxX(s.geometry), "
-	       "MbrMaxY(s.geometry), Count(*) FROM \"%s\" AS s "
+	       "MbrMaxY(s.geometry), s.statistics, t.pyramid_level, Count(*), "
+	       "Sum(Length(d.tile_data_odd)), Sum(Length(d.tile_data_even)) "
+	       "FROM \"%s\" AS s "
 	       "JOIN \"%s\" AS t ON (s.section_id = t.section_id) "
-	       "GROUP BY s.section_id", xxsections, xxtiles);
+	       "JOIN \"%s\" AS d ON (d.tile_id = t.tile_id) "
+	       "GROUP BY s.section_id, t.pyramid_level", xxsections, xxtiles,
+	       xxdata);
 	  free (xxsections);
 	  free (xxtiles);
+	  free (xxdata);
       }
     else
       {
@@ -1091,65 +1710,225 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 	  xtiles = sqlite3_mprintf ("%s_tiles", coverage);
 	  xxtiles = gaiaDoubleQuotedSql (xtiles);
 	  sqlite3_free (xtiles);
+	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
+	  xxdata = gaiaDoubleQuotedSql (xdata);
+	  sqlite3_free (xdata);
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT s.section_id, s.section_name, s.width, s.height, "
 	       "s.file_path, MbrMinX(s.geometry), MbrMinY(s.geometry), MbrMaxX(s.geometry), "
-	       "MbrMaxY(s.geometry), Count(*) FROM \"%s\" AS s "
+	       "MbrMaxY(s.geometry), s.statistics, t.pyramid_level, Count(*), "
+	       "Sum(Length(d.tile_data_odd)), Sum(Length(d.tile_data_even)) "
+	       "FROM \"%s\" AS s "
 	       "JOIN \"%s\" AS t ON (s.section_id = t.section_id) "
-	       "WHERE s.section_name = %Q GROUP BY s.section_id", xxsections,
-	       xxtiles, section);
+	       "JOIN \"%s\" AS d ON (d.tile_id = t.tile_id) "
+	       "WHERE s.section_name = %Q "
+	       "GROUP BY s.section_id, t.pyramid_level", xxsections,
+	       xxtiles, xxdata, section);
 	  free (xxsections);
 	  free (xxtiles);
+	  free (xxdata);
       }
-    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
-    sqlite3_free (sql);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	goto stop;
-    if (rows < 1)
-	;
-    else
+
+    printf
+	("===============================================================================\n");
+    printf ("             Coverage: %s\n", coverage);
+    printf
+	("===============================================================================\n\n");
+    last_id = -1;
+    first = 1;
+    while (1)
       {
-	  printf ("************ Coverage: %s\n", coverage);
-	  for (i = 1; i <= rows; i++)
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
 	    {
-		int id = atoi (results[(i * columns) + 0]);
-		const char *name = results[(i * columns) + 1];
-		int width = atoi (results[(i * columns) + 2]);
-		int height = atoi (results[(i * columns) + 3]);
-		const char *path = results[(i * columns) + 4];
-		double minx = atof (results[(i * columns) + 5]);
-		double miny = atof (results[(i * columns) + 6]);
-		double maxx = atof (results[(i * columns) + 7]);
-		double maxy = atof (results[(i * columns) + 8]);
-		int tiles = atoi (results[(i * columns) + 9]);
-		count++;
-		printf ("\nSection: %d) %s\n", id, name);
-		printf ("    ------------------\n");
-		printf ("        Size (pixels): %d x %d\n", width, height);
-		printf ("           Input Path: %s\n", path);
-		dumb1 = formatLong (minx);
-		dumb2 = formatLat (miny);
-		printf ("     LowerLeft corner: X=%s Y=%s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		dumb1 = formatLong (maxx);
-		dumb2 = formatLat (maxy);
-		printf ("    UpperRight corner: X=%s Y=%s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
-		dumb1 = formatLong (minx + ((maxx - minx) / 2.0));
-		dumb2 = formatLat (miny + ((maxy - miny) / 2.0));
-		printf ("         Center Point: X=%s Y=%s\n", dumb1, dumb2);
-		sqlite3_free (dumb1);
-		sqlite3_free (dumb2);
+		int id = sqlite3_column_int (stmt, 0);
+		const char *name = (const char *)sqlite3_column_text (stmt, 1);
+		int width = sqlite3_column_int (stmt, 2);
+		int height = sqlite3_column_int (stmt, 3);
+		const char *path = NULL;
+		double minx = DBL_MAX;
+		double miny = DBL_MAX;
+		double maxx = DBL_MAX;
+		double maxy = DBL_MAX;
+		int level = 0;
+		int tiles = 0;
+		int blob_bytes = 0;
+		if (sqlite3_column_type (stmt, 4) == SQLITE_TEXT)
+		    path = (const char *)sqlite3_column_text (stmt, 4);
+		if (sqlite3_column_type (stmt, 5) == SQLITE_FLOAT)
+		    minx = sqlite3_column_double (stmt, 5);
+		if (sqlite3_column_type (stmt, 6) == SQLITE_FLOAT)
+		    miny = sqlite3_column_double (stmt, 6);
+		if (sqlite3_column_type (stmt, 7) == SQLITE_FLOAT)
+		    maxx = sqlite3_column_double (stmt, 7);
+		if (sqlite3_column_type (stmt, 8) == SQLITE_FLOAT)
+		    maxy = sqlite3_column_double (stmt, 8);
+		if (sqlite3_column_type (stmt, 9) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 9);
+		      int blob_sz = sqlite3_column_bytes (stmt, 9);
+		      statistics =
+			  rl2_deserialize_dbms_raster_statistics (blob,
+								  blob_sz);
+		  }
+		level = sqlite3_column_int (stmt, 10);
+		tiles = sqlite3_column_int (stmt, 11);
+		blob_bytes = sqlite3_column_int (stmt, 12);
+		if (sqlite3_column_type (stmt, 13) == SQLITE_INTEGER)
+		    blob_bytes += sqlite3_column_int (stmt, 13);
+		if (last_id != id)
+		  {
+		      if (!first)
+			{
+			    printf
+				("-------------------------------------------------------------------------------\n");
+			    printf ("\n\n\n");
+			}
+		      else
+			  first = 0;
+		      printf
+			  ("-------------------------------------------------------------------------------\n");
+		      printf ("              Section: (%d) %s\n", id, name);
+		      printf
+			  ("-------------------------------------------------------------------------------\n");
+		      printf ("        Size (pixels): %d x %d\n", width,
+			      height);
+		      if (path == NULL)
+			  printf ("           Input Path: *** unknowon ***\n");
+		      else
+			  printf ("           Input Path: %s\n", path);
+		      if (minx == DBL_MAX || miny == DBL_MAX)
+			  printf ("     LowerLeft corner: *** unknown ***\n");
+		      else
+			{
+			    dumb1 = formatLong (minx);
+			    dumb2 = formatLat (miny);
+			    printf ("     LowerLeft corner: X=%s Y=%s\n", dumb1,
+				    dumb2);
+			    sqlite3_free (dumb1);
+			    sqlite3_free (dumb2);
+			}
+		      if (maxx == DBL_MAX || maxy == DBL_MAX)
+			  printf ("    UpperRight corner: *** unknown ***\n");
+		      else
+			{
+			    dumb1 = formatLong (maxx);
+			    dumb2 = formatLat (maxy);
+			    printf ("    UpperRight corner: X=%s Y=%s\n", dumb1,
+				    dumb2);
+			    sqlite3_free (dumb1);
+			    sqlite3_free (dumb2);
+			}
+		      if (minx == DBL_MAX || miny == DBL_MAX || maxx == DBL_MAX
+			  || maxy == DBL_MAX)
+			  printf ("         Center Point: *** unknown ***\n");
+		      else
+			{
+			    dumb1 = formatLong (minx + ((maxx - minx) / 2.0));
+			    dumb2 = formatLat (miny + ((maxy - miny) / 2.0));
+			    printf ("         Center Point: X=%s Y=%s\n", dumb1,
+				    dumb2);
+			    sqlite3_free (dumb1);
+			    sqlite3_free (dumb2);
+			}
+		      if (statistics != NULL)
+			{
+			    /* printing the Statistics summary (if any) */
+			    unsigned char i;
+			    double no_data;
+			    double count;
+			    unsigned char sample_type;
+			    unsigned char num_bands;
+			    rl2_get_raster_statistics_summary (statistics,
+							       &no_data, &count,
+							       &sample_type,
+							       &num_bands);
+			    printf
+				("-------------------------------------------------------------------------------\n");
+			    printf (" NO-DATA Pixels Count: %1.0f\n", no_data);
+			    printf ("   Valid Pixels Count: %1.0f\n", count);
+			    for (i = 0; i < num_bands; i++)
+			      {
+				  /* band summary */
+				  double min;
+				  double max;
+				  double mean;
+				  double var;
+				  double stddev;
+				  char *val;
+				  printf
+				      ("  =========== Band #%u Summary ==========\n",
+				       i);
+				  rl2_get_band_statistics (statistics, i, &min,
+							   &max, &mean, &var,
+							   &stddev);
+				  if (sample_type == RL2_SAMPLE_FLOAT
+				      || sample_type == RL2_SAMPLE_DOUBLE)
+				    {
+					val = formatFloat (min);
+					printf ("            Min Value: %s\n",
+						val);
+					sqlite3_free (val);
+					val = formatFloat (max);
+					printf ("            Max Value: %s\n",
+						val);
+					sqlite3_free (val);
+				    }
+				  else
+				    {
+					printf
+					    ("            Min Value: %1.0f\n",
+					     min);
+					printf
+					    ("            Max Value: %1.0f\n",
+					     max);
+				    }
+				  val = formatFloat (mean);
+				  printf ("           Mean Value: %s\n", val);
+				  sqlite3_free (val);
+				  val = formatFloat (var);
+				  printf ("             Variance: %s\n", val);
+				  sqlite3_free (val);
+				  val = formatFloat (stddev);
+				  printf ("   Standard Deviation: %s\n", val);
+				  sqlite3_free (val);
+			      }
+			    printf
+				("-------------------------------------------------------------------------------\n");
+			}
+		  }
+		last_id = id;
+		printf ("    ==========  Level: %d  ==========\n", level);
 		printf ("          Tiles Count: %d\n", tiles);
+		printf ("           BLOB Bytes: %d\n", blob_bytes);
+		if (statistics != NULL)
+		    rl2_destroy_raster_statistics (statistics);
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "LIST; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto stop;
 	    }
       }
-    sqlite3_free_table (results);
+    sqlite3_finalize (stmt);
+    if (!first)
+	printf
+	    ("-------------------------------------------------------------------------------\n");
     return 1;
 
   stop:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (statistics != NULL)
+	rl2_destroy_raster_statistics (statistics);
     printf ("not existing or empty Rasterlite-2 datasource\n");
     return 0;
 }
@@ -1504,8 +2283,9 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
     int columns;
 
     *handle = NULL;
-    printf ("SQLite version: %s\n", sqlite3_libversion ());
-    printf ("SpatiaLite version: %s\n\n", spatialite_version ());
+    printf ("     SQLite version: %s\n", sqlite3_libversion ());
+    printf (" SpatiaLite version: %s\n", spatialite_version ());
+    printf ("RasterLite2 version: %s\n\n", rl2_version ());
 
     ret =
 	sqlite3_open_v2 (path, &db_handle,
@@ -2290,6 +3070,38 @@ check_pyramidize_args (const char *db_path, const char *coverage,
 }
 
 static int
+check_de_pyramidize_args (const char *db_path, const char *coverage,
+			  const char *section)
+{
+/* checking/printing DE-PYRAMIDIZE args */
+    int err = 0;
+    fprintf (stderr, "\n\nrl2_tool; request is DE-PYRAMIDIZE\n");
+    fprintf (stderr,
+	     "===========================================================\n");
+    if (db_path == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "DB path: %s\n", db_path);
+    if (coverage == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
+	  err = 1;
+      }
+    else
+	fprintf (stderr, "Coverage: %s\n", coverage);
+    if (section == NULL)
+	fprintf (stderr, "Section: All Sections\n");
+    else
+	fprintf (stderr, "Section: %s\n", section);
+    fprintf (stderr,
+	     "===========================================================\n\n");
+    return err;
+}
+
+static int
 check_list_args (const char *db_path, const char *coverage, const char *section)
 {
 /* checking/printing LIST args */
@@ -2380,35 +3192,6 @@ check_catalog_args (const char *db_path)
       }
     else
 	fprintf (stderr, "DB path: %s\n", db_path);
-    fprintf (stderr,
-	     "===========================================================\n\n");
-    return err;
-}
-
-static int
-check_check_args (const char *db_path, const char *coverage,
-		  const char *section)
-{
-/* checking/printing CHECK args */
-    int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is CHECK\n");
-    fprintf (stderr,
-	     "===========================================================\n");
-    if (db_path == NULL)
-      {
-	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
-	  err = 1;
-      }
-    else
-	fprintf (stderr, "DB path: %s\n", db_path);
-    if (coverage == NULL)
-	fprintf (stderr, "Coverage: All Coverages\n");
-    else
-	fprintf (stderr, "Coverage: %s\n", coverage);
-    if (section == NULL)
-	fprintf (stderr, "Section: All Sections\n");
-    else
-	fprintf (stderr, "Section: %s\n", section);
     fprintf (stderr,
 	     "===========================================================\n\n");
     return err;
@@ -2792,6 +3575,21 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "-f or --force                   optional: rebuilds from scratch\n\n");
       }
+    if (mode == ARG_NONE || mode == ARG_MODE_DE_PYRAMIDIZE)
+      {
+	  /* MODE = DE-PYRAMIDIZE */
+	  fprintf (stderr, "\nmode: DE-PYRAMIDIZE\n");
+	  fprintf (stderr, "will delete Pyramid levels\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    optional: Section's name\n");
+	  fprintf (stderr,
+		   "                                default is \"All Sections\"\n");
+      }
     if (mode == ARG_NONE || mode == ARG_MODE_LIST)
       {
 	  /* MODE = LIST */
@@ -2835,24 +3633,6 @@ do_help (int mode)
 		   "==============================================================\n");
 	  fprintf (stderr,
 		   "-db or --db-path      pathname  RasterLite2 DB path\n\n");
-      }
-    if (mode == ARG_NONE || mode == ARG_MODE_CHECK)
-      {
-	  /* MODE = CHECK */
-	  fprintf (stderr, "\nmode: CHECK\n");
-	  fprintf (stderr, "will check a RasterLite2 DB for validity\n");
-	  fprintf (stderr,
-		   "==============================================================\n");
-	  fprintf (stderr,
-		   "-db or --db-path      pathname  RasterLite2 DB path\n");
-	  fprintf (stderr,
-		   "-cov or --coverage    string    optional: Coverage's name\n");
-	  fprintf (stderr,
-		   "                                default is \"All Coverages\"\n");
-	  fprintf (stderr,
-		   "-sec or --section     string    optional: Section's name\n");
-	  fprintf (stderr,
-		   "                                default is \"All Sections\"\n\n");
       }
     if (mode == ARG_NONE)
       {
@@ -2931,14 +3711,14 @@ main (int argc, char *argv[])
 	      mode = ARG_MODE_DELETE;
 	  if (strcasecmp (argv[1], "PYRAMIDIZE") == 0)
 	      mode = ARG_MODE_PYRAMIDIZE;
+	  if (strcasecmp (argv[1], "DE-PYRAMIDIZE") == 0)
+	      mode = ARG_MODE_DE_PYRAMIDIZE;
 	  if (strcasecmp (argv[1], "LIST") == 0)
 	      mode = ARG_MODE_LIST;
 	  if (strcasecmp (argv[1], "MAP") == 0)
 	      mode = ARG_MODE_MAP;
 	  if (strcasecmp (argv[1], "CATALOG") == 0)
 	      mode = ARG_MODE_CATALOG;
-	  if (strcasecmp (argv[1], "CHECK") == 0)
-	      mode = ARG_MODE_CHECK;
       }
 
     for (i = 2; i < argc; i++)
@@ -3364,6 +4144,9 @@ main (int argc, char *argv[])
 	  error =
 	      check_pyramidize_args (db_path, coverage, section, force_pyramid);
 	  break;
+      case ARG_MODE_DE_PYRAMIDIZE:
+	  error = check_de_pyramidize_args (db_path, coverage, section);
+	  break;
       case ARG_MODE_LIST:
 	  error = check_list_args (db_path, coverage, section);
 	  break;
@@ -3372,9 +4155,6 @@ main (int argc, char *argv[])
 	  break;
       case ARG_MODE_CATALOG:
 	  error = check_catalog_args (db_path);
-	  break;
-      case ARG_MODE_CHECK:
-	  error = check_check_args (db_path, coverage, section);
 	  break;
       default:
 	  fprintf (stderr, "did you forget setting some request MODE ?\n");
@@ -3476,6 +4256,9 @@ main (int argc, char *argv[])
       case ARG_MODE_PYRAMIDIZE:
 	  ret = exec_pyramidize (handle, coverage, section, force_pyramid);
 	  break;
+      case ARG_MODE_DE_PYRAMIDIZE:
+	  ret = exec_de_pyramidize (handle, coverage, section);
+	  break;
       case ARG_MODE_CATALOG:
 	  ret = exec_catalog (handle);
 	  break;
@@ -3485,11 +4268,6 @@ main (int argc, char *argv[])
       case ARG_MODE_MAP:
 	  ret = exec_map (handle, coverage, dst_path, width, height);
 	  break;
-/*
-	     case ARG_MODE_CHECK:
-	     ret = exec_check(handle, db_path, coverage, section);
-	     break;
-	   */
       };
 
     if (ret)
@@ -3522,6 +4300,9 @@ main (int argc, char *argv[])
 	    case ARG_MODE_PYRAMIDIZE:
 		op_name = "PYRAMIDIZE";
 		break;
+	    case ARG_MODE_DE_PYRAMIDIZE:
+		op_name = "DE-PYRAMIDIZE";
+		break;
 	    case ARG_MODE_LIST:
 		op_name = "LIST";
 		break;
@@ -3530,9 +4311,6 @@ main (int argc, char *argv[])
 		break;
 	    case ARG_MODE_CATALOG:
 		op_name = "CATALOG";
-		break;
-	    case ARG_MODE_CHECK:
-		op_name = "CHECK";
 		break;
 	    };
 	  fprintf (stderr, "\nOperation %s successfully completed\n", op_name);

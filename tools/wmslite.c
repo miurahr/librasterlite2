@@ -58,8 +58,6 @@
 #define WMS_UNKNOWN		-1
 #define WMS_TRANSPARENT		10
 #define WMS_OPAQUE		11
-#define WMS_PNG			12
-#define WMS_JPEG		13
 
 #define WMS_INVALID_CRS		101
 #define WMS_INVALID_DIMENSION	102
@@ -72,6 +70,12 @@
 #define WMS_NOT_EXISTING_LAYER	109
 #define WMS_LAYER_OUT_OF_BBOX	110
 #define WMS_MISMATCHING_SRID	111
+
+#define WMS_VERSION_UNKNOWN	0
+#define WMS_VERSION_100		100
+#define WMS_VERSION_110		110
+#define WMS_VERSION_111		111
+#define WMS_VERSION_130		130
 
 struct neutral_socket
 {
@@ -89,6 +93,7 @@ struct wms_layer
     char *title;
     char *abstract;
     int srid;
+    int is_geographic;
     double minx;
     double miny;
     double maxx;
@@ -128,8 +133,10 @@ struct wms_args
     struct wms_argument *first;
     struct wms_argument *last;
     int request_type;
+    int wms_version;
     int error;
     const char *layer;
+    int swap_xy;
     double minx;
     double miny;
     double maxx;
@@ -162,9 +169,9 @@ struct http_request
 
 static struct wms_layer *
 alloc_wms_layer (const char *layer, const char *title, const char *abstract,
-		 int srid, double minx, double miny, double maxx, double maxy,
-		 unsigned char sample, unsigned char pixel,
-		 unsigned char num_bands)
+		 int srid, int is_geographic, double minx, double miny,
+		 double maxx, double maxy, unsigned char sample,
+		 unsigned char pixel, unsigned char num_bands)
 {
 /* creating a WMS layer item */
     int len;
@@ -179,6 +186,7 @@ alloc_wms_layer (const char *layer, const char *title, const char *abstract,
     lyr->abstract = malloc (len + 1);
     strcpy (lyr->abstract, abstract);
     lyr->srid = srid;
+    lyr->is_geographic = is_geographic;
     lyr->minx = minx;
     lyr->miny = miny;
     lyr->maxx = maxx;
@@ -381,7 +389,7 @@ parse_dim (const char *dim, unsigned short *value)
     return 1;
 }
 
-static unsigned char *
+static char *
 parse_style (const char *style)
 {
 /* the unique and only supported style is DEFAULT */
@@ -401,9 +409,9 @@ parse_format (const char *format)
 {
 /* parsing the output format */
     if (strcasecmp (format, "image/png") == 0)
-	return WMS_PNG;
+	return RL2_OUTPUT_FORMAT_PNG;
     if (strcasecmp (format, "image/jpeg") == 0)
-	return WMS_JPEG;
+	return RL2_OUTPUT_FORMAT_JPEG;
     return WMS_UNKNOWN;
 }
 
@@ -616,8 +624,9 @@ parse_bgcolor (const char *bgcolor, unsigned char *red, unsigned char *green,
 }
 
 static int
-exists_layer (struct wms_list *list, const char *layer, int srid, double minx,
-	      double miny, double maxx, double maxy)
+exists_layer (struct wms_list *list, const char *layer, int srid,
+	      int wms_version, int *swap_xy, double minx, double miny,
+	      double maxx, double maxy)
 {
 /* checking a required layer for validity */
     struct wms_layer *lyr = list->first;
@@ -627,14 +636,32 @@ exists_layer (struct wms_list *list, const char *layer, int srid, double minx,
 	    {
 		if (lyr->srid != srid)
 		    return WMS_MISMATCHING_SRID;
-		if (lyr->minx > maxx)
-		    return WMS_LAYER_OUT_OF_BBOX;
-		if (lyr->maxx < minx)
-		    return WMS_LAYER_OUT_OF_BBOX;
-		if (lyr->miny > maxy)
-		    return WMS_LAYER_OUT_OF_BBOX;
-		if (lyr->maxy < miny)
-		    return WMS_LAYER_OUT_OF_BBOX;
+		if (wms_version == WMS_VERSION_130 && lyr->is_geographic)
+		    *swap_xy = 1;
+		else
+		    *swap_xy = 0;
+		if (*swap_xy)
+		  {
+		      if (lyr->minx > maxy)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (lyr->maxx < miny)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (lyr->miny > maxx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (lyr->maxy < minx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		  }
+		else
+		  {
+		      if (lyr->minx > maxx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (lyr->maxx < minx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (lyr->miny > maxy)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (lyr->maxy < miny)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		  }
 		return 0;
 	    }
 	  lyr = lyr->next;
@@ -647,6 +674,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 {
 /* checking for a valid WMS request */
     struct wms_argument *arg;
+    int wms_version = WMS_VERSION_130;
     int ok_wms = 0;
     int ok_version = 0;
     int is_get_capabilities = 0;
@@ -673,14 +701,27 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 	    }
 	  if (strcasecmp (arg->arg_name, "VERSION") == 0)
 	    {
+		wms_version = WMS_VERSION_UNKNOWN;
 		if (strcasecmp (arg->arg_value, "1.3.0") == 0)
-		    ok_version = 1;
+		  {
+		      wms_version = WMS_VERSION_130;
+		      ok_version = 1;
+		  }
 		if (strcasecmp (arg->arg_value, "1.1.1") == 0)
-		    ok_version = 1;
+		  {
+		      wms_version = WMS_VERSION_111;
+		      ok_version = 1;
+		  }
 		if (strcasecmp (arg->arg_value, "1.1.0") == 0)
-		    ok_version = 1;
+		  {
+		      wms_version = WMS_VERSION_110;
+		      ok_version = 1;
+		  }
 		if (strcasecmp (arg->arg_value, "1.0.0") == 0)
-		    ok_version = 1;
+		  {
+		      wms_version = WMS_VERSION_100;
+		      ok_version = 1;
+		  }
 	    }
 	  if (strcasecmp (arg->arg_name, "REQUEST") == 0)
 	    {
@@ -710,16 +751,19 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 	      p_transparent = arg->arg_value;
 	  arg = arg->next;
       }
-    if (is_get_capabilities && !is_get_map)
+    if (is_get_capabilities && !is_get_map
+	&& wms_version != WMS_VERSION_UNKNOWN)
       {
 	  /* testing for valid GetCapabilities */
 	  if (ok_wms)
 	    {
 		args->request_type = WMS_GET_CAPABILITIES;
+		args->wms_version = wms_version;
 		return 200;
 	    }
       }
-    if (is_get_map && !is_get_capabilities)
+    if (is_get_map && !is_get_capabilities
+	&& wms_version != WMS_VERSION_UNKNOWN)
       {
 	  /* testing for valid GetMap */
 	  if (ok_wms && ok_version && p_layers && p_srs && p_bbox && p_width
@@ -728,6 +772,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		int ret;
 		int srid;
 		const char *layer;
+		int swap_xy = 0;
 		double minx;
 		double miny;
 		double maxx;
@@ -796,7 +841,9 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 			    return 200;
 			}
 		  }
-		ret = exists_layer (list, layer, srid, minx, miny, maxx, maxy);
+		ret =
+		    exists_layer (list, layer, srid, wms_version, &swap_xy,
+				  minx, miny, maxx, maxy);
 		if (ret == WMS_NOT_EXISTING_LAYER
 		    || ret == WMS_LAYER_OUT_OF_BBOX
 		    || ret == WMS_MISMATCHING_SRID)
@@ -805,11 +852,25 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		      return 200;
 		  }
 		args->request_type = WMS_GET_MAP;
+		args->wms_version = wms_version;
 		args->layer = layer;
-		args->minx = minx;
-		args->miny = miny;
-		args->maxx = maxx;
-		args->maxy = maxy;
+		args->swap_xy = swap_xy;
+		if (wms_version == WMS_VERSION_130 && swap_xy)
+		  {
+		      /* swapping X and Y axis */
+		      args->minx = miny;
+		      args->miny = minx;
+		      args->maxx = maxy;
+		      args->maxy = maxx;
+		  }
+		else
+		  {
+		      /* normal XY axis ordering */
+		      args->minx = minx;
+		      args->miny = miny;
+		      args->maxx = maxx;
+		      args->maxy = maxy;
+		  }
 		args->width = width;
 		args->height = height;
 		args->style = style;
@@ -887,7 +948,7 @@ parse_http_request (const char *http_hdr)
     return NULL;
 }
 
-static unsigned char *
+static char *
 get_current_timestamp ()
 {
 /* formatting the current timestamp */
@@ -1252,10 +1313,16 @@ wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
 	  gaiaAppendToOutBuffer (&xml_text, dummy);
 	  sqlite3_free (dummy);
 	  gaiaAppendToOutBuffer (&xml_text, "</EX_GeographicBoundingBox>\r\n");
-	  dummy = sqlite3_mprintf ("<BoundingBox CRS=\"EPSG:%d\" "
-				   "minx=\"%1.6f\" miny=\"%1.6f\" maxx=\"%1.6f\" maxy=\"%1.6f\"/>\r\n",
-				   lyr->srid, lyr->minx, lyr->miny, lyr->maxx,
-				   lyr->maxy);
+	  if (lyr->is_geographic)
+	      dummy = sqlite3_mprintf ("<BoundingBox CRS=\"EPSG:%d\" "
+				       "minx=\"%1.6f\" miny=\"%1.6f\" maxx=\"%1.6f\" maxy=\"%1.6f\"/>\r\n",
+				       lyr->srid, lyr->miny, lyr->minx,
+				       lyr->maxy, lyr->maxx);
+	  else
+	      dummy = sqlite3_mprintf ("<BoundingBox CRS=\"EPSG:%d\" "
+				       "minx=\"%1.6f\" miny=\"%1.6f\" maxx=\"%1.6f\" maxy=\"%1.6f\"/>\r\n",
+				       lyr->srid, lyr->minx, lyr->miny,
+				       lyr->maxx, lyr->maxy);
 	  gaiaAppendToOutBuffer (&xml_text, dummy);
 	  sqlite3_free (dummy);
 	  gaiaAppendToOutBuffer (&xml_text, "</Layer>\r\n");
@@ -1311,14 +1378,14 @@ wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
     sqlite3_bind_int (stmt, 7, args->height);
     sqlite3_bind_text (stmt, 8, args->style, strlen (args->style),
 		       SQLITE_STATIC);
-    if (args->format == WMS_PNG)
+    if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	sqlite3_bind_text (stmt, 9, "image/png", strlen ("image/png"),
 			   SQLITE_TRANSIENT);
     else
 	sqlite3_bind_text (stmt, 9, "image/jpeg", strlen ("image/jpeg"),
 			   SQLITE_TRANSIENT);
     sqlite3_bind_int (stmt, 10, args->transparent);
-    if (args->format == WMS_PNG)
+    if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	sqlite3_bind_int (stmt, 11, 100);
     else
 	sqlite3_bind_int (stmt, 11, 80);
@@ -1346,9 +1413,9 @@ wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
     dummy = get_current_timestamp ();
     gaiaAppendToOutBuffer (http_response, dummy);
     sqlite3_free (dummy);
-    if (args->format == WMS_JPEG)
+    if (args->format == RL2_OUTPUT_FORMAT_JPEG)
 	gaiaAppendToOutBuffer (http_response, "Content-Type: image/jpeg\r\n");
-    if (args->format == WMS_PNG)
+    if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	gaiaAppendToOutBuffer (http_response, "Content-Type: image/png\r\n");
     dummy = sqlite3_mprintf ("Content-Length: %d\r\n", *payload_size);
     gaiaAppendToOutBuffer (http_response, dummy);
@@ -1362,10 +1429,10 @@ wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
     black_sz = args->width * args->height;
     black = malloc (black_sz);
     memset (black, 0, black_sz);
-    if (args->format == WMS_JPEG)
+    if (args->format == RL2_OUTPUT_FORMAT_JPEG)
 	rl2_gray_to_jpeg (args->width, args->height, black, 80, payload,
 			  payload_size);
-    if (args->format == WMS_PNG)
+    if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	rl2_gray_to_png (args->width, args->height, black, payload,
 			 payload_size);
     free (black);
@@ -1373,9 +1440,9 @@ wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
     dummy = get_current_timestamp ();
     gaiaAppendToOutBuffer (http_response, dummy);
     sqlite3_free (dummy);
-    if (args->format == WMS_JPEG)
+    if (args->format == RL2_OUTPUT_FORMAT_JPEG)
 	gaiaAppendToOutBuffer (http_response, "Content-Type: image/jpeg\r\n");
-    if (args->format == WMS_PNG)
+    if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	gaiaAppendToOutBuffer (http_response, "Content-Type: image/png\r\n");
     dummy = sqlite3_mprintf ("Content-Length: %d\r\n", *payload_size);
     gaiaAppendToOutBuffer (http_response, dummy);
@@ -1617,7 +1684,7 @@ berkeley_http_request (void *data)
 	  /* preparing the WMS GetMap payload */
 	  gaiaOutBufferInitialize (&xml_response);
 	  args->db_handle = req->db_handle;
-	  wms_get_map (req->list, &xml_response, &payload, &payload_size);
+	  wms_get_map (args, &xml_response, &payload, &payload_size);
 	  curr = 0;
 	  while (1)
 	    {
@@ -1882,6 +1949,35 @@ compute_geographic_extents (sqlite3 * handle, struct wms_list *list)
       }
 }
 
+static int
+check_geographic_srid (sqlite3 * handle, int srid)
+{
+/* testing if some SRID is of the Geographic type */
+    int ret;
+    char *sql;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    int geo = -1;
+
+    sql = sqlite3_mprintf ("SELECT Count(*) FROM spatial_ref_sys "
+			   "WHERE srid = %d AND proj4text LIKE '%%+proj=longlat%%'",
+			   srid);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	goto skip;
+
+    for (i = 1; i <= rows; i++)
+	geo = atoi (results[(i * columns) + 0]);
+    sqlite3_free_table (results);
+  skip:
+    if (geo > 0)
+	return 1;
+    return 0;
+}
+
 static struct wms_list *
 get_raster_coverages (sqlite3 * handle)
 {
@@ -1925,53 +2021,54 @@ get_raster_coverages (sqlite3 * handle)
 		double miny = sqlite3_column_double (stmt, 8);
 		double maxx = sqlite3_column_double (stmt, 9);
 		double maxy = sqlite3_column_double (stmt, 10);
+		int is_geographic = check_geographic_srid (handle, srid);
 		if (strcmp (sample_type, "1-BIT") == 0
 		    && strcmp (pixel_type, "MONOCHROME") == 0 && num_bands == 1)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME,
 					 1);
 		if (strcmp (sample_type, "1-BIT") == 0
 		    && strcmp (pixel_type, "PALETTE") == 0 && num_bands == 1)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_1_BIT, RL2_PIXEL_PALETTE,
 					 1);
 		if (strcmp (sample_type, "2-BIT") == 0
 		    && strcmp (pixel_type, "PALETTE") == 0 && num_bands == 1)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_2_BIT, RL2_PIXEL_PALETTE,
 					 1);
 		if (strcmp (sample_type, "4-BIT") == 0
 		    && strcmp (pixel_type, "PALETTE") == 0 && num_bands == 1)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE,
 					 1);
 		if (strcmp (sample_type, "UINT8") == 0
 		    && strcmp (pixel_type, "PALETTE") == 0 && num_bands == 1)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE,
 					 1);
 		if (strcmp (sample_type, "UINT8") == 0
 		    && strcmp (pixel_type, "GRAYSCALE") == 0 && num_bands == 1)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE,
 					 1);
 		if (strcmp (sample_type, "UINT8") == 0
 		    && strcmp (pixel_type, "RGB") == 0 && num_bands == 3)
 		    lyr =
 			alloc_wms_layer (coverage_name, title, abstract, srid,
-					 minx, miny, maxx, maxy,
+					 is_geographic, minx, miny, maxx, maxy,
 					 RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
 		if (lyr != NULL)
 		  {

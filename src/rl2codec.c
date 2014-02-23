@@ -4870,8 +4870,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 }
 
 static void
-add_pooled_variace (rl2PrivBandStatisticsPtr band_in,
-		    rl2PrivBandStatisticsPtr band_out, double count)
+add_pooled_variance (rl2PrivBandStatisticsPtr band_in,
+		     rl2PrivBandStatisticsPtr band_out, double count)
 {
 /* adding a Pooled Variance item */
     rl2PoolVariancePtr pool = malloc (sizeof (rl2PoolVariance));
@@ -4916,7 +4916,9 @@ rl2_aggregate_raster_statistics (rl2RasterStatisticsPtr stats_in,
 		band_out->min = band_in->min;
 		band_out->max = band_in->max;
 		band_out->mean = band_in->mean;
-		add_pooled_variace (band_in, band_out, in->count);
+		add_pooled_variance (band_in, band_out, in->count);
+		for (ih = 0; ih < band_in->nHistogram; ih++)
+		    *(band_out->histogram + ih) = *(band_in->histogram + ih);
 	    }
       }
     else
@@ -4931,12 +4933,12 @@ rl2_aggregate_raster_statistics (rl2RasterStatisticsPtr stats_in,
 		    band_out->min = band_in->min;
 		if (band_in->max > band_out->max)
 		    band_out->max = band_in->max;
-		add_pooled_variace (band_in, band_out, in->count);
+		add_pooled_variance (band_in, band_out, in->count);
 		band_out->mean =
 		    ((band_out->mean * out->count) +
 		     (band_in->mean * in->count)) / (out->count + in->count);
 		for (ih = 0; ih < band_in->nHistogram; ih++)
-		    band_out->histogram[ih] += band_in->histogram[ih];
+		    *(band_out->histogram + ih) += *(band_in->histogram + ih);
 	    }
 	  out->count += in->count;
       }
@@ -4962,25 +4964,29 @@ update_stats (rl2PrivRasterStatisticsPtr st, int band, double value)
 {
 /* updating the Statistics */
     rl2PrivBandStatisticsPtr band_st = st->band_stats + band;
+    if (value < band_st->min)
+	band_st->min = value;
+    if (value > band_st->max)
+	band_st->max = value;
     if (st->count == 0.0)
       {
 	  band_st->mean = value;
 	  band_st->sum_sq_diff = 0.0;
       }
-    if (value < band_st->min)
-	band_st->min = value;
-    if (value > band_st->max)
-	band_st->max = value;
-    band_st->sum_sq_diff =
-	band_st->sum_sq_diff +
-	(((st->count -
-	   1.0) * ((value - band_st->mean) * (value -
-					      band_st->mean))) / st->count);
-    band_st->mean = band_st->mean + ((value - band_st->mean) / st->count);
+    else
+      {
+	  band_st->sum_sq_diff =
+	      band_st->sum_sq_diff +
+	      (((st->count -
+		 1.0) * ((value - band_st->mean) * (value -
+						    band_st->mean))) /
+	       st->count);
+	  band_st->mean = band_st->mean + ((value - band_st->mean) / st->count);
+      }
     if (st->sampleType == RL2_SAMPLE_INT8)
       {
 	  int idx = value + 128;
-	  band_st->histogram[idx] += 1.0;
+	  *(band_st->histogram + idx) += 1.0;
       }
     else if (st->sampleType == RL2_SAMPLE_1_BIT
 	     || st->sampleType == RL2_SAMPLE_2_BIT
@@ -4988,7 +4994,7 @@ update_stats (rl2PrivRasterStatisticsPtr st, int band, double value)
 	     || st->sampleType == RL2_SAMPLE_UINT8)
       {
 	  int idx = value;
-	  band_st->histogram[idx] += 1.0;
+	  *(band_st->histogram + idx) += 1.0;
       }
 }
 
@@ -5998,7 +6004,7 @@ rl2_serialize_dbms_raster_statistics (rl2RasterStatisticsPtr stats,
 	  *ptr++ = RL2_HISTOGRAM_START;
 	  for (ih = 0; ih < band->nHistogram; ih++)
 	    {
-		exportDouble (ptr, band->histogram[ih], 1, endian_arch);	/* # Histogram value */
+		exportDouble (ptr, *(band->histogram + ih), 1, endian_arch);	/* # Histogram value */
 		ptr += 8;
 	    }
 	  *ptr++ = RL2_HISTOGRAM_END;
@@ -6154,13 +6160,13 @@ rl2_deserialize_dbms_raster_statistics (const unsigned char *blob,
 	  ptr += 8;
 	  band->sum_sq_diff = importDouble (ptr, endian, endian_arch);	/* # Sum of square differences */
 	  ptr += 8;
-	  ptr += 2;		/* skipping HISTOGRAM START marker */
+	  ptr += 3;		/* skipping HISTOGRAM START marker */
 	  for (ih = 0; ih < band->nHistogram; ih++)
 	    {
-		band->histogram[ih] = importDouble (ptr, endian, endian_arch);	/* # Histogram values */
+		*(band->histogram + ih) = importDouble (ptr, endian, endian_arch);	/* # Histogram values */
 		ptr += 8;
 	    }
-	  ptr += 1;		/* skipping END markers */
+	  ptr += 2;		/* skipping END markers */
       }
     return stats;
 

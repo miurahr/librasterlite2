@@ -589,73 +589,103 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		*retcode += -6;
 		return 0;
 	    }
+
+/* destroying the Pyramid Levels */
+	  sql =
+	      sqlite3_mprintf ("SELECT RL2_DePyramidize(%Q, NULL, 1)",
+			       coverage);
+	  ret = execute_check (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "DePyramidize \"%s\" error: %s\n", coverage,
+			 err_msg);
+		sqlite3_free (err_msg);
+		*retcode += -7;
+		return 0;
+	    }
+
+/* building yet again the Pyramid Levels */
+	  sql =
+	      sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", coverage,
+			       "gray2");
+	  ret = execute_check (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "Pyramidize \"%s\" error: %s\n", coverage,
+			 err_msg);
+		sqlite3_free (err_msg);
+		*retcode += -8;
+		return 0;
+	    }
       }
 
 /* export tests */
     geom = get_center_point (sqlite, coverage);
     if (geom == NULL)
       {
-	  *retcode += -7;
+	  *retcode += -9;
 	  return 0;
       }
     if (!do_export_geotiff (sqlite, coverage, geom, 1))
       {
-	  *retcode += -8;
+	  *retcode += -10;
 	  return 0;
       }
     if (!do_export_geotiff (sqlite, coverage, geom, 2))
       {
-	  *retcode += -9;
+	  *retcode += -11;
 	  return 0;
       }
     if (!do_export_geotiff (sqlite, coverage, geom, 4))
       {
-	  *retcode += -10;
+	  *retcode += -12;
 	  return 0;
       }
     if (!do_export_geotiff (sqlite, coverage, geom, 8))
       {
-	  *retcode += -11;
+	  *retcode += -13;
 	  return 0;
       }
     if (!do_export_tiff (sqlite, coverage, geom, 1))
       {
-	  *retcode += -12;
+	  *retcode += -14;
 	  return 0;
       }
     if (!do_export_tiff (sqlite, coverage, geom, 2))
       {
-	  *retcode += -13;
+	  *retcode += -15;
 	  return 0;
       }
     if (!do_export_tiff (sqlite, coverage, geom, 4))
       {
-	  *retcode += -14;
+	  *retcode += -16;
 	  return 0;
       }
     if (!do_export_tiff (sqlite, coverage, geom, 8))
       {
-	  *retcode += -15;
+	  *retcode += -17;
 	  return 0;
       }
     if (!do_export_image (sqlite, coverage, geom, 256.0, ".jpg"))
       {
-	  *retcode += -16;
+	  *retcode += -18;
 	  return 0;
       }
     if (!do_export_image (sqlite, coverage, geom, 290.0, ".jpg"))
       {
-	  *retcode += -17;
+	  *retcode += -19;
 	  return 0;
       }
     if (!do_export_image (sqlite, coverage, geom, 256.0, ".png"))
       {
-	  *retcode += -18;
+	  *retcode += -20;
 	  return 0;
       }
     if (!do_export_image (sqlite, coverage, geom, 60.0, ".png"))
       {
-	  *retcode += -19;
+	  *retcode += -21;
 	  return 0;
       }
     gaiaFreeGeomColl (geom);

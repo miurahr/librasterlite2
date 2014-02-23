@@ -3985,6 +3985,14 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 		  }
 	    }
       }
+
+    if (origin->forced_conversion == RL2_CONVERT_PALETTE_TO_MONOCHROME ||
+	origin->forced_conversion == RL2_CONVERT_PALETTE_TO_GRAYSCALE ||
+	origin->forced_conversion == RL2_CONVERT_PALETTE_TO_RGB)
+      {
+	  rl2_destroy_palette (palette);
+	  palette = NULL;
+      }
     raster =
 	rl2_create_raster (coverage->tileWidth, coverage->tileHeight,
 			   coverage->sampleType, coverage->pixelType,

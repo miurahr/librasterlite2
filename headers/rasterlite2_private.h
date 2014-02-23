@@ -673,6 +673,9 @@ extern "C"
 					     int scale, rl2PalettePtr palette,
 					     rl2PixelPtr no_data);
 
+    RL2_PRIVATE void
+	compute_aggregate_sq_diff (rl2RasterStatisticsPtr aggreg_stats);
+
 #ifdef __cplusplus
 }
 #endif

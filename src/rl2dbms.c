@@ -432,7 +432,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
 			   "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
 			   "\tpyramid_level INTEGER NOT NULL,\n"
-			   "\tsection_id INTEGER NOT NULL,\n"
+			   "\tsection_id INTEGER,\n"
 			   "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
 			   "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
 			   "\tCONSTRAINT \"%s\" FOREIGN KEY (pyramid_level) "
@@ -3416,7 +3416,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 	     nd = rl2_get_coverage_no_data (cvg);
 	     if (nd != NULL)
 	     {
-	     /* creating a Grayscale NoData pixel /
+	     / creating a Grayscale NoData pixel /
 	     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) nd;
 	     rl2PrivSamplePtr sample = pxl->Samples + 0;
 	     no_data = rl2_create_pixel (RL2_SAMPLE_UINT8,
@@ -4034,6 +4034,7 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
 	goto error;
 
     /* updating the statistics */
+    compute_aggregate_sq_diff (coverage_stats);
     sqlite3_reset (stmt_stats_out);
     sqlite3_clear_bindings (stmt_stats_out);
     rl2_serialize_dbms_raster_statistics (coverage_stats, &blob_stats,

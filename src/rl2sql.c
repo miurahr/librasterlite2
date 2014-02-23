@@ -2094,6 +2094,85 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
     sqlite3_result_int (context, 1);
 }
 
+static void
+fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ DePyramidize(text coverage)
+/ DePyramidize(text coverage, text section)
+/ DePyramidize(text coverage, text section, int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    const char *sect_name = NULL;
+    int transaction = 1;
+    sqlite3 *sqlite;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_TEXT
+	&& sqlite3_value_type (argv[1]) != SQLITE_NULL)
+	err = 1;
+    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+/* attempting to delete all Pyramid levels */
+    sqlite = sqlite3_context_db_handle (context);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    if (argc > 1)
+      {
+	  if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
+	      sect_name = (const char *) sqlite3_value_text (argv[1]);
+      }
+    if (argc > 2)
+	transaction = sqlite3_value_int (argv[2]);
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    if (sect_name == NULL)
+	ret = rl2_delete_all_pyramids (sqlite, cvg_name);
+    else
+	ret = rl2_delete_section_pyramid (sqlite, cvg_name, sect_name);
+    if (ret != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  if (transaction)
+	    {
+		/* invalidating the pending transaction */
+		sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	    }
+	  return;
+      }
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
+}
+
 static WmsRetryListPtr
 alloc_retry_list ()
 {
@@ -4694,6 +4773,18 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_Pyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_Pyramidize", 4, SQLITE_ANY, 0,
 			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "DePyramidize", 1, SQLITE_ANY, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_DePyramidize", 1, SQLITE_ANY, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "DePyramidize", 2, SQLITE_ANY, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_DePyramidize", 2, SQLITE_ANY, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "DePyramidize", 3, SQLITE_ANY, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_DePyramidize", 3, SQLITE_ANY, 0,
+			     fnct_DePyramidize, 0, 0);
     sqlite3_create_function (db, "GetMapImage", 4, SQLITE_ANY, 0,
 			     fnct_GetMapImage, 0, 0);
     sqlite3_create_function (db, "RL2_GetMapImage", 4, SQLITE_ANY, 0,

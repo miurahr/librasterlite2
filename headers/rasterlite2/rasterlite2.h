@@ -194,6 +194,17 @@ extern "C"
 /** RasterLite2 constant: reproduction scale 1:8 */
 #define RL2_SCALE_8			0x34
 
+/** RasterLite2 constant: output format UNKNOWN */
+#define RL2_OUTPUT_FORMAT_UNKNOWN	0x70
+/** RasterLite2 constant: output format JPEG */
+#define RL2_OUTPUT_FORMAT_JPEG		0x71
+/** RasterLite2 constant: output format PNG */
+#define RL2_OUTPUT_FORMAT_PNG		0x72
+/** RasterLite2 constant: output format TIFF */
+#define RL2_OUTPUT_FORMAT_TIFF		0x73
+/** RasterLite2 constant: output format PDF */
+#define RL2_OUTPUT_FORMAT_PDF		0x74
+
 /**
  Typedef for RL2 Pixel object (opaque, hidden)
 
@@ -2966,6 +2977,13 @@ extern "C"
     RL2_DECLARE int
 	rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
 					int forced_rebuild);
+
+    RL2_DECLARE int
+	rl2_delete_section_pyramid (sqlite3 * handle, const char *coverage,
+				    const char *section);
+
+    RL2_DECLARE int
+	rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage);
 
 /**
  Exports an RGB buffer as an in-memory stored PNG image

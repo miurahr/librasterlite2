@@ -155,6 +155,18 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	deletesection2.testcase \
 	deletesection3.testcase \
 	deletesection4.testcase \
+	depyramidize1.testcase \
+	depyramidize2.testcase \
+	depyramidize3.testcase \
+	depyramidize4.testcase \
+	depyramidize5.testcase \
+	depyramidize6.testcase \
+	depyramidize7.testcase \
+	depyramidize8.testcase \
+	depyramidize9.testcase \
+	depyramidize10.testcase \
+	depyramidize11.testcase \
+	depyramidize12.testcase \
 	dropcoverage1.testcase \
 	dropcoverage2.testcase \
 	dropcoverage3.testcase \

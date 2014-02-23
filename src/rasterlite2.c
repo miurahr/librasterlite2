@@ -2560,7 +2560,7 @@ rl2_create_raster_statistics (unsigned char sample_type,
 	  band->nHistogram = nHistogram;
 	  band->histogram = malloc (sizeof (double) * nHistogram);
 	  for (j = 0; j < nHistogram; j++)
-	      band->histogram[j] = 0.0;
+	      *(band->histogram + j) = 0.0;
 	  band->first = NULL;
 	  band->last = NULL;
       }

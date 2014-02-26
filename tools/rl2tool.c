@@ -381,8 +381,7 @@ exec_create (sqlite3 * handle, const char *coverage,
 	 palette) != RL2_OK)
 	return 0;
 
-    fprintf (stderr, "\rRaster Coverage \"%s\" successfully created\n",
-	     coverage);
+    printf ("\rRaster Coverage \"%s\" successfully created\n", coverage);
     return 1;
 }
 
@@ -512,454 +511,6 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section)
   error:
     if (cvg != NULL)
 	rl2_destroy_coverage (cvg);
-    return 0;
-}
-
-static void
-do_transparent_mask (struct pyramid_params *params, int col, int row)
-{
-/* marking transparent pixels into the mask */
-    int r;
-    int base_r = row * params->tile_height;
-    unsigned char *p = params->mask;
-
-    for (r = base_r; r < base_r + params->tile_height; r += 16)
-      {
-	  int c;
-	  int base_c = col * params->tile_width;
-	  for (c = base_c; c < base_c + params->tile_width; c += 16)
-	      *p++ = 0;
-      }
-}
-
-static void
-rescale_pixels (struct pyramid_params *params, int row, int col,
-		rl2RasterPtr rst)
-{
-/* rescaling pixels */
-    int r;
-    unsigned char *ppxl = params->bufpix;
-    unsigned char *pmsk = params->mask;
-    int pix_sz = 1;
-
-/* computing the sample size */
-    switch (params->sample_type)
-      {
-      case RL2_SAMPLE_INT16:
-      case RL2_SAMPLE_UINT16:
-	  pix_sz = 2;
-	  break;
-      case RL2_SAMPLE_INT32:
-      case RL2_SAMPLE_UINT32:
-      case RL2_SAMPLE_FLOAT:
-	  pix_sz = 4;
-	  break;
-      case RL2_SAMPLE_DOUBLE:
-	  pix_sz = 8;
-	  break;
-      };
-
-    for (r = 0; r < params->tile_height; r += 16)
-      {
-	  int c;
-	  for (c = 0; c < params->tile_width; c += 16)
-	    {
-		rl2PixelPtr pixel = rl2_rescale_block (rst, r, c, 16);
-		if (pixel != NULL)
-		  {
-		      int band;
-		      for (band = 0; band < params->bands; band++)
-			{
-			    void *pxl;
-			    char v8;
-			    unsigned char vU8;
-			    short v16;
-			    unsigned short vU16;
-			    int v32;
-			    unsigned int vU32;
-			    float vFloat;
-			    double vDouble;
-			    switch (params->sample_type)
-			      {
-			      case RL2_SAMPLE_INT8:
-				  rl2_get_pixel_sample_int8 (pixel, &v8);
-				  pxl = &v8;
-				  break;
-			      case RL2_SAMPLE_UINT8:
-				  rl2_get_pixel_sample_uint8 (pixel, band,
-							      &vU8);
-				  pxl = &vU8;
-				  break;
-			      case RL2_SAMPLE_INT16:
-				  rl2_get_pixel_sample_int16 (pixel, &v16);
-				  pxl = &v16;
-				  break;
-			      case RL2_SAMPLE_UINT16:
-				  rl2_get_pixel_sample_uint16 (pixel, band,
-							       &vU16);
-				  pxl = &vU16;
-				  break;
-			      case RL2_SAMPLE_INT32:
-				  rl2_get_pixel_sample_int32 (pixel, &v32);
-				  pxl = &v32;
-				  break;
-			      case RL2_SAMPLE_UINT32:
-				  rl2_get_pixel_sample_uint32 (pixel, &vU32);
-				  pxl = &vU32;
-				  break;
-			      case RL2_SAMPLE_FLOAT:
-				  rl2_get_pixel_sample_float (pixel, &vFloat);
-				  pxl = &vFloat;
-				  break;
-			      case RL2_SAMPLE_DOUBLE:
-				  rl2_get_pixel_sample_double (pixel, &vDouble);
-				  pxl = &vDouble;
-				  break;
-			      };
-			    memcpy (ppxl, pxl, pix_sz);
-			    *ppxl += pix_sz;
-			}
-		      rl2_destroy_pixel (pixel);
-		      *pmsk++ = 1;
-		  }
-		else
-		    *pmsk++ = 0;
-	    }
-      }
-}
-
-static gaiaGeomCollPtr
-build_extent (int srid, double minx, double miny, double maxx, double maxy)
-{
-/* building an MBR (Envelope) */
-    gaiaPolygonPtr pg;
-    gaiaRingPtr rng;
-    gaiaGeomCollPtr geom = gaiaAllocGeomColl ();
-    geom->Srid = srid;
-    pg = gaiaAddPolygonToGeomColl (geom, 5, 0);
-    rng = pg->Exterior;
-    gaiaSetPoint (rng->Coords, 0, minx, miny);
-    gaiaSetPoint (rng->Coords, 1, maxx, miny);
-    gaiaSetPoint (rng->Coords, 2, maxx, maxy);
-    gaiaSetPoint (rng->Coords, 3, minx, maxy);
-    gaiaSetPoint (rng->Coords, 4, minx, miny);
-    return geom;
-}
-
-static int
-build_pyramid_tile (sqlite3 * handle, struct pyramid_params *params)
-{
-/* building a single Pyramid tile */
-    int row;
-    int col;
-    int ret;
-    rl2RasterPtr raster;
-    unsigned char *blob_odd = NULL;
-    unsigned char *blob_even = NULL;
-    int blob_odd_sz;
-    int blob_even_sz;
-    unsigned char *blob;
-    int blob_size;
-    gaiaGeomCollPtr geom;
-    sqlite3_int64 tile_id;
-    sqlite3_stmt *stmt = params->query_stmt;
-    sqlite3_stmt *stmt_tils = params->tiles_stmt;
-    sqlite3_stmt *stmt_data = params->data_stmt;
-    double cy =
-	params->tile_maxy - ((params->tile_height * params->y_res) / 2.0);
-
-    for (row = 0; row < 16; row++)
-      {
-	  double cx =
-	      params->tile_minx + ((params->tile_width * params->x_res) / 2.0);
-	  for (col = 0; col < 16; col++)
-	    {
-		/* retrieving lower-level tiles */
-		int done = 0;
-		sqlite3_reset (stmt);
-		sqlite3_clear_bindings (stmt);
-		sqlite3_bind_int64 (stmt, 1, params->section_id);
-		sqlite3_bind_double (stmt, 2, cx);
-		sqlite3_bind_double (stmt, 3, cy);
-		sqlite3_bind_double (stmt, 4, cx);
-		sqlite3_bind_double (stmt, 5, cy);
-		fprintf (stderr, "%1.2f %1.2f\n", cx, cy);
-		while (1)
-		  {
-		      /* scrolling the result set rows */
-		      int ret = sqlite3_step (stmt);
-		      if (ret == SQLITE_DONE)
-			  break;	/* end of result set */
-		      if (ret == SQLITE_ROW)
-			{
-			    rl2RasterPtr rst;
-			    const unsigned char *blob_odd = NULL;
-			    int blob_odd_sz = 0;
-			    const unsigned char *blob_even = NULL;
-			    int blob_even_sz = 0;
-			    sqlite3_int64 tile_id =
-				sqlite3_column_int64 (stmt, 0);
-			    fprintf (stderr, "\trd=%lld\n", tile_id);
-			    if (sqlite3_column_type (stmt, 1) == SQLITE_BLOB)
-			      {
-				  blob_odd = sqlite3_column_blob (stmt, 1);
-				  blob_odd_sz = sqlite3_column_bytes (stmt, 1);
-			      }
-			    if (sqlite3_column_type (stmt, 2) == SQLITE_BLOB)
-			      {
-				  blob_even = sqlite3_column_blob (stmt, 2);
-				  blob_even_sz = sqlite3_column_bytes (stmt, 2);
-			      }
-			    rst =
-				rl2_raster_decode (RL2_SCALE_1, blob_odd,
-						   blob_odd_sz, blob_even,
-						   blob_even_sz, NULL);
-			    if (rst == NULL)
-			      {
-				  fprintf (stderr,
-					   "ERROR: unable to decode Tile ID=%lld\n",
-					   tile_id);
-				  return 0;
-			      }
-			    rescale_pixels (params, row, col, rst);
-			    done = 1;
-			}
-		      else
-			{
-			    fprintf (stderr, "SQL error: %s\n",
-				     sqlite3_errmsg (handle));
-			    return 0;
-			}
-		  }
-		cx += params->tile_width * params->x_res;
-		if (!done)
-		  {
-		      /* lower-level tile not found - updating the Mask */
-		      do_transparent_mask (params, col, row);
-		  }
-	    }
-	  cy -= params->tile_height * params->y_res;
-      }
-
-/* saving the current Pyramid Tile */
-    raster =
-	rl2_create_raster (params->tile_width, params->tile_height,
-			   params->sample_type, params->pixel_type,
-			   params->bands, params->bufpix, params->bufpix_size,
-			   NULL, params->mask, params->mask_size, NULL);
-    fprintf (stderr, "Encode %d/%d\n", row, col);
-    if (rl2_raster_encode
-	(raster, params->compression, &blob_odd, &blob_odd_sz, &blob_even,
-	 &blob_even_sz, params->quality, 1) != RL2_OK)
-      {
-	  fprintf (stderr,
-		   "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
-		   row, col);
-	  return 0;
-      }
-    rl2_destroy_raster (raster);
-    raster = NULL;
-/* INSERTing the tile */
-    sqlite3_reset (stmt_tils);
-    sqlite3_clear_bindings (stmt_tils);
-    sqlite3_bind_int64 (stmt_tils, 1, params->section_id);
-    /*
-       tile_maxx = tile_minx + ((double) tile_w * res_x);
-       tile_miny = tile_maxy - ((double) tile_h * res_y);
-     */
-    geom =
-	build_extent (params->srid, params->tile_minx, params->tile_miny,
-		      params->tile_maxx, params->tile_maxy);
-    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-    gaiaFreeGeomColl (geom);
-    sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
-    ret = sqlite3_step (stmt_tils);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	;
-    else
-      {
-	  fprintf (stderr,
-		   "INSERT INTO tiles; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  return 0;
-      }
-    tile_id = sqlite3_last_insert_rowid (handle);
-/* INSERTing tile data */
-    sqlite3_reset (stmt_data);
-    sqlite3_clear_bindings (stmt_data);
-    tile_id = sqlite3_bind_int64 (stmt_data, 1, tile_id);
-    sqlite3_bind_blob (stmt_data, 2, blob_odd, blob_odd_sz, free);
-    if (blob_even == NULL)
-	sqlite3_bind_null (stmt_data, 3);
-    else
-	sqlite3_bind_blob (stmt_data, 3, blob_even, blob_even_sz, free);
-    ret = sqlite3_step (stmt_data);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	;
-    else
-      {
-	  fprintf (stderr,
-		   "INSERT INTO tile_data; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  return 0;
-      }
-    blob_odd = NULL;
-    blob_even = NULL;
-
-    return 1;
-    return 0;
-}
-
-static int
-build_pyramids (sqlite3 * handle, struct pyramid_params *params)
-{
-/* building Pyramid Levels for a single Section */
-    int row;
-    int col;
-    int ret;
-    char *sql;
-    char *table;
-    char *xtable;
-    char *table_tiles;
-    char *xtable_tiles;
-    char *table_data;
-    char *xtable_data;
-    sqlite3_stmt *stmt = NULL;
-
-    params->tile_maxy = params->max_y;
-    fprintf (stderr, "Building Pyramid Levels: Section \"%s\"\n", params->name);
-
-/* attempting to insert a new Pyramid Level definition */
-    table = sqlite3_mprintf ("%s_levels", params->coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
-	 "x_resolution_1_1, y_resolution_1_1, "
-	 "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
-	 "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
-	 "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO levels SQL error: %s\n",
-		  sqlite3_errmsg (handle));
-	  return 0;
-      }
-/* INSERTing Pyramid-level #1 */
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_double (stmt, 1, params->x_res * 16);
-    sqlite3_bind_double (stmt, 2, params->y_res * 16);
-    sqlite3_bind_double (stmt, 3, params->x_res * 32);
-    sqlite3_bind_double (stmt, 4, params->y_res * 32);
-    sqlite3_bind_double (stmt, 5, params->x_res * 64);
-    sqlite3_bind_double (stmt, 6, params->y_res * 64);
-    sqlite3_bind_double (stmt, 7, params->x_res * 128);
-    sqlite3_bind_double (stmt, 8, params->y_res * 128);
-    ret = sqlite3_step (stmt);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	;
-    else
-      {
-	  fprintf (stderr,
-		   "INSERT INTO levels; sqlite3_step() error: %s\n",
-		   sqlite3_errmsg (handle));
-	  sqlite3_finalize (stmt);
-	  return 0;
-      }
-    sqlite3_finalize (stmt);
-    stmt = NULL;
-
-    table_tiles = sqlite3_mprintf ("%s_tiles", params->coverage);
-    xtable_tiles = gaiaDoubleQuotedSql (table_tiles);
-    table_data = sqlite3_mprintf ("%s_tile_data", params->coverage);
-    xtable_data = gaiaDoubleQuotedSql (table_data);
-    sqlite3_free (table_data);
-    sql =
-	sqlite3_mprintf ("SELECT d.tile_id, d.tile_data_odd, d.tile_data_even "
-			 "FROM \"%s\" AS t JOIN \"%s\" AS d ON (t.tile_id = d.tile_id) "
-			 "WHERE t.section_id = ? AND t.pyramid_level = 0 "
-			 "AND ST_Intersects(t.geometry, MakePoint(?, ?)) = 1 "
-			 "AND t.ROWID IN (SELECT ROWID FROM SpatialIndex "
-			 "WHERE f_table_name = %Q AND search_frame = MakePoint(?, ?))",
-			 xtable_tiles, xtable_data, table_tiles);
-    sqlite3_free (table_tiles);
-    free (xtable_tiles);
-    free (xtable_data);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
-	  goto error;
-      }
-    params->query_stmt = stmt;
-
-    table = sqlite3_mprintf ("%s_tiles", params->coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, 1, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO tiles SQL error: %s\n", sqlite3_errmsg (handle));
-	  goto error;
-      }
-    params->tiles_stmt = stmt;
-
-    table = sqlite3_mprintf ("%s_tile_data", params->coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
-	 "VALUES (?, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  printf ("INSERT INTO tile_data SQL error: %s\n",
-		  sqlite3_errmsg (handle));
-	  goto error;
-      }
-    params->data_stmt = stmt;
-
-    for (row = 0; row < params->height; row += params->tile_height * 16)
-      {
-	  params->tile_minx = params->min_x;
-	  params->tile_miny =
-	      params->tile_maxy - ((params->tile_height * 16) * params->y_res);
-	  params->tile_miny =
-	      params->tile_maxy - ((params->tile_height * 16) * params->y_res);
-	  for (col = 0; col < params->width; col += params->tile_width * 16)
-	    {
-		params->tile_maxx =
-		    params->tile_minx +
-		    ((params->tile_width * 16) * params->x_res);
-		if (!build_pyramid_tile (handle, params))
-		    goto error;
-		params->tile_minx += (params->tile_width * 16) * params->x_res;
-	    }
-	  params->tile_maxy -= (params->tile_height * 16) * params->y_res;
-      }
-    sqlite3_finalize (params->query_stmt);
-    params->query_stmt = NULL;
-    return 1;
-
-  error:
-    if (params->query_stmt != NULL)
-	sqlite3_finalize (params->query_stmt);
-    params->query_stmt = NULL;
     return 0;
 }
 
@@ -1266,22 +817,29 @@ exec_catalog (sqlite3 * handle)
 	      break;
 	  if (ret == SQLITE_ROW)
 	    {
-		const char *name = (const char *)sqlite3_column_text (stmt, 0);
-		const char *title = (const char *)sqlite3_column_text (stmt, 1);
-		const char *abstract = (const char *)sqlite3_column_text (stmt, 2);
-		const char *sample = (const char *)sqlite3_column_text (stmt, 3);
-		const char *pixel = (const char *)sqlite3_column_text (stmt, 4);
+		const char *name = (const char *) sqlite3_column_text (stmt, 0);
+		const char *title =
+		    (const char *) sqlite3_column_text (stmt, 1);
+		const char *abstract =
+		    (const char *) sqlite3_column_text (stmt, 2);
+		const char *sample =
+		    (const char *) sqlite3_column_text (stmt, 3);
+		const char *pixel =
+		    (const char *) sqlite3_column_text (stmt, 4);
 		int bands = sqlite3_column_int (stmt, 5);
-		const char *compression = (const char *)sqlite3_column_text (stmt, 6);
+		const char *compression =
+		    (const char *) sqlite3_column_text (stmt, 6);
 		int quality = sqlite3_column_int (stmt, 7);
 		int tileW = sqlite3_column_int (stmt, 8);
 		int tileH = sqlite3_column_int (stmt, 9);
 		double x_res = sqlite3_column_double (stmt, 10);
 		double y_res = sqlite3_column_double (stmt, 11);
 		int srid = sqlite3_column_int (stmt, 12);
-		const char *authName = (const char *)sqlite3_column_text (stmt, 13);
+		const char *authName =
+		    (const char *) sqlite3_column_text (stmt, 13);
 		int authSrid = sqlite3_column_int (stmt, 14);
-		const char *crsName = (const char *)sqlite3_column_text (stmt, 15);
+		const char *crsName =
+		    (const char *) sqlite3_column_text (stmt, 15);
 		char *minx = NULL;
 		char *miny = NULL;
 		char *maxx = NULL;
@@ -1748,7 +1306,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 	  if (ret == SQLITE_ROW)
 	    {
 		int id = sqlite3_column_int (stmt, 0);
-		const char *name = (const char *)sqlite3_column_text (stmt, 1);
+		const char *name = (const char *) sqlite3_column_text (stmt, 1);
 		int width = sqlite3_column_int (stmt, 2);
 		int height = sqlite3_column_int (stmt, 3);
 		const char *path = NULL;
@@ -1760,7 +1318,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 		int tiles = 0;
 		int blob_bytes = 0;
 		if (sqlite3_column_type (stmt, 4) == SQLITE_TEXT)
-		    path = (const char *)sqlite3_column_text (stmt, 4);
+		    path = (const char *) sqlite3_column_text (stmt, 4);
 		if (sqlite3_column_type (stmt, 5) == SQLITE_FLOAT)
 		    minx = sqlite3_column_double (stmt, 5);
 		if (sqlite3_column_type (stmt, 6) == SQLITE_FLOAT)
@@ -2396,57 +1954,56 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 /* checking/printing CREATE args */
     int err = 0;
     int res_error = 0;
-    fprintf (stderr, "\n\nrl2_tool: request is CREATE\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool: request is CREATE\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "              DB path: %s\n", db_path);
+	printf ("              DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "             Coverage: %s\n", coverage);
+	printf ("             Coverage: %s\n", coverage);
     switch (sample)
       {
       case RL2_SAMPLE_1_BIT:
-	  fprintf (stderr, "          Sample Type: 1-BIT\n");
+	  printf ("          Sample Type: 1-BIT\n");
 	  break;
       case RL2_SAMPLE_2_BIT:
-	  fprintf (stderr, "          Sample Type: 2-BIT\n");
+	  printf ("          Sample Type: 2-BIT\n");
 	  break;
       case RL2_SAMPLE_4_BIT:
-	  fprintf (stderr, "          Sample Type: 4-BIT\n");
+	  printf ("          Sample Type: 4-BIT\n");
 	  break;
       case RL2_SAMPLE_INT8:
-	  fprintf (stderr, "          Sample Type: INT8\n");
+	  printf ("          Sample Type: INT8\n");
 	  break;
       case RL2_SAMPLE_UINT8:
-	  fprintf (stderr, "          Sample Type: UINT8\n");
+	  printf ("          Sample Type: UINT8\n");
 	  break;
       case RL2_SAMPLE_INT16:
-	  fprintf (stderr, "          Sample Type: INT16\n");
+	  printf ("          Sample Type: INT16\n");
 	  break;
       case RL2_SAMPLE_UINT16:
-	  fprintf (stderr, "          Sample Type: UINT16\n");
+	  printf ("          Sample Type: UINT16\n");
 	  break;
       case RL2_SAMPLE_INT32:
-	  fprintf (stderr, "          Sample Type: INT32\n");
+	  printf ("          Sample Type: INT32\n");
 	  break;
       case RL2_SAMPLE_UINT32:
-	  fprintf (stderr, "          Sample Type: UINT32\n");
+	  printf ("          Sample Type: UINT32\n");
 	  break;
       case RL2_SAMPLE_FLOAT:
-	  fprintf (stderr, "          Sample Type: FLOAT\n");
+	  printf ("          Sample Type: FLOAT\n");
 	  break;
       case RL2_SAMPLE_DOUBLE:
-	  fprintf (stderr, "          Sample Type: DOUBLE\n");
+	  printf ("          Sample Type: DOUBLE\n");
 	  break;
       default:
 	  fprintf (stderr, "*** ERROR *** unknown sample type\n");
@@ -2456,26 +2013,26 @@ check_create_args (const char *db_path, const char *coverage, int sample,
     switch (pixel)
       {
       case RL2_PIXEL_MONOCHROME:
-	  fprintf (stderr, "           Pixel Type: MONOCHROME\n");
+	  printf ("           Pixel Type: MONOCHROME\n");
 	  num_bands = 1;
 	  break;
       case RL2_PIXEL_PALETTE:
-	  fprintf (stderr, "           Pixel Type: PALETTE\n");
+	  printf ("           Pixel Type: PALETTE\n");
 	  num_bands = 1;
 	  break;
       case RL2_PIXEL_GRAYSCALE:
-	  fprintf (stderr, "           Pixel Type: GRAYSCALE\n");
+	  printf ("           Pixel Type: GRAYSCALE\n");
 	  num_bands = 1;
 	  break;
       case RL2_PIXEL_RGB:
-	  fprintf (stderr, "           Pixel Type: RGB\n");
+	  printf ("           Pixel Type: RGB\n");
 	  num_bands = 3;
 	  break;
       case RL2_PIXEL_MULTIBAND:
-	  fprintf (stderr, "           Pixel Type: MULTIBAND\n");
+	  printf ("           Pixel Type: MULTIBAND\n");
 	  break;
       case RL2_PIXEL_DATAGRID:
-	  fprintf (stderr, "           Pixel Type: DATAGRID\n");
+	  printf ("           Pixel Type: DATAGRID\n");
 	  num_bands = 1;
 	  break;
       default:
@@ -2486,7 +2043,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
     if (num_bands == RL2_BANDS_UNKNOWN)
 	fprintf (stderr, "*** ERROR *** unknown number of Bands\n");
     else
-	fprintf (stderr, "      Number of Bands: %d\n", num_bands);
+	printf ("      Number of Bands: %d\n", num_bands);
     if (pxl != NULL)
       {
 	  unsigned char xsample;
@@ -2497,7 +2054,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	      fprintf (stderr, "*** ERROR *** invalid NO-DATA pixel\n");
 	  else
 	    {
-		fprintf (stderr, "        NO-DATA pixel: ");
+		printf ("        NO-DATA pixel: ");
 		for (band_idx = 0; band_idx < xbands; band_idx++)
 		  {
 		      char int8_value;
@@ -2513,58 +2070,58 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 			{
 			case RL2_SAMPLE_1_BIT:
 			    rl2_get_pixel_sample_1bit (pxl, &uint8_value);
-			    fprintf (stderr, "%u", uint8_value);
+			    printf ("%u", uint8_value);
 			    break;
 			case RL2_SAMPLE_2_BIT:
 			    rl2_get_pixel_sample_2bit (pxl, &uint8_value);
-			    fprintf (stderr, "%u", uint8_value);
+			    printf ("%u", uint8_value);
 			    break;
 			case RL2_SAMPLE_4_BIT:
 			    rl2_get_pixel_sample_4bit (pxl, &uint8_value);
-			    fprintf (stderr, "%u", uint8_value);
+			    printf ("%u", uint8_value);
 			    break;
 			case RL2_SAMPLE_INT8:
 			    rl2_get_pixel_sample_int8 (pxl, &int8_value);
-			    fprintf (stderr, "%d", int8_value);
+			    printf ("%d", int8_value);
 			    break;
 			case RL2_SAMPLE_UINT8:
 			    rl2_get_pixel_sample_uint8 (pxl, band_idx,
 							&uint8_value);
 			    if (band_idx > 0)
-				fprintf (stderr, ",%u", uint8_value);
+				printf (",%u", uint8_value);
 			    else
-				fprintf (stderr, "%u", uint8_value);
+				printf ("%u", uint8_value);
 			    break;
 			case RL2_SAMPLE_INT16:
 			    rl2_get_pixel_sample_int16 (pxl, &int16_value);
-			    fprintf (stderr, "%d", int16_value);
+			    printf ("%d", int16_value);
 			    break;
 			case RL2_SAMPLE_UINT16:
 			    rl2_get_pixel_sample_uint16 (pxl, band_idx,
 							 &uint16_value);
 			    if (band_idx > 0)
-				fprintf (stderr, ",%u", uint16_value);
+				printf (",%u", uint16_value);
 			    else
-				fprintf (stderr, "%u", uint16_value);
+				printf ("%u", uint16_value);
 			    break;
 			case RL2_SAMPLE_INT32:
 			    rl2_get_pixel_sample_int32 (pxl, &int32_value);
-			    fprintf (stderr, "%u", uint32_value);
+			    printf ("%u", uint32_value);
 			    break;
 			case RL2_SAMPLE_UINT32:
 			    rl2_get_pixel_sample_uint32 (pxl, &uint32_value);
-			    fprintf (stderr, "%u", uint32_value);
+			    printf ("%u", uint32_value);
 			    break;
 			case RL2_SAMPLE_FLOAT:
 			    rl2_get_pixel_sample_float (pxl, &flt_value);
 			    dummy = formatFloat (flt_value);
-			    fprintf (stderr, "%s", dummy);
+			    printf ("%s", dummy);
 			    free (dummy);
 			    break;
 			case RL2_SAMPLE_DOUBLE:
 			    rl2_get_pixel_sample_double (pxl, &dbl_value);
 			    dummy = formatFloat (dbl_value);
-			    fprintf (stderr, "%s", dummy);
+			    printf ("%s", dummy);
 			    free (dummy);
 			    break;
 			};
@@ -2575,51 +2132,47 @@ check_create_args (const char *db_path, const char *coverage, int sample,
     switch (compression)
       {
       case RL2_COMPRESSION_NONE:
-	  fprintf (stderr, "          Compression: NONE (uncompressed)\n");
+	  printf ("          Compression: NONE (uncompressed)\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_DEFLATE:
-	  fprintf (stderr, "          Compression: DEFLATE (zip, lossless)\n");
+	  printf ("          Compression: DEFLATE (zip, lossless)\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_LZMA:
-	  fprintf (stderr, "          Compression: LZMA (7-zip, lossless)\n");
+	  printf ("          Compression: LZMA (7-zip, lossless)\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_GIF:
-	  fprintf (stderr, "          Compression: GIF, lossless\n");
+	  printf ("          Compression: GIF, lossless\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_PNG:
-	  fprintf (stderr, "          Compression: PNG, lossless\n");
+	  printf ("          Compression: PNG, lossless\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_JPEG:
-	  fprintf (stderr, "          Compression: JPEG (lossy)\n");
+	  printf ("          Compression: JPEG (lossy)\n");
 	  if (*quality < 0)
 	      *quality = 80;
 	  if (*quality > 100)
 	      *quality = 100;
-	  fprintf (stderr, "  Compression Quality: %d\n", *quality);
+	  printf ("  Compression Quality: %d\n", *quality);
 	  break;
       case RL2_COMPRESSION_LOSSY_WEBP:
-	  fprintf (stderr, "          Compression: WEBP (lossy)\n");
+	  printf ("          Compression: WEBP (lossy)\n");
 	  if (*quality < 0)
 	      *quality = 80;
 	  if (*quality > 100)
 	      *quality = 100;
-	  fprintf (stderr, "  Compression Quality: %d\n", *quality);
+	  printf ("  Compression Quality: %d\n", *quality);
 	  break;
       case RL2_COMPRESSION_LOSSLESS_WEBP:
-	  fprintf (stderr, "          Compression: WEBP, lossless\n");
-	  *quality = 100;
-	  break;
-      case RL2_COMPRESSION_CCITTFAX3:
-	  fprintf (stderr, "          Compression: CCITT FAX3, lossless\n");
+	  printf ("          Compression: WEBP, lossless\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_CCITTFAX4:
-	  fprintf (stderr, "          Compression: CCITT FAX4, lossless\n");
+	  printf ("          Compression: CCITT FAX4, lossless\n");
 	  *quality = 100;
 	  break;
       default:
@@ -2627,15 +2180,14 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  err = 1;
 	  break;
       };
-    fprintf (stderr, "   Tile size (pixels): %d x %d\n", tile_width,
-	     tile_height);
+    printf ("   Tile size (pixels): %d x %d\n", tile_width, tile_height);
     if (srid <= 0)
       {
 	  fprintf (stderr, "*** ERROR *** undefined SRID\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "                 Srid: %d\n", srid);
+	printf ("                 Srid: %d\n", srid);
     if (x_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
@@ -2652,12 +2204,11 @@ check_create_args (const char *db_path, const char *coverage, int sample,
       {
 	  char *hres = formatFloat (x_res);
 	  char *vres = formatFloat (y_res);
-	  fprintf (stderr, "Pixel base resolution: X=%s Y=%s\n", hres, vres);
+	  printf ("Pixel base resolution: X=%s Y=%s\n", hres, vres);
 	  sqlite3_free (hres);
 	  sqlite3_free (vres);
       }
-    fprintf (stderr,
-	     "===========================================================\n\n");
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -2669,23 +2220,22 @@ check_import_args (const char *db_path, const char *src_path,
 {
 /* checking/printing IMPORT args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is IMPORT\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is IMPORT\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "              DB path: %s\n", db_path);
+	printf ("              DB path: %s\n", db_path);
 
     if (src_path != NULL && dir_path == NULL)
-	fprintf (stderr, "    Input Source path: %s\n", src_path);
+	printf ("    Input Source path: %s\n", src_path);
     else if (src_path == NULL && dir_path != NULL && file_ext != NULL)
       {
-	  fprintf (stderr, " Input Directory path: %s\n", dir_path);
-	  fprintf (stderr, "       File Extension: %s\n", file_ext);
+	  printf (" Input Directory path: %s\n", dir_path);
+	  printf ("       File Extension: %s\n", file_ext);
       }
     else
       {
@@ -2716,27 +2266,26 @@ check_import_args (const char *db_path, const char *src_path,
 	  err = 1;
       }
     else
-	fprintf (stderr, "             Coverage: %s\n", coverage);
+	printf ("             Coverage: %s\n", coverage);
     if (section == NULL)
-	fprintf (stderr, "              Section: from file name\n");
+	printf ("              Section: from file name\n");
     else
-	fprintf (stderr, "              Section: %s\n", section);
+	printf ("              Section: %s\n", section);
     if (worldfile)
       {
 	  if (srid <= 0)
 	      fprintf (stderr,
 		       "*** ERROR *** WorldFile requires specifying some SRID\n");
 	  else
-	      fprintf (stderr, "Using the WorldFile\n");
+	      printf ("Using the WorldFile\n");
       }
     if (srid > 0)
-	fprintf (stderr, "          Forced SRID: %d\n", srid);
+	printf ("          Forced SRID: %d\n", srid);
     if (pyramidize)
-	fprintf (stderr, "Immediately building Pyramid Levels\n");
+	printf ("Immediately building Pyramid Levels\n");
     else
-	fprintf (stderr, "Ignoring Pyramid Levels for now\n");
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf ("Ignoring Pyramid Levels for now\n");
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -2754,23 +2303,22 @@ check_export_args (const char *db_path, const char *dst_path,
     char *dumb2;
     int err = 0;
     int err_bbox = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is EXPORT\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is EXPORT\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "           DB path: %s\n", db_path);
+	printf ("           DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "          Coverage: %s\n", coverage);
+	printf ("          Coverage: %s\n", coverage);
     if (x_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
@@ -2785,7 +2333,7 @@ check_export_args (const char *db_path, const char *dst_path,
       {
 	  dumb1 = formatFloat (x_res);
 	  dumb2 = formatFloat (y_res);
-	  fprintf (stderr, "        Pixel size: X=%s Y=%s\n", dumb1, dumb2);
+	  printf ("        Pixel size: X=%s Y=%s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
       }
@@ -2802,7 +2350,7 @@ check_export_args (const char *db_path, const char *dst_path,
 	  err_bbox = 1;
       }
     if (!err)
-	fprintf (stderr, "        Image Size: %u x %u\n", *width, *height);
+	printf ("        Image Size: %u x %u\n", *width, *height);
     if (dst_path == NULL)
       {
 	  fprintf (stderr,
@@ -2952,17 +2500,17 @@ check_export_args (const char *db_path, const char *dst_path,
       {
 	  dumb1 = formatLong (*minx);
 	  dumb2 = formatLat (*miny);
-	  fprintf (stderr, " Lower-Left Corner: %s %s\n", dumb1, dumb2);
+	  printf (" Lower-Left Corner: %s %s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
 	  dumb1 = formatLong (*maxx);
 	  dumb2 = formatLat (*maxy);
-	  fprintf (stderr, "Upper-Right Corner: %s %s\n", dumb1, dumb2);
+	  printf ("Upper-Right Corner: %s %s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
 	  dumb1 = formatLong (*cx);
 	  dumb2 = formatLat (*cy);
-	  fprintf (stderr, "            Center: %s %s\n", dumb1, dumb2);
+	  printf ("            Center: %s %s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
       }
@@ -2976,25 +2524,23 @@ check_drop_args (const char *db_path, const char *coverage)
 {
 /* checking/printing DROP args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is DROP\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is DROP\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
+	printf ("DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf ("Coverage: %s\n", coverage);
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -3004,32 +2550,30 @@ check_delete_args (const char *db_path, const char *coverage,
 {
 /* checking/printing DELETE args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is DELETE\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is DELETE\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
+	printf ("DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	printf ("Coverage: %s\n", coverage);
     if (section == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Section's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Section: %s\n", section);
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf ("Section: %s\n", section);
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -3039,33 +2583,31 @@ check_pyramidize_args (const char *db_path, const char *coverage,
 {
 /* checking/printing PYRAMIDIZE args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is PYRAMIDIZE\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is PYRAMIDIZE\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
+	printf ("DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	printf ("Coverage: %s\n", coverage);
     if (section == NULL)
-	fprintf (stderr, "Section: All Sections\n");
+	printf ("Section: All Sections\n");
     else
-	fprintf (stderr, "Section: %s\n", section);
+	printf ("Section: %s\n", section);
     if (force)
-	fprintf (stderr, "Unconditionally rebuilding all Pyramid Levels\n");
+	printf ("Unconditionally rebuilding all Pyramid Levels\n");
     else
-	fprintf (stderr, "Only building missing Pyramid Levels\n");
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf ("Only building missing Pyramid Levels\n");
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -3075,29 +2617,27 @@ check_de_pyramidize_args (const char *db_path, const char *coverage,
 {
 /* checking/printing DE-PYRAMIDIZE args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is DE-PYRAMIDIZE\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is DE-PYRAMIDIZE\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
+	printf ("DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	printf ("Coverage: %s\n", coverage);
     if (section == NULL)
-	fprintf (stderr, "Section: All Sections\n");
+	printf ("Section: All Sections\n");
     else
-	fprintf (stderr, "Section: %s\n", section);
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf ("Section: %s\n", section);
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -3106,29 +2646,27 @@ check_list_args (const char *db_path, const char *coverage, const char *section)
 {
 /* checking/printing LIST args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is LIST\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is LIST\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, " DB path: %s\n", db_path);
+	printf (" DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "Coverage: %s\n", coverage);
+	printf ("Coverage: %s\n", coverage);
     if (section == NULL)
-	fprintf (stderr, " Section: All Sections\n");
+	printf (" Section: All Sections\n");
     else
-	fprintf (stderr, " Section: %s\n", section);
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf (" Section: %s\n", section);
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -3138,23 +2676,22 @@ check_map_args (const char *db_path, const char *coverage, const char *dst_path,
 {
 /* checking/printing MAP args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is MAP\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is MAP\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "           DB path: %s\n", db_path);
+	printf ("           DB path: %s\n", db_path);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "          Coverage: %s\n", coverage);
+	printf ("          Coverage: %s\n", coverage);
     if (dst_path == NULL)
       {
 	  fprintf (stderr,
@@ -3162,7 +2699,7 @@ check_map_args (const char *db_path, const char *coverage, const char *dst_path,
 	  err = 1;
       }
     else
-	fprintf (stderr, "  Destination Path: %s\n", dst_path);
+	printf ("  Destination Path: %s\n", dst_path);
     if (*width < 512)
 	*width = 512;
     if (*width > 4092)
@@ -3171,9 +2708,8 @@ check_map_args (const char *db_path, const char *coverage, const char *dst_path,
 	*height = 512;
     if (*height > 4096)
 	*height = 4096;
-    fprintf (stderr, "        Image Size: %u x %u\n", *width, *height);
-    fprintf (stderr,
-	     "===========================================================\n\n");
+    printf ("        Image Size: %u x %u\n", *width, *height);
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -3182,18 +2718,16 @@ check_catalog_args (const char *db_path)
 {
 /* checking/printing CATALOG args */
     int err = 0;
-    fprintf (stderr, "\n\nrl2_tool; request is CATALOG\n");
-    fprintf (stderr,
-	     "===========================================================\n");
+    printf ("\n\nrl2_tool; request is CATALOG\n");
+    printf ("===========================================================\n");
     if (db_path == NULL)
       {
 	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
 	  err = 1;
       }
     else
-	fprintf (stderr, "DB path: %s\n", db_path);
-    fprintf (stderr,
-	     "===========================================================\n\n");
+	printf ("DB path: %s\n", db_path);
+    printf ("===========================================================\n\n");
     return err;
 }
 
@@ -4313,7 +3847,7 @@ main (int argc, char *argv[])
 		op_name = "CATALOG";
 		break;
 	    };
-	  fprintf (stderr, "\nOperation %s successfully completed\n", op_name);
+	  printf ("\nOperation %s successfully completed\n", op_name);
       }
     else
       {

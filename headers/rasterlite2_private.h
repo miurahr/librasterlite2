@@ -596,7 +596,7 @@ extern "C"
 			rl2PalettePtr * palette);
 
     RL2_PRIVATE int
-	rl2_data_to_gif (const unsigned char *pixels, const unsigned char *mask,
+	rl2_data_to_gif (const unsigned char *pixels,
 			 rl2PalettePtr plt, unsigned short width,
 			 unsigned short height, unsigned char sample_type,
 			 unsigned char pixel_type, unsigned char **compr_data,
@@ -636,7 +636,6 @@ extern "C"
     RL2_PRIVATE void void_raw_buffer_palette (unsigned char *buffer,
 					      unsigned short width,
 					      unsigned short height,
-					      rl2PalettePtr palette,
 					      rl2PixelPtr no_data);
 
     RL2_PRIVATE void void_raw_buffer (unsigned char *buffer,

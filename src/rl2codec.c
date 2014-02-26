@@ -4397,8 +4397,8 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
     if (level == 0)
       {
 	  /* base-level tile */
-	  if (sample_type == xsample_type || pixel_type == xpixel_type
-	      || num_bands == xnum_bands || compression == xcompression)
+	  if (sample_type == xsample_type && pixel_type == xpixel_type
+	      && num_bands == xnum_bands && compression == xcompression)
 	      return RL2_OK;
       }
     else
@@ -4444,6 +4444,9 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
 		    && xcompression == RL2_COMPRESSION_PNG)
 		    return RL2_OK;
 	    }
+	  if (sample_type == xsample_type && pixel_type == RL2_PIXEL_DATAGRID
+	      && num_bands == xnum_bands && compression == xcompression)
+	      return RL2_OK;
       }
     return RL2_ERROR;
 }
@@ -5052,7 +5055,8 @@ update_int8_stats (unsigned short width, unsigned short height,
 			    double value = *p_in++;
 			    update_count_stats (st);
 			    update_stats (st, 0, value);
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5143,7 +5147,8 @@ update_uint8_stats (unsigned short width, unsigned short height,
 				  double value = *p_in++;
 				  update_stats (st, ib, value);
 			      }
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5246,7 +5251,8 @@ update_int16_stats (unsigned short width, unsigned short height,
 			    double value = *p_in++;
 			    update_count_stats (st);
 			    update_stats (st, 0, value);
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5335,7 +5341,8 @@ update_uint16_stats (unsigned short width, unsigned short height,
 				  double value = *p_in++;
 				  update_stats (st, ib, value);
 			      }
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5423,7 +5430,8 @@ update_int32_stats (unsigned short width, unsigned short height,
 			    double value = *p_in++;
 			    update_count_stats (st);
 			    update_stats (st, 0, value);
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5506,7 +5514,8 @@ update_uint32_stats (unsigned short width, unsigned short height,
 			    double value = *p_in++;
 			    update_count_stats (st);
 			    update_stats (st, 0, value);
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5589,7 +5598,8 @@ update_float_stats (unsigned short width, unsigned short height,
 			    double value = *p_in++;
 			    update_count_stats (st);
 			    update_stats (st, 0, value);
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */
@@ -5672,7 +5682,8 @@ update_double_stats (unsigned short width, unsigned short height,
 			    double value = *p_in++;
 			    update_count_stats (st);
 			    update_stats (st, 0, value);
-		  }}
+			}
+		  }
 		else
 		  {
 		      /* testing for NO-DATA values */

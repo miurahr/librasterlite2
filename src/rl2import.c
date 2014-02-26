@@ -635,6 +635,35 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 
     rl2_destroy_ascii_grid_origin (origin);
     rl2_destroy_raster_statistics (section_stats);
+    origin = NULL;
+    section_stats = NULL;
+
+    if (pyramidize)
+      {
+	  /* immediately building the Section's Pyramid */
+	  const char *coverage_name = rl2_get_coverage_name (cvg);
+	  const char *section_name = section;
+	  char *sect_name = NULL;
+	  if (coverage_name == NULL)
+	      goto error;
+	  if (section_name == NULL)
+	    {
+		sect_name = get_section_name (src_path);
+		section_name = sect_name;
+	    }
+	  if (section_name == NULL)
+	      goto error;
+	  if (rl2_build_section_pyramid (handle, coverage_name, section_name, 1)
+	      != RL2_OK)
+	    {
+		if (sect_name != NULL)
+		    free (sect_name);
+		fprintf (stderr, "unable to build the Section's Pyramid\n");
+		goto error;
+	    }
+	  if (sect_name != NULL)
+	      free (sect_name);
+      }
 
     return 1;
 
@@ -1543,6 +1572,7 @@ rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
     rl2PalettePtr palette = NULL;
     rl2PalettePtr plt2 = NULL;
     rl2TiffDestinationPtr tiff = NULL;
+    rl2PixelPtr no_data = NULL;
     unsigned char level;
     unsigned char scale;
     double xx_res = x_res;
@@ -1572,6 +1602,7 @@ rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	goto error;
     if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
 	goto error;
+    no_data = rl2_get_coverage_no_data (cvg);
 
     if (level > 0)
       {
@@ -1643,10 +1674,10 @@ rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 		  }
 		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
 		    rl2_prime_void_tile_palette (bufpix, tile_sz, tile_sz,
-						 palette);
+						 no_data);
 		else
 		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
-					 num_bands);
+					 num_bands, no_data);
 		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  num_bands, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
@@ -1707,6 +1738,7 @@ rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
     rl2RasterPtr raster = NULL;
     rl2PalettePtr palette = NULL;
     rl2PalettePtr plt2 = NULL;
+    rl2PixelPtr no_data = NULL;
     rl2TiffDestinationPtr tiff = NULL;
     unsigned char level;
     unsigned char scale;
@@ -1737,6 +1769,7 @@ rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
 	goto error;
     if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
 	goto error;
+    no_data = rl2_get_coverage_no_data (cvg);
 
     if (level > 0)
       {
@@ -1808,10 +1841,10 @@ rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
 		  }
 		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
 		    rl2_prime_void_tile_palette (bufpix, tile_sz, tile_sz,
-						 palette);
+						 no_data);
 		else
 		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
-					 num_bands);
+					 num_bands, no_data);
 		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  num_bands, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
@@ -1867,6 +1900,7 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
     rl2RasterPtr raster = NULL;
     rl2PalettePtr palette = NULL;
     rl2PalettePtr plt2 = NULL;
+    rl2PixelPtr no_data = NULL;
     rl2TiffDestinationPtr tiff = NULL;
     unsigned char level;
     unsigned char scale;
@@ -1897,6 +1931,7 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	goto error;
     if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
 	goto error;
+    no_data = rl2_get_coverage_no_data (cvg);
 
     if (level > 0)
       {
@@ -1966,10 +2001,10 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 		  }
 		if (pixel_type == RL2_PIXEL_PALETTE && palette != NULL)
 		    rl2_prime_void_tile_palette (bufpix, tile_sz, tile_sz,
-						 palette);
+						 no_data);
 		else
 		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
-					 num_bands);
+					 num_bands, no_data);
 		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  num_bands, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
@@ -2677,6 +2712,878 @@ load_tile_base (sqlite3_stmt * stmt, sqlite3_int64 tile_id,
     return rgba_tile;
 }
 
+static rl2RasterPtr
+load_tile_base_grid (sqlite3_stmt * stmt, sqlite3_int64 tile_id)
+{
+/* attempting to read a lower-level tile */
+    int ret;
+    const unsigned char *blob_odd = NULL;
+    int blob_odd_sz = 0;
+    const unsigned char *blob_even = NULL;
+    int blob_even_sz = 0;
+    rl2RasterPtr raster = NULL;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int64 (stmt, 1, tile_id);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      blob_odd = sqlite3_column_blob (stmt, 0);
+		      blob_odd_sz = sqlite3_column_bytes (stmt, 0);
+		  }
+		if (sqlite3_column_type (stmt, 1) == SQLITE_BLOB)
+		  {
+		      blob_even = sqlite3_column_blob (stmt, 1);
+		      blob_even_sz = sqlite3_column_bytes (stmt, 1);
+		  }
+		raster =
+		    rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz,
+				       blob_even, blob_even_sz, NULL);
+		if (raster == NULL)
+		  {
+		      fprintf (stderr, ERR_FRMT64, tile_id);
+		      return NULL;
+		  }
+		return raster;
+	    }
+      }
+    return NULL;
+}
+
+static double
+rescale_pixel_int8 (const char *buf_in, unsigned short tileWidth,
+		    unsigned short tileHeight, int x, int y, char nd)
+{
+/* rescaling a DataGrid pixel (8x8) - INT8 */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const char *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const char *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (char) (sum / (double) valid);
+}
+
+static void
+rescale_grid_int8 (char *buf_out, unsigned short tileWidth,
+		   unsigned short tileHeight, const char *buf_in, int x, int y,
+		   rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - int 8 bit */
+    unsigned short row;
+    unsigned short col;
+    char nd = 0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_INT8 && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->int8;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  char *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		char *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_int8 (buf_in, tileWidth, tileHeight, x * 8,
+					y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_uint8 (const unsigned char *buf_in, unsigned short tileWidth,
+		     unsigned short tileHeight, int x, int y, unsigned char nd)
+{
+/* rescaling a DataGrid pixel (8x8) - UINT8 */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const unsigned char *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const unsigned char *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (unsigned char) (sum / (double) valid);
+}
+
+static void
+rescale_grid_uint8 (unsigned char *buf_out, unsigned short tileWidth,
+		    unsigned short tileHeight, const unsigned char *buf_in,
+		    int x, int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - unsigned int 8 bit */
+    unsigned short row;
+    unsigned short col;
+    unsigned char nd = 0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_UINT8 && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->uint8;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  unsigned char *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		unsigned char *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_uint8 (buf_in, tileWidth, tileHeight, x * 8,
+					 y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_int16 (const short *buf_in, unsigned short tileWidth,
+		     unsigned short tileHeight, int x, int y, short nd)
+{
+/* rescaling a DataGrid pixel (8x8) - INT32 */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const short *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const short *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (short) (sum / (double) valid);
+}
+
+static void
+rescale_grid_int16 (short *buf_out, unsigned short tileWidth,
+		    unsigned short tileHeight, const short *buf_in, int x,
+		    int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - int 16 bit */
+    unsigned short row;
+    unsigned short col;
+    short nd = 0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_INT16 && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->int16;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  short *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		short *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_int16 (buf_in, tileWidth, tileHeight, x * 8,
+					 y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_uint16 (const unsigned short *buf_in, unsigned short tileWidth,
+		      unsigned short tileHeight, int x, int y,
+		      unsigned short nd)
+{
+/* rescaling a DataGrid pixel (8x8) - UINT16 */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const unsigned short *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const unsigned short *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (unsigned short) (sum / (double) valid);
+}
+
+static void
+rescale_grid_uint16 (unsigned short *buf_out, unsigned short tileWidth,
+		     unsigned short tileHeight, const unsigned short *buf_in,
+		     int x, int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - unsigned int 16 bit */
+    unsigned short row;
+    unsigned short col;
+    unsigned short nd = 0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_UINT16 && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->uint16;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  unsigned short *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		unsigned short *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_uint16 (buf_in, tileWidth, tileHeight, x * 8,
+					  y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_int32 (const int *buf_in, unsigned short tileWidth,
+		     unsigned short tileHeight, int x, int y, int nd)
+{
+/* rescaling a DataGrid pixel (8x8) - INT32 */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const int *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const int *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (int) (sum / (double) valid);
+}
+
+static void
+rescale_grid_int32 (int *buf_out, unsigned short tileWidth,
+		    unsigned short tileHeight, const int *buf_in, int x, int y,
+		    rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - int 32 bit */
+    unsigned short row;
+    unsigned short col;
+    int nd = 0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_INT32 && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->int32;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  int *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		int *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_int32 (buf_in, tileWidth, tileHeight, x * 8,
+					 y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_uint32 (const unsigned int *buf_in, unsigned short tileWidth,
+		      unsigned short tileHeight, int x, int y, unsigned int nd)
+{
+/* rescaling a DataGrid pixel (8x8) - UINT32 */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const unsigned int *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const unsigned int *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (unsigned int) (sum / (double) valid);
+}
+
+static void
+rescale_grid_uint32 (unsigned int *buf_out, unsigned short tileWidth,
+		     unsigned short tileHeight, const unsigned int *buf_in,
+		     int x, int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - unsigned int 32 bit */
+    unsigned short row;
+    unsigned short col;
+    unsigned int nd = 0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_UINT32 && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->uint32;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  unsigned int *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		unsigned int *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_uint32 (buf_in, tileWidth, tileHeight, x * 8,
+					  y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_float (const float *buf_in, unsigned short tileWidth,
+		     unsigned short tileHeight, int x, int y, float nd)
+{
+/* rescaling a DataGrid pixel (8x8) - Float */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const float *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const float *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return (float) (sum / (double) valid);
+}
+
+static void
+rescale_grid_float (float *buf_out, unsigned short tileWidth,
+		    unsigned short tileHeight, const float *buf_in, int x,
+		    int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - Float */
+    unsigned short row;
+    unsigned short col;
+    float nd = 0.0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_FLOAT && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->float32;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  float *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		float *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_float (buf_in, tileWidth, tileHeight, x * 8,
+					 y * 8, nd);
+	    }
+      }
+}
+
+static double
+rescale_pixel_double (const double *buf_in, unsigned short tileWidth,
+		      unsigned short tileHeight, int x, int y, double nd)
+{
+/* rescaling a DataGrid pixel (8x8) - Double */
+    unsigned short row;
+    unsigned short col;
+    int nodata = 0;
+    int valid = 0;
+    double sum = 0.0;
+
+    for (row = 0; row < 8; row++)
+      {
+	  const double *p_in_base;
+	  unsigned short yy = y + row;
+	  if (yy >= tileHeight)
+	      break;
+	  p_in_base = buf_in + (yy * tileWidth);
+	  for (col = 0; col < 8; col++)
+	    {
+		const double *p_in;
+		unsigned short xx = x + col;
+		if (xx >= tileWidth)
+		    break;
+		p_in = p_in_base + x;
+		if (*p_in == nd)
+		    nodata++;
+		else
+		  {
+		      valid++;
+		      sum += *p_in;
+		  }
+	    }
+      }
+
+    if (nodata >= valid)
+	return nd;
+    return sum / (double) valid;
+}
+
+static void
+rescale_grid_double (double *buf_out, unsigned short tileWidth,
+		     unsigned short tileHeight, const double *buf_in, int x,
+		     int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile - Double */
+    unsigned short row;
+    unsigned short col;
+    double nd = 0.0;
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
+
+    if (pxl != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  if (pxl->sampleType == RL2_SAMPLE_DOUBLE && pxl->nBands == 1)
+	    {
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd = sample->float64;
+	    }
+      }
+
+    for (row = y; row < tileHeight; row++)
+      {
+	  double *p_out_base = buf_out + (row * tileWidth);
+	  for (col = x; col < tileHeight; col++)
+	    {
+		double *p_out = p_out_base + col;
+		*p_out =
+		    rescale_pixel_double (buf_in, tileWidth, tileHeight, x * 8,
+					  y * 8, nd);
+	    }
+      }
+}
+
+static void
+rescale_grid (void *buf_out, unsigned short tileWidth,
+	      unsigned short tileHeight, const void *buf_in,
+	      unsigned char sample_type, int x, int y, rl2PixelPtr no_data)
+{
+/* rescaling a DataGrid tile */
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT8:
+	  rescale_grid_int8 ((char *) buf_out, tileWidth, tileHeight,
+			     (const char *) buf_in, x, y, no_data);
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  rescale_grid_uint8 ((unsigned char *) buf_out, tileWidth, tileHeight,
+			      (const unsigned char *) buf_in, x, y, no_data);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  rescale_grid_int16 ((short *) buf_out, tileWidth, tileHeight,
+			      (const short *) buf_in, x, y, no_data);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  rescale_grid_uint16 ((unsigned short *) buf_out, tileWidth,
+			       tileHeight, (const unsigned short *) buf_in, x,
+			       y, no_data);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  rescale_grid_int32 ((int *) buf_out, tileWidth, tileHeight,
+			      (const int *) buf_in, x, y, no_data);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  rescale_grid_uint32 ((unsigned int *) buf_out, tileWidth, tileHeight,
+			       (const unsigned int *) buf_in, x, y, no_data);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  rescale_grid_float ((float *) buf_out, tileWidth, tileHeight,
+			      (const float *) buf_in, x, y, no_data);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  rescale_grid_double ((double *) buf_out, tileWidth, tileHeight,
+			       (const double *) buf_in, x, y, no_data);
+	  break;
+      };
+}
+
+static int
+upate_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
+			 sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
+			 SectionPyramid * pyr, unsigned short tileWidth,
+			 unsigned short tileHeight, int id_level,
+			 rl2PixelPtr no_data, unsigned char sample_type,
+			 unsigned char compression)
+{
+/* creating and inserting Pyramid tiles */
+    unsigned char *buf_out = NULL;
+    unsigned char *mask = NULL;
+    SectionPyramidTileOutPtr tile_out;
+    SectionPyramidTileRefPtr tile_in;
+    int x;
+    int y;
+    int row;
+    int col;
+    int tic_x;
+    int tic_y;
+    double pos_y;
+    double pos_x;
+    double geo_x;
+    double geo_y;
+    rl2PixelPtr nd = NULL;
+    rl2RasterPtr raster_out = NULL;
+    rl2RasterPtr raster_in = NULL;
+    unsigned char *blob_odd;
+    int blob_odd_sz;
+    unsigned char *blob_even;
+    int blob_even_sz;
+    int pixel_sz = 1;
+    int out_sz;
+    int mask_sz = 0;
+
+    if (pyr == NULL)
+	goto error;
+    tic_x = tileWidth / pyr->scale;
+    tic_y = tileHeight / pyr->scale;
+    geo_x = (double) tic_x *pyr->res_x;
+    geo_y = (double) tic_y *pyr->res_y;
+
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pixel_sz = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pixel_sz = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pixel_sz = 8;
+	  break;
+      };
+    out_sz = tileWidth * tileHeight * pixel_sz;
+
+    tile_out = pyr->first_out;
+    while (tile_out != NULL)
+      {
+	  rl2PrivRasterPtr rst;
+	  /* allocating the output buffer */
+	  buf_out = malloc (out_sz);
+	  if (buf_out == NULL)
+	      goto error;
+	  rl2_prime_void_tile (buf_out, tileWidth, tileHeight, sample_type, 1,
+			       no_data);
+
+	  if (tile_out->col + tileWidth > pyr->scaled_width
+	      || tile_out->row + tileHeight > pyr->scaled_height)
+	    {
+		/* allocating and initializing a transparency mask */
+		unsigned char *p;
+		mask_sz = tileWidth * tileHeight;
+		mask = malloc (mask_sz);
+		if (mask == NULL)
+		    goto error;
+		p = mask;
+		for (row = 0; row < tileHeight; row++)
+		  {
+		      int x_row = tile_out->row + row;
+		      for (col = 0; col < tileWidth; col++)
+			{
+			    int x_col = tile_out->col + col;
+			    if (*p > 128)
+				*p = 1;
+			    else
+				*p = 0;
+			    if (x_row >= pyr->scaled_height
+				|| x_col >= pyr->scaled_width)
+			      {
+				  /* masking any portion of the tile exceeding the scaled section size */
+				  *p = 0;
+			      }
+			    p++;
+			}
+		  }
+	    }
+	  else
+	    {
+		mask = NULL;
+		mask_sz = 0;
+	    }
+
+	  /* creating the output (rescaled) tile */
+	  tile_in = tile_out->first;
+	  while (tile_in != NULL)
+	    {
+		/* loading and rescaling the base tiles */
+		raster_in =
+		    load_tile_base_grid (stmt_rd, tile_in->child->tile_id);
+		if (raster_in == NULL)
+		    goto error;
+		pos_y = tile_out->maxy;
+		x = 0;
+		y = 0;
+		for (row = 0; row < tileHeight; row += tic_y)
+		  {
+		      pos_x = tile_out->minx;
+		      for (col = 0; col < tileWidth; col += tic_x)
+			{
+			    if (tile_in->child->cy < pos_y
+				&& tile_in->child->cy > (pos_y - geo_y)
+				&& tile_in->child->cx > pos_x
+				&& tile_in->child->cx < (pos_x + geo_x))
+			      {
+				  x = col;
+				  y = row;
+				  break;
+			      }
+			    pos_x += geo_x;
+			}
+		      pos_y -= geo_y;
+		  }
+		rst = (rl2PrivRasterPtr) raster_in;
+		rescale_grid (buf_out, tileWidth, tileHeight, rst->rasterBuffer,
+			      sample_type, x, y, no_data);
+		rl2_destroy_raster (raster_in);
+		raster_in = NULL;
+		tile_in = tile_in->next;
+	    }
+
+	  raster_out = NULL;
+	  raster_out =
+	      rl2_create_raster (tileWidth, tileHeight, sample_type,
+				 RL2_PIXEL_DATAGRID, 1, buf_out,
+				 out_sz, NULL, mask, mask_sz, nd);
+	  buf_out = NULL;
+	  mask = NULL;
+	  if (raster_out == NULL)
+	    {
+		fprintf (stderr, "ERROR: unable to create a Pyramid Tile\n");
+		goto error;
+	    }
+	  if (rl2_raster_encode
+	      (raster_out, compression, &blob_odd, &blob_odd_sz, &blob_even,
+	       &blob_even_sz, 100, 1) != RL2_OK)
+	    {
+		fprintf (stderr, "ERROR: unable to encode a Pyramid tile\n");
+		goto error;
+	    }
+	  rl2_destroy_raster (raster_out);
+	  raster_out = NULL;
+
+	  /* INSERTing the tile */
+	  if (!do_insert_pyramid_tile
+	      (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz, id_level,
+	       pyr->section_id, pyr->srid, tile_out->minx, tile_out->miny,
+	       tile_out->maxx, tile_out->maxy, stmt_tils, stmt_data))
+	      goto error;
+
+	  tile_out = tile_out->next;
+      }
+
+    return 1;
+
+  error:
+    if (raster_in != NULL)
+	rl2_destroy_raster (raster_in);
+    if (raster_out != NULL)
+	rl2_destroy_raster (raster_out);
+    if (buf_out != NULL)
+	free (buf_out);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}
+
 static int
 upate_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		    sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
@@ -2722,7 +3629,7 @@ upate_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     tile_out = pyr->first_out;
     while (tile_out != NULL)
       {
-/* creating the output (rescaled) tile */
+	  /* creating the output (rescaled) tile */
 	  ctx = rl2_graph_create_context (tileWidth, tileHeight);
 	  if (ctx == NULL)
 	      goto error;
@@ -3179,10 +4086,22 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	  if (!do_insert_pyramid_levels
 	      (handle, id_level, pyr->res_x, pyr->res_y, stmt_levl))
 	      goto error;
-	  if (!upate_sect_pyramid
-	      (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-	       tileHeight, id_level, palette, no_data, pixel_type))
-	      goto error;
+	  if (pixel_type == RL2_PIXEL_DATAGRID)
+	    {
+		/* DataGrid Pyramid */
+		if (!upate_sect_pyramid_grid
+		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
+		     tileHeight, id_level, no_data, sample_type, compression))
+		    goto error;
+	    }
+	  else
+	    {
+		/* any other Pyramid [not a DataGrid] */
+		if (!upate_sect_pyramid
+		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
+		     tileHeight, id_level, palette, no_data, pixel_type))
+		    goto error;
+	    }
 	  delete_sect_pyramid (pyr);
 	  pyr = NULL;
       }
@@ -3192,10 +4111,22 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	  if (!do_insert_pyramid_levels
 	      (handle, id_level, pyr->res_x, pyr->res_y, stmt_levl))
 	      goto error;
-	  if (!upate_sect_pyramid
-	      (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-	       tileHeight, id_level, palette, no_data, pixel_type))
-	      goto error;
+	  if (pixel_type == RL2_PIXEL_DATAGRID)
+	    {
+		/* DataGrid Pyramid */
+		if (!upate_sect_pyramid_grid
+		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
+		     tileHeight, id_level, no_data, sample_type, compression))
+		    goto error;
+	    }
+	  else
+	    {
+		/* any other Pyramid [not a DataGrid] */
+		if (!upate_sect_pyramid
+		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
+		     tileHeight, id_level, palette, no_data, pixel_type))
+		    goto error;
+	    }
 	  delete_sect_pyramid (pyr);
       }
     sqlite3_finalize (stmt_rd);
@@ -3365,7 +4296,7 @@ get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
 
 /* preparing a raw pixels buffer */
     if (pixel_type == RL2_PIXEL_PALETTE)
-	void_raw_buffer_palette (bufpix, width, height, palette, no_data);
+	void_raw_buffer_palette (bufpix, width, height, no_data);
     else
 	void_raw_buffer (bufpix, width, height, sample_type, num_bands,
 			 no_data);
@@ -3581,7 +4512,7 @@ copy_124_tile (unsigned char pixel_type, const unsigned char *outbuf,
 	       int *tilebuf_sz, unsigned char **tilemask, int *tilemask_sz,
 	       unsigned int row, unsigned int col, unsigned int out_width,
 	       unsigned int out_height, unsigned int tileWidth,
-	       unsigned int tileHeight)
+	       unsigned int tileHeight, rl2PixelPtr no_data)
 {
 /* allocating and initializing the resized tile buffers */
     unsigned char *pixels = NULL;
@@ -3604,10 +4535,10 @@ copy_124_tile (unsigned char pixel_type, const unsigned char *outbuf,
 
     if (pixel_type == RL2_PIXEL_RGB)
 	rl2_prime_void_tile (pixels, tileWidth, tileHeight, RL2_SAMPLE_UINT8,
-			     3);
+			     3, no_data);
     else
 	rl2_prime_void_tile (pixels, tileWidth, tileHeight, RL2_SAMPLE_UINT8,
-			     1);
+			     1, no_data);
 
     if (row + tileHeight > out_height)
 	has_mask = 1;
@@ -3824,8 +4755,6 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 			    else
 			      {
 				  /* creating a NO-DATA pixel */
-				  rl2PrivPixelPtr pxl =
-				      (rl2PrivPixelPtr) no_data;
 				  nd = rl2_create_pixel (RL2_SAMPLE_UINT8,
 							 RL2_PIXEL_GRAYSCALE,
 							 1);
@@ -3856,7 +4785,8 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 		      if (!copy_124_tile
 			  (out_pixel_type, outbuf, &tilebuf,
 			   &tilebuf_sz, &tilemask, &tilemask_sz, row, col,
-			   out_width, out_height, tileWidth, tileHeight))
+			   out_width, out_height, tileWidth, tileHeight,
+			   no_data))
 			{
 			    fprintf (stderr,
 				     "ERROR: unable to extract a Pyramid Tile\n");
@@ -4105,7 +5035,7 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	    }
 	  else
 	    {
-		/* ordinary RGB or Grayscale Pyramid */
+		/* ordinary RGB, Grayscale or DataGrid Pyramid */
 		if (!do_build_section_pyramid
 		    (handle, coverage, section, sample_type, pixel_type,
 		     num_bands, compression, quality, srid, tileWidth,

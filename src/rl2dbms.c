@@ -944,219 +944,358 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 }
 
 static void
-prime_void_tile_int8 (void *pixels, unsigned short width, unsigned short height)
+prime_void_tile_int8 (void *pixels, unsigned short width, unsigned short height,
+		      rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - INT8 */
     int row;
     int col;
     char *p = pixels;
+    char val = 0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_INT8 || num_bands != 1)
+	      goto done;
+	  rl2_get_pixel_sample_int8 (no_data, &val);
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
-	      *p++ = 0;
+	      *p++ = val;
       }
 }
 
 static void
 prime_void_tile_uint8 (void *pixels, unsigned short width,
-		       unsigned short height, unsigned char num_bands)
+		       unsigned short height, unsigned char num_bands,
+		       rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - UINT8 */
     int row;
     int col;
     int band;
     unsigned char *p = pixels;
+    unsigned char val = 0;
+    int ok_no_data = 0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_UINT8)
+	      goto done;
+	  ok_no_data = 1;
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
 	    {
 		for (band = 0; band < num_bands; band++)
-		    *p++ = 0;
+		  {
+		      if (ok_no_data)
+			  rl2_get_pixel_sample_uint8 (no_data, band, &val);
+		      *p++ = val;
+		  }
 	    }
       }
 }
 
 static void
 prime_void_tile_int16 (void *pixels, unsigned short width,
-		       unsigned short height)
+		       unsigned short height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - INT16 */
     int row;
     int col;
     short *p = pixels;
+    short val = 0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_INT16 || num_bands != 1)
+	      goto done;
+	  rl2_get_pixel_sample_int16 (no_data, &val);
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
-	      *p++ = 0;
+	      *p++ = val;
       }
 }
 
 static void
 prime_void_tile_uint16 (void *pixels, unsigned short width,
-			unsigned short height, unsigned char num_bands)
+			unsigned short height, unsigned char num_bands,
+			rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - UINT16 */
     int row;
     int col;
     int band;
     unsigned short *p = pixels;
+    unsigned short val = 0;
+    int ok_no_data = 0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_UINT16)
+	      goto done;
+	  ok_no_data = 1;
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
 	    {
 		for (band = 0; band < num_bands; band++)
-		    *p++ = 0;
+		  {
+		      if (ok_no_data)
+			  rl2_get_pixel_sample_uint16 (no_data, band, &val);
+		      *p++ = val;
+		  }
 	    }
       }
 }
 
 static void
 prime_void_tile_int32 (void *pixels, unsigned short width,
-		       unsigned short height)
+		       unsigned short height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - INT32 */
     int row;
     int col;
     int *p = pixels;
+    int val = 0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_INT32 || num_bands != 1)
+	      goto done;
+	  rl2_get_pixel_sample_int32 (no_data, &val);
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
-	      *p++ = 0;
+	      *p++ = val;
       }
 }
 
 static void
 prime_void_tile_uint32 (void *pixels, unsigned short width,
-			unsigned short height)
+			unsigned short height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - UINT32 */
     int row;
     int col;
     unsigned int *p = pixels;
+    unsigned int val = 0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_UINT32 || num_bands != 1)
+	      goto done;
+	  rl2_get_pixel_sample_uint32 (no_data, &val);
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
-	      *p++ = 0;
+	      *p++ = val;
       }
 }
 
 static void
 prime_void_tile_float (void *pixels, unsigned short width,
-		       unsigned short height)
+		       unsigned short height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - Float */
     int row;
     int col;
     float *p = pixels;
+    float val = 0.0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_FLOAT || num_bands != 1)
+	      goto done;
+	  rl2_get_pixel_sample_float (no_data, &val);
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
-	      *p++ = 0.0;
+	      *p++ = val;
       }
 }
 
 static void
 prime_void_tile_double (void *pixels, unsigned short width,
-			unsigned short height)
+			unsigned short height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - Double */
     int row;
     int col;
     double *p = pixels;
+    double val = 0.0;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (sample_type != RL2_SAMPLE_DOUBLE || num_bands != 1)
+	      goto done;
+	  rl2_get_pixel_sample_double (no_data, &val);
+      }
+
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
-	      *p++ = 0.0;
+	      *p++ = val;
       }
 }
 
 RL2_DECLARE void
 rl2_prime_void_tile (void *pixels, unsigned short width, unsigned short height,
-		     unsigned char sample_type, unsigned char num_bands)
+		     unsigned char sample_type, unsigned char num_bands,
+		     rl2PixelPtr no_data)
 {
 /* priming a void tile buffer */
     switch (sample_type)
       {
       case RL2_SAMPLE_INT8:
-	  prime_void_tile_int8 (pixels, width, height);
+	  prime_void_tile_int8 (pixels, width, height, no_data);
 	  break;
       case RL2_SAMPLE_1_BIT:
       case RL2_SAMPLE_2_BIT:
       case RL2_SAMPLE_4_BIT:
       case RL2_SAMPLE_UINT8:
-	  prime_void_tile_uint8 (pixels, width, height, num_bands);
+	  prime_void_tile_uint8 (pixels, width, height, num_bands, no_data);
 	  break;
       case RL2_SAMPLE_INT16:
-	  prime_void_tile_int16 (pixels, width, height);
+	  prime_void_tile_int16 (pixels, width, height, no_data);
 	  break;
       case RL2_SAMPLE_UINT16:
-	  prime_void_tile_uint16 (pixels, width, height, num_bands);
+	  prime_void_tile_uint16 (pixels, width, height, num_bands, no_data);
 	  break;
       case RL2_SAMPLE_INT32:
-	  prime_void_tile_int32 (pixels, width, height);
+	  prime_void_tile_int32 (pixels, width, height, no_data);
 	  break;
       case RL2_SAMPLE_UINT32:
-	  prime_void_tile_uint32 (pixels, width, height);
+	  prime_void_tile_uint32 (pixels, width, height, no_data);
 	  break;
       case RL2_SAMPLE_FLOAT:
-	  prime_void_tile_float (pixels, width, height);
+	  prime_void_tile_float (pixels, width, height, no_data);
 	  break;
       case RL2_SAMPLE_DOUBLE:
-	  prime_void_tile_double (pixels, width, height);
+	  prime_void_tile_double (pixels, width, height, no_data);
 	  break;
       };
 }
 
 RL2_DECLARE void
 rl2_prime_void_tile_palette (void *pixels, unsigned short width,
-			     unsigned short height, rl2PalettePtr palette)
+			     unsigned short height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer (PALETTE) */
     int row;
     int col;
-    int j;
-    int index = -1;
+    unsigned char index = 0;
     unsigned char *p = pixels;
-    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
 
-    if (plt == NULL)
-	;
-    else
+    if (no_data != NULL)
       {
-	  /* searching for WHITE */
-	  rl2PrivPaletteEntryPtr entry;
-	  for (j = 0; j < plt->nEntries; j++)
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (pixel_type != RL2_PIXEL_PALETTE || num_bands != 1)
+	      goto done;
+	  switch (sample_type)
 	    {
-		entry = plt->entries + j;
-		if (entry->red == 255 && entry->green == 255
-		    && entry->blue == 255)
-		  {
-		      index = j;
-		      break;
-		  }
-	    }
-	  if (index < 0)
-	    {
-		/* searching for BLACK */
-		for (j = 0; j < plt->nEntries; j++)
-		  {
-		      entry = plt->entries + j;
-		      if (entry->red == 0 && entry->green == 0
-			  && entry->blue == 0)
-			{
-			    index = j;
-			    break;
-			}
-		  }
-	    }
-      }
-    if (index < 0)
-      {
-	  /* not WHITE neither BLACK are defined */
-	  /* defaulting to first palette entry */
-	  index = 0;
+	    case RL2_SAMPLE_1_BIT:
+		rl2_get_pixel_sample_1bit (no_data, &index);
+		break;
+	    case RL2_SAMPLE_2_BIT:
+		rl2_get_pixel_sample_2bit (no_data, &index);
+		break;
+	    case RL2_SAMPLE_4_BIT:
+		rl2_get_pixel_sample_4bit (no_data, &index);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_get_pixel_sample_uint8 (no_data, 0, &index);
+		break;
+	    };
       }
 
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
@@ -1982,55 +2121,43 @@ void_raw_buffer (unsigned char *buffer, unsigned short width,
 
 RL2_PRIVATE void
 void_raw_buffer_palette (unsigned char *buffer, unsigned short width,
-			 unsigned short height, rl2PalettePtr palette,
-			 rl2PixelPtr no_data)
+			 unsigned short height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void buffer (PALETTE) */
     int row;
     int col;
-    int j;
-    int index = -1;
+    unsigned char index = 0;
     unsigned char *p = buffer;
-    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
 
-    if (plt == NULL)
-	;
-    else
+    if (no_data != NULL)
       {
-	  /* searching for WHITE */
-	  rl2PrivPaletteEntryPtr entry;
-	  for (j = 0; j < plt->nEntries; j++)
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+	      goto done;
+	  if (pixel_type != RL2_PIXEL_PALETTE || num_bands != 1)
+	      goto done;
+	  switch (sample_type)
 	    {
-		entry = plt->entries + j;
-		if (entry->red == 255 && entry->green == 255
-		    && entry->blue == 255)
-		  {
-		      index = j;
-		      break;
-		  }
-	    }
-	  if (index < 0)
-	    {
-		/* searching for BLACK */
-		for (j = 0; j < plt->nEntries; j++)
-		  {
-		      entry = plt->entries + j;
-		      if (entry->red == 0 && entry->green == 0
-			  && entry->blue == 0)
-			{
-			    index = j;
-			    break;
-			}
-		  }
-	    }
-      }
-    if (index < 0)
-      {
-	  /* not WHITE neither BLACK are defined */
-	  /* defaulting to first palette entry */
-	  index = 0;
+	    case RL2_SAMPLE_1_BIT:
+		rl2_get_pixel_sample_1bit (no_data, &index);
+		break;
+	    case RL2_SAMPLE_2_BIT:
+		rl2_get_pixel_sample_2bit (no_data, &index);
+		break;
+	    case RL2_SAMPLE_4_BIT:
+		rl2_get_pixel_sample_4bit (no_data, &index);
+		break;
+	    case RL2_SAMPLE_UINT8:
+		rl2_get_pixel_sample_uint8 (no_data, 0, &index);
+		break;
+	    };
       }
 
+  done:
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
@@ -3090,12 +3217,12 @@ load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		raster =
 		    rl2_raster_decode (scale, blob_odd, blob_odd_sz, blob_even,
 				       blob_even_sz, plt);
+		plt = NULL;
 		if (raster == NULL)
 		  {
 		      fprintf (stderr, ERR_FRMT64, tile_id);
 		      goto error;
 		  }
-		plt = NULL;
 		if (!copy_raw_pixels
 		    (raster, outbuf, width, height, sample_type,
 		     num_bands, x_res, y_res, minx, maxy, tile_minx, tile_maxy,
@@ -3412,23 +3539,68 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
       {
 	  /* Pyramid tiles RGB */
 	  rl2PixelPtr nd = NULL;
-	  /*
-	     nd = rl2_get_coverage_no_data (cvg);
-	     if (nd != NULL)
-	     {
-	     / creating a Grayscale NoData pixel /
-	     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) nd;
-	     rl2PrivSamplePtr sample = pxl->Samples + 0;
-	     no_data = rl2_create_pixel (RL2_SAMPLE_UINT8,
-	     RL2_PIXEL_GRAYSCALE, 1);
-	     kill_no_data = no_data;
-	     if (sample->uint8 == 0)
-	     rl2_set_pixel_sample_uint8 (no_data,
-	     RL2_GRAYSCALE_BAND, 255);
-	     else
-	     rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 0);
-	     }
-	   */
+	  nd = rl2_get_coverage_no_data (cvg);
+	  plt = rl2_get_dbms_palette (handle, coverage);
+	  if (nd != NULL)
+	    {
+		/* creating an RGB NoData pixel */
+		rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) nd;
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+		kill_no_data = no_data;
+		if (plt == NULL)
+		  {
+		      /* default: white */
+		      rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, 255);
+		      rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, 255);
+		      rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, 255);
+		  }
+		else
+		  {
+		      /* retrieving the color from within the palette */
+		      int ok = 0;
+		      unsigned short num_entries;
+		      unsigned char *red = NULL;
+		      unsigned char *green = NULL;
+		      unsigned char *blue = NULL;
+		      if (rl2_get_palette_colors
+			  (plt, &num_entries, &red, &green, &blue) == RL2_OK)
+			{
+			    if (sample->uint8 < num_entries)
+			      {
+				  rl2_set_pixel_sample_uint8 (no_data,
+							      RL2_RED_BAND,
+							      red
+							      [sample->uint8]);
+				  rl2_set_pixel_sample_uint8 (no_data,
+							      RL2_GREEN_BAND,
+							      green
+							      [sample->uint8]);
+				  rl2_set_pixel_sample_uint8 (no_data,
+							      RL2_BLUE_BAND,
+							      blue
+							      [sample->uint8]);
+				  ok = 1;
+			      }
+			    free (red);
+			    free (green);
+			    free (blue);
+			}
+		      if (!ok)
+			{
+			    /* default: white */
+			    rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND,
+							255);
+			    rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND,
+							255);
+			    rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND,
+							255);
+			}
+		  }
+	    }
+	  if (plt != NULL)
+	      rl2_destroy_palette (plt);
+	  plt = NULL;
 	  sample_type = RL2_SAMPLE_UINT8;
 	  pixel_type = RL2_PIXEL_RGB;
 	  num_bands = 3;
@@ -3530,7 +3702,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 
 /* preparing a raw pixels buffer */
     if (pixel_type == RL2_PIXEL_PALETTE)
-	void_raw_buffer_palette (bufpix, width, height, plt, no_data);
+	void_raw_buffer_palette (bufpix, width, height, no_data);
     else
 	void_raw_buffer (bufpix, width, height, sample_type, num_bands,
 			 no_data);

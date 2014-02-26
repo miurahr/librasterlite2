@@ -2058,7 +2058,7 @@ truncate_16 (double val)
 	return INT16_MIN;
     if (val >= INT16_MAX)
 	return INT16_MAX;
-    return (char) val;
+    return (short) val;
 }
 
 RL2_PRIVATE unsigned short
@@ -2069,7 +2069,7 @@ truncate_u16 (double val)
 	return 0;
     if (val >= UINT16_MAX)
 	return UINT16_MAX;
-    return (unsigned char) val;
+    return (unsigned short) val;
 }
 
 RL2_PRIVATE int
@@ -2080,7 +2080,7 @@ truncate_32 (double val)
 	return INT32_MIN;
     if (val >= INT32_MAX)
 	return INT32_MAX;
-    return (char) val;
+    return (int) val;
 }
 
 RL2_PRIVATE unsigned int
@@ -2091,7 +2091,7 @@ truncate_u32 (double val)
 	return 0;
     if (val >= UINT32_MAX)
 	return UINT32_MAX;
-    return (unsigned char) val;
+    return (unsigned int) val;
 }
 
 static void
@@ -3744,7 +3744,8 @@ read_from_tiff (rl2PrivTiffOriginPtr origin, unsigned short width,
 	goto error;
     if ((startRow + height) > origin->height
 	|| (startCol + width) > origin->width)
-	rl2_prime_void_tile (bufPixels, width, height, sample_type, num_bands);
+	rl2_prime_void_tile (bufPixels, width, height, sample_type, num_bands,
+			     NULL);
 
     if (origin->bitsPerSample <= 8 && origin->sampleFormat == SAMPLEFORMAT_UINT
 	&& (origin->samplesPerPixel == 1 || origin->samplesPerPixel == 3)

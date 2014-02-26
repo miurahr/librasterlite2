@@ -198,7 +198,7 @@ compress_gif (rl2RasterPtr rst, unsigned char **gif, int *gif_size)
 	return RL2_ERROR;
     plt = rl2_get_raster_palette (rst);
     if (rl2_data_to_gif
-	(raster->rasterBuffer, raster->maskBuffer, plt, raster->width,
+	(raster->rasterBuffer, plt, raster->width,
 	 raster->height, sample_type, pixel_type, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     *gif = blob;
@@ -207,8 +207,8 @@ compress_gif (rl2RasterPtr rst, unsigned char **gif, int *gif_size)
 }
 
 RL2_PRIVATE int
-rl2_data_to_gif (const unsigned char *pixels, const unsigned char *mask,
-		 rl2PalettePtr plt, unsigned short width, unsigned short height,
+rl2_data_to_gif (const unsigned char *pixels, rl2PalettePtr plt,
+		 unsigned short width, unsigned short height,
 		 unsigned char sample_type, unsigned char pixel_type,
 		 unsigned char **gif, int *gif_size)
 {

@@ -268,12 +268,12 @@ extern "C"
     RL2_DECLARE void
 	rl2_prime_void_tile (void *pixels, unsigned short width,
 			     unsigned short height, unsigned char sample_type,
-			     unsigned char num_bands);
+			     unsigned char num_bands, rl2PixelPtr no_data);
 
     RL2_DECLARE void
 	rl2_prime_void_tile_palette (void *pixels, unsigned short width,
 				     unsigned short height,
-				     rl2PalettePtr palette);
+				     rl2PixelPtr no_data);
 
     RL2_DECLARE int
 	rl2_raster_to_tiff_mono4 (rl2RasterPtr rst, unsigned char **tiff,

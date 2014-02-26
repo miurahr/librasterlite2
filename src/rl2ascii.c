@@ -911,21 +911,47 @@ read_from_ascii (rl2PrivAsciiOriginPtr origin, unsigned short width,
     unsigned char *bufPixels = NULL;
     int bufPixelsSz = 0;
     int pix_sz = 1;
+    rl2PixelPtr no_data = NULL;
+
+    no_data = rl2_create_pixel (sample_type, RL2_PIXEL_DATAGRID, 1);
 
 /* allocating the pixels buffer */
     switch (sample_type)
       {
+      case RL2_SAMPLE_INT8:
+	  pix_sz = 1;
+	  rl2_set_pixel_sample_int8 (no_data, (char) (origin->noData));
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  pix_sz = 1;
+	  rl2_set_pixel_sample_uint8 (no_data, 0,
+				      (unsigned char) (origin->noData));
+	  break;
       case RL2_SAMPLE_INT16:
+	  rl2_set_pixel_sample_int16 (no_data, (short) (origin->noData));
+	  pix_sz = 2;
+	  break;
       case RL2_SAMPLE_UINT16:
+	  rl2_set_pixel_sample_uint16 (no_data, 0,
+				       (unsigned short) (origin->noData));
 	  pix_sz = 2;
 	  break;
       case RL2_SAMPLE_INT32:
+	  pix_sz = 4;
+	  rl2_set_pixel_sample_int32 (no_data, (int) (origin->noData));
+	  break;
       case RL2_SAMPLE_UINT32:
+	  pix_sz = 4;
+	  rl2_set_pixel_sample_uint32 (no_data,
+				       (unsigned int) (origin->noData));
+	  break;
       case RL2_SAMPLE_FLOAT:
 	  pix_sz = 4;
+	  rl2_set_pixel_sample_float (no_data, (float) (origin->noData));
 	  break;
       case RL2_SAMPLE_DOUBLE:
 	  pix_sz = 8;
+	  rl2_set_pixel_sample_double (no_data, (double) (origin->noData));
 	  break;
       };
     bufPixelsSz = width * height * pix_sz;
@@ -934,7 +960,7 @@ read_from_ascii (rl2PrivAsciiOriginPtr origin, unsigned short width,
 	goto error;
     if ((startRow + height) > origin->height
 	|| (startCol + width) > origin->width)
-	rl2_prime_void_tile (bufPixels, width, height, sample_type, 1);
+	rl2_prime_void_tile (bufPixels, width, height, sample_type, 1, no_data);
 
     if (!read_ascii_pixels
 	(origin, width, height, sample_type, startRow, startCol, bufPixels))
@@ -946,6 +972,8 @@ read_from_ascii (rl2PrivAsciiOriginPtr origin, unsigned short width,
   error:
     if (bufPixels != NULL)
 	free (bufPixels);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
     return RL2_ERROR;
 }
 

@@ -2742,9 +2742,6 @@ extern "C"
 
     RL2_DECLARE rl2PalettePtr rl2_clone_palette (rl2PalettePtr palette);
 
-    RL2_DECLARE rl2PixelPtr
-	rl2_rescale_block (rl2RasterPtr rst, int row, int col, int size);
-
     RL2_DECLARE rl2CoveragePtr
 	rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage);
 

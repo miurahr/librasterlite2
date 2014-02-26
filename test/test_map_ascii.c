@@ -968,6 +968,14 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 int
 main (int argc, char *argv[])
 {
+    rl2AsciiGridDestinationPtr ascii;
+    unsigned char *pixels;
+    const char *path;
+    unsigned short width;
+    unsigned short height;
+    double x;
+    double y;
+    double res;
     int result = 0;
     int ret;
     char *err_msg = NULL;
@@ -1148,6 +1156,75 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
+
+/* testing an ASCII destination */
+    pixels = malloc (100 * 200);
+    memset (pixels, 0, 100 * 200);
+    ascii =
+	rl2_create_ascii_grid_destination ("test_ascii.asc", 100, 200, 1.5,
+					   10.0, 20.0, 1, 0, 2, pixels,
+					   100 * 200, RL2_SAMPLE_UINT8);
+    if (ascii == NULL)
+      {
+	  fprintf (stderr,
+		   "ERROR: unable to create an ASCII Grid destination\n");
+	  return 500;
+      }
+    path = rl2_get_ascii_grid_destination_path (ascii);
+    if (path == NULL)
+      {
+	  fprintf (stderr, "ERROR: unexpected NULL ASCII Grid path\n");
+	  return 501;
+      }
+    if (strcmp (path, "test_ascii.asc") != 0)
+      {
+	  fprintf (stderr, "ERROR: unexpected ASCII Grid path: %s\n", path);
+	  return 502;
+      }
+    if (rl2_get_ascii_grid_destination_size (ascii, &width, &height) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to get ASCII Grid dimensions\n");
+	  return 503;
+      }
+    if (width != 100)
+      {
+	  fprintf (stderr, "ERROR: unexpected ASCII Grid Width: %u\n", width);
+	  return 504;
+      }
+    if (height != 200)
+      {
+	  fprintf (stderr, "ERROR: unexpected ASCII Grid Height: %u\n", height);
+	  return 505;
+      }
+    if (rl2_get_ascii_grid_destination_tiepoint (ascii, &x, &y) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to get ASCII Grid tiepoint\n");
+	  return 506;
+      }
+    if (x != 10.0)
+      {
+	  fprintf (stderr, "ERROR: unexpected ASCII Grid X tiepoint: %1.2f\n",
+		   x);
+	  return 507;
+      }
+    if (y != 20.0)
+      {
+	  fprintf (stderr, "ERROR: unexpected ASCII Grid Y tiepoint: %1.2f\n",
+		   y);
+	  return 508;
+      }
+    if (rl2_get_ascii_grid_destination_resolution (ascii, &res) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to get ASCII Grid resolution\n");
+	  return 509;
+      }
+    if (res != 1.5)
+      {
+	  fprintf (stderr, "ERROR: unexpected ASCII Grid resolution: %1.2f\n",
+		   res);
+	  return 510;
+      }
+    rl2_destroy_ascii_grid_destination (ascii);
 
 /* closing the DB */
     spatialite_shutdown ();

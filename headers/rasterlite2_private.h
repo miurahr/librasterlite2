@@ -675,6 +675,97 @@ extern "C"
     RL2_PRIVATE void
 	compute_aggregate_sq_diff (rl2RasterStatisticsPtr aggreg_stats);
 
+    RL2_PRIVATE int get_coverage_sample_bands (sqlite3 * sqlite,
+					       const char *coverage,
+					       unsigned char *sample_type,
+					       unsigned char *num_bands);
+
+    RL2_PRIVATE int get_coverage_defs (sqlite3 * sqlite, const char *coverage,
+				       unsigned short *tile_width,
+				       unsigned short *tile_height,
+				       unsigned char *sample_type,
+				       unsigned char *pixel_type,
+				       unsigned char *num_bands,
+				       unsigned char *compression);
+
+    RL2_PRIVATE rl2PixelPtr default_nodata (unsigned char sample,
+					    unsigned char pixel,
+					    unsigned char num_bands);
+
+    RL2_PRIVATE WmsRetryListPtr alloc_retry_list ();
+
+    RL2_PRIVATE void free_retry_list (WmsRetryListPtr lst);
+
+    RL2_PRIVATE void add_retry (WmsRetryListPtr lst, double minx, double miny,
+				double maxx, double maxy);
+
+    RL2_PRIVATE gaiaGeomCollPtr build_extent (int srid, double minx,
+					      double miny, double maxx,
+					      double maxy);
+
+    RL2_PRIVATE int do_insert_wms_tile (sqlite3 * handle,
+					unsigned char *blob_odd,
+					int blob_odd_sz,
+					unsigned char *blob_even,
+					int blob_even_sz,
+					sqlite3_int64 section_id, int srid,
+					double res_x, double res_y,
+					unsigned short tile_w,
+					unsigned short tile_h, double miny,
+					double maxx, double tile_minx,
+					double tile_miny, double tile_maxx,
+					double tile_maxy,
+					rl2PalettePtr aux_palette,
+					rl2PixelPtr no_data,
+					sqlite3_stmt * stmt_tils,
+					sqlite3_stmt * stmt_data,
+					rl2RasterStatisticsPtr section_stats);
+
+    RL2_PRIVATE int do_insert_levels (sqlite3 * handle,
+				      unsigned char sample_type, double res_x,
+				      double res_y, sqlite3_stmt * stmt_levl);
+
+    RL2_PRIVATE int do_insert_stats (sqlite3 * handle,
+				     rl2RasterStatisticsPtr section_stats,
+				     sqlite3_int64 section_id,
+				     sqlite3_stmt * stmt_upd_sect);
+
+    RL2_PRIVATE int do_insert_section (sqlite3 * handle, const char *src_path,
+				       const char *section, int srid,
+				       unsigned short width,
+				       unsigned short height, double minx,
+				       double miny, double maxx, double maxy,
+				       sqlite3_stmt * stmt_sect,
+				       sqlite3_int64 * id);
+
+    RL2_PRIVATE char *get_section_name (const char *src_path);
+
+    RL2_PRIVATE rl2RasterPtr build_wms_tile (rl2CoveragePtr coverage,
+					     const unsigned char *rgba_tile);
+
+    RL2_PRIVATE int insert_wms_tile (InsertWmsPtr ptr, int *first,
+				     rl2RasterStatisticsPtr * section_stats,
+				     sqlite3_int64 * section_id);
+
+    RL2_PRIVATE int is_point (gaiaGeomCollPtr geom);
+
+    RL2_PRIVATE ResolutionsListPtr alloc_resolutions_list ();
+
+    RL2_PRIVATE void destroy_resolutions_list (ResolutionsListPtr list);
+
+    RL2_PRIVATE void add_base_resolution (ResolutionsListPtr list, int level,
+					  int scale, double x_res,
+					  double y_res);
+
+    RL2_PRIVATE int find_best_resolution_level (sqlite3 * handle,
+						const char *coverage,
+						double x_res, double y_res,
+						int *level_id, int *scale,
+						int *real_scale, double *xx_res,
+						double *yy_res);
+
+    RL2_PRIVATE unsigned char get_palette_format (rl2PrivPalettePtr plt);
+
 #ifdef __cplusplus
 }
 #endif

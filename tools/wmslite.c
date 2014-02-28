@@ -28,8 +28,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include <inttypes.h>
-
 
 #ifdef _WIN32
 /* This code is for win32 only */
@@ -39,8 +39,10 @@
 /* this code is for any sane minded system (*nix) */
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <signal.h>
 #endif
 
 #include <rasterlite2/rasterlite2.h>
@@ -77,6 +79,41 @@
 #define WMS_VERSION_111		111
 #define WMS_VERSION_130		130
 
+#define CONNECTION_INVALID		0
+#define CONNECTION_AVAILABLE	1
+#define CONNECTION_BUSY			2
+
+#define LOG_SLOT_AVAILABLE	-100
+#define LOG_SLOT_BUSY		-200
+#define LOG_SLOT_READY		-300
+
+#define SEND_BLOK_SZ	8192
+#define MAX_CONN		8
+#define MAX_LOG			256
+
+#ifndef timersub
+#define timersub(a, b, result) \
+	(result)->tv_sec = (a)->tv_sec - (b)->tv_sec; \
+	(result)->tv_usec = (a)->tv_usec - (b)->tv_usec; \
+	if ((result)->tv_usec < 0) { \
+		--(result)->tv_sec; \
+		(result)->tv_usec += 1000000; \
+	} \
+
+#endif
+
+struct glob_var
+{
+/* global objects */
+    sqlite3 *handle;
+    sqlite3_stmt *stmt_log;
+    char *cached_capabilities;
+    struct server_log *log;
+    struct wms_list *list;
+    struct connections_pool *pool;
+    void *cache;
+} glob;
+
 struct neutral_socket
 {
 #ifdef _WIN32
@@ -110,6 +147,19 @@ struct wms_layer
     struct wms_layer *next;
 };
 
+struct read_connection
+{
+    void *cache;
+    sqlite3 *handle;
+    sqlite3_stmt *stmt_get_map;
+    int status;
+};
+
+struct connections_pool
+{
+    struct read_connection connections[MAX_CONN];
+};
+
 struct wms_list
 {
 /* a struct wrapping a list of WMS layers */
@@ -129,6 +179,7 @@ struct wms_args
 {
 /* a struct wrapping a WMS request URL */
     sqlite3 *db_handle;
+    sqlite3_stmt *stmt_get_map;
     char *service_name;
     struct wms_argument *first;
     struct wms_argument *last;
@@ -136,6 +187,7 @@ struct wms_args
     int wms_version;
     int error;
     const char *layer;
+    int srid;
     int swap_xy;
     double minx;
     double miny;
@@ -146,6 +198,7 @@ struct wms_args
     char *style;
     unsigned char format;
     int transparent;
+    int has_bgcolor;
     unsigned char red;
     unsigned char green;
     unsigned char blue;
@@ -158,13 +211,55 @@ struct http_request
     int port_no;
 #ifdef _WIN32
     SOCKET socket;		/* Socket on which to receive data */
-    SOCKADDR_IN addr;		/* Address from which data is coming */
 #else
     int socket;			/* Socket on which to receive data */
-    struct sockaddr addr;	/* Address from which data is coming */
 #endif
     struct wms_list *list;
-    sqlite3 *db_handle;
+    struct read_connection *conn;
+    sqlite3 *log_handle;
+    char *cached_capabilities;
+    int cached_capabilities_len;
+    struct server_log_item *log;
+};
+
+struct server_log_item
+{
+/* a struct supporting log infos */
+    char *client_ip_addr;
+    unsigned short client_ip_port;
+    char *timestamp;
+    char *http_method;
+    char *request_url;
+    int http_status;
+    int response_length;
+    int wms_request;
+    int wms_version;
+    const char *wms_layer;
+    int wms_srid;
+    double wms_bbox_minx;
+    double wms_bbox_miny;
+    double wms_bbox_maxx;
+    double wms_bbox_maxy;
+    unsigned short wms_width;
+    unsigned short wms_height;
+    char *wms_style;
+    unsigned char wms_format;
+    int wms_transparent;
+    int has_bgcolor;
+    unsigned char wms_bgcolor_red;
+    unsigned char wms_bgcolor_green;
+    unsigned char wms_bgcolor_blue;
+    struct timeval begin_time;
+    int milliseconds;
+    int status;
+};
+
+struct server_log
+{
+/* log container */
+    struct server_log_item items[MAX_LOG];
+    int next_item;
+    time_t last_update;
 };
 
 static struct wms_layer *
@@ -276,6 +371,521 @@ destroy_wms_argument (struct wms_argument *arg)
     free (arg);
 }
 
+static void
+close_connection (struct read_connection *conn)
+{
+/* closing a connection */
+    if (conn == NULL)
+	return;
+    if (conn->stmt_get_map != NULL)
+	sqlite3_finalize (conn->stmt_get_map);
+    if (conn->handle != NULL)
+	sqlite3_close (conn->handle);
+    if (conn->cache != NULL)
+	spatialite_cleanup_ex (conn->cache);
+    conn->status = CONNECTION_INVALID;
+}
+
+static void
+destroy_connections_pool (struct connections_pool *pool)
+{
+/* memory clean-up: destroying a connections pool */
+    int i;
+    struct read_connection *conn;
+
+    if (pool == NULL)
+	return;
+    for (i = 0; i < MAX_CONN; i++)
+      {
+	  /* closing all connections */
+	  conn = &(pool->connections[i]);
+	  close_connection (conn);
+      }
+    free (pool);
+}
+
+static void
+connection_init (struct read_connection *conn, const char *path)
+{
+/* creating a read connection */
+    int ret;
+    sqlite3 *db_handle;
+    sqlite3_stmt *stmt;
+    void *cache;
+    const char *sql;
+
+    ret =
+	sqlite3_open_v2 (path, &db_handle,
+			 SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX |
+			 SQLITE_OPEN_SHAREDCACHE, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "cannot open '%s': %s\n", path,
+		   sqlite3_errmsg (db_handle));
+	  sqlite3_close (db_handle);
+	  return;
+      }
+    cache = spatialite_alloc_connection ();
+    spatialite_init_ex (db_handle, cache, 0);
+    rl2_init (db_handle, 0);
+
+/* creating the GetMap SQL statement */
+    sql = "SELECT RL2_GetMapImage(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  sqlite3_close (db_handle);
+	  spatialite_cleanup_ex (cache);
+      }
+    conn->handle = db_handle;
+    conn->stmt_get_map = stmt;
+    conn->cache = cache;
+    conn->status = CONNECTION_AVAILABLE;
+}
+
+static struct connections_pool *
+alloc_connections_pool (const char *path)
+{
+/* creating and initializing the connections pool */
+    int i;
+    int count;
+    struct read_connection *conn;
+    struct connections_pool *pool =
+	malloc (sizeof (struct read_connection) * MAX_CONN);
+    if (pool == NULL)
+	return NULL;
+    for (i = 0; i < MAX_CONN; i++)
+      {
+	  /* initializing empty connections */
+	  conn = &(pool->connections[i]);
+	  conn->handle = NULL;
+	  conn->stmt_get_map = NULL;
+	  conn->cache = NULL;
+	  conn->status = CONNECTION_INVALID;
+      }
+    for (i = 0; i < MAX_CONN; i++)
+      {
+	  /* creating the connections */
+	  conn = &(pool->connections[i]);
+	  connection_init (conn, path);
+      }
+    count = 0;
+    for (i = 0; i < MAX_CONN; i++)
+      {
+	  /* final validity check */
+	  conn = &(pool->connections[i]);
+	  if (conn->status == CONNECTION_AVAILABLE)
+	      count++;
+      }
+    if (count == 0)
+      {
+	  /* invalid pool ... sorry ... */
+	  destroy_connections_pool (pool);
+	  return NULL;
+      }
+    return pool;
+}
+
+static void
+log_cleanup (struct server_log_item *log)
+{
+/* memory cleanup - resetting a log slot */
+    if (log == NULL)
+	return;
+    if (log->client_ip_addr != NULL)
+	free (log->client_ip_addr);
+    if (log->timestamp != NULL)
+	sqlite3_free (log->timestamp);
+    if (log->http_method != NULL)
+	free (log->http_method);
+    if (log->request_url != NULL)
+	free (log->request_url);
+    if (log->wms_style != NULL)
+	free (log->wms_style);
+    log->client_ip_addr = NULL;
+    log->timestamp = NULL;
+    log->http_method = NULL;
+    log->request_url = NULL;
+    log->wms_layer = NULL;
+    log->wms_style = NULL;
+    log->status = LOG_SLOT_AVAILABLE;
+}
+
+static struct server_log *
+alloc_server_log ()
+{
+/* allocating an empty server log helper struct */
+    int i;
+    struct server_log *log = malloc (sizeof (struct server_log));
+    if (log == NULL)
+	return NULL;
+    for (i = 0; i < MAX_LOG; i++)
+      {
+	  struct server_log_item *item = &(log->items[i]);
+	  item->client_ip_addr = NULL;
+	  item->timestamp = NULL;
+	  item->http_method = NULL;
+	  item->request_url = NULL;
+	  item->wms_layer = NULL;
+	  item->wms_style = NULL;
+	  item->status = LOG_SLOT_AVAILABLE;
+      }
+    log->next_item = 0;
+    time (&(log->last_update));
+    return log;
+}
+
+static void
+destroy_server_log (struct server_log *log)
+{
+/* memory cleanup - destroying the server log helper struct */
+    int i;
+    if (log == NULL)
+	return;
+    for (i = 0; i < MAX_LOG; i++)
+      {
+	  struct server_log_item *item = &(log->items[i]);
+	  log_cleanup (item);
+      }
+    free (log);
+}
+
+static void
+log_error (struct server_log_item *log, char *timestamp, int status,
+	   char *method, char *url, int size)
+{
+/* logging an ERROR event */
+    struct timeval stop_time;
+    struct timeval res;
+    if (log == NULL)
+	return;
+    log->timestamp = timestamp;
+    log->http_status = status;
+    log->http_method = method;
+    log->request_url = url;
+    log->response_length = size;
+    log->wms_request = WMS_ILLEGAL_REQUEST;
+    log->wms_version = WMS_VERSION_UNKNOWN;
+    log->status = LOG_SLOT_READY;
+    gettimeofday (&stop_time, NULL);
+    timersub (&(log->begin_time), &stop_time, &res);
+    log->milliseconds = res.tv_usec / 1000;
+}
+
+static void
+log_get_capabilities_1 (struct server_log_item *log, char *timestamp,
+			int status, char *method, char *url)
+{
+/* logging a GetCapabilities event (take #1) */
+    if (log == NULL)
+	return;
+    log->timestamp = timestamp;
+    log->http_status = status;
+    log->http_method = method;
+    log->request_url = url;
+    log->wms_request = WMS_GET_CAPABILITIES;
+    log->wms_version = WMS_VERSION_UNKNOWN;
+}
+
+static void
+log_get_capabilities_2 (struct server_log_item *log, int size)
+{
+/* logging a GetCapabilities event (take #2) */
+    struct timeval stop_time;
+    struct timeval res;
+    if (log == NULL)
+	return;
+    log->response_length = size;
+    log->status = LOG_SLOT_READY;
+    gettimeofday (&stop_time, NULL);
+    timersub (&(log->begin_time), &stop_time, &res);
+    log->milliseconds = res.tv_usec / 1000;
+}
+
+static void
+log_get_map_1 (struct server_log_item *log, char *timestamp, int status,
+	       char *method, char *url, struct wms_args *args)
+{
+/* logging a GetMap event (take #1) */
+    if (log == NULL)
+	return;
+    log->timestamp = timestamp;
+    log->http_status = status;
+    log->http_method = method;
+    log->request_url = url;
+    log->wms_request = WMS_GET_MAP;
+    log->wms_version = args->wms_version;
+    log->wms_layer = args->layer;
+    log->wms_srid = args->srid;
+    log->wms_bbox_minx = args->minx;
+    log->wms_bbox_miny = args->miny;
+    log->wms_bbox_maxx = args->maxx;
+    log->wms_bbox_maxy = args->maxy;
+    log->wms_width = args->width;
+    log->wms_height = args->height;
+    log->wms_style = args->style;
+    log->wms_format = args->format;
+    log->wms_transparent = args->transparent;
+    log->has_bgcolor = args->has_bgcolor;
+    log->wms_bgcolor_red = args->red;
+    log->wms_bgcolor_green = args->green;
+    log->wms_bgcolor_blue = args->blue;
+}
+
+static void
+log_get_map_2 (struct server_log_item *log, int size)
+{
+/* logging a GetMap event (take #2) */
+    struct timeval stop_time;
+    struct timeval res;
+    if (log == NULL)
+	return;
+    log->response_length = size;
+    log->status = LOG_SLOT_READY;
+    gettimeofday (&stop_time, NULL);
+    timersub (&(log->begin_time), &stop_time, &res);
+    log->milliseconds = res.tv_usec / 1000;
+}
+
+static void
+flush_log (sqlite3 * handle, sqlite3_stmt * stmt, struct server_log *log)
+{
+/* flushing the LOG */
+    int ret;
+    int i;
+    char dummy[32];
+    if (handle == NULL || stmt == NULL || log == NULL)
+	return;
+
+    while (1)
+      {
+	  /* looping until all Log slots are ready */
+	  int wait = 0;
+	  for (i = 0; i < MAX_LOG; i++)
+	    {
+		struct server_log_item *item = &(log->items[i]);
+		if (item->status == LOG_SLOT_BUSY)
+		    wait = 1;
+	    }
+	  if (wait)
+	      usleep (50);
+	  else
+	      break;
+      }
+
+/* starting a DBMS Transaction */
+    ret = sqlite3_exec (handle, "BEGIN", NULL, NULL, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+
+    for (i = 0; i < MAX_LOG; i++)
+      {
+	  struct server_log_item *item = &(log->items[i]);
+	  if (item->status != LOG_SLOT_READY)
+	      continue;
+	  /* binding the INSERT values */
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  if (item->timestamp == NULL)
+	      sqlite3_bind_null (stmt, 1);
+	  else
+	      sqlite3_bind_text (stmt, 1, item->timestamp,
+				 strlen (item->timestamp), SQLITE_STATIC);
+	  if (item->client_ip_addr == NULL)
+	      sqlite3_bind_null (stmt, 2);
+	  else
+	      sqlite3_bind_text (stmt, 2, item->client_ip_addr,
+				 strlen (item->client_ip_addr), SQLITE_STATIC);
+	  sqlite3_bind_int (stmt, 3, item->client_ip_port);
+	  if (item->http_method == NULL)
+	      sqlite3_bind_null (stmt, 4);
+	  else
+	      sqlite3_bind_text (stmt, 4, item->http_method,
+				 strlen (item->http_method), SQLITE_STATIC);
+	  if (item->request_url == NULL)
+	      sqlite3_bind_null (stmt, 5);
+	  else
+	      sqlite3_bind_text (stmt, 5, item->request_url,
+				 strlen (item->request_url), SQLITE_STATIC);
+	  sqlite3_bind_int (stmt, 6, item->http_status);
+	  sqlite3_bind_int (stmt, 7, item->response_length);
+	  switch (item->wms_request)
+	    {
+	    case WMS_GET_CAPABILITIES:
+		sqlite3_bind_text (stmt, 8, "GetCapabilities", 17,
+				   SQLITE_STATIC);
+		break;
+	    case WMS_GET_MAP:
+		sqlite3_bind_text (stmt, 6, "GetMap", 8, SQLITE_STATIC);
+		break;
+	    default:
+		sqlite3_bind_null (stmt, 8);
+	    };
+	  switch (item->wms_version)
+	    {
+	    case WMS_VERSION_100:
+		sqlite3_bind_text (stmt, 9, "1.0.0", 5, SQLITE_TRANSIENT);
+		break;
+	    case WMS_VERSION_110:
+		sqlite3_bind_text (stmt, 9, "1.1.0", 5, SQLITE_TRANSIENT);
+		break;
+	    case WMS_VERSION_111:
+		sqlite3_bind_text (stmt, 9, "1.1.1", 5, SQLITE_TRANSIENT);
+		break;
+	    case WMS_VERSION_130:
+		sqlite3_bind_text (stmt, 9, "1.3.0", 5, SQLITE_TRANSIENT);
+		break;
+	    default:
+		sqlite3_bind_null (stmt, 9);
+	    };
+	  if (item->wms_request == WMS_GET_MAP)
+	    {
+		if (item->wms_layer == NULL)
+		    sqlite3_bind_null (stmt, 10);
+		else
+		    sqlite3_bind_text (stmt, 10, item->wms_layer,
+				       strlen (item->wms_layer), SQLITE_STATIC);
+		sqlite3_bind_int (stmt, 11, item->wms_srid);
+		sqlite3_bind_double (stmt, 12, item->wms_bbox_minx);
+		sqlite3_bind_double (stmt, 13, item->wms_bbox_miny);
+		sqlite3_bind_double (stmt, 14, item->wms_bbox_maxx);
+		sqlite3_bind_double (stmt, 15, item->wms_bbox_maxy);
+		sqlite3_bind_int (stmt, 16, item->wms_width);
+		sqlite3_bind_int (stmt, 17, item->wms_height);
+		if (item->wms_style == NULL)
+		    sqlite3_bind_null (stmt, 18);
+		else
+		    sqlite3_bind_text (stmt, 18, item->wms_style,
+				       strlen (item->wms_style), SQLITE_STATIC);
+		switch (item->wms_format)
+		  {
+		  case RL2_OUTPUT_FORMAT_JPEG:
+		      sqlite3_bind_text (stmt, 19, "image/jpeg", 10,
+					 SQLITE_TRANSIENT);
+		      break;
+		  case RL2_OUTPUT_FORMAT_PNG:
+		      sqlite3_bind_text (stmt, 19, "image/png", 9,
+					 SQLITE_TRANSIENT);
+		      break;
+		  case RL2_OUTPUT_FORMAT_TIFF:
+		      sqlite3_bind_text (stmt, 19, "image/tiff", 10,
+					 SQLITE_TRANSIENT);
+		      break;
+		  case RL2_OUTPUT_FORMAT_PDF:
+		      sqlite3_bind_text (stmt, 19, "image/pdf", 9,
+					 SQLITE_TRANSIENT);
+		      break;
+		  default:
+		      sqlite3_bind_null (stmt, 19);
+		  };
+		switch (item->wms_transparent)
+		  {
+		  case WMS_TRANSPARENT:
+		      sqlite3_bind_int (stmt, 20, 1);
+		      break;
+		  case WMS_OPAQUE:
+		      sqlite3_bind_int (stmt, 20, 0);
+		      break;
+		  default:
+		      sqlite3_bind_null (stmt, 20);
+		      break;
+		  };
+		if (item->has_bgcolor == 0)
+		    sqlite3_bind_null (stmt, 21);
+		else
+		  {
+		      sprintf (dummy, "#%02x%02x%02x\n", item->wms_bgcolor_red,
+			       item->wms_bgcolor_green, item->wms_bgcolor_blue);
+		      sqlite3_bind_text (stmt, 21, dummy, strlen (dummy),
+					 SQLITE_TRANSIENT);
+		  }
+	    }
+	  else
+	    {
+		sqlite3_bind_null (stmt, 10);
+		sqlite3_bind_null (stmt, 11);
+		sqlite3_bind_null (stmt, 12);
+		sqlite3_bind_null (stmt, 13);
+		sqlite3_bind_null (stmt, 14);
+		sqlite3_bind_null (stmt, 15);
+		sqlite3_bind_null (stmt, 16);
+		sqlite3_bind_null (stmt, 17);
+		sqlite3_bind_null (stmt, 18);
+		sqlite3_bind_null (stmt, 19);
+		sqlite3_bind_null (stmt, 20);
+		sqlite3_bind_null (stmt, 21);
+	    }
+	  sqlite3_bind_int (stmt, 22, item->milliseconds);
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	      ;
+	  else
+	    {
+		fprintf (stderr,
+			 "INSERT INTO WMS-LOG; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+	  log_cleanup (item);
+      }
+
+/* committing the still pending transaction */
+    ret = sqlite3_exec (handle, "COMMIT", NULL, NULL, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    log->next_item = 0;
+    time (&(log->last_update));
+    return;
+
+  error:
+    sqlite3_exec (handle, "ROLLBACK", NULL, NULL, NULL);
+    fprintf (stderr, "ERROR: unable to update the server log\n");
+}
+
+static void
+clean_shutdown ()
+{
+/* performing a clean shutdown */
+    fprintf (stderr, "wmslite server shutdown in progress\n");
+    flush_log (glob.handle, glob.stmt_log, glob.log);
+    if (glob.stmt_log != NULL)
+	sqlite3_finalize (glob.stmt_log);
+    if (glob.cached_capabilities != NULL)
+	free (glob.cached_capabilities);
+    if (glob.list != NULL)
+	destroy_wms_list (glob.list);
+    if (glob.log != NULL)
+	destroy_server_log (glob.log);
+    if (glob.pool != NULL)
+	destroy_connections_pool (glob.pool);
+    if (glob.handle != NULL)
+	sqlite3_close (glob.handle);
+    if (glob.cache != NULL)
+	spatialite_cleanup_ex (glob.cache);
+    spatialite_shutdown ();
+    fprintf (stderr, "wmslite shutdown completed ... bye bye\n\n");
+}
+
+#ifdef _WIN32
+BOOL WINAPI
+signal_handler (DWORD dwCtrlType)
+{
+/* intercepting some Windows signal */
+    clean_shutdown ();
+    return FALSE;
+}
+#else
+static void
+signal_handler (int signo)
+{
+/* intercepting some signal */
+    if (signo == SIGINT)
+	signo = SIGINT;		/* suppressing compiler warnings */
+    clean_shutdown ();
+    exit (0);
+}
+#endif
+
 static struct wms_args *
 alloc_wms_args (const char *service_name)
 {
@@ -286,6 +896,7 @@ alloc_wms_args (const char *service_name)
 	return NULL;
     args = malloc (sizeof (struct wms_args));
     args->db_handle = NULL;
+    args->stmt_get_map = NULL;
     len = strlen (service_name);
     args->service_name = malloc (len + 1);
     strcpy (args->service_name, service_name);
@@ -626,7 +1237,7 @@ parse_bgcolor (const char *bgcolor, unsigned char *red, unsigned char *green,
 static int
 exists_layer (struct wms_list *list, const char *layer, int srid,
 	      int wms_version, int *swap_xy, double minx, double miny,
-	      double maxx, double maxy)
+	      double maxx, double maxy, const char **layer_name)
 {
 /* checking a required layer for validity */
     struct wms_layer *lyr = list->first;
@@ -662,6 +1273,7 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 		      if (lyr->maxy < miny)
 			  return WMS_LAYER_OUT_OF_BBOX;
 		  }
+		*layer_name = lyr->layer_name;
 		return 0;
 	    }
 	  lyr = lyr->next;
@@ -772,6 +1384,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		int ret;
 		int srid;
 		const char *layer;
+		const char *layer_name;
 		int swap_xy = 0;
 		double minx;
 		double miny;
@@ -833,6 +1446,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 			    return 200;
 			}
 		  }
+		args->has_bgcolor = 0;
 		if (p_bgcolor != NULL)
 		  {
 		      if (!parse_bgcolor (p_bgcolor, &red, &green, &blue))
@@ -840,10 +1454,11 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 			    args->error = WMS_INVALID_BGCOLOR;
 			    return 200;
 			}
+		      args->has_bgcolor = 1;
 		  }
 		ret =
 		    exists_layer (list, layer, srid, wms_version, &swap_xy,
-				  minx, miny, maxx, maxy);
+				  minx, miny, maxx, maxy, &layer_name);
 		if (ret == WMS_NOT_EXISTING_LAYER
 		    || ret == WMS_LAYER_OUT_OF_BBOX
 		    || ret == WMS_MISMATCHING_SRID)
@@ -853,7 +1468,8 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		  }
 		args->request_type = WMS_GET_MAP;
 		args->wms_version = wms_version;
-		args->layer = layer;
+		args->layer = layer_name;
+		args->srid = srid;
 		args->swap_xy = swap_xy;
 		if (wms_version == WMS_VERSION_130 && swap_xy)
 		  {
@@ -885,22 +1501,60 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 }
 
 static struct wms_args *
-parse_http_request (const char *http_hdr)
+parse_http_request (const char *http_hdr, char **method, char **url)
 {
 /* attempting to parse an HTTP Request */
+    int ok = 1;
+    int len;
     struct wms_args *args = NULL;
     char token[2000];
     char *out;
     const char *p;
     const char *start = strstr (http_hdr, "GET ");
     const char *end = NULL;
+    *url = NULL;
     if (start == NULL)
-	return NULL;
-    end = strstr (start, " HTTP/1.1");
-    if (end == NULL)
-	end = strstr (start, " HTTP/1.0");
-    if (end == NULL)
-	return NULL;
+	ok = 0;
+    if (ok)
+      {
+	  end = strstr (start, " HTTP/1.1");
+	  if (end == NULL)
+	      end = strstr (start, " HTTP/1.0");
+	  if (end == NULL)
+	      return NULL;
+      }
+
+    if (ok)
+      {
+	  *method = malloc (4);
+	  strcpy (*method, "GET");
+	  len = end - start;
+	  len -= 4;
+	  len++;
+	  *url = malloc (end - start);
+	  memcpy (*url, start + 4, len);
+	  *(*url + len) = '\0';
+      }
+    else
+      {
+	  start = strstr (http_hdr, "POST ");
+	  if (start != NULL)
+	    {
+		end = strstr (start, " HTTP/1.1");
+		if (end == NULL)
+		    end = strstr (start, " HTTP/1.0");
+		if (end == NULL)
+		    return NULL;
+	    }
+	  *method = malloc (5);
+	  strcpy (*method, "POST");
+	  len = end - start;
+	  len -= 5;
+	  len++;
+	  *url = malloc (end - start);
+	  memcpy (*url, start + 5, len);
+	  *(*url + len) = '\0';
+      }
 
     p = start;
     out = token;
@@ -1025,6 +1679,22 @@ get_current_timestamp ()
     dummy =
 	sqlite3_mprintf ("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", day,
 			 xtm->tm_mday, month, xtm->tm_year + 1900, xtm->tm_hour,
+			 xtm->tm_min, xtm->tm_sec);
+    return dummy;
+}
+
+static char *
+get_sql_timestamp ()
+{
+/* formatting the current SQL timestamp */
+    char *dummy;
+    struct tm *xtm;
+    time_t now;
+    time (&now);
+    xtm = gmtime (&now);
+    dummy =
+	sqlite3_mprintf ("%04d-%02d-%02dT%02d:%02d:%02d", xtm->tm_year + 1900,
+			 xtm->tm_mon + 1, xtm->tm_mday, xtm->tm_hour,
 			 xtm->tm_min, xtm->tm_sec);
     return dummy;
 }
@@ -1188,7 +1858,7 @@ build_http_error (int http_status, gaiaOutBufferPtr xml_response, int port_no)
 }
 
 static void
-wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
+build_get_capabilities (struct wms_list *list, char **cached, int *cached_len)
 {
 /* preparing the WMS GetCapabilities XML document */
     struct wms_layer *lyr;
@@ -1331,41 +2001,101 @@ wms_get_capabilities (struct wms_list *list, gaiaOutBufferPtr xml_response)
     gaiaAppendToOutBuffer (&xml_text,
 			   "</Layer>\r\n</Capability>\r\n</WMS_Capabilities>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "");
-    gaiaAppendToOutBuffer (xml_response, "HTTP/1.1 200 OK\r\n");
-    dummy = get_current_timestamp ();
-    gaiaAppendToOutBuffer (xml_response, dummy);
-    sqlite3_free (dummy);
-    gaiaAppendToOutBuffer (xml_response,
-			   "Content-Type: text/xml;charset=UTF-8\r\n");
-    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", xml_text.WriteOffset);
-    gaiaAppendToOutBuffer (xml_response, dummy);
-    sqlite3_free (dummy);
-    gaiaAppendToOutBuffer (xml_response, "Connection: close\r\n\r\n");
-    gaiaAppendToOutBuffer (xml_response, xml_text.Buffer);
+    *cached = xml_text.Buffer;
+    *cached_len = xml_text.WriteOffset;
+    xml_text.Buffer = NULL;
     gaiaOutBufferReset (&xml_text);
 }
 
+static int
+get_xml_bytes (gaiaOutBufferPtr xml_response, int curr, int block_sz)
+{
+/* determining how many bytes will be sent on the output socket */
+    int wr = block_sz;
+    if (xml_response->Buffer == NULL || xml_response->Error)
+	return 0;
+    if (curr + wr > xml_response->WriteOffset)
+	wr = xml_response->WriteOffset - curr;
+    return wr;
+}
+
+static int
+get_payload_bytes (int total, int curr, int block_sz)
+{
+/* determining how many bytes will be sent on the output socket */
+    int wr = block_sz;
+    if (curr + wr > total)
+	wr = total - curr;
+    return wr;
+}
+
 static void
-wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
-	     unsigned char **payload, int *payload_size)
+#ifdef _WIN32
+wms_get_capabilities (SOCKET socket, const char *cached,
+		      int cached_len, struct server_log_item *log)
+#else
+wms_get_capabilities (int socket, const char *cached,
+		      int cached_len, struct server_log_item *log)
+#endif
+{
+/* preparing the WMS GetCapabilities XML document */
+    gaiaOutBuffer xml_response;
+    char *dummy;
+    int curr;
+    int rd;
+    int wr;
+
+    gaiaOutBufferInitialize (&xml_response);
+    gaiaAppendToOutBuffer (&xml_response, "HTTP/1.1 200 OK\r\n");
+    dummy = get_current_timestamp ();
+    gaiaAppendToOutBuffer (&xml_response, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (&xml_response,
+			   "Content-Type: text/xml;charset=UTF-8\r\n");
+    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", cached_len);
+    gaiaAppendToOutBuffer (&xml_response, dummy);
+    sqlite3_free (dummy);
+    gaiaAppendToOutBuffer (&xml_response, "Connection: close\r\n\r\n");
+    gaiaAppendToOutBuffer (&xml_response, cached);
+
+/* uploading the HTTP response */
+    curr = 0;
+    while (1)
+      {
+	  rd = get_xml_bytes (&xml_response, curr, SEND_BLOK_SZ);
+	  if (rd == 0)
+	      break;
+	  wr = send (socket, xml_response.Buffer + curr, rd, 0);
+	  if (wr < 0)
+	      break;
+	  curr += wr;
+      }
+    log_get_capabilities_2 (log, xml_response.WriteOffset);
+    gaiaOutBufferReset (&xml_response);
+}
+
+static void
+#ifdef _WIN32
+wms_get_map (struct wms_args *args, SOCKET socket, struct server_log_item *log)
+#else
+wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
+#endif
 {
 /* preparing the WMS GetMap payload */
     int ret;
     char *dummy;
+    int curr;
+    int rd;
+    int wr;
+    int save_sz;
     sqlite3_stmt *stmt = NULL;
-    const char *sql;
+    gaiaOutBuffer http_response;
+    unsigned char *payload;
+    int payload_size;
     unsigned char *black;
     int black_sz;
 
-    *payload = NULL;
-    *payload_size = 0;
-
-    sql =
-	sqlite3_mprintf
-	("SELECT RL2_GetMapImage(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?)");
-    ret = sqlite3_prepare_v2 (args->db_handle, sql, strlen (sql), &stmt, NULL);
-    if (ret != SQLITE_OK)
-	goto error;
+    stmt = args->stmt_get_map;
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
     sqlite3_bind_text (stmt, 1, args->layer, strlen (args->layer),
@@ -1398,79 +2128,116 @@ wms_get_map (struct wms_args *args, gaiaOutBufferPtr http_response,
 	    {
 		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
 		  {
-		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
-		      *payload_size = sqlite3_column_bytes (stmt, 0);
-		      *payload = malloc (*payload_size);
-		      memcpy (*payload, blob, *payload_size);
+		      payload = (unsigned char *) sqlite3_column_blob (stmt, 0);
+		      payload_size = sqlite3_column_bytes (stmt, 0);
+		      /* preparing the HTTP response */
+		      gaiaOutBufferInitialize (&http_response);
+		      gaiaAppendToOutBuffer (&http_response,
+					     "HTTP/1.1 200 OK\r\n");
+		      dummy = get_current_timestamp ();
+		      gaiaAppendToOutBuffer (&http_response, dummy);
+		      sqlite3_free (dummy);
+		      if (args->format == RL2_OUTPUT_FORMAT_JPEG)
+			  gaiaAppendToOutBuffer (&http_response,
+						 "Content-Type: image/jpeg\r\n");
+		      if (args->format == RL2_OUTPUT_FORMAT_PNG)
+			  gaiaAppendToOutBuffer (&http_response,
+						 "Content-Type: image/png\r\n");
+		      dummy =
+			  sqlite3_mprintf ("Content-Length: %d\r\n",
+					   payload_size);
+		      gaiaAppendToOutBuffer (&http_response, dummy);
+		      sqlite3_free (dummy);
+		      gaiaAppendToOutBuffer (&http_response,
+					     "Connection: close\r\n\r\n");
+		      /* uploading the HTTP response header */
+		      curr = 0;
+		      while (1)
+			{
+			    rd = get_xml_bytes (&http_response, curr,
+						SEND_BLOK_SZ);
+			    if (rd == 0)
+				break;
+			    wr = send (socket, http_response.Buffer + curr, rd,
+				       0);
+			    if (wr < 0)
+				break;
+			    curr += wr;
+			}
+		      save_sz = http_response.WriteOffset;
+		      gaiaOutBufferReset (&http_response);
+		      /* uploading the image payload */
+		      curr = 0;
+		      while (1)
+			{
+			    rd = get_payload_bytes (payload_size, curr,
+						    SEND_BLOK_SZ);
+			    if (rd == 0)
+				break;
+			    wr = send (socket, payload + curr, rd, 0);
+			    if (wr < 0)
+				break;
+			    curr += wr;
+			}
+		      log_get_map_2 (log, save_sz + payload_size);
+		      return;
 		  }
 	    }
       }
-    sqlite3_finalize (stmt);
-    if (*payload == NULL)
-	goto error;
 
-    gaiaAppendToOutBuffer (http_response, "HTTP/1.1 200 OK\r\n");
-    dummy = get_current_timestamp ();
-    gaiaAppendToOutBuffer (http_response, dummy);
-    sqlite3_free (dummy);
-    if (args->format == RL2_OUTPUT_FORMAT_JPEG)
-	gaiaAppendToOutBuffer (http_response, "Content-Type: image/jpeg\r\n");
-    if (args->format == RL2_OUTPUT_FORMAT_PNG)
-	gaiaAppendToOutBuffer (http_response, "Content-Type: image/png\r\n");
-    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", *payload_size);
-    gaiaAppendToOutBuffer (http_response, dummy);
-    sqlite3_free (dummy);
-    gaiaAppendToOutBuffer (http_response, "Connection: close\r\n\r\n");
-    free (args->style);
-    return;
-
-  error:
-/* returning a black image */
+/* preparing a default black image */
     black_sz = args->width * args->height;
     black = malloc (black_sz);
     memset (black, 0, black_sz);
     if (args->format == RL2_OUTPUT_FORMAT_JPEG)
-	rl2_gray_to_jpeg (args->width, args->height, black, 80, payload,
-			  payload_size);
+	rl2_gray_to_jpeg (args->width, args->height, black, 80, &payload,
+			  &payload_size);
     if (args->format == RL2_OUTPUT_FORMAT_PNG)
-	rl2_gray_to_png (args->width, args->height, black, payload,
-			 payload_size);
+	rl2_gray_to_png (args->width, args->height, black, &payload,
+			 &payload_size);
     free (black);
-    gaiaAppendToOutBuffer (http_response, "HTTP/1.1 200 OK\r\n");
+    /* preparing the HTTP response */
+    gaiaOutBufferInitialize (&http_response);
+    gaiaAppendToOutBuffer (&http_response, "HTTP/1.1 200 OK\r\n");
     dummy = get_current_timestamp ();
-    gaiaAppendToOutBuffer (http_response, dummy);
+    gaiaAppendToOutBuffer (&http_response, dummy);
     sqlite3_free (dummy);
     if (args->format == RL2_OUTPUT_FORMAT_JPEG)
-	gaiaAppendToOutBuffer (http_response, "Content-Type: image/jpeg\r\n");
+	gaiaAppendToOutBuffer (&http_response, "Content-Type: image/jpeg\r\n");
     if (args->format == RL2_OUTPUT_FORMAT_PNG)
-	gaiaAppendToOutBuffer (http_response, "Content-Type: image/png\r\n");
-    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", *payload_size);
-    gaiaAppendToOutBuffer (http_response, dummy);
+	gaiaAppendToOutBuffer (&http_response, "Content-Type: image/png\r\n");
+    dummy = sqlite3_mprintf ("Content-Length: %d\r\n", payload_size);
+    gaiaAppendToOutBuffer (&http_response, dummy);
     sqlite3_free (dummy);
-    gaiaAppendToOutBuffer (http_response, "Connection: close\r\n\r\n");
-    free (args->style);
-}
-
-static int
-get_xml_bytes (gaiaOutBufferPtr xml_response, int curr, int block_sz)
-{
-/* determining how many bytes will be sent on the output socket */
-    int wr = block_sz;
-    if (xml_response->Buffer == NULL || xml_response->Error)
-	return 0;
-    if (curr + wr > xml_response->WriteOffset)
-	wr = xml_response->WriteOffset - curr;
-    return wr;
-}
-
-static int
-get_payload_bytes (int total, int curr, int block_sz)
-{
-/* determining how many bytes will be sent on the output socket */
-    int wr = block_sz;
-    if (curr + wr > total)
-	wr = total - curr;
-    return wr;
+    gaiaAppendToOutBuffer (&http_response, "Connection: close\r\n\r\n");
+    /* uploading the HTTP response header */
+    curr = 0;
+    while (1)
+      {
+	  rd = get_xml_bytes (&http_response, curr, SEND_BLOK_SZ);
+	  if (rd == 0)
+	      break;
+	  wr = send (socket, http_response.Buffer + curr, rd, 0);
+	  if (wr < 0)
+	      break;
+	  curr += wr;
+      }
+    save_sz = http_response.WriteOffset;
+    gaiaOutBufferReset (&http_response);
+    /* uploading the image payload */
+    curr = 0;
+    while (1)
+      {
+	  rd = get_payload_bytes (payload_size, curr, SEND_BLOK_SZ);
+	  if (rd == 0)
+	      break;
+	  wr = send (socket, payload + curr, rd, 0);
+	  if (wr < 0)
+	      break;
+	  curr += wr;
+      }
+    free (payload);
+    log_get_map_2 (log, save_sz + payload_size);
 }
 
 #ifdef _WIN32
@@ -1488,8 +2255,9 @@ win32_http_request (void *data)
     char *ptr;
     char http_hdr[2000];	/* The HTTP request header */
     int http_status;
-    unsigned char *payload = NULL;
-    int payload_size;
+    char *method = NULL;
+    char *url = NULL;
+    char *timestamp = get_sql_timestamp ();
 
     curr = 0;
     while ((unsigned int) curr < sizeof (http_hdr))
@@ -1512,7 +2280,7 @@ win32_http_request (void *data)
 	  goto http_error;
       }
 
-    args = parse_http_request (http_hdr);
+    args = parse_http_request (http_hdr, &method, &url);
     if (args == NULL)
       {
 	  http_status = 400;
@@ -1527,49 +2295,18 @@ win32_http_request (void *data)
     if (args->request_type == WMS_GET_CAPABILITIES)
       {
 	  /* preparing the XML WMS GetCapabilities */
-	  gaiaOutBufferInitialize (&xml_response);
-	  wms_get_capabilities (req->list, &xml_response);
-	  curr = 0;
-	  while (1)
-	    {
-		rd = get_xml_bytes (&xml_response, curr, 1024);
-		if (rd == 0)
-		    break;
-		wr = send (req->socket, xml_response.Buffer + curr, rd, 0);
-		if (wr < 0)
-		    break;
-		curr += wr;
-	    }
-	  gaiaOutBufferReset (&xml_response);
+	  log_get_capabilities_1 (req->log, timestamp, http_status, method,
+				  url);
+	  wms_get_capabilities (req->socket, req->cached_capabilities,
+				req->cached_capabilities_len, req->log);
       }
     if (args->request_type == WMS_GET_MAP)
       {
 	  /* preparing the WMS GetMap payload */
-	  gaiaOutBufferInitialize (&xml_response);
-	  args->db_handle = req->db_handle;
-	  wms_get_map (args, &xml_response, &payload, &payload_size);
-	  curr = 0;
-	  while (1)
-	    {
-		rd = get_xml_bytes (&xml_response, curr, 1024);
-		if (rd == 0)
-		    break;
-		wr = send (req->socket, xml_response.Buffer + curr, rd, 0);
-		if (wr < 0)
-		    break;
-		curr += wr;
-	    }
-	  curr = 0;
-	  while (1)
-	    {
-		rd = get_payload_bytes (payload_size, curr, 1024);
-		if (rd == 0)
-		    break;
-		wr = send (req->socket, payload + curr, rd, 0);
-		if (wr < 0)
-		    break;
-		curr += wr;
-	    }
+	  args->db_handle = req->conn->handle;
+	  args->stmt_get_map = req->conn->stmt_get_map;
+	  log_get_map_1 (req->log, timestamp, http_status, method, url, args);
+	  wms_get_map (args, req->socket, req->log);
       }
     destroy_wms_args (args);
     goto end_request;
@@ -1583,12 +2320,14 @@ win32_http_request (void *data)
     curr = 0;
     while (1)
       {
-	  rd = get_xml_bytes (&xml_response, curr, 1024);
+	  rd = get_xml_bytes (&xml_response, curr, SEND_BLOK_SZ);
 	  if (rd == 0)
 	      break;
 	  send (req->socket, xml_response.Buffer + curr, rd, 0);
 	  curr += rd;
       }
+    log_error (req->log, timestamp, http_status, method, url,
+	       xml_response.WriteOffset);
     gaiaOutBufferReset (&xml_response);
     goto end_request;
 
@@ -1601,16 +2340,19 @@ win32_http_request (void *data)
     curr = 0;
     while (1)
       {
-	  rd = get_xml_bytes (&xml_response, curr, 1024);
+	  rd = get_xml_bytes (&xml_response, curr, SEND_BLOK_SZ);
 	  if (rd == 0)
 	      break;
 	  send (req->socket, xml_response.Buffer + curr, rd, 0);
 	  curr += rd;
       }
+    log_error (req->log, timestamp, http_status, method, url,
+	       xml_response.WriteOffset);
     gaiaOutBufferReset (&xml_response);
 
   end_request:
     closesocket (req->socket);
+    req->conn->status = CONNECTION_AVAILABLE;
     free (req);
 }
 #else
@@ -1627,8 +2369,9 @@ berkeley_http_request (void *data)
     char *ptr;
     char http_hdr[2000];	/* The HTTP request header */
     int http_status;
-    unsigned char *payload = NULL;
-    int payload_size;
+    char *method = NULL;
+    char *url = NULL;
+    char *timestamp = get_sql_timestamp ();
 
     curr = 0;
     while ((unsigned int) curr < sizeof (http_hdr))
@@ -1651,7 +2394,7 @@ berkeley_http_request (void *data)
 	  goto http_error;
       }
 
-    args = parse_http_request (http_hdr);
+    args = parse_http_request (http_hdr, &method, &url);
     if (args == NULL)
       {
 	  http_status = 400;
@@ -1665,46 +2408,19 @@ berkeley_http_request (void *data)
 	goto illegal_request;
     if (args->request_type == WMS_GET_CAPABILITIES)
       {
-	  /* preparing the XML WMS GetCapabilities */
-	  gaiaOutBufferInitialize (&xml_response);
-	  wms_get_capabilities (req->list, &xml_response);
-	  curr = 0;
-	  while (1)
-	    {
-		rd = get_xml_bytes (&xml_response, curr, 1024);
-		if (rd == 0)
-		    break;
-		send (req->socket, xml_response.Buffer + curr, rd, 0);
-		curr += rd;
-	    }
-	  gaiaOutBufferReset (&xml_response);
+	  /* uploading the XML WMS GetCapabilities */
+	  log_get_capabilities_1 (req->log, timestamp, http_status, method,
+				  url);
+	  wms_get_capabilities (req->socket, req->cached_capabilities,
+				req->cached_capabilities_len, req->log);
       }
     if (args->request_type == WMS_GET_MAP)
       {
 	  /* preparing the WMS GetMap payload */
-	  gaiaOutBufferInitialize (&xml_response);
-	  args->db_handle = req->db_handle;
-	  wms_get_map (args, &xml_response, &payload, &payload_size);
-	  curr = 0;
-	  while (1)
-	    {
-		rd = get_xml_bytes (&xml_response, curr, 1024);
-		if (rd == 0)
-		    break;
-		send (req->socket, xml_response.Buffer + curr, rd, 0);
-		curr += rd;
-	    }
-	  gaiaOutBufferReset (&xml_response);
-	  curr = 0;
-	  while (1)
-	    {
-		rd = get_payload_bytes (payload_size, curr, 1024);
-		if (rd == 0)
-		    break;
-		send (req->socket, payload + curr, rd, 0);
-		curr += rd;
-	    }
-	  free (payload);
+	  args->db_handle = req->conn->handle;
+	  args->stmt_get_map = req->conn->stmt_get_map;
+	  log_get_map_1 (req->log, timestamp, http_status, method, url, args);
+	  wms_get_map (args, req->socket, req->log);
       }
     destroy_wms_args (args);
     goto end_request;
@@ -1718,12 +2434,14 @@ berkeley_http_request (void *data)
     curr = 0;
     while (1)
       {
-	  rd = get_xml_bytes (&xml_response, curr, 1024);
+	  rd = get_xml_bytes (&xml_response, curr, SEND_BLOK_SZ);
 	  if (rd == 0)
 	      break;
 	  send (req->socket, xml_response.Buffer + curr, rd, 0);
 	  curr += rd;
       }
+    log_error (req->log, timestamp, http_status, method, url,
+	       xml_response.WriteOffset);
     gaiaOutBufferReset (&xml_response);
     goto end_request;
 
@@ -1736,27 +2454,38 @@ berkeley_http_request (void *data)
     curr = 0;
     while (1)
       {
-	  rd = get_xml_bytes (&xml_response, curr, 1024);
+	  rd = get_xml_bytes (&xml_response, curr, SEND_BLOK_SZ);
 	  if (rd == 0)
 	      break;
 	  send (req->socket, xml_response.Buffer + curr, rd, 0);
 	  curr += rd;
       }
+    log_error (req->log, timestamp, http_status, method, url,
+	       xml_response.WriteOffset);
     gaiaOutBufferReset (&xml_response);
 
   end_request:
     close (req->socket);
+    req->conn->status = CONNECTION_AVAILABLE;
     free (req);
     pthread_exit (NULL);
 }
 #endif
 
-static int
+static void
 do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
-		sqlite3 * db_handle)
+		sqlite3 * db_handle, sqlite3_stmt * stmt_log,
+		struct connections_pool *pool, struct server_log *log,
+		char *cached_capab, int cached_capab_len)
 {
 /* implementing the ACCEPT loop */
     unsigned int id = 0;
+    struct read_connection *conn;
+    int ic;
+    time_t diff;
+    time_t now;
+    char *ip_addr;
+    char *ip_addr2;
 #ifdef _WIN32
     SOCKET socket = skt->socket;
     SOCKET client;
@@ -1776,33 +2505,89 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
 		  {
 		      WSACleanup ();
 		      fprintf (stderr, "accept error: %d\n", wsaError);
-		      return 0;
+		      return;
 		  }
 		else
 		  {
 		      closesocket (socket);
 		      WSACleanup ();
 		      fprintf (stderr, "error from accept()\n");
-		      return 0;
+		      return;
 		  }
 	    }
 	  req = malloc (sizeof (struct http_request));
 	  req->id = id++;
 	  req->port_no = port_no;
 	  req->socket = client;
-	  req->addr = client_addr;
 	  req->list = list;
-	  req->db_handle = db_handle;
+	  req->cached_capabilities = cached_capab;
+	  req->cached_capabilities_len = cached_capab_len;
+	  while (1)
+	    {
+		/* looping until an available read connection is found */
+		for (ic = 0; ic < MAX_CONN; ic++)
+		  {
+		      /* selecting an available connection (if any) */
+		      struct read_connection *ptr = &(pool->connections[ic]);
+		      if (ptr->status == CONNECTION_AVAILABLE)
+			{
+			    conn = ptr;
+			    conn->status = CONNECTION_BUSY;
+			    goto conn_found;
+			}
+		  }
+		Sleep (50);
+	    }
+	conn_found:
+	  req->conn = conn;
+	  req->log_handle = db_handle;
+	  time (&now);
+	  diff = now - log->last_update;
+	  if (log->next_item < MAX_LOG && diff < 30)
+	    {
+		/* reserving a free log slot */
+		req->log = &(log->items[log->next_item++]);
+		req->log->status = LOG_SLOT_BUSY;
+		ip_addr = inet_ntoa (client_addr.sin_addr);
+		ip_addr2 = NULL;
+		if (ip_addr != NULL)
+		  {
+		      int len = strlen (ip_addr);
+		      ip_addr2 = malloc (len + 1);
+		      strcpy (ip_addr2, ip_addr);
+		  }
+		req->log->client_ip_addr = ip_addr2;
+		req->log->client_ip_port = client_addr.sin_port;
+		gettimeofday (&(req->log->begin_time), NULL);
+	    }
+	  else
+	    {
+		/* flushing the log */
+		flush_log (db_handle, stmt_log, log);
+		/* reserving a free log slot */
+		req->log = &(log->items[log->next_item++]);
+		req->log->status = LOG_SLOT_BUSY;
+		ip_addr = inet_ntoa (client_addr.sin_addr);
+		ip_addr2 = NULL;
+		if (ip_addr != NULL)
+		  {
+		      int len = strlen (ip_addr);
+		      ip_addr2 = malloc (len + 1);
+		      strcpy (ip_addr2, ip_addr);
+		  }
+		req->log->client_ip_addr = ip_addr2;
+		req->log->client_ip_port = client_addr.sin_port;
+		gettimeofday (&(req->log->begin_time), NULL);
+	    }
 	  _beginthread (win32_http_request, 0, (void *) req);
       }
-    return 1;
+    return;
 #else
     pthread_t thread_id;
-    pthread_attr_t attr;
     int socket = skt->socket;
     int client;
-    struct sockaddr client_addr;
-    socklen_t len = sizeof (struct sockaddr);
+    struct sockaddr_in client_addr;
+    socklen_t len = sizeof (struct sockaddr_in);
     struct http_request *req;
 
     while (1)
@@ -1813,20 +2598,75 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
 	    {
 		close (socket);
 		fprintf (stderr, "error from accept()\n");
-		return 0;
+		return;
 	    }
 	  req = malloc (sizeof (struct http_request));
 	  req->id = id++;
 	  req->port_no = port_no;
 	  req->socket = client;
-	  req->addr = client_addr;
 	  req->list = list;
-	  req->db_handle = db_handle;
-	  pthread_attr_init (&attr);
+	  req->cached_capabilities = cached_capab;
+	  req->cached_capabilities_len = cached_capab_len;
+	  while (1)
+	    {
+		/* looping until an available read connection is found */
+		for (ic = 0; ic < MAX_CONN; ic++)
+		  {
+		      /* selecting an available connection (if any) */
+		      struct read_connection *ptr = &(pool->connections[ic]);
+		      if (ptr->status == CONNECTION_AVAILABLE)
+			{
+			    conn = ptr;
+			    conn->status = CONNECTION_BUSY;
+			    goto conn_found;
+			}
+		  }
+		usleep (50);
+	    }
+	conn_found:
+	  req->conn = conn;
+	  req->log_handle = db_handle;
+	  time (&now);
+	  diff = now - log->last_update;
+	  if (log->next_item < MAX_LOG && diff < 30)
+	    {
+		/* reserving a free log slot */
+		req->log = &(log->items[log->next_item++]);
+		req->log->status = LOG_SLOT_BUSY;
+		ip_addr = inet_ntoa (client_addr.sin_addr);
+		ip_addr2 = NULL;
+		if (ip_addr != NULL)
+		  {
+		      int len = strlen (ip_addr);
+		      ip_addr2 = malloc (len + 1);
+		      strcpy (ip_addr2, ip_addr);
+		  }
+		req->log->client_ip_addr = ip_addr2;
+		req->log->client_ip_port = client_addr.sin_port;
+		gettimeofday (&(req->log->begin_time), NULL);
+	    }
+	  else
+	    {
+		/* flushing the log */
+		flush_log (db_handle, stmt_log, log);
+		/* reserving a free log slot */
+		req->log = &(log->items[log->next_item++]);
+		req->log->status = LOG_SLOT_BUSY;
+		ip_addr = inet_ntoa (client_addr.sin_addr);
+		ip_addr2 = NULL;
+		if (ip_addr != NULL)
+		  {
+		      int len = strlen (ip_addr);
+		      ip_addr2 = malloc (len + 1);
+		      strcpy (ip_addr2, ip_addr);
+		  }
+		req->log->client_ip_addr = ip_addr2;
+		req->log->client_ip_port = client_addr.sin_port;
+		gettimeofday (&(req->log->begin_time), NULL);
+	    }
 	  pthread_create (&thread_id, NULL, berkeley_http_request,
 			  (void *) req);
       }
-    return 1;
 #endif
 }
 
@@ -1895,9 +2735,9 @@ do_start_http (int port_no, struct neutral_socket *srv_skt)
       }
     srv_skt->socket = skt;
 #endif
-    printf ("======================================================\n");
-    printf ("    HTTP micro-server listening on port: %d\n", port_no);
-    printf ("======================================================\n");
+    fprintf (stderr, "======================================================\n");
+    fprintf (stderr, "    HTTP micro-server listening on port: %d\n", port_no);
+    fprintf (stderr, "======================================================\n");
     return 1;
 }
 
@@ -1940,7 +2780,7 @@ compute_geographic_extents (sqlite3 * handle, struct wms_list *list)
 		      lyr->geo_miny = sqlite3_column_double (stmt, 1);
 		      lyr->geo_maxx = sqlite3_column_double (stmt, 2);
 		      lyr->geo_maxy = sqlite3_column_double (stmt, 3);
-		      printf ("Publishing layer \"%s\"\n", lyr->layer_name);
+		      fprintf (stderr, "Publishing layer \"%s\"\n", lyr->layer_name);
 		  }
 	    }
 	  sqlite3_finalize (stmt);
@@ -2100,15 +2940,28 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
     char sql[1024];
 
     *handle = NULL;
-    printf ("\n======================================================\n");
-    printf ("              WmsLite server startup\n");
-    printf ("======================================================\n");
-    printf ("         SQLite version: %s\n", sqlite3_libversion ());
-    printf ("     SpatiaLite version: %s\n", spatialite_version ());
-    printf ("    RasterLite2 version: %s\n", rl2_version ());
-    printf ("======================================================\n");
+    fprintf (stderr, "\n======================================================\n");
+    fprintf (stderr, "              WmsLite server startup\n");
+    fprintf (stderr, "======================================================\n");
+    fprintf (stderr, "         SQLite version: %s\n", sqlite3_libversion ());
+    fprintf (stderr, "     SpatiaLite version: %s\n", spatialite_version ());
+    fprintf (stderr, "    RasterLite2 version: %s\n", rl2_version ());
+    fprintf (stderr, "======================================================\n");
+/* enabling the SQLite's shared cache */
+    ret = sqlite3_enable_shared_cache (1);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "unable to enable SQLite's shared cache: ERROR %d\n",
+		   ret);
+	  sqlite3_close (db_handle);
+	  return;
+      }
 
-    ret = sqlite3_open_v2 (path, &db_handle, SQLITE_OPEN_READONLY, NULL);
+/* opening the main READ-WRITE connection */
+    ret =
+	sqlite3_open_v2 (path, &db_handle,
+			 SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX |
+			 SQLITE_OPEN_SHAREDCACHE, NULL);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "cannot open '%s': %s\n", path,
@@ -2117,13 +2970,16 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
 	  return;
       }
     spatialite_init_ex (db_handle, cache, 0);
+    rl2_init (db_handle, 0);
+/* enabling WAL journaling */
+    sprintf (sql, "PRAGMA journal_mode=WAL");
+    sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
     if (cache_size > 0)
       {
 	  /* setting the CACHE-SIZE */
 	  sprintf (sql, "PRAGMA cache_size=%d", cache_size);
 	  sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
       }
-    rl2_init (db_handle, 0);
 
     *handle = db_handle;
     return;
@@ -2149,6 +3005,9 @@ main (int argc, char *argv[])
 /* the MAIN function simply perform arguments checking */
     struct neutral_socket skt_ptr;
     sqlite3 *handle;
+    sqlite3_stmt *stmt_log = NULL;
+    const char *sql;
+    int ret;
     int i;
     int error = 0;
     int next_arg = ARG_NONE;
@@ -2157,6 +3016,25 @@ main (int argc, char *argv[])
     int cache_size = 0;
     void *cache;
     struct wms_list *list;
+    struct connections_pool *pool;
+    struct server_log *log;
+    char *cached_capabilities = NULL;
+    int cached_capabilities_len = 0;
+
+/* installing the signal handlers */
+    glob.handle = NULL;
+    glob.stmt_log = NULL;
+    glob.cached_capabilities = NULL;
+    glob.log = NULL;
+    glob.list = NULL;
+    glob.pool = NULL;
+    glob.cache = NULL;
+#ifdef _WIN32
+    SetConsoleCtrlHandler (signal_handler, TRUE);
+#else
+    signal (SIGINT, signal_handler);
+    signal (SIGTERM, signal_handler);
+#endif
 
     for (i = 1; i < argc; i++)
       {
@@ -2226,9 +3104,11 @@ main (int argc, char *argv[])
 
 /* opening the DB */
     cache = spatialite_alloc_connection ();
+    glob.cache = cache;
     open_db (db_path, &handle, cache_size, cache);
     if (!handle)
 	return -1;
+    glob.handle = handle;
 
     list = get_raster_coverages (handle);
     if (list == NULL)
@@ -2238,20 +3118,80 @@ main (int argc, char *argv[])
 		   db_path);
 	  goto stop;
       }
+    glob.list = list;
     compute_geographic_extents (handle, list);
+    build_get_capabilities (list, &cached_capabilities,
+			    &cached_capabilities_len);
+    glob.cached_capabilities = cached_capabilities;
+
+/* creating the read connections pool */
+    pool = alloc_connections_pool (db_path);
+    if (pool == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to initialize a connections pool\n");
+	  goto stop;
+      }
+    glob.pool = pool;
+
+/* creating the server log helper struct */
+    log = alloc_server_log ();
+    if (log == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to initialize the server log\n");
+	  goto stop;
+      }
+    glob.log = log;
 
 /* starting the HTTP server */
     if (!do_start_http (port_no, &skt_ptr))
 	goto stop;
 
+/* starting the logging facility */
+    sql = "CREATE TABLE IF NOT EXISTS wms_server_log (\n"
+	"\tid INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+	"\ttimestamp TEXT NOT NULL,\n"
+	"\tclient_ip_addr TEXT NOT NULL,\n"
+	"\tclient_ip_port INTEGER NOT NULL,\n"
+	"\thttp_method TEXT NOT NULL,\n"
+	"\trequest_url TEXT NOT NULL,\n"
+	"\thttp_status INTEGER NOT NULL,\n"
+	"\tresponse_length INTEGER NOT NULL,\n"
+	"\twms_request TEXT,\n"
+	"\twms_version TEXT,\n"
+	"\twms_layer TEXT,\n"
+	"\twms_srid INTEGER,\n"
+	"\twms_bbox_minx DOUBLE,\n"
+	"\twms_bbox_miny DOUBLE,\n"
+	"\twms_bbox_maxx DOUBLE,\n"
+	"\twms_bbox_maxy DOUBLE,\n"
+	"\twms_width INTEGER,\n"
+	"\twms_height INTEGER,\n"
+	"\twms_style TEXT,\n"
+	"\twms_format TEXT,\n"
+	"\twms_transparent INTEGER,\n"
+	"\twms_bgcolor TEXT,\n" "\tmilliseconds INTEGER)";
+    sqlite3_exec (handle, sql, NULL, NULL, NULL);
+
+    sql = "INSERT INTO wms_server_log (id, timestamp, client_ip_addr, "
+	"client_ip_port, http_method, request_url, http_status, "
+	"response_length, wms_request, wms_version, wms_layer, "
+	"wms_srid, wms_bbox_minx, wms_bbox_miny, wms_bbox_maxx, "
+	"wms_bbox_maxy, wms_width, wms_height, wms_style, "
+	"wms_format, wms_transparent, wms_bgcolor, milliseconds) "
+	"VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_log, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO LOG error: %s\n", sqlite3_errmsg (handle));
+	  goto stop;
+      }
+    glob.stmt_log = stmt_log;
+
 /* looping on requests */
-    if (!do_accept_loop (&skt_ptr, list, port_no, handle))
-	goto stop;
+    do_accept_loop (&skt_ptr, list, port_no, handle, stmt_log, pool, log,
+		    cached_capabilities, cached_capabilities_len);
 
   stop:
-    destroy_wms_list (list);
-    sqlite3_close (handle);
-    spatialite_cleanup_ex (cache);
-    spatialite_shutdown ();
+    clean_shutdown ();
     return 0;
 }

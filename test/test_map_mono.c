@@ -319,7 +319,7 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 
 static int
 do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		 double radius, const char *suffix)
+		 double radius, const char *suffix, int transparent)
 {
 /* exporting a PNG/JPEG image */
     char *sql;
@@ -334,7 +334,7 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     path = sqlite3_mprintf ("./%s_%1.0f%s", coverage, radius, suffix);
 
     sql =
-	"SELECT RL2_GetMapImage(?, ST_Buffer(?, ?), 512, 512, 'default', ?, 0, 80)";
+	"SELECT RL2_GetMapImage(?, ST_Buffer(?, ?), 512, 512, 'default', ?, '#ffffff', ?, 80)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -350,6 +350,7 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	mime_type = "image/jpeg";
     sqlite3_bind_text (stmt, 4, mime_type, strlen (mime_type),
 		       SQLITE_TRANSIENT);
+sqlite3_bind_int(stmt, 5, transparent);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
       {
@@ -657,24 +658,29 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -16;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 128.0, ".jpg"))
+    if (!do_export_image (sqlite, coverage, geom, 128.0, ".jpg", 1))
       {
 	  *retcode += -17;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 290.0, ".jpg"))
+    if (!do_export_image (sqlite, coverage, geom, 290.0, ".jpg", 0))
       {
 	  *retcode += -18;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 128.0, ".png"))
+    if (!do_export_image (sqlite, coverage, geom, 128.0, ".png", 1))
       {
 	  *retcode += -19;
 	  return 0;
       }
-    if (!do_export_image (sqlite, coverage, geom, 60.0, ".png"))
+    if (!do_export_image (sqlite, coverage, geom, 60.0, ".png", 1))
       {
 	  *retcode += -20;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 66.0, ".png", 0))
+      {
+	  *retcode += -21;
 	  return 0;
       }
 

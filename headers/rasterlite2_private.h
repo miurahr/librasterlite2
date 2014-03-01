@@ -766,6 +766,180 @@ extern "C"
 
     RL2_PRIVATE unsigned char get_palette_format (rl2PrivPalettePtr plt);
 
+    RL2_PRIVATE int get_payload_from_monochrome_opaque (unsigned short width,
+							unsigned short height,
+							unsigned char *pixels,
+							unsigned char format,
+							int quality,
+							unsigned char **image,
+							int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_monochrome_transparent (unsigned short
+							     width,
+							     unsigned short
+							     height,
+							     unsigned char
+							     *pixels,
+							     unsigned char
+							     format,
+							     int quality,
+							     unsigned char
+							     **image,
+							     int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_palette_opaque (unsigned short width,
+						     unsigned short height,
+						     unsigned char *pixels,
+						     rl2PalettePtr palette,
+						     unsigned char format,
+						     int quality,
+						     unsigned char **image,
+						     int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_palette_transparent (unsigned short width,
+							  unsigned short height,
+							  unsigned char *pixels,
+							  rl2PalettePtr palette,
+							  unsigned char format,
+							  int quality,
+							  unsigned char **image,
+							  int *image_sz,
+							  unsigned char bg_red,
+							  unsigned char
+							  bg_green,
+							  unsigned char
+							  bg_blue);
+
+    RL2_PRIVATE int get_payload_from_grayscale_opaque (unsigned short width,
+						       unsigned short height,
+						       unsigned char *pixels,
+						       unsigned char format,
+						       int quality,
+						       unsigned char **image,
+						       int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_grayscale_transparent (unsigned short
+							    width,
+							    unsigned short
+							    height,
+							    unsigned char
+							    *pixels,
+							    unsigned char
+							    format, int quality,
+							    unsigned char
+							    **image,
+							    int *image_sz,
+							    unsigned char
+							    bg_gray);
+
+    RL2_PRIVATE int get_payload_from_rgb_opaque (unsigned short width,
+						 unsigned short height,
+						 unsigned char *pixels,
+						 unsigned char format,
+						 int quality,
+						 unsigned char **image,
+						 int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_rgb_transparent (unsigned short width,
+						      unsigned short height,
+						      unsigned char *pixels,
+						      unsigned char format,
+						      int quality,
+						      unsigned char **image,
+						      int *image_sz,
+						      unsigned char bg_red,
+						      unsigned char bg_green,
+						      unsigned char bg_blue);
+
+    RL2_PRIVATE int get_rgba_from_monochrome_opaque (unsigned short width,
+						     unsigned short height,
+						     unsigned char *pixels,
+						     unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_monochrome_transparent (unsigned short width,
+							  unsigned short height,
+							  unsigned char *pixels,
+							  unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_palette_opaque (unsigned short base_width,
+						  unsigned short base_height,
+						  unsigned char *pixels,
+						  rl2PalettePtr palette,
+						  unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_palette_transparent (unsigned short width,
+						       unsigned short height,
+						       unsigned char *pixels,
+						       rl2PalettePtr palette,
+						       unsigned char *rgba,
+						       unsigned char bg_red,
+						       unsigned char bg_green,
+						       unsigned char bg_blue);
+
+    RL2_PRIVATE int get_rgba_from_grayscale_opaque (unsigned short width,
+						    unsigned short height,
+						    unsigned char *pixels,
+						    unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_grayscale_transparent (unsigned short width,
+							 unsigned short height,
+							 unsigned char *pixels,
+							 unsigned char *rgba,
+							 unsigned char bg_gray);
+
+    RL2_PRIVATE int get_rgba_from_rgb_opaque (unsigned short width,
+					      unsigned short height,
+					      unsigned char *pixels,
+					      unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_rgb_transparent (unsigned short width,
+						   unsigned short height,
+						   unsigned char *pixels,
+						   unsigned char *rgba,
+						   unsigned char bg_red,
+						   unsigned char bg_green,
+						   unsigned char bg_blue);
+
+    RL2_PRIVATE int get_payload_from_gray_rgba_opaque (unsigned short width,
+						       unsigned short height,
+						       unsigned char *rgb,
+						       unsigned char format,
+						       int quality,
+						       unsigned char **image,
+						       int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_gray_rgba_transparent (unsigned short
+							    width,
+							    unsigned short
+							    height,
+							    unsigned char *rgb,
+							    unsigned char
+							    *alpha,
+							    unsigned char
+							    format, int quality,
+							    unsigned char
+							    **image,
+							    int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_rgb_rgba_opaque (unsigned short width,
+						      unsigned short height,
+						      unsigned char *rgb,
+						      unsigned char format,
+						      int quality,
+						      unsigned char **image,
+						      int *image_sz);
+
+    RL2_PRIVATE int get_payload_from_rgb_rgba_transparent (unsigned short width,
+							   unsigned short
+							   height,
+							   unsigned char *rgb,
+							   unsigned char *alpha,
+							   unsigned char format,
+							   int quality,
+							   unsigned char
+							   **image,
+							   int *image_sz);
+
 #ifdef __cplusplus
 }
 #endif

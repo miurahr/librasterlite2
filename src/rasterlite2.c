@@ -1597,6 +1597,22 @@ parse_hex_rgb (const char *hex, unsigned char *r, unsigned char *g,
 }
 
 RL2_DECLARE int
+rl2_parse_hexrgb (const char *hex, unsigned char *red, unsigned char *green,
+		  unsigned char *blue)
+{
+/* setting a Palette entry */
+    if (hex == NULL)
+	return RL2_ERROR;
+    if (strlen (hex) != 7)
+	return RL2_ERROR;
+    if (*hex != '#')
+	return RL2_ERROR;
+    if (parse_hex_rgb (hex + 1, red, green, blue) != RL2_OK)
+	return RL2_ERROR;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
 rl2_set_palette_hexrgb (rl2PalettePtr ptr, int index, const char *hex)
 {
 /* setting a Palette entry */

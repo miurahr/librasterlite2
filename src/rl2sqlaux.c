@@ -1133,3 +1133,1066 @@ get_palette_format (rl2PrivPalettePtr plt)
     else
 	return RL2_PIXEL_RGB;
 }
+
+RL2_PRIVATE int
+get_payload_from_monochrome_opaque (unsigned short width, unsigned short height,
+				    unsigned char *pixels, unsigned char format,
+				    int quality, unsigned char **image,
+				    int *image_sz)
+{
+/* input: Monochrome    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *gray = NULL;
+    unsigned short row;
+    unsigned short col;
+
+    gray = malloc (width * height);
+    if (gray == NULL)
+	goto error;
+    p_in = pixels;
+    p_out = gray;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_in++ == 1)
+		    *p_out++ = 0;	/* Black */
+		else
+		    *p_out++ = 255;	/* White */
+	    }
+      }
+    free (pixels);
+    pixels = NULL;
+    if (format == RL2_OUTPUT_FORMAT_JPEG)
+      {
+	  if (rl2_gray_to_jpeg (width, height, gray, quality, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_gray_to_png (width, height, gray, image, image_sz) != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (gray);
+    return 1;
+
+  error:
+    if (pixels != NULL)
+	free (pixels);
+    if (gray != NULL)
+	free (gray);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_monochrome_transparent (unsigned short width,
+					 unsigned short height,
+					 unsigned char *pixels,
+					 unsigned char format, int quality,
+					 unsigned char **image, int *image_sz)
+{
+/* input: Monochrome    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned char *gray = NULL;
+    unsigned char *mask = NULL;
+    unsigned short row;
+    unsigned short col;
+
+    if (quality > 100)
+	quality = 100;
+    gray = malloc (width * height);
+    if (gray == NULL)
+	goto error;
+    mask = malloc (width * height);
+    if (mask == NULL)
+	goto error;
+    p_in = pixels;
+    p_out = gray;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_in++ == 1)
+		  {
+		      *p_out++ = 0;	/* Black */
+		      *p_msk++ = 1;	/* Opaque */
+		  }
+		else
+		  {
+		      *p_out++ = 1;	/* White */
+		      *p_msk++ = 0;	/* Transparent */
+		  }
+	    }
+      }
+    free (pixels);
+    pixels = NULL;
+    if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_gray_alpha_to_png (width, height, gray, mask, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (gray);
+    free (mask);
+    return 1;
+
+  error:
+    if (pixels != NULL)
+	free (pixels);
+    if (gray != NULL)
+	free (gray);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_palette_opaque (unsigned short width, unsigned short height,
+				 unsigned char *pixels, rl2PalettePtr palette,
+				 unsigned char format, int quality,
+				 unsigned char **image, int *image_sz)
+{
+/* input: Palette    output: Grayscale or RGB */
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *gray = NULL;
+    unsigned char *rgb = NULL;
+    unsigned short row;
+    unsigned short col;
+    unsigned char out_format;
+
+    out_format = get_palette_format (plt);
+    if (out_format == RL2_PIXEL_RGB)
+      {
+	  /* converting from Palette to RGB */
+	  rgb = malloc (width * height * 3);
+	  p_in = pixels;
+	  p_out = rgb;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char red = 0;
+		      unsigned char green = 0;
+		      unsigned char blue = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    red = entry->red;
+			    green = entry->green;
+			    blue = entry->blue;
+			}
+		      *p_out++ = red;	/* red */
+		      *p_out++ = green;	/* green */
+		      *p_out++ = blue;	/* blue */
+		  }
+	    }
+	  free (pixels);
+	  if (format == RL2_OUTPUT_FORMAT_JPEG)
+	    {
+		if (rl2_rgb_to_jpeg
+		    (width, height, rgb, quality, image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else if (format == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		if (rl2_rgb_to_png (width, height, rgb, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+	  else
+	      goto error;
+	  free (rgb);
+      }
+    else if (out_format == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* converting from Palette to Grayscale */
+	  gray = malloc (width * height);
+	  p_in = pixels;
+	  p_out = gray;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char value = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    value = entry->red;
+			}
+		      *p_out++ = value;	/* gray */
+		  }
+	    }
+	  free (pixels);
+	  if (format == RL2_OUTPUT_FORMAT_JPEG)
+	    {
+		if (rl2_gray_to_jpeg
+		    (width, height, gray, quality, image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else if (format == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		if (rl2_gray_to_png (width, height, gray, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+	  else
+	      goto error;
+	  free (gray);
+      }
+    else
+	goto error;
+    return 1;
+
+  error:
+    if (pixels != NULL)
+	free (pixels);
+    if (gray != NULL)
+	free (gray);
+    if (rgb != NULL)
+	free (rgb);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_palette_transparent (unsigned short width,
+				      unsigned short height,
+				      unsigned char *pixels,
+				      rl2PalettePtr palette,
+				      unsigned char format, int quality,
+				      unsigned char **image, int *image_sz,
+				      unsigned char bg_red,
+				      unsigned char bg_green,
+				      unsigned char bg_blue)
+{
+/* input: Palette    output: Grayscale or RGB */
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned char *gray = NULL;
+    unsigned char *rgb = NULL;
+    unsigned char *mask = NULL;
+    unsigned short row;
+    unsigned short col;
+    unsigned char out_format;
+
+    if (quality > 100)
+	quality = 100;
+    out_format = get_palette_format (plt);
+    if (out_format == RL2_PIXEL_RGB)
+      {
+	  /* converting from Palette to RGB */
+	  rgb = malloc (width * height * 3);
+	  if (rgb == NULL)
+	      goto error;
+	  mask = malloc (width * height);
+	  if (mask == NULL)
+	      goto error;
+	  p_in = pixels;
+	  p_out = rgb;
+	  p_msk = mask;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char red = 0;
+		      unsigned char green = 0;
+		      unsigned char blue = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    red = entry->red;
+			    green = entry->green;
+			    blue = entry->blue;
+			}
+		      *p_out++ = red;	/* red */
+		      *p_out++ = green;	/* green */
+		      *p_out++ = blue;	/* blue */
+		      if (red == bg_red && green == bg_green && blue == bg_blue)
+			  *p_msk++ = 0;	/* Transparent */
+		      else
+			  *p_msk++ = 1;	/* Opaque */
+		  }
+	    }
+	  free (pixels);
+	  if (format == RL2_OUTPUT_FORMAT_JPEG)
+	    {
+		if (rl2_rgb_to_jpeg
+		    (width, height, rgb, quality, image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else if (format == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		if (rl2_rgb_to_png (width, height, rgb, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+	  else
+	      goto error;
+	  free (rgb);
+	  free (mask);
+      }
+    else if (out_format == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* converting from Palette to Grayscale */
+	  gray = malloc (width * height);
+	  if (gray == NULL)
+	      goto error;
+	  mask = malloc (width * height);
+	  if (mask == NULL)
+	      goto error;
+	  p_in = pixels;
+	  p_out = gray;
+	  p_msk = mask;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char value = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    value = entry->red;
+			}
+		      *p_out++ = value;	/* gray */
+		      if (value == bg_red)
+			  *p_msk++ = 0;	/* Transparent */
+		      else
+			  *p_msk++ = 1;	/* Opaque */
+		  }
+	    }
+	  free (pixels);
+	  if (format == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		if (rl2_gray_alpha_to_png
+		    (width, height, gray, mask, image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	      goto error;
+	  free (gray);
+	  free (mask);
+      }
+    else
+	goto error;
+    return 1;
+
+  error:
+    if (pixels != NULL)
+	free (pixels);
+    if (gray != NULL)
+	free (gray);
+    if (rgb != NULL)
+	free (rgb);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_grayscale_opaque (unsigned short width, unsigned short height,
+				   unsigned char *pixels, unsigned char format,
+				   int quality, unsigned char **image,
+				   int *image_sz)
+{
+/* input: Grayscale    output: Grayscale */
+    if (format == RL2_OUTPUT_FORMAT_JPEG)
+      {
+	  if (rl2_gray_to_jpeg (width, height, pixels, quality, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_gray_to_png (width, height, pixels, image, image_sz) !=
+	      RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (pixels);
+    return 1;
+
+  error:
+    free (pixels);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_grayscale_transparent (unsigned short width,
+					unsigned short height,
+					unsigned char *pixels,
+					unsigned char format, int quality,
+					unsigned char **image, int *image_sz,
+					unsigned char bg_gray)
+{
+/* input: Grayscale    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_msk;
+    unsigned char *mask = NULL;
+    unsigned short row;
+    unsigned short col;
+
+    if (quality > 100)
+	quality = 100;
+    mask = malloc (width * height);
+    if (mask == NULL)
+	goto error;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_in++ == bg_gray)
+		    *p_msk++ = 0;	/* Transparent */
+		else
+		    *p_msk++ = 255;	/* Opaque */
+	    }
+      }
+    if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_gray_alpha_to_png
+	      (width, height, pixels, mask, image, image_sz) != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (pixels);
+    free (mask);
+    return 1;
+
+  error:
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_rgb_opaque (unsigned short width, unsigned short height,
+			     unsigned char *pixels, unsigned char format,
+			     int quality, unsigned char **image, int *image_sz)
+{
+/* input: RGB    output: RGB */
+    if (format == RL2_OUTPUT_FORMAT_JPEG)
+      {
+	  if (rl2_rgb_to_jpeg (width, height, pixels, quality, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_rgb_to_png (width, height, pixels, image, image_sz) != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (pixels);
+    return 1;
+
+  error:
+    free (pixels);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_rgb_transparent (unsigned short width, unsigned short height,
+				  unsigned char *pixels, unsigned char format,
+				  int quality, unsigned char **image,
+				  int *image_sz, unsigned char bg_red,
+				  unsigned char bg_green, unsigned char bg_blue)
+{
+/* input: RGB    output: RGB */
+    unsigned char *p_in;
+    unsigned char *p_msk;
+    unsigned char *mask = NULL;
+    unsigned short row;
+    unsigned short col;
+
+    if (quality > 100)
+	quality = 100;
+    mask = malloc (width * height);
+    if (mask == NULL)
+	goto error;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char red = *p_in++;
+		unsigned char green = *p_in++;
+		unsigned char blue = *p_in++;
+		if (red == bg_red && green == bg_green && blue == bg_blue)
+		    *p_msk++ = 0;	/* Transparent */
+		else
+		    *p_msk++ = 1;	/* Opaque */
+	    }
+      }
+    if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_rgb_alpha_to_png
+	      (width, height, pixels, mask, image, image_sz) != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (pixels);
+    free (mask);
+    return 1;
+
+  error:
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_rgba_from_monochrome_opaque (unsigned short width, unsigned short height,
+				 unsigned char *pixels, unsigned char *rgba)
+{
+/* input: Monochrome    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+    p_in = pixels;
+    p_out = rgba;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_in++ == 1)
+		  {
+		      *p_out++ = 0;	/* Black */
+		      *p_out++ = 0;
+		      *p_out++ = 0;
+		      *p_out++ = 255;	/* alpha */
+		  }
+		else
+		  {
+		      *p_out++ = 255;	/* White */
+		      *p_out++ = 255;
+		      *p_out++ = 255;
+		      *p_out++ = 255;	/* alpha */
+		  }
+	    }
+      }
+    free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_monochrome_transparent (unsigned short width,
+				      unsigned short height,
+				      unsigned char *pixels,
+				      unsigned char *rgba)
+{
+/* input: Monochrome    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+    p_in = pixels;
+    p_out = rgba;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_in++ == 1)
+		  {
+		      *p_out++ = 0;	/* Black */
+		      *p_out++ = 0;
+		      *p_out++ = 0;
+		      *p_out++ = 255;	/* alpha */
+		  }
+		else
+		  {
+		      *p_out++ = 255;	/* White */
+		      *p_out++ = 255;
+		      *p_out++ = 255;
+		      *p_out++ = 0;	/* alpha */
+		  }
+	    }
+      }
+    free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_palette_opaque (unsigned short width, unsigned short height,
+			      unsigned char *pixels, rl2PalettePtr palette,
+			      unsigned char *rgba)
+{
+/* input: Palette    output: Grayscale or RGB */
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+    unsigned char out_format;
+
+    p_in = pixels;
+    p_out = rgba;
+    out_format = get_palette_format (plt);
+    if (out_format == RL2_PIXEL_RGB)
+      {
+	  /* converting from Palette to RGB */
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char red = 0;
+		      unsigned char green = 0;
+		      unsigned char blue = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    red = entry->red;
+			    green = entry->green;
+			    blue = entry->blue;
+			}
+		      *p_out++ = red;	/* red */
+		      *p_out++ = green;	/* green */
+		      *p_out++ = blue;	/* blue */
+		      *p_out++ = 255;	/* alpha */
+		  }
+	    }
+      }
+    else if (out_format == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* converting from Palette to Grayscale */
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char value = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    value = entry->red;
+			}
+		      *p_out++ = value;	/* red */
+		      *p_out++ = value;	/* green */
+		      *p_out++ = value;	/* blue */
+		      *p_out++ = 255;	/* alpha */
+		  }
+	    }
+      }
+    else
+	goto error;
+    free (pixels);
+    return 1;
+
+  error:
+    free (pixels);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_rgba_from_palette_transparent (unsigned short width, unsigned short height,
+				   unsigned char *pixels, rl2PalettePtr palette,
+				   unsigned char *rgba, unsigned char bg_red,
+				   unsigned char bg_green,
+				   unsigned char bg_blue)
+{
+/* input: Palette    output: Grayscale or RGB */
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+    unsigned char out_format;
+
+    p_in = pixels;
+    p_out = rgba;
+    out_format = get_palette_format (plt);
+    if (out_format == RL2_PIXEL_RGB)
+      {
+	  /* converting from Palette to RGB */
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char red = 0;
+		      unsigned char green = 0;
+		      unsigned char blue = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    red = entry->red;
+			    green = entry->green;
+			    blue = entry->blue;
+			}
+		      *p_out++ = red;	/* red */
+		      *p_out++ = green;	/* green */
+		      *p_out++ = blue;	/* blue */
+		      if (red == bg_red && green == bg_green && blue == bg_blue)
+			  *p_out++ = 0;	/* Transparent */
+		      else
+			  *p_out++ = 255;	/* Opaque */
+		  }
+	    }
+      }
+    else if (out_format == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* converting from Palette to Grayscale */
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char value = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    value = entry->red;
+			}
+		      *p_out++ = value;	/* red */
+		      *p_out++ = value;	/* green */
+		      *p_out++ = value;	/* blue */
+		      if (value == bg_red)
+			  *p_out++ = 0;	/* Transparent */
+		      else
+			  *p_out++ = 255;	/* Opaque */
+		  }
+	    }
+      }
+    else
+	goto error;
+    free (pixels);
+    return 1;
+
+  error:
+    free (pixels);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_rgba_from_grayscale_opaque (unsigned short width, unsigned short height,
+				unsigned char *pixels, unsigned char *rgba)
+{
+/* input: Grayscale    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+
+    p_in = pixels;
+    p_out = rgba;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char gray = *p_in++;
+		*p_out++ = gray;	/* red */
+		*p_out++ = gray;	/* green */
+		*p_out++ = gray;	/* blue */
+		*p_out++ = 255;	/* alpha */
+	    }
+      }
+    free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_grayscale_transparent (unsigned short width,
+				     unsigned short height,
+				     unsigned char *pixels, unsigned char *rgba,
+				     unsigned char bg_gray)
+{
+/* input: Grayscale    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+
+    p_in = pixels;
+    p_out = rgba;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char gray = *p_in++;
+		*p_out++ = gray;	/* red */
+		*p_out++ = gray;	/* green */
+		*p_out++ = gray;	/* blue */
+		if (gray == bg_gray)
+		    *p_out++ = 0;	/* Transparent */
+		else
+		    *p_out++ = 255;	/* Opaque */
+	    }
+      }
+    free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_rgb_opaque (unsigned short width, unsigned short height,
+			  unsigned char *pixels, unsigned char *rgba)
+{
+/* input: RGB    output: RGB */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+
+    p_in = pixels;
+    p_out = rgba;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		*p_out++ = *p_in++;	/* red */
+		*p_out++ = *p_in++;	/* green */
+		*p_out++ = *p_in++;	/* blue */
+		*p_out++ = 255;	/* alpha */
+	    }
+      }
+    free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_rgb_transparent (unsigned short width, unsigned short height,
+			       unsigned char *pixels, unsigned char *rgba,
+			       unsigned char bg_red, unsigned char bg_green,
+			       unsigned char bg_blue)
+{
+/* input: RGB    output: RGB */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+
+    p_in = pixels;
+    p_out = rgba;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char red = *p_in++;
+		unsigned char green = *p_in++;
+		unsigned char blue = *p_in++;
+		*p_out++ = red;
+		*p_out++ = green;
+		*p_out++ = blue;
+		if (red == bg_red && green == bg_green && blue == bg_blue)
+		    *p_out++ = 0;	/* Transparent */
+		else
+		    *p_out++ = 255;	/* Opaque */
+	    }
+      }
+    free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_payload_from_gray_rgba_opaque (unsigned short width, unsigned short height,
+				   unsigned char *rgb, unsigned char format,
+				   int quality, unsigned char **image,
+				   int *image_sz)
+{
+/* Grayscale, Opaque */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned short row;
+    unsigned short col;
+    unsigned char *gray = malloc (width * height);
+
+    if (gray == NULL)
+	goto error;
+    p_in = rgb;
+    p_out = gray;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		*p_out++ = *p_in++;
+		p_in += 2;
+	    }
+      }
+    free (rgb);
+    rgb = NULL;
+    if (format == RL2_OUTPUT_FORMAT_JPEG)
+      {
+	  if (rl2_gray_to_jpeg (width, height, gray, quality, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_gray_to_png (width, height, gray, image, image_sz) != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (gray);
+    return 1;
+  error:
+    free (rgb);
+    if (gray != NULL)
+	free (gray);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_gray_rgba_transparent (unsigned short width,
+					unsigned short height,
+					unsigned char *rgb,
+					unsigned char *alpha,
+					unsigned char format, int quality,
+					unsigned char **image, int *image_sz)
+{
+/* Grayscale, Transparent */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned char *p_alpha;
+    unsigned short row;
+    unsigned short col;
+    unsigned char *gray = malloc (width * height);
+    unsigned char *mask = malloc (width * height);
+
+    if (quality > 100)
+	quality = 100;
+    if (gray == NULL)
+	goto error;
+    if (mask == NULL)
+	goto error;
+    p_in = rgb;
+    p_out = gray;
+    p_msk = mask;
+    p_alpha = alpha;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		*p_out++ = *p_in++;
+		p_in += 2;
+		if (*p_alpha++ >= 128)
+		    *p_msk++ = 1;	/* Opaque */
+		else
+		    *p_msk++ = 0;	/* Transparent */
+	    }
+      }
+    free (rgb);
+    rgb = NULL;
+    free (alpha);
+    alpha = NULL;
+    if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_gray_alpha_to_png (width, height, gray, mask, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (gray);
+    free (mask);
+    return 1;
+  error:
+    free (rgb);
+    if (gray != NULL)
+	free (gray);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_rgb_rgba_opaque (unsigned short width, unsigned short height,
+				  unsigned char *rgb, unsigned char format,
+				  int quality, unsigned char **image,
+				  int *image_sz)
+{
+/* RGB, Opaque */
+    if (format == RL2_OUTPUT_FORMAT_JPEG)
+      {
+	  if (rl2_rgb_to_jpeg (width, height, rgb, quality, image, image_sz) !=
+	      RL2_OK)
+	      goto error;
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_rgb_to_png (width, height, rgb, image, image_sz) != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (rgb);
+    return 1;
+  error:
+    free (rgb);
+    return 0;
+}
+
+RL2_PRIVATE int
+get_payload_from_rgb_rgba_transparent (unsigned short width,
+				       unsigned short height,
+				       unsigned char *rgb, unsigned char *alpha,
+				       unsigned char format, int quality,
+				       unsigned char **image, int *image_sz)
+{
+/* RGB, Transparent */
+    unsigned char *p_msk;
+    unsigned char *p_alpha;
+    unsigned short row;
+    unsigned short col;
+    unsigned char *mask = malloc (width * height);
+
+    if (quality > 100)
+	quality = 100;
+    if (mask == NULL)
+	goto error;
+    p_msk = mask;
+    p_alpha = alpha;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		if (*p_alpha++ >= 128)
+		    *p_msk++ = 1;	/* Opaque */
+		else
+		    *p_msk++ = 0;	/* Transparent */
+	    }
+      }
+    free (alpha);
+    alpha = NULL;
+    if (format == RL2_OUTPUT_FORMAT_PNG)
+      {
+	  if (rl2_rgb_alpha_to_png (width, height, rgb, mask, image, image_sz)
+	      != RL2_OK)
+	      goto error;
+      }
+    else
+	goto error;
+    free (rgb);
+    free (mask);
+    return 1;
+  error:
+    free (rgb);
+    if (mask != NULL)
+	free (mask);
+    return 0;
+}

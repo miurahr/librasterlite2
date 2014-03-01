@@ -347,6 +347,7 @@ get_clean_line (FILE * f, char **line)
     ssize_t num_read = 0;
     ssize_t end = 0;
     char *tmp_line = NULL;
+    char prev;
 
 #if !defined(_WIN32) &&!defined(__APPLE__)
 /* expecpting to be on a sane minded platform [linux-like] */
@@ -370,12 +371,14 @@ get_clean_line (FILE * f, char **line)
 	  return -1;
       }
     /* trim the trailing new line and any comments */
+    prev = '\0';
     for (end = 0; end < num_read; ++end)
       {
 	  if (*(tmp_line + end) == '\n')
 	      break;
-	  if (*(tmp_line + end) == '#')
+	  if (*(tmp_line + end) == '#' && prev != '\'' && prev != '"')
 	      break;
+	  prev = *(tmp_line + end);
       }
     /* trim any trailing spaces */
     while (end > 0)

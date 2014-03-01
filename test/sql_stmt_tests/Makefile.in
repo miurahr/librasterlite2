@@ -438,6 +438,8 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getmapimage16.testcase \
 	getmapimage17.testcase \
 	getmapimage18.testcase \
+	getmapimage19.testcase \
+	getmapimage20.testcase \
 	getpixelnumbands1.testcase \
 	getpixelnumbands2.testcase \
 	getpixelnumbands3.testcase \

@@ -3101,6 +3101,10 @@ extern "C"
 			  const unsigned char *gray, int quality,
 			  unsigned char **jpeg, int *jpeg_size);
 
+    RL2_DECLARE int
+	rl2_parse_hexrgb (const char *hex, unsigned char *red,
+			  unsigned char *green, unsigned char *blue);
+
 #ifdef __cplusplus
 }
 #endif

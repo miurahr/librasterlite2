@@ -3039,12 +3039,14 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / GetMapImage(text coverage, BLOB geom, int width, int height,
 /             text style, text format)
 / GetMapImage(text coverage, BLOB geom, int width, int height,
-/             text style, text format, int transparent)
+/             text style, text format, text bg_color)
 / GetMapImage(text coverage, BLOB geom, int width, int height,
-/             text style, text format, int transparent,
+/             text style, text format, text bg_color, int transparent)
+/ GetMapImage(text coverage, BLOB geom, int width, int height,
+/             text style, text format, text bg_color, int transparent,
 /             int quality)
 / GetMapImage(text coverage, BLOB geom, int width, int height,
-/             text style, text format, int transparent,
+/             text style, text format, text bg_color, int transparent,
 /             int quality, int reaspect)
 /
 / will return a BLOB containing the Image payload
@@ -3063,6 +3065,10 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int blob_sz;
     const char *style = "default";
     const char *format = "image/png";
+    const char *bg_color = "#ffffff";
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
     int transparent = 0;
     int quality = 80;
     int reaspect = 0;
@@ -3092,16 +3098,11 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char *image = NULL;
     int image_size;
     unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
     rl2PalettePtr palette = NULL;
-    rl2PrivPalettePtr plt;
     double confidence;
-    unsigned char format_id = RL2_COMPRESSION_UNKNOWN;
+    unsigned char format_id = RL2_OUTPUT_FORMAT_UNKNOWN;
     unsigned char out_pixel = RL2_PIXEL_UNKNOWN;
-    unsigned char out_format = RL2_COMPRESSION_UNKNOWN;
-    int row;
-    int col;
-    unsigned char *p_in;
-    unsigned char *p_out;
     unsigned char *rgba = NULL;
     unsigned char *gray = NULL;
     rl2GraphicsBitmapPtr base_img = NULL;
@@ -3120,11 +3121,13 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	err = 1;
     if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_TEXT)
 	err = 1;
-    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_TEXT)
 	err = 1;
     if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
 	err = 1;
     if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
 	err = 1;
     if (err)
       {
@@ -3143,11 +3146,13 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (argc > 5)
 	format = (const char *) sqlite3_value_text (argv[5]);
     if (argc > 6)
-	transparent = sqlite3_value_int (argv[6]);
+	bg_color = (const char *) sqlite3_value_text (argv[6]);
     if (argc > 7)
-	quality = sqlite3_value_int (argv[7]);
+	transparent = sqlite3_value_int (argv[7]);
     if (argc > 8)
 	quality = sqlite3_value_int (argv[8]);
+    if (argc > 9)
+	quality = sqlite3_value_int (argv[9]);
 
 /* coarse args validation */
     if (width < 64 || width > 5000)
@@ -3164,15 +3169,18 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     ok_format = 0;
     if (strcmp (format, "image/png") == 0)
       {
-	  format_id = RL2_COMPRESSION_PNG;
+	  format_id = RL2_OUTPUT_FORMAT_PNG;
 	  ok_format = 1;
       }
     if (strcmp (format, "image/jpeg") == 0)
       {
-	  format_id = RL2_COMPRESSION_JPEG;
+	  format_id = RL2_OUTPUT_FORMAT_JPEG;
 	  ok_format = 1;
       }
     if (!ok_format)
+	goto error;
+/* parsing the background color */
+    if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
 	goto error;
 
 /* checking the Geometry */
@@ -3254,177 +3262,103 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  if (out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
 		/* converting from Monochrome to Grayscale */
-		gray = malloc (base_width * base_height);
-		p_in = outbuf;
-		p_out = gray;
-		for (row = 0; row < base_height; row++)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      for (col = 0; col < base_width; col++)
+		      if (!get_payload_from_monochrome_transparent
+			  (base_width, base_height, outbuf, format_id, quality,
+			   &image, &image_size))
 			{
-			    if (*p_in++ == 1)
-				*p_out++ = 0;	/* Black */
-			    else
-				*p_out++ = 255;	/* White */
+			    outbuf = NULL;
+			    goto error;
 			}
 		  }
-		free (outbuf);
-		outbuf = NULL;
-		if (format_id == RL2_COMPRESSION_JPEG)
-		  {
-		      if (rl2_gray_to_jpeg
-			  (base_width, base_height, gray, quality, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
-		  }
-		else if (format_id == RL2_COMPRESSION_PNG)
-		  {
-		      if (rl2_gray_to_png
-			  (base_width, base_height, gray, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
-		  }
 		else
-		    goto error;
-		free (gray);
-		gray = NULL;
+		  {
+		      if (!get_payload_from_monochrome_opaque
+			  (base_width, base_height, outbuf, format_id, quality,
+			   &image, &image_size))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
 	  else if (out_pixel == RL2_PIXEL_PALETTE)
 	    {
 		/* Palette */
-		plt = (rl2PrivPalettePtr) palette;
-		out_format = get_palette_format (plt);
-		if (out_format == RL2_PIXEL_RGB)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      /* converting from Palette to RGB */
-		      rgb = malloc (base_width * base_height * 3);
-		      p_in = outbuf;
-		      p_out = rgb;
-		      for (row = 0; row < base_height; row++)
+		      if (!get_payload_from_palette_transparent
+			  (base_width, base_height, outbuf, palette, format_id,
+			   quality, &image, &image_size, bg_red, bg_green,
+			   bg_blue))
 			{
-			    for (col = 0; col < base_width; col++)
-			      {
-				  unsigned char red = 0;
-				  unsigned char green = 0;
-				  unsigned char blue = 0;
-				  unsigned char index = *p_in++;
-				  if (index < plt->nEntries)
-				    {
-					rl2PrivPaletteEntryPtr entry =
-					    plt->entries + index;
-					red = entry->red;
-					green = entry->green;
-					blue = entry->blue;
-				    }
-				  *p_out++ = red;	/* red */
-				  *p_out++ = green;	/* green */
-				  *p_out++ = blue;	/* blue */
-			      }
+			    outbuf = NULL;
+			    goto error;
 			}
-		      free (outbuf);
-		      outbuf = NULL;
-		      if (format_id == RL2_COMPRESSION_JPEG)
-			{
-			    if (rl2_rgb_to_jpeg
-				(base_width, base_height, rgb, quality, &image,
-				 &image_size) != RL2_OK)
-				goto error;
-			}
-		      else if (format_id == RL2_COMPRESSION_PNG)
-			{
-			    if (rl2_rgb_to_png
-				(base_width, base_height, rgb, &image,
-				 &image_size) != RL2_OK)
-				goto error;
-			}
-		      else
-			  goto error;
-		      free (rgb);
-		      rgb = NULL;
-		  }
-		else if (out_format == RL2_PIXEL_GRAYSCALE)
-		  {
-		      /* converting from Palette to Grayscale */
-		      gray = malloc (base_width * base_height);
-		      p_in = outbuf;
-		      p_out = gray;
-		      for (row = 0; row < base_height; row++)
-			{
-			    for (col = 0; col < base_width; col++)
-			      {
-				  unsigned char value = 0;
-				  unsigned char index = *p_in++;
-				  if (index < plt->nEntries)
-				    {
-					rl2PrivPaletteEntryPtr entry =
-					    plt->entries + index;
-					value = entry->red;
-				    }
-				  *p_out++ = value;	/* gray */
-			      }
-			}
-		      free (outbuf);
-		      outbuf = NULL;
-		      if (format_id == RL2_COMPRESSION_JPEG)
-			{
-			    if (rl2_gray_to_jpeg
-				(base_width, base_height, gray, quality, &image,
-				 &image_size) != RL2_OK)
-				goto error;
-			}
-		      else if (format_id == RL2_COMPRESSION_PNG)
-			{
-			    if (rl2_gray_to_png
-				(base_width, base_height, gray, &image,
-				 &image_size) != RL2_OK)
-				goto error;
-			}
-		      else
-			  goto error;
 		  }
 		else
-		    goto error;
-		free (gray);
-		gray = NULL;
+		  {
+		      if (!get_payload_from_palette_opaque
+			  (base_width, base_height, outbuf, palette, format_id,
+			   quality, &image, &image_size))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
 	  else if (out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
 		/* Grayscale */
-		if (format_id == RL2_COMPRESSION_JPEG)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      if (rl2_gray_to_jpeg
-			  (base_width, base_height, outbuf, quality, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
-		  }
-		else if (format_id == RL2_COMPRESSION_PNG)
-		  {
-		      if (rl2_gray_to_png
-			  (base_width, base_height, outbuf, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
+		      if (!get_payload_from_grayscale_transparent
+			  (base_width, base_height, outbuf, format_id, quality,
+			   &image, &image_size, bg_red))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
 		  }
 		else
-		    goto error;
+		  {
+		      if (!get_payload_from_grayscale_opaque
+			  (base_width, base_height, outbuf, format_id, quality,
+			   &image, &image_size))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
 	  else
 	    {
 		/* RGB */
-		if (format_id == RL2_COMPRESSION_JPEG)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      if (rl2_rgb_to_jpeg
-			  (base_width, base_height, outbuf, quality, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
-		  }
-		else if (format_id == RL2_COMPRESSION_PNG)
-		  {
-		      if (rl2_rgb_to_png
-			  (base_width, base_height, outbuf, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
+		      if (!get_payload_from_rgb_transparent
+			  (base_width, base_height, outbuf, format_id, quality,
+			   &image, &image_size, bg_red, bg_green, bg_blue))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
 		  }
 		else
-		    goto error;
+		  {
+		      if (!get_payload_from_rgb_opaque
+			  (base_width, base_height, outbuf, format_id, quality,
+			   &image, &image_size))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
 	  sqlite3_result_blob (context, image, image_size, free);
       }
@@ -3435,125 +3369,100 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  if (ctx == NULL)
 	      goto error;
 	  rgba = malloc (base_width * base_height * 4);
-	  p_in = outbuf;
-	  p_out = rgba;
 	  if (out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
 		/* converting from Monochrome to Grayscale */
-		for (row = 0; row < base_height; row++)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      for (col = 0; col < base_width; col++)
+		      if (!get_rgba_from_monochrome_transparent
+			  (base_width, base_height, outbuf, rgba))
 			{
-			    if (*p_in++ == 1)
-			      {
-				  *p_out++ = 0;	/* Black */
-				  *p_out++ = 0;
-				  *p_out++ = 0;
-				  *p_out++ = 255;	/* alpha */
-			      }
-			    else
-			      {
-				  *p_out++ = 255;	/* White */
-				  *p_out++ = 255;
-				  *p_out++ = 255;
-				  *p_out++ = 255;	/* alpha */
-			      }
+			    outbuf = NULL;
+			    goto error;
 			}
 		  }
-		free (outbuf);
+		else
+		  {
+		      if (!get_rgba_from_monochrome_opaque
+			  (base_width, base_height, outbuf, rgba))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
 		outbuf = NULL;
 	    }
 	  else if (out_pixel == RL2_PIXEL_PALETTE)
 	    {
 		/* Palette */
-		plt = (rl2PrivPalettePtr) palette;
-		out_format = get_palette_format (plt);
-		if (out_format == RL2_PIXEL_RGB)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      /* converting from Palette to RGB */
-		      for (row = 0; row < base_height; row++)
+		      if (!get_rgba_from_palette_transparent
+			  (base_width, base_height, outbuf, palette, rgba,
+			   bg_red, bg_green, bg_blue))
 			{
-			    for (col = 0; col < base_width; col++)
-			      {
-				  unsigned char red = 0;
-				  unsigned char green = 0;
-				  unsigned char blue = 0;
-				  unsigned char index = *p_in++;
-				  if (index < plt->nEntries)
-				    {
-					rl2PrivPaletteEntryPtr entry =
-					    plt->entries + index;
-					red = entry->red;
-					green = entry->green;
-					blue = entry->blue;
-				    }
-				  *p_out++ = red;	/* red */
-				  *p_out++ = green;	/* green */
-				  *p_out++ = blue;	/* blue */
-				  *p_out++ = 255;	/* alpha */
-			      }
+			    outbuf = NULL;
+			    goto error;
 			}
-		      free (outbuf);
-		      outbuf = NULL;
-		  }
-		else if (out_format == RL2_PIXEL_GRAYSCALE)
-		  {
-		      /* converting from Palette to Grayscale */
-		      for (row = 0; row < base_height; row++)
-			{
-			    for (col = 0; col < base_width; col++)
-			      {
-				  unsigned char value = 0;
-				  unsigned char index = *p_in++;
-				  if (index < plt->nEntries)
-				    {
-					rl2PrivPaletteEntryPtr entry =
-					    plt->entries + index;
-					value = entry->red;
-				    }
-				  *p_out++ = value;	/* red */
-				  *p_out++ = value;	/* green */
-				  *p_out++ = value;	/* blue */
-				  *p_out++ = 255;	/* alpha */
-			      }
-			}
-		      free (outbuf);
-		      outbuf = NULL;
 		  }
 		else
-		    goto error;
+		  {
+		      if (!get_rgba_from_palette_opaque
+			  (base_width, base_height, outbuf, palette, rgba))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
 	  else if (out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
 		/* Grayscale */
-		for (row = 0; row < base_height; row++)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      for (col = 0; col < base_width; col++)
+		      if (!get_rgba_from_grayscale_transparent
+			  (base_width, base_height, outbuf, rgba, bg_red))
 			{
-			    unsigned char gray = *p_in++;
-			    *p_out++ = gray;	/* red */
-			    *p_out++ = gray;	/* green */
-			    *p_out++ = gray;	/* blue */
-			    *p_out++ = 255;	/* alpha */
+			    outbuf = NULL;
+			    goto error;
 			}
 		  }
+		else
+		  {
+		      if (!get_rgba_from_grayscale_opaque
+			  (base_width, base_height, outbuf, rgba))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
 	  else
 	    {
 		/* RGB */
-		for (row = 0; row < base_height; row++)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      for (col = 0; col < base_width; col++)
+		      if (!get_rgba_from_rgb_transparent
+			  (base_width, base_height, outbuf, rgba, bg_red,
+			   bg_green, bg_blue))
 			{
-			    *p_out++ = *p_in++;	/* red */
-			    *p_out++ = *p_in++;	/* green */
-			    *p_out++ = *p_in++;	/* blue */
-			    *p_out++ = 255;	/* alpha */
+			    outbuf = NULL;
+			    goto error;
 			}
 		  }
+		else
+		  {
+		      if (!get_rgba_from_rgb_opaque
+			  (base_width, base_height, outbuf, rgba))
+			{
+			    outbuf = NULL;
+			    goto error;
+			}
+		  }
+		outbuf = NULL;
 	    }
-	  free (outbuf);
-	  outbuf = NULL;
 	  base_img = rl2_graph_create_bitmap (rgba, base_width, base_height);
 	  if (base_img == NULL)
 	      goto error;
@@ -3562,63 +3471,71 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 					  0, 0);
 	  rl2_graph_destroy_bitmap (base_img);
 	  rgb = rl2_graph_get_context_rgb_array (ctx);
+	  alpha = NULL;
+	  if (transparent)
+	      alpha = rl2_graph_get_context_alpha_array (ctx);
 	  rl2_graph_destroy_context (ctx);
 	  if (rgb == NULL)
 	      goto error;
 	  if (out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
 		/* Grayscale */
-		unsigned char *gray = malloc (width * height);
-		p_in = rgb;
-		p_out = gray;
-		for (row = 0; row < height; row++)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      for (col = 0; col < width; col++)
+		      if (alpha == NULL)
+			  goto error;
+		      if (!get_payload_from_gray_rgba_transparent
+			  (width, height, rgb, alpha, format_id, quality,
+			   &image, &image_size))
 			{
-			    *p_out++ = *p_in++;
-			    p_in += 2;
+			    rgb = NULL;
+			    alpha = NULL;
+			    goto error;
 			}
-		  }
-		free (rgb);
-		rgb = NULL;
-		if (format_id == RL2_COMPRESSION_JPEG)
-		  {
-		      if (rl2_gray_to_jpeg
-			  (width, height, gray, quality, &image,
-			   &image_size) != RL2_OK)
-			  goto error;
-		  }
-		else if (format_id == RL2_COMPRESSION_PNG)
-		  {
-		      if (rl2_gray_to_png
-			  (width, height, gray, &image, &image_size) != RL2_OK)
-			  goto error;
+		      rgb = NULL;
+		      alpha = NULL;
 		  }
 		else
-		    goto error;
-		free (gray);
-		gray = NULL;
+		  {
+		      if (!get_payload_from_gray_rgba_opaque
+			  (width, height, rgb, format_id, quality, &image,
+			   &image_size))
+			{
+			    rgb = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		  }
 	    }
 	  else
 	    {
 		/* RGB */
-		if (format_id == RL2_COMPRESSION_JPEG)
+		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
-		      if (rl2_rgb_to_jpeg
-			  (width, height, rgb, quality, &image,
-			   &image_size) != RL2_OK)
+		      if (alpha == NULL)
 			  goto error;
-		  }
-		else if (format_id == RL2_COMPRESSION_PNG)
-		  {
-		      if (rl2_rgb_to_png
-			  (width, height, rgb, &image, &image_size) != RL2_OK)
-			  goto error;
+		      if (!get_payload_from_rgb_rgba_transparent
+			  (width, height, rgb, alpha, format_id, quality,
+			   &image, &image_size))
+			{
+			    rgb = NULL;
+			    alpha = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		      alpha = NULL;
 		  }
 		else
-		    goto error;
-		free (rgb);
-		rgb = NULL;
+		  {
+		      if (!get_payload_from_rgb_rgba_opaque
+			  (width, height, rgb, format_id, quality, &image,
+			   &image_size))
+			{
+			    rgb = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		  }
 	    }
 	  sqlite3_result_blob (context, image, image_size, free);
       }
@@ -3638,6 +3555,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	free (outbuf);
     if (rgb != NULL)
 	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
     if (rgba != NULL)
 	free (rgba);
     if (gray != NULL)
@@ -3799,6 +3718,10 @@ register_rl2_sql_functions (void *p_db)
     sqlite3_create_function (db, "GetMapImage", 9, SQLITE_ANY, 0,
 			     fnct_GetMapImage, 0, 0);
     sqlite3_create_function (db, "RL2_GetMapImage", 9, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "GetMapImage", 10, SQLITE_ANY, 0,
+			     fnct_GetMapImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImage", 10, SQLITE_ANY, 0,
 			     fnct_GetMapImage, 0, 0);
 
 /*

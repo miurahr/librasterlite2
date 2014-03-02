@@ -3140,13 +3140,13 @@ rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
     return RL2_ERROR;
 }
 
-RL2_DECLARE int
-rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-			 unsigned short width, unsigned short height,
-			 double minx, double miny, double maxx, double maxy,
-			 double x_res, double y_res, unsigned char **buffer,
-			 int *buf_size, rl2PalettePtr * palette,
-			 unsigned char out_pixel)
+static int
+get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
+			    unsigned short width, unsigned short height,
+			    double minx, double miny, double maxx, double maxy,
+			    double x_res, double y_res, unsigned char **buffer,
+			    int *buf_size, rl2PalettePtr * palette,
+			    unsigned char out_pixel, rl2PixelPtr bgcolor)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
     rl2PalettePtr plt = NULL;
@@ -3184,6 +3184,29 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 	RL2_OK)
 	goto error;
 
+    if (bgcolor != NULL)
+      {
+	  /* using the externally define background color */
+	  no_data = bgcolor;
+	  if (pixel_type == RL2_PIXEL_MONOCHROME
+	      && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		/* Pyramid tiles MONOCHROME */
+		sample_type = RL2_SAMPLE_UINT8;
+		pixel_type = RL2_PIXEL_GRAYSCALE;
+		num_bands = 1;
+	    }
+	  else if (pixel_type == RL2_PIXEL_PALETTE
+		   && out_pixel == RL2_PIXEL_RGB)
+	    {
+		/* Pyramid tiles PALETTE */
+		sample_type = RL2_SAMPLE_UINT8;
+		pixel_type = RL2_PIXEL_RGB;
+		num_bands = 3;
+	    }
+	  goto ok_no_data;
+      }
+
     if (pixel_type == RL2_PIXEL_MONOCHROME && out_pixel == RL2_PIXEL_GRAYSCALE)
       {
 	  /* Pyramid tiles MONOCHROME */
@@ -3209,7 +3232,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
       }
     else if (pixel_type == RL2_PIXEL_PALETTE && out_pixel == RL2_PIXEL_RGB)
       {
-	  /* Pyramid tiles RGB */
+	  /* Pyramid tiles PALETTE */
 	  rl2PixelPtr nd = NULL;
 	  nd = rl2_get_coverage_no_data (cvg);
 	  plt = rl2_get_dbms_palette (handle, coverage);
@@ -3289,6 +3312,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 	  no_data = rl2_get_coverage_no_data (cvg);
       }
 
+  ok_no_data:
     switch (sample_type)
       {
       case RL2_SAMPLE_INT16:
@@ -3402,6 +3426,235 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
     if (kill_no_data != NULL)
 	rl2_destroy_pixel (kill_no_data);
     return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+			 unsigned short width, unsigned short height,
+			 double minx, double miny, double maxx, double maxy,
+			 double x_res, double y_res, unsigned char **buffer,
+			 int *buf_size, rl2PalettePtr * palette,
+			 unsigned char out_pixel)
+{
+/* attempting to return a buffer containing raw pixels from the DBMS Coverage */
+    return get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
+				       maxx, maxy, x_res, y_res, buffer,
+				       buf_size, palette, out_pixel, NULL);
+}
+
+RL2_DECLARE int
+rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
+				 unsigned short width, unsigned short height,
+				 double minx, double miny, double maxx,
+				 double maxy, double x_res, double y_res,
+				 unsigned char **buffer, int *buf_size,
+				 rl2PalettePtr * palette,
+				 unsigned char out_pixel, unsigned char bg_red,
+				 unsigned char bg_green, unsigned char bg_blue)
+{
+/* attempting to return a buffer containing raw pixels from the DBMS Coverage + bgcolor */
+    int ret;
+    rl2PixelPtr no_data = NULL;
+    const char *coverage;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+
+    if (cvg == NULL || handle == NULL)
+	return RL2_ERROR;
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	return RL2_ERROR;
+    coverage = rl2_get_coverage_name (cvg);
+    if (coverage == NULL)
+	return RL2_ERROR;
+
+    if (pixel_type == RL2_PIXEL_MONOCHROME && out_pixel == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* Pyramid tiles MONOCHROME - Grayscale pixel */
+	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, bg_red);
+      }
+    else if (pixel_type == RL2_PIXEL_PALETTE && out_pixel == RL2_PIXEL_RGB)
+      {
+	  /* Pyramid tiles PALETTE - RGB pixel */
+	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, bg_red);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, bg_green);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, bg_blue);
+      }
+    else if (pixel_type == RL2_PIXEL_MONOCHROME)
+      {
+	  /* Monochrome */
+	  no_data =
+	      rl2_create_pixel (RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME, 1);
+	  if (bg_red > 128)
+	      rl2_set_pixel_sample_1bit (no_data, 0);
+	  else
+	      rl2_set_pixel_sample_1bit (no_data, 1);
+      }
+    else if (pixel_type == RL2_PIXEL_PALETTE)
+      {
+	  /* Palette */
+	  int index = -1;
+	  rl2PalettePtr palette = rl2_get_dbms_palette (handle, coverage);
+	  if (palette != NULL)
+	    {
+		/* searching the background color from within the palette */
+		int i;
+		unsigned short num_entries;
+		unsigned char *red = NULL;
+		unsigned char *green = NULL;
+		unsigned char *blue = NULL;
+		if (rl2_get_palette_colors
+		    (palette, &num_entries, &red, &green, &blue) == RL2_OK)
+		  {
+		      for (i = 0; i < num_entries; i++)
+			{
+			    if (red[i] == bg_red && green[i] == bg_green
+				&& blue[i] == bg_blue)
+			      {
+				  index = i;
+				  break;
+			      }
+			}
+		      free (red);
+		      free (green);
+		      free (blue);
+		  }
+	    }
+	  if (index < 0)
+	    {
+		/* palette color found */
+		switch (sample_type)
+		  {
+		  case RL2_SAMPLE_1_BIT:
+		      no_data =
+			  rl2_create_pixel (RL2_SAMPLE_1_BIT, RL2_PIXEL_PALETTE,
+					    1);
+		      rl2_set_pixel_sample_1bit (no_data,
+						 (unsigned char) index);
+		      break;
+		  case RL2_SAMPLE_2_BIT:
+		      no_data =
+			  rl2_create_pixel (RL2_SAMPLE_2_BIT, RL2_PIXEL_PALETTE,
+					    1);
+		      rl2_set_pixel_sample_2bit (no_data,
+						 (unsigned char) index);
+		      break;
+		  case RL2_SAMPLE_4_BIT:
+		      no_data =
+			  rl2_create_pixel (RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE,
+					    1);
+		      rl2_set_pixel_sample_4bit (no_data,
+						 (unsigned char) index);
+		      break;
+		  case RL2_SAMPLE_UINT8:
+		      no_data =
+			  rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE,
+					    1);
+		      rl2_set_pixel_sample_uint8 (no_data, RL2_PALETTE_BAND,
+						  (unsigned char) index);
+		      break;
+
+		  };
+	    }
+      }
+    else if (pixel_type == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* Grayscale */
+	  if (sample_type == RL2_SAMPLE_UINT8)
+	    {
+		/* 256 levels grayscale */
+		no_data =
+		    rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
+		rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+					    bg_red);
+	    }
+	  else if (sample_type == RL2_SAMPLE_1_BIT)
+	    {
+		/* 2 levels grayscale */
+		no_data =
+		    rl2_create_pixel (RL2_SAMPLE_1_BIT, RL2_PIXEL_GRAYSCALE, 1);
+		if (bg_red >= 128)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 1);
+		else
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 0);
+	    }
+	  else if (sample_type == RL2_SAMPLE_2_BIT)
+	    {
+		/* 4 levels grayscale */
+		no_data =
+		    rl2_create_pixel (RL2_SAMPLE_1_BIT, RL2_PIXEL_GRAYSCALE, 1);
+		if (bg_red >= 192)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 3);
+		else if (bg_red >= 128)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 2);
+		else if (bg_red >= 64)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 1);
+		else
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 0);
+	    }
+	  else if (sample_type == RL2_SAMPLE_4_BIT)
+	    {
+		/* 16 levels grayscale */
+		no_data =
+		    rl2_create_pixel (RL2_SAMPLE_1_BIT, RL2_PIXEL_GRAYSCALE, 1);
+		if (bg_red >= 240)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+						15);
+		else if (bg_red >= 224)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+						14);
+		else if (bg_red >= 208)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+						13);
+		else if (bg_red >= 192)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+						12);
+		else if (bg_red >= 176)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+						11);
+		else if (bg_red >= 160)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+						10);
+		else if (bg_red >= 144)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 9);
+		else if (bg_red >= 128)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 8);
+		else if (bg_red >= 112)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 7);
+		else if (bg_red >= 96)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 6);
+		else if (bg_red >= 80)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 5);
+		else if (bg_red >= 64)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 4);
+		else if (bg_red >= 48)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 3);
+		else if (bg_red >= 32)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 2);
+		else if (bg_red >= 16)
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 1);
+		else
+		    rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, 0);
+	    }
+      }
+    else if (pixel_type == RL2_PIXEL_RGB)
+      {
+	  /* RGB */
+	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, bg_red);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, bg_green);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, bg_blue);
+      }
+    ret =
+	get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
+				    maxx, maxy, x_res, y_res, buffer, buf_size,
+				    palette, out_pixel, no_data);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return ret;
 }
 
 RL2_DECLARE rl2PalettePtr

@@ -95,7 +95,7 @@ extern "C"
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
  \sa rl2_graph_destroy_context, rl2_graph_create_svg_context,
- rl2_graph_create_pdf_context
+ rl2_graph_create_pdf_context, rl2_graph_create_mem_pdf_context
  
  \note you are responsible to destroy (before or after) any Graphics Context
  returned by rl2_graph_create_context() by invoking rl2_graph_destroy_context().
@@ -122,7 +122,8 @@ extern "C"
 
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
- \sa rl2_graph_create_context, rl2_graph_destroy_context, rl2_graph_create_pdf_context
+ \sa rl2_graph_create_context, rl2_graph_destroy_context, rl2_graph_create_pdf_context,
+ rl2_graph_create_mem_pdf_context
  
  \note you are responsible to destroy (before or after) any SVG Graphics Context
  returned by rl2_graph_create_svg_context() by invoking rl2_graph_destroy_context().
@@ -144,7 +145,7 @@ extern "C"
 
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
- \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, rl2_graph_create_mem_pdf_context,
  rl2_graph_destroy_context
  
  \note you are responsible to destroy (before or after) any PDF Graphics Context
@@ -161,6 +162,74 @@ extern "C"
 								    margin_width,
 								    double
 								    margin_height);
+
+/**
+ Creates an in-memory PDF Graphics Context 
+
+ \param mem handle to an in-memory PDF target create by rl2_create_mem_pdf_target()
+ \param dpi the PDF printing resolution measured in DPI 
+ \param page_width total page width (in inches) including any margin
+ \param page_height total page height (in inches) including any margin
+ \param margin_width horizontal margin width (in inches)
+ \param margin_height vertical margin height (in inches)
+
+ \return the pointer to the corresponding Graphics Context object: NULL on failure
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, rl2_graph_create_pdf_context,
+ rl2_graph_destroy_context, rl2_create_mem_pdf_target
+ 
+ \note you are responsible to destroy (before or after) any PDF Graphics Context
+ returned by rl2_graph_create_mem_pdf_context() by invoking rl2_graph_destroy_context().
+ */
+    RL2_DECLARE rl2GraphicsContextPtr
+	rl2_graph_create_mem_pdf_context (rl2MemPdfPtr pdf, int dpi,
+					  double page_width, double page_height,
+					  double margin_width,
+					  double margin_height);
+
+/**
+ Create an in-memory PDF target
+ 
+ \return the handle to an initially empty in-memory PDF target: NULL on failure
+ 
+ \sa rl2_graph_create_mem_pdf_context, rl2_destroy_mem_pdf_target,
+ rl2_get_mem_pdf_buffer
+ 
+ \note you are responsible to destroy (before or after) any in-memory PDF target
+ returned by rl2_create_mem_pdf_target() by invoking rl2_destroy_mem_pdf_target().
+ */
+    RL2_DECLARE rl2MemPdfPtr rl2_create_mem_pdf_target (void);
+
+/**
+ Destroys an in-memory PDF target freeing any allocated resource 
+
+ \param handle the pointer to a valid in-memory PDF target returned by a previous call
+ to rl2_create_mem_pdf_target()
+ 
+ \sa rl2_create_mem_pdf_target, rl2_destroy_mem_pdf_target
+ */
+    RL2_DECLARE void rl2_destroy_mem_pdf_target (rl2MemPdfPtr target);
+
+/**
+ Transfers the ownership of the memory buffer contained into a in-memory PDF target
+
+ \param handle the pointer to a valid in-memory PDF target returned by a previous call
+ to rl2_create_mem_pdf_target()
+ \param buffer on completion this variable will point to the a memory block 
+  containing the PDF document (may be NULL if any error occurred).
+ \param size on completion this variable will contain the size (in bytes)
+ of the memory block containing the PDF document.
+ 
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
+ including referencing an empty in-memory PDF target).
+ 
+ \sa rl2_create_mem_pdf_target
+ 
+ \note after invoking rl2_get_mem_pdf_buffer() the in-memory PDF target
+ will be reset to its initial empty state-
+ */
+    RL2_DECLARE int rl2_get_mem_pdf_buffer (rl2MemPdfPtr target,
+					    unsigned char **buffer, int *size);
 
 /**
  Selects the currently set Pen for a Graphics Context

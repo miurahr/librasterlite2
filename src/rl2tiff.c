@@ -6349,3 +6349,739 @@ rl2_decode_tiff_mono4 (const unsigned char *tiff, int tiff_sz,
 	free (tiff_buffer);
     return RL2_ERROR;
 }
+
+static int
+rgb_tiff_common (TIFF * out, const unsigned char *buffer, unsigned short width,
+		 unsigned short height)
+{
+/* common implementation of RGB TIFF export */
+    tsize_t buf_size;
+    void *tiff_buffer = NULL;
+    int y;
+    int x;
+    const unsigned char *p_in;
+    unsigned char *p_out;
+
+/* setting up the TIFF headers */
+    TIFFSetField (out, TIFFTAG_SUBFILETYPE, 0);
+    TIFFSetField (out, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField (out, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField (out, TIFFTAG_XRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_YRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH);
+    TIFFSetField (out, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField (out, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    TIFFSetField (out, TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT);
+    TIFFSetField (out, TIFFTAG_SAMPLESPERPIXEL, 3);
+    TIFFSetField (out, TIFFTAG_BITSPERSAMPLE, 8);
+    TIFFSetField (out, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+    TIFFSetField (out, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+    TIFFSetField (out, TIFFTAG_ROWSPERSTRIP, 1);
+
+/* allocating the TIFF write buffer */
+    buf_size = TIFFScanlineSize (out);
+    tiff_buffer = malloc (buf_size);
+    if (tiff_buffer == NULL)
+	goto error;
+
+/* writing TIFF RGB scanlines */
+    p_in = buffer;
+
+    for (y = 0; y < height; y++)
+      {
+	  /* inserting pixels */
+	  p_out = tiff_buffer;
+	  for (x = 0; x < width; x++)
+	    {
+		*p_out++ = *p_in++;	/* red */
+		*p_out++ = *p_in++;	/* green */
+		*p_out++ = *p_in++;	/* blue */
+	    }
+	  if (TIFFWriteScanline (out, tiff_buffer, y, 0) < 0)
+	      goto error;
+      }
+
+    free (tiff_buffer);
+    return 1;
+  error:
+    if (tiff_buffer != NULL)
+	free (tiff_buffer);
+    return 0;
+}
+
+static int
+output_rgb_tiff (const unsigned char *buffer,
+		 unsigned short width,
+		 unsigned short height, unsigned char **blob, int *blob_size)
+{
+/* generating an RGB TIFF - actual work */
+    struct memfile clientdata;
+    TIFF *out = (TIFF *) 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+    out = TIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			  memory_writeproc, memory_seekproc, closeproc,
+			  memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	return 0;
+
+    if (!rgb_tiff_common (out, buffer, width, height))
+	goto error;
+
+    TIFFClose (out);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    TIFFClose (out);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+static int
+output_rgb_geotiff (const unsigned char *buffer,
+		    unsigned short width,
+		    unsigned short height, sqlite3 * handle, double minx,
+		    double miny, double maxx, double maxy, int srid,
+		    unsigned char **blob, int *blob_size)
+{
+/* generating an RGB TIFF - actual work */
+    struct memfile clientdata;
+    double tiepoint[6];
+    double pixsize[3];
+    double hResolution = (maxx - minx) / (double) width;
+    double vResolution = (maxy - miny) / (double) height;
+    char *srs_name = NULL;
+    char *proj4text = NULL;
+    GTIF *gtif = (GTIF *) 0;
+    TIFF *out = (TIFF *) 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+
+    out = XTIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			   memory_writeproc, memory_seekproc, closeproc,
+			   memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	goto error;
+    gtif = GTIFNew (out);
+    if (gtif == NULL)
+	goto error;
+
+/* attempting to retrieve the CRS params */
+    fetch_crs_params (handle, srid, &srs_name, &proj4text);
+    if (srs_name == NULL || proj4text == NULL)
+	goto error;
+
+/* setting up the GeoTIFF Tags */
+    pixsize[0] = hResolution;
+    pixsize[1] = vResolution;
+    pixsize[2] = 0.0;
+    TIFFSetField (out, GTIFF_PIXELSCALE, 3, pixsize);
+    tiepoint[0] = 0.0;
+    tiepoint[1] = 0.0;
+    tiepoint[2] = 0.0;
+    tiepoint[3] = minx;
+    tiepoint[4] = maxy;
+    tiepoint[5] = 0.0;
+    TIFFSetField (out, GTIFF_TIEPOINTS, 6, tiepoint);
+    if (srs_name != NULL)
+	TIFFSetField (out, GTIFF_ASCIIPARAMS, srs_name);
+    if (proj4text != NULL)
+	GTIFSetFromProj4 (gtif, proj4text);
+    if (srs_name != NULL)
+	GTIFKeySet (gtif, GTCitationGeoKey, TYPE_ASCII, 0, srs_name);
+    if (is_projected_srs (proj4text))
+	GTIFKeySet (gtif, ProjectedCSTypeGeoKey, TYPE_SHORT, 1, srid);
+    GTIFWriteKeys (gtif);
+
+    if (!rgb_tiff_common (out, buffer, width, height))
+	goto error;
+
+    GTIFFree (gtif);
+    XTIFFClose (out);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    if (gtif != (GTIF *) 0)
+	GTIFFree (gtif);
+    if (out != (TIFF *) 0)
+	XTIFFClose (out);
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+static int
+palette_tiff_common (TIFF * out, const unsigned char *buffer,
+		     unsigned short width, unsigned short height,
+		     unsigned char *red, unsigned char *green,
+		     unsigned char *blue, int max_palette)
+{
+/* common implementation of Palette TIFF export */
+    tsize_t buf_size;
+    void *tiff_buffer = NULL;
+    int y;
+    int x;
+    int i;
+    const unsigned char *p_in;
+    unsigned char *p_out;
+    uint16 r_plt[256];
+    uint16 g_plt[256];
+    uint16 b_plt[256];
+
+/* preparing the TIFF palette */
+    for (i = 0; i < 256; i++)
+      {
+	  r_plt[i] = 0;
+	  g_plt[i] = 0;
+	  b_plt[i] = 0;
+      }
+    for (i = 0; i < max_palette; i++)
+      {
+	  r_plt[i] = *(red + i) * 256;
+	  g_plt[i] = *(green + i) * 256;
+	  b_plt[i] = *(blue + i) * 256;
+      }
+
+/* setting up the TIFF headers */
+    TIFFSetField (out, TIFFTAG_SUBFILETYPE, 0);
+    TIFFSetField (out, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField (out, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField (out, TIFFTAG_XRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_YRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH);
+    TIFFSetField (out, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField (out, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    TIFFSetField (out, TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT);
+    TIFFSetField (out, TIFFTAG_SAMPLESPERPIXEL, 1);
+    TIFFSetField (out, TIFFTAG_BITSPERSAMPLE, 8);
+    TIFFSetField (out, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_PALETTE);
+    TIFFSetField (out, TIFFTAG_COLORMAP, r_plt, g_plt, b_plt);
+    TIFFSetField (out, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+    TIFFSetField (out, TIFFTAG_ROWSPERSTRIP, 1);
+
+/* allocating the TIFF write buffer */
+    buf_size = TIFFScanlineSize (out);
+    tiff_buffer = malloc (buf_size);
+    if (tiff_buffer == NULL)
+	goto error;
+
+/* writing TIFF RGB scanlines */
+    p_in = buffer;
+
+    for (y = 0; y < height; y++)
+      {
+	  /* inserting pixels */
+	  p_out = tiff_buffer;
+	  for (x = 0; x < width; x++)
+	    {
+		unsigned char r = *p_in++;
+		unsigned char g = *p_in++;
+		unsigned char b = *p_in++;
+		unsigned char index = 0;
+		for (i = 0; i < max_palette; i++)
+		  {
+		      if (*(red + i) == r && *(green + i) == g
+			  && *(blue + i) == b)
+			{
+			    index = i;
+			    break;
+			}
+		  }
+		*p_out++ = index;
+	    }
+	  if (TIFFWriteScanline (out, tiff_buffer, y, 0) < 0)
+	      goto error;
+      }
+
+    free (tiff_buffer);
+    return 1;
+  error:
+    if (tiff_buffer != NULL)
+	free (tiff_buffer);
+    return 0;
+}
+
+static int
+output_palette_tiff (const unsigned char *buffer,
+		     unsigned short width,
+		     unsigned short height, unsigned char *red,
+		     unsigned char *green, unsigned char *blue, int max_palette,
+		     unsigned char **blob, int *blob_size)
+{
+/* generating a PALETTE TIFF - actual work */
+    struct memfile clientdata;
+    TIFF *out = (TIFF *) 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+    out = TIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			  memory_writeproc, memory_seekproc, closeproc,
+			  memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	return 0;
+
+    if (!palette_tiff_common
+	(out, buffer, width, height, red, green, blue, max_palette))
+	goto error;
+
+    TIFFClose (out);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    TIFFClose (out);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+static int
+output_palette_geotiff (const unsigned char *buffer,
+			unsigned short width,
+			unsigned short height, sqlite3 * handle, double minx,
+			double miny, double maxx, double maxy, int srid,
+			unsigned char *red, unsigned char *green,
+			unsigned char *blue, int max_palette,
+			unsigned char **blob, int *blob_size)
+{
+/* generating a PALETTE GeoTIFF - actual work */
+    struct memfile clientdata;
+    double tiepoint[6];
+    double pixsize[3];
+    double hResolution = (maxx - minx) / (double) width;
+    double vResolution = (maxy - miny) / (double) height;
+    char *srs_name = NULL;
+    char *proj4text = NULL;
+    GTIF *gtif = (GTIF *) 0;
+    TIFF *out = (TIFF *) 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+
+    out = XTIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			   memory_writeproc, memory_seekproc, closeproc,
+			   memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	goto error;
+    gtif = GTIFNew (out);
+    if (gtif == NULL)
+	goto error;
+
+/* attempting to retrieve the CRS params */
+    fetch_crs_params (handle, srid, &srs_name, &proj4text);
+    if (srs_name == NULL || proj4text == NULL)
+	goto error;
+
+/* setting up the GeoTIFF Tags */
+    pixsize[0] = hResolution;
+    pixsize[1] = vResolution;
+    pixsize[2] = 0.0;
+    TIFFSetField (out, GTIFF_PIXELSCALE, 3, pixsize);
+    tiepoint[0] = 0.0;
+    tiepoint[1] = 0.0;
+    tiepoint[2] = 0.0;
+    tiepoint[3] = minx;
+    tiepoint[4] = maxy;
+    tiepoint[5] = 0.0;
+    TIFFSetField (out, GTIFF_TIEPOINTS, 6, tiepoint);
+    if (srs_name != NULL)
+	TIFFSetField (out, GTIFF_ASCIIPARAMS, srs_name);
+    if (proj4text != NULL)
+	GTIFSetFromProj4 (gtif, proj4text);
+    if (srs_name != NULL)
+	GTIFKeySet (gtif, GTCitationGeoKey, TYPE_ASCII, 0, srs_name);
+    if (is_projected_srs (proj4text))
+	GTIFKeySet (gtif, ProjectedCSTypeGeoKey, TYPE_SHORT, 1, srid);
+    GTIFWriteKeys (gtif);
+
+    if (!palette_tiff_common
+	(out, buffer, width, height, red, green, blue, max_palette))
+	goto error;
+
+    GTIFFree (gtif);
+    XTIFFClose (out);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    if (gtif != (GTIF *) 0)
+	GTIFFree (gtif);
+    if (out != (TIFF *) 0)
+	XTIFFClose (out);
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+static int
+test_palette_tiff (unsigned short width, unsigned short height,
+		   const unsigned char *rgb, unsigned char *red,
+		   unsigned char *green, unsigned char *blue, int *max_palette)
+{
+/* testing for an eventual Palette */
+    int next_palette = 0;
+    int extra_palette = 0;
+    int c;
+    int y;
+    int x;
+    const unsigned char *p_in;
+
+    p_in = rgb;
+    for (y = 0; y < height; y++)
+      {
+	  /* inserting pixels */
+	  for (x = 0; x < width; x++)
+	    {
+		unsigned char r = *p_in++;
+		unsigned char g = *p_in++;
+		unsigned char b = *p_in++;
+		int match = 0;
+		for (c = 0; c < next_palette; c++)
+		  {
+		      if (*(red + c) == r && *(green + c) == g
+			  && *(blue + c) == b)
+			{
+			    /* color already defined into the palette */
+			    match = 1;
+			    break;
+			}
+		  }
+		if (!match)
+		  {
+		      /* attempting to insert a color into the palette */
+		      if (next_palette < 256)
+			{
+			    *(red + next_palette) = r;
+			    *(green + next_palette) = g;
+			    *(blue + next_palette) = b;
+			    next_palette++;
+			}
+		      else
+			{
+			    extra_palette++;
+			    goto palette_invalid;
+			}
+		  }
+	    }
+      }
+  palette_invalid:
+    if (extra_palette)
+	return 0;
+    *max_palette = next_palette;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_rgb_to_tiff (unsigned short width, unsigned short height,
+		 const unsigned char *rgb, unsigned char **tiff, int *tiff_size)
+{
+/* creating a TIFF in-memory image from an RGB buffer */
+    unsigned char red[256];
+    unsigned char green[256];
+    unsigned char blue[256];
+    int max_palette = 0;
+    if (rgb == NULL)
+	return RL2_ERROR;
+
+    if (test_palette_tiff (width, height, rgb, red, green, blue, &max_palette))
+      {
+	  if (!output_palette_tiff
+	      (rgb, width, height, red, green, blue, max_palette, tiff,
+	       tiff_size))
+	      return RL2_ERROR;
+      }
+    else
+      {
+	  if (!output_rgb_tiff (rgb, width, height, tiff, tiff_size))
+	      return RL2_ERROR;
+      }
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_rgb_to_geotiff (unsigned short width, unsigned short height,
+		    sqlite3 * handle, double minx, double miny, double maxx,
+		    double maxy, int srid, const unsigned char *rgb,
+		    unsigned char **tiff, int *tiff_size)
+{
+/* creating a GeoTIFF in-memory image from an RGB buffer */
+    unsigned char red[256];
+    unsigned char green[256];
+    unsigned char blue[256];
+    int max_palette = 0;
+    if (rgb == NULL)
+	return RL2_ERROR;
+
+    if (test_palette_tiff (width, height, rgb, red, green, blue, &max_palette))
+      {
+	  if (!output_palette_geotiff
+	      (rgb, width, height, handle, minx, miny, maxx, maxy, srid, red,
+	       green, blue, max_palette, tiff, tiff_size))
+	      return RL2_ERROR;
+      }
+    else
+      {
+	  if (!output_rgb_geotiff
+	      (rgb, width, height, handle, minx, miny, maxx, maxy, srid, tiff,
+	       tiff_size))
+	      return RL2_ERROR;
+      }
+    return RL2_OK;
+}
+
+static int
+gray_tiff_common (TIFF * out, const unsigned char *buffer, unsigned short width,
+		  unsigned short height)
+{
+/* common implementation of Grayscale TIFF export */
+    tsize_t buf_size;
+    void *tiff_buffer = NULL;
+    int y;
+    int x;
+    const unsigned char *p_in;
+    unsigned char *p_out;
+
+/* setting up the TIFF headers */
+    TIFFSetField (out, TIFFTAG_SUBFILETYPE, 0);
+    TIFFSetField (out, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField (out, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField (out, TIFFTAG_XRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_YRESOLUTION, 300.0);
+    TIFFSetField (out, TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH);
+    TIFFSetField (out, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField (out, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    TIFFSetField (out, TIFFTAG_SAMPLEFORMAT, SAMPLEFORMAT_UINT);
+    TIFFSetField (out, TIFFTAG_SAMPLESPERPIXEL, 1);
+    TIFFSetField (out, TIFFTAG_BITSPERSAMPLE, 8);
+    TIFFSetField (out, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+    TIFFSetField (out, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+    TIFFSetField (out, TIFFTAG_ROWSPERSTRIP, 1);
+
+/* allocating the TIFF write buffer */
+    buf_size = TIFFScanlineSize (out);
+    tiff_buffer = malloc (buf_size);
+    if (tiff_buffer == NULL)
+	goto error;
+
+/* writing TIFF RGB scanlines */
+    p_in = buffer;
+
+    for (y = 0; y < height; y++)
+      {
+	  /* inserting pixels */
+	  p_out = tiff_buffer;
+	  for (x = 0; x < width; x++)
+	      *p_out++ = *p_in++;	/* gray */
+	  if (TIFFWriteScanline (out, tiff_buffer, y, 0) < 0)
+	      goto error;
+      }
+
+    free (tiff_buffer);
+    return 1;
+  error:
+    if (tiff_buffer != NULL)
+	free (tiff_buffer);
+    return 0;
+}
+
+static int
+output_gray_tiff (const unsigned char *buffer,
+		  unsigned short width,
+		  unsigned short height, unsigned char **blob, int *blob_size)
+{
+/* generating a Grayscale TIFF - actual work */
+    struct memfile clientdata;
+    TIFF *out = (TIFF *) 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+    out = TIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			  memory_writeproc, memory_seekproc, closeproc,
+			  memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	return 0;
+
+    if (!gray_tiff_common (out, buffer, width, height))
+	goto error;
+
+    TIFFClose (out);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    TIFFClose (out);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+static int
+output_gray_geotiff (const unsigned char *buffer,
+		     unsigned short width,
+		     unsigned short height, sqlite3 * handle, double minx,
+		     double miny, double maxx, double maxy, int srid,
+		     unsigned char **blob, int *blob_size)
+{
+/* generating a Grayscale GeoTIFF - actual work */
+    struct memfile clientdata;
+    double tiepoint[6];
+    double pixsize[3];
+    double hResolution = (maxx - minx) / (double) width;
+    double vResolution = (maxy - miny) / (double) height;
+    char *srs_name = NULL;
+    char *proj4text = NULL;
+    GTIF *gtif = (GTIF *) 0;
+    TIFF *out = (TIFF *) 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* writing into memory */
+    clientdata.buffer = NULL;
+    clientdata.malloc_block = 1024;
+    clientdata.size = 0;
+    clientdata.eof = 0;
+    clientdata.current = 0;
+
+    out = XTIFFClientOpen ("tiff", "w", &clientdata, memory_readproc,
+			   memory_writeproc, memory_seekproc, closeproc,
+			   memory_sizeproc, mapproc, unmapproc);
+    if (out == NULL)
+	goto error;
+    gtif = GTIFNew (out);
+    if (gtif == NULL)
+	goto error;
+
+/* attempting to retrieve the CRS params */
+    fetch_crs_params (handle, srid, &srs_name, &proj4text);
+    if (srs_name == NULL || proj4text == NULL)
+	goto error;
+
+/* setting up the GeoTIFF Tags */
+    pixsize[0] = hResolution;
+    pixsize[1] = vResolution;
+    pixsize[2] = 0.0;
+    TIFFSetField (out, GTIFF_PIXELSCALE, 3, pixsize);
+    tiepoint[0] = 0.0;
+    tiepoint[1] = 0.0;
+    tiepoint[2] = 0.0;
+    tiepoint[3] = minx;
+    tiepoint[4] = maxy;
+    tiepoint[5] = 0.0;
+    TIFFSetField (out, GTIFF_TIEPOINTS, 6, tiepoint);
+    if (srs_name != NULL)
+	TIFFSetField (out, GTIFF_ASCIIPARAMS, srs_name);
+    if (proj4text != NULL)
+	GTIFSetFromProj4 (gtif, proj4text);
+    if (srs_name != NULL)
+	GTIFKeySet (gtif, GTCitationGeoKey, TYPE_ASCII, 0, srs_name);
+    if (is_projected_srs (proj4text))
+	GTIFKeySet (gtif, ProjectedCSTypeGeoKey, TYPE_SHORT, 1, srid);
+    GTIFWriteKeys (gtif);
+
+    if (!gray_tiff_common (out, buffer, width, height))
+	goto error;
+
+    GTIFFree (gtif);
+    XTIFFClose (out);
+    *blob = clientdata.buffer;
+    *blob_size = clientdata.eof;
+    return 1;
+
+  error:
+    if (gtif != (GTIF *) 0)
+	GTIFFree (gtif);
+    if (out != (TIFF *) 0)
+	XTIFFClose (out);
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
+    if (clientdata.buffer != NULL)
+	free (clientdata.buffer);
+    return 0;
+}
+
+RL2_DECLARE int
+rl2_gray_to_tiff (unsigned short width, unsigned short height,
+		  const unsigned char *gray, unsigned char **tiff,
+		  int *tiff_size)
+{
+/* creating a TIFF in-memory image from a Grayscale buffer */
+    if (gray == NULL)
+	return RL2_ERROR;
+
+    if (!output_gray_tiff (gray, width, height, tiff, tiff_size))
+	return RL2_ERROR;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_gray_to_geotiff (unsigned short width, unsigned short height,
+		     sqlite3 * handle, double minx, double miny, double maxx,
+		     double maxy, int srid, const unsigned char *gray,
+		     unsigned char **tiff, int *tiff_size)
+{
+/* creating a GeoTIFF in-memory image from a Grayscale buffer */
+    if (gray == NULL)
+	return RL2_ERROR;
+
+    if (!output_gray_geotiff
+	(gray, width, height, handle, minx, miny, maxx, maxy, srid, tiff,
+	 tiff_size))
+	return RL2_ERROR;
+    return RL2_OK;
+}

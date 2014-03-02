@@ -3082,6 +3082,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     double ext_y;
     double x_res;
     double y_res;
+    int srid;
     int level_id;
     int scale;
     int xscale;
@@ -3177,6 +3178,16 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  format_id = RL2_OUTPUT_FORMAT_JPEG;
 	  ok_format = 1;
       }
+    if (strcmp (format, "image/tiff") == 0)
+      {
+	  format_id = RL2_OUTPUT_FORMAT_TIFF;
+	  ok_format = 1;
+      }
+    if (strcmp (format, "application/x-pdf") == 0)
+      {
+	  format_id = RL2_OUTPUT_FORMAT_PDF;
+	  ok_format = 1;
+      }
     if (!ok_format)
 	goto error;
 /* parsing the background color */
@@ -3204,6 +3215,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
 	goto error;
+    if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
+	srid = -1;
     cvg = (rl2PrivCoveragePtr) coverage;
     out_pixel = RL2_PIXEL_UNKNOWN;
     if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
@@ -3251,9 +3264,10 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	      out_pixel = RL2_PIXEL_RGB;
       }
 
-    if (rl2_get_raw_raster_data
+    if (rl2_get_raw_raster_data_bgcolor
 	(sqlite, coverage, base_width, base_height, minx, miny, maxx, maxy,
-	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, out_pixel) != RL2_OK)
+	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, out_pixel, bg_red,
+	 bg_green, bg_blue) != RL2_OK)
 	goto error;
     if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
 	goto error;
@@ -3275,8 +3289,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		else
 		  {
 		      if (!get_payload_from_monochrome_opaque
-			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size))
+			  (base_width, base_height, sqlite, minx, miny, maxx,
+			   maxy, srid, outbuf, format_id, quality, &image,
+			   &image_size))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -3301,8 +3316,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		else
 		  {
 		      if (!get_payload_from_palette_opaque
-			  (base_width, base_height, outbuf, palette, format_id,
-			   quality, &image, &image_size))
+			  (base_width, base_height, sqlite, minx, miny, maxx,
+			   maxy, srid, outbuf, palette, format_id, quality,
+			   &image, &image_size))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -3326,8 +3342,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		else
 		  {
 		      if (!get_payload_from_grayscale_opaque
-			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size))
+			  (base_width, base_height, sqlite, minx, miny, maxx,
+			   maxy, srid, outbuf, format_id, quality, &image,
+			   &image_size))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -3351,8 +3368,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		else
 		  {
 		      if (!get_payload_from_rgb_opaque
-			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size))
+			  (base_width, base_height, sqlite, minx, miny, maxx,
+			   maxy, srid, outbuf, format_id, quality, &image,
+			   &image_size))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -3371,7 +3389,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  rgba = malloc (base_width * base_height * 4);
 	  if (out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
-		/* converting from Monochrome to Grayscale */
+		/* Monochrome - upsampled */
 		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
 		      if (!get_rgba_from_monochrome_transparent
@@ -3394,12 +3412,11 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	    }
 	  else if (out_pixel == RL2_PIXEL_PALETTE)
 	    {
-		/* Palette */
+		/* Monochrome - upsampled */
 		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
 		      if (!get_rgba_from_palette_transparent
-			  (base_width, base_height, outbuf, palette, rgba,
-			   bg_red, bg_green, bg_blue))
+			  (base_width, base_height, outbuf, palette, rgba, bg_red, bg_green, bg_blue))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -3477,9 +3494,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  rl2_graph_destroy_context (ctx);
 	  if (rgb == NULL)
 	      goto error;
-	  if (out_pixel == RL2_PIXEL_GRAYSCALE)
+	  if (out_pixel == RL2_PIXEL_GRAYSCALE || out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
-		/* Grayscale */
+		/* Grayscale or Monochrome upsampled */
 		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
 		      if (alpha == NULL)
@@ -3498,8 +3515,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		else
 		  {
 		      if (!get_payload_from_gray_rgba_opaque
-			  (width, height, rgb, format_id, quality, &image,
-			   &image_size))
+			  (width, height, sqlite, minx, miny, maxx, maxy, srid,
+			   rgb, format_id, quality, &image, &image_size))
 			{
 			    rgb = NULL;
 			    goto error;
@@ -3528,8 +3545,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		else
 		  {
 		      if (!get_payload_from_rgb_rgba_opaque
-			  (width, height, rgb, format_id, quality, &image,
-			   &image_size))
+			  (width, height, sqlite, minx, miny, maxx, maxy, srid,
+			   rgb, format_id, quality, &image, &image_size))
 			{
 			    rgb = NULL;
 			    goto error;

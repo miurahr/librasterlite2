@@ -1134,18 +1134,79 @@ get_palette_format (rl2PrivPalettePtr plt)
 	return RL2_PIXEL_RGB;
 }
 
+static unsigned char *
+gray_to_rgba (unsigned short width, unsigned short height, unsigned char *gray)
+{
+/* transforming an RGB buffer to RGBA */
+    unsigned char *rgba = NULL;
+    unsigned char *p_out;
+    const unsigned char *p_in;
+    int x;
+    int y;
+
+    rgba = malloc (width * height * 4);
+    if (rgba == NULL)
+	return NULL;
+    p_in = gray;
+    p_out = rgba;
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		unsigned char x = *p_in++;
+		*p_out++ = x;	/* red */
+		*p_out++ = x;	/* green */
+		*p_out++ = x;	/* blue */
+		*p_out++ = 255;	/* alpha */
+	    }
+      }
+    return rgba;
+}
+
+static unsigned char *
+rgb_to_rgba (unsigned short width, unsigned short height, unsigned char *rgb)
+{
+/* transforming an RGB buffer to RGBA */
+    unsigned char *rgba = NULL;
+    unsigned char *p_out;
+    const unsigned char *p_in;
+    int x;
+    int y;
+
+    rgba = malloc (width * height * 4);
+    if (rgba == NULL)
+	return NULL;
+    p_in = rgb;
+    p_out = rgba;
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		*p_out++ = *p_in++;	/* red */
+		*p_out++ = *p_in++;	/* green */
+		*p_out++ = *p_in++;	/* blue */
+		*p_out++ = 255;	/* alpha */
+	    }
+      }
+    return rgba;
+}
+
 RL2_PRIVATE int
 get_payload_from_monochrome_opaque (unsigned short width, unsigned short height,
+				    sqlite3 * handle, double minx, double miny,
+				    double maxx, double maxy, int srid,
 				    unsigned char *pixels, unsigned char format,
 				    int quality, unsigned char **image,
 				    int *image_sz)
 {
 /* input: Monochrome    output: Grayscale */
+    int ret;
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *gray = NULL;
     unsigned short row;
     unsigned short col;
+    unsigned char *rgba = NULL;
 
     gray = malloc (width * height);
     if (gray == NULL)
@@ -1175,6 +1236,32 @@ get_payload_from_monochrome_opaque (unsigned short width, unsigned short height,
 	  if (rl2_gray_to_png (width, height, gray, image, image_sz) != RL2_OK)
 	      goto error;
       }
+    else if (format == RL2_OUTPUT_FORMAT_TIFF)
+      {
+	  if (srid > 0)
+	    {
+		if (rl2_gray_to_geotiff
+		    (width, height, handle, minx, miny, maxx, maxy, srid, gray,
+		     image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	    {
+		if (rl2_gray_to_tiff (width, height, gray, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PDF)
+      {
+	  rgba = gray_to_rgba (width, height, gray);
+	  if (rgba == NULL)
+	      goto error;
+	  ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+	  rgba = NULL;
+	  if (ret != RL2_OK)
+	      goto error;
+      }
     else
 	goto error;
     free (gray);
@@ -1185,6 +1272,8 @@ get_payload_from_monochrome_opaque (unsigned short width, unsigned short height,
 	free (pixels);
     if (gray != NULL)
 	free (gray);
+    if (rgba != NULL)
+	free (rgba);
     return 0;
 }
 
@@ -1257,11 +1346,14 @@ get_payload_from_monochrome_transparent (unsigned short width,
 
 RL2_PRIVATE int
 get_payload_from_palette_opaque (unsigned short width, unsigned short height,
+				 sqlite3 * handle, double minx, double miny,
+				 double maxx, double maxy, int srid,
 				 unsigned char *pixels, rl2PalettePtr palette,
 				 unsigned char format, int quality,
 				 unsigned char **image, int *image_sz)
 {
 /* input: Palette    output: Grayscale or RGB */
+    int ret;
     rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
     unsigned char *p_in;
     unsigned char *p_out;
@@ -1270,6 +1362,7 @@ get_payload_from_palette_opaque (unsigned short width, unsigned short height,
     unsigned short row;
     unsigned short col;
     unsigned char out_format;
+    unsigned char *rgba = NULL;
 
     out_format = get_palette_format (plt);
     if (out_format == RL2_PIXEL_RGB)
@@ -1311,6 +1404,32 @@ get_payload_from_palette_opaque (unsigned short width, unsigned short height,
 		    RL2_OK)
 		    goto error;
 	    }
+	  else if (format == RL2_OUTPUT_FORMAT_TIFF)
+	    {
+		if (srid > 0)
+		  {
+		      if (rl2_rgb_to_geotiff
+			  (width, height, handle, minx, miny, maxx, maxy, srid,
+			   rgb, image, image_sz) != RL2_OK)
+			  goto error;
+		  }
+		else
+		  {
+		      if (rl2_rgb_to_tiff (width, height, rgb, image, image_sz)
+			  != RL2_OK)
+			  goto error;
+		  }
+	    }
+	  else if (format == RL2_OUTPUT_FORMAT_PDF)
+	    {
+		rgba = rgb_to_rgba (width, height, rgb);
+		if (rgba == NULL)
+		    goto error;
+		ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+		rgba = NULL;
+		if (ret != RL2_OK)
+		    goto error;
+	    }
 	  else
 	      goto error;
 	  free (rgb);
@@ -1348,6 +1467,32 @@ get_payload_from_palette_opaque (unsigned short width, unsigned short height,
 		    RL2_OK)
 		    goto error;
 	    }
+	  else if (format == RL2_OUTPUT_FORMAT_TIFF)
+	    {
+		if (srid > 0)
+		  {
+		      if (rl2_gray_to_geotiff
+			  (width, height, handle, minx, miny, maxx, maxy, srid,
+			   gray, image, image_sz) != RL2_OK)
+			  goto error;
+		  }
+		else
+		  {
+		      if (rl2_gray_to_tiff
+			  (width, height, gray, image, image_sz) != RL2_OK)
+			  goto error;
+		  }
+	    }
+	  else if (format == RL2_OUTPUT_FORMAT_PDF)
+	    {
+		rgba = gray_to_rgba (width, height, gray);
+		if (rgba == NULL)
+		    goto error;
+		ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+		rgba = NULL;
+		if (ret != RL2_OK)
+		    goto error;
+	    }
 	  else
 	      goto error;
 	  free (gray);
@@ -1363,6 +1508,8 @@ get_payload_from_palette_opaque (unsigned short width, unsigned short height,
 	free (gray);
     if (rgb != NULL)
 	free (rgb);
+    if (rgba != NULL)
+	free (rgba);
     return 0;
 }
 
@@ -1429,13 +1576,7 @@ get_payload_from_palette_transparent (unsigned short width,
 		  }
 	    }
 	  free (pixels);
-	  if (format == RL2_OUTPUT_FORMAT_JPEG)
-	    {
-		if (rl2_rgb_to_jpeg
-		    (width, height, rgb, quality, image, image_sz) != RL2_OK)
-		    goto error;
-	    }
-	  else if (format == RL2_OUTPUT_FORMAT_PNG)
+	  if (format == RL2_OUTPUT_FORMAT_PNG)
 	    {
 		if (rl2_rgb_to_png (width, height, rgb, image, image_sz) !=
 		    RL2_OK)
@@ -1506,11 +1647,16 @@ get_payload_from_palette_transparent (unsigned short width,
 
 RL2_PRIVATE int
 get_payload_from_grayscale_opaque (unsigned short width, unsigned short height,
+				   sqlite3 * handle, double minx, double miny,
+				   double maxx, double maxy, int srid,
 				   unsigned char *pixels, unsigned char format,
 				   int quality, unsigned char **image,
 				   int *image_sz)
 {
 /* input: Grayscale    output: Grayscale */
+    int ret;
+    unsigned char *rgba = NULL;
+
     if (format == RL2_OUTPUT_FORMAT_JPEG)
       {
 	  if (rl2_gray_to_jpeg (width, height, pixels, quality, image, image_sz)
@@ -1523,9 +1669,37 @@ get_payload_from_grayscale_opaque (unsigned short width, unsigned short height,
 	      RL2_OK)
 	      goto error;
       }
+    else if (format == RL2_OUTPUT_FORMAT_TIFF)
+      {
+	  if (srid > 0)
+	    {
+		if (rl2_gray_to_geotiff
+		    (width, height, handle, minx, miny, maxx, maxy, srid,
+		     pixels, image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	    {
+		if (rl2_gray_to_tiff (width, height, pixels, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PDF)
+      {
+	  rgba = gray_to_rgba (width, height, pixels);
+	  if (rgba == NULL)
+	      goto error;
+	  ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+	  rgba = NULL;
+	  if (ret != RL2_OK)
+	      goto error;
+      }
     else
 	goto error;
     free (pixels);
+    if (rgba != NULL)
+	free (rgba);
     return 1;
 
   error:
@@ -1586,10 +1760,15 @@ get_payload_from_grayscale_transparent (unsigned short width,
 
 RL2_PRIVATE int
 get_payload_from_rgb_opaque (unsigned short width, unsigned short height,
+			     sqlite3 * handle, double minx, double miny,
+			     double maxx, double maxy, int srid,
 			     unsigned char *pixels, unsigned char format,
 			     int quality, unsigned char **image, int *image_sz)
 {
 /* input: RGB    output: RGB */
+    int ret;
+    unsigned char *rgba = NULL;
+
     if (format == RL2_OUTPUT_FORMAT_JPEG)
       {
 	  if (rl2_rgb_to_jpeg (width, height, pixels, quality, image, image_sz)
@@ -1601,6 +1780,32 @@ get_payload_from_rgb_opaque (unsigned short width, unsigned short height,
 	  if (rl2_rgb_to_png (width, height, pixels, image, image_sz) != RL2_OK)
 	      goto error;
       }
+    else if (format == RL2_OUTPUT_FORMAT_TIFF)
+      {
+	  if (srid > 0)
+	    {
+		if (rl2_rgb_to_geotiff
+		    (width, height, handle, minx, miny, maxx, maxy, srid,
+		     pixels, image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	    {
+		if (rl2_rgb_to_tiff (width, height, pixels, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PDF)
+      {
+	  rgba = rgb_to_rgba (width, height, pixels);
+	  if (rgba == NULL)
+	      goto error;
+	  ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+	  rgba = NULL;
+	  if (ret != RL2_OK)
+	      goto error;
+      }
     else
 	goto error;
     free (pixels);
@@ -1608,6 +1813,8 @@ get_payload_from_rgb_opaque (unsigned short width, unsigned short height,
 
   error:
     free (pixels);
+    if (rgba != NULL)
+	free (rgba);
     return 0;
 }
 
@@ -2009,15 +2216,19 @@ get_rgba_from_rgb_transparent (unsigned short width, unsigned short height,
 
 RL2_PRIVATE int
 get_payload_from_gray_rgba_opaque (unsigned short width, unsigned short height,
+				   sqlite3 * handle, double minx, double miny,
+				   double maxx, double maxy, int srid,
 				   unsigned char *rgb, unsigned char format,
 				   int quality, unsigned char **image,
 				   int *image_sz)
 {
 /* Grayscale, Opaque */
+    int ret;
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned short row;
     unsigned short col;
+    unsigned char *rgba = NULL;
     unsigned char *gray = malloc (width * height);
 
     if (gray == NULL)
@@ -2045,6 +2256,32 @@ get_payload_from_gray_rgba_opaque (unsigned short width, unsigned short height,
 	  if (rl2_gray_to_png (width, height, gray, image, image_sz) != RL2_OK)
 	      goto error;
       }
+    else if (format == RL2_OUTPUT_FORMAT_TIFF)
+      {
+	  if (srid > 0)
+	    {
+		if (rl2_gray_to_geotiff
+		    (width, height, handle, minx, miny, maxx, maxy, srid, gray,
+		     image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	    {
+		if (rl2_gray_to_tiff (width, height, gray, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PDF)
+      {
+	  rgba = gray_to_rgba (width, height, gray);
+	  if (rgba == NULL)
+	      goto error;
+	  ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+	  rgba = NULL;
+	  if (ret != RL2_OK)
+	      goto error;
+      }
     else
 	goto error;
     free (gray);
@@ -2053,6 +2290,8 @@ get_payload_from_gray_rgba_opaque (unsigned short width, unsigned short height,
     free (rgb);
     if (gray != NULL)
 	free (gray);
+    if (rgba != NULL)
+	free (rgba);
     return 0;
 }
 
@@ -2122,11 +2361,16 @@ get_payload_from_gray_rgba_transparent (unsigned short width,
 
 RL2_PRIVATE int
 get_payload_from_rgb_rgba_opaque (unsigned short width, unsigned short height,
+				  sqlite3 * handle, double minx, double miny,
+				  double maxx, double maxy, int srid,
 				  unsigned char *rgb, unsigned char format,
 				  int quality, unsigned char **image,
 				  int *image_sz)
 {
 /* RGB, Opaque */
+    int ret;
+    unsigned char *rgba = NULL;
+
     if (format == RL2_OUTPUT_FORMAT_JPEG)
       {
 	  if (rl2_rgb_to_jpeg (width, height, rgb, quality, image, image_sz) !=
@@ -2138,12 +2382,40 @@ get_payload_from_rgb_rgba_opaque (unsigned short width, unsigned short height,
 	  if (rl2_rgb_to_png (width, height, rgb, image, image_sz) != RL2_OK)
 	      goto error;
       }
+    else if (format == RL2_OUTPUT_FORMAT_TIFF)
+      {
+	  if (srid > 0)
+	    {
+		if (rl2_rgb_to_geotiff
+		    (width, height, handle, minx, miny, maxx, maxy, srid, rgb,
+		     image, image_sz) != RL2_OK)
+		    goto error;
+	    }
+	  else
+	    {
+		if (rl2_rgb_to_tiff (width, height, rgb, image, image_sz) !=
+		    RL2_OK)
+		    goto error;
+	    }
+      }
+    else if (format == RL2_OUTPUT_FORMAT_PDF)
+      {
+	  rgba = rgb_to_rgba (width, height, rgb);
+	  if (rgba == NULL)
+	      goto error;
+	  ret = rl2_rgba_to_pdf (width, height, rgba, image, image_sz);
+	  rgba = NULL;
+	  if (ret != RL2_OK)
+	      goto error;
+      }
     else
 	goto error;
     free (rgb);
     return 1;
   error:
     free (rgb);
+    if (rgba != NULL)
+	free (rgba);
     return 0;
 }
 

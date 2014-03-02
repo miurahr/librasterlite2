@@ -338,6 +338,20 @@ extern "C"
     typedef rl2RasterStatistics *rl2RasterStatisticsPtr;
 
 /**
+ Typedef for RL2 in-memory PDF target object
+
+ \sa rl2MemPtrPtr
+ */
+    typedef struct rl2_mem_pdf_target rl2MemPdf;
+
+/**
+ Typedef for RL2 in-memory PDF target
+
+ \sa rl2MemPtr
+ */
+    typedef struct rl2MemPdf *rl2MemPdfPtr;
+
+/**
  Releases (frees) dynamic memory allocated by RasterLite2
 
  \param p pointer to the dynamic memory block to be released.
@@ -2761,6 +2775,19 @@ extern "C"
 				 unsigned char out_pixel);
 
     RL2_DECLARE int
+	rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
+					 unsigned short width,
+					 unsigned short height, double minx,
+					 double miny, double maxx, double maxy,
+					 double x_res, double y_res,
+					 unsigned char **buffer, int *buf_size,
+					 rl2PalettePtr * palette,
+					 unsigned char out_pixel,
+					 unsigned char bg_red,
+					 unsigned char bg_green,
+					 unsigned char bg_blue);
+
+    RL2_DECLARE int
 	rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 				  unsigned char sample, unsigned char pixel,
 				  unsigned char num_bands,
@@ -2994,7 +3021,8 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg
+ \sa rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg, rl2_rgb_to_tiff, 
+ rl2_rgb_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
 	rl2_rgb_to_png (unsigned short width, unsigned short height,
@@ -3014,7 +3042,7 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_rgb_to_png, rl2_rgb_to_jpeg
+ \sa rl2_rgb_to_png, rl2_rgb_to_jpeg, rl2_rgb_to_tiff, rl2_rgb_to_geotiff
  */
     RL2_DECLARE int
 	rl2_rgb_alpha_to_png (unsigned short width, unsigned short height,
@@ -3035,12 +3063,60 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png
+ \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png, rl2_rgb_to_tiff, 
+ rl2_rgb_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
 	rl2_rgb_to_jpeg (unsigned short width, unsigned short height,
 			 const unsigned char *rgb, int quality,
 			 unsigned char **jpeg, int *jpeg_size);
+
+/**
+ Exports an RGB buffer as an in-memory stored TIFF image
+
+ \param width the TIFF image width.
+ \param height the TIFF image height.
+ \param rgb pointer to the RGB buffer.
+ \param tiff on completion will point to the memory block storing the created TIFF image.
+ \param tiff_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the TIFF image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg, 
+ rl2_rgb_to_geotiff, rl2_rgba_to_pdf
+ */
+    RL2_DECLARE int
+	rl2_rgb_to_tiff (unsigned short width, unsigned short height,
+			 const unsigned char *rgb, unsigned char **tiff,
+			 int *tiff_size);
+
+/**
+ Exports an RGB buffer as an in-memory stored GeoTIFF image
+
+ \param width the GeoTIFF image width.
+ \param height the GeoTIFF image height.
+ \param minx minimum X coordinate (BBOX - georeferencing).
+ \param miny minimum Y coordinate (BBOX - georeferencing).
+ \param maxx maximum X coordinate (BBOX - georeferencing).
+ \param maxx maximum Y coordinate (BBOX - georeferencing).
+ \param srid SRID code.
+ \param rgb pointer to the RGB buffer.
+ \param geotiff on completion will point to the memory block storing the created GeoTIFF image.
+ \param geotiff_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the GeoTIFF image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg, 
+ rl2_rgb_to_tiff, rl2_rgba_to_pdf
+ */
+    RL2_DECLARE int
+	rl2_rgb_to_geotiff (unsigned short width, unsigned short height,
+			    sqlite3 * handle, double minx, double miny,
+			    double maxx, double maxy, int srid,
+			    const unsigned char *rgb, unsigned char **geotiff,
+			    int *geotiff_size);
 
 /**
  Exports a Grayscale buffer as an in-memory stored PNG image
@@ -3054,12 +3130,14 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_gray_alpha_to_png, rl2_gray_to_jpeg
+ \sa rl2_gray_alpha_to_png, rl2_gray_to_jpeg, rl2_gray_to_tiff, 
+ rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
 	rl2_gray_to_png (unsigned short width, unsigned short height,
 			 const unsigned char *gray, unsigned char **png,
 			 int *png_size);
+
 /**
  Exports two separate Grayscale + Alpha buffers as an in-memory stored PNG image
 
@@ -3073,7 +3151,8 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_gray_to_png, rl2_gray_to_jpeg
+ \sa rl2_gray_to_png, rl2_gray_to_jpeg, rl2_gray_to_tiff
+ rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
 	rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
@@ -3094,12 +3173,83 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
  
- \sa rl2_gray_to_png, rl2_gray_alpha_to_png
+ \sa rl2_gray_to_png, rl2_gray_alpha_to_png, rl2_gray_to_tiff
+ rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
 	rl2_gray_to_jpeg (unsigned short width, unsigned short height,
 			  const unsigned char *gray, int quality,
 			  unsigned char **jpeg, int *jpeg_size);
+
+/**
+ Exports a Grayscale buffer as an in-memory stored TIFF image
+
+ \param width the TIFF image width.
+ \param height the TIFF image height.
+ \param gray pointer to the Grayscale buffer.
+ \param tiff on completion will point to the memory block storing the created TIFF image.
+ \param tiff_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the TIFF image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_gray_to_png, rl2_gray_alpha_to_png, rl2_gray_to_jpeg, 
+ rl2_gray_to_geotiff, rl2_rgba_to_pdf
+ */
+    RL2_DECLARE int
+	rl2_gray_to_tiff (unsigned short width, unsigned short height,
+			  const unsigned char *gray, unsigned char **tiff,
+			  int *tiff_size);
+
+/**
+ Exports a Grayscale buffer as an in-memory stored GeoTIFF image
+
+ \param width the GeoTIFF image width.
+ \param height the GeoTIFF image height.
+ \param minx minimum X coordinate (BBOX - georeferencing).
+ \param miny minimum Y coordinate (BBOX - georeferencing).
+ \param maxx maximum X coordinate (BBOX - georeferencing).
+ \param maxx maximum Y coordinate (BBOX - georeferencing).
+ \param srid SRID code.
+ \param gray pointer to the Grayscale buffer.
+ \param geotiff on completion will point to the memory block storing the created GeoTIFF image.
+ \param geotiff_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the GeoTIFF image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_gray_to_png, rl2_gray_alpha_to_png, rl2_gray_to_jpeg, 
+ rl2_gray_to_tiff, rl2_rgba_to_pdf
+ */
+    RL2_DECLARE int
+	rl2_gray_to_geotiff (unsigned short width, unsigned short height,
+			     sqlite3 * handle, double minx, double miny,
+			     double maxx, double maxy, int srid,
+			     const unsigned char *gray, unsigned char **geotiff,
+			     int *geotiff_size);
+
+/**
+ Exports an RGBA buffer as an in-memory stored PDF document
+
+ \param width the PDF image width.
+ \param height the PDF image height.
+ \param rgba pointer to the RGBA buffer.
+ \param pdf on completion will point to the memory block storing the created PDF image.
+ \param pdf_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the TIFF image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg, 
+ rl2_rgb_to_tiff, rl2_rgb_to_geotiff
+ 
+ \note ownership of the rgba buffer will be definitely acquired by the 
+ internal PDF writer.
+ */
+    RL2_DECLARE int
+	rl2_rgba_to_pdf (unsigned short width, unsigned short height,
+			 unsigned char *rgba, unsigned char **pdf,
+			 int *pdf_size);
 
     RL2_DECLARE int
 	rl2_parse_hexrgb (const char *hex, unsigned char *red,

@@ -321,7 +321,7 @@ static int
 do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 		 double radius, const char *suffix, int transparent)
 {
-/* exporting a PNG/JPEG image */
+/* exporting a PNG/JPEG/TIFF/PDF image */
     char *sql;
     char *path;
     sqlite3_stmt *stmt;
@@ -348,9 +348,13 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 	mime_type = "image/png";
     if (strcmp (suffix, ".jpg") == 0)
 	mime_type = "image/jpeg";
+    if (strcmp (suffix, ".tif") == 0)
+	mime_type = "image/tiff";
+    if (strcmp (suffix, ".pdf") == 0)
+	mime_type = "application/x-pdf";
     sqlite3_bind_text (stmt, 4, mime_type, strlen (mime_type),
 		       SQLITE_TRANSIENT);
-sqlite3_bind_int(stmt, 5, transparent);
+    sqlite3_bind_int (stmt, 5, transparent);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
       {
@@ -681,6 +685,26 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     if (!do_export_image (sqlite, coverage, geom, 66.0, ".png", 0))
       {
 	  *retcode += -21;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 128.0, ".tif", 1))
+      {
+	  *retcode += -23;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 290.0, ".tif", 0))
+      {
+	  *retcode += -24;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 128.0, ".pdf", 1))
+      {
+	  *retcode += -25;
+	  return 0;
+      }
+    if (!do_export_image (sqlite, coverage, geom, 290.0, ".pdf", 0))
+      {
+	  *retcode += -26;
 	  return 0;
       }
 

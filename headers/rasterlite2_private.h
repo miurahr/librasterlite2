@@ -47,6 +47,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
  RasterLite2 private header file
  */
 
+#include "config.h"
+
 /*
 / the following patch supporting GeoTiff headers
 / was kindly contributed by Brad Hards on 2011-09-02
@@ -558,6 +560,14 @@ extern "C"
     } InsertWms;
     typedef InsertWms *InsertWmsPtr;
 
+    typedef struct rl2_mem_pdf_target
+    {
+	unsigned char *buffer;
+	int write_offset;
+	int size;
+    } rl2PrivMemPdf;
+    typedef rl2PrivMemPdf *rl2PrivMemPdfPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);
@@ -768,6 +778,11 @@ extern "C"
 
     RL2_PRIVATE int get_payload_from_monochrome_opaque (unsigned short width,
 							unsigned short height,
+							sqlite3 * handle,
+							double minx,
+							double miny,
+							double maxx,
+							double maxy, int srid,
 							unsigned char *pixels,
 							unsigned char format,
 							int quality,
@@ -789,6 +804,10 @@ extern "C"
 
     RL2_PRIVATE int get_payload_from_palette_opaque (unsigned short width,
 						     unsigned short height,
+						     sqlite3 * handle,
+						     double minx, double miny,
+						     double maxx, double maxy,
+						     int srid,
 						     unsigned char *pixels,
 						     rl2PalettePtr palette,
 						     unsigned char format,
@@ -812,6 +831,10 @@ extern "C"
 
     RL2_PRIVATE int get_payload_from_grayscale_opaque (unsigned short width,
 						       unsigned short height,
+						       sqlite3 * handle,
+						       double minx, double miny,
+						       double maxx, double maxy,
+						       int srid,
 						       unsigned char *pixels,
 						       unsigned char format,
 						       int quality,
@@ -834,6 +857,9 @@ extern "C"
 
     RL2_PRIVATE int get_payload_from_rgb_opaque (unsigned short width,
 						 unsigned short height,
+						 sqlite3 * handle, double minx,
+						 double miny, double maxx,
+						 double maxy, int srid,
 						 unsigned char *pixels,
 						 unsigned char format,
 						 int quality,
@@ -902,6 +928,10 @@ extern "C"
 
     RL2_PRIVATE int get_payload_from_gray_rgba_opaque (unsigned short width,
 						       unsigned short height,
+						       sqlite3 * handle,
+						       double minx, double miny,
+						       double maxx, double maxy,
+						       int srid,
 						       unsigned char *rgb,
 						       unsigned char format,
 						       int quality,
@@ -923,6 +953,10 @@ extern "C"
 
     RL2_PRIVATE int get_payload_from_rgb_rgba_opaque (unsigned short width,
 						      unsigned short height,
+						      sqlite3 * handle,
+						      double minx, double miny,
+						      double maxx, double maxy,
+						      int srid,
 						      unsigned char *rgb,
 						      unsigned char format,
 						      int quality,

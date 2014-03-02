@@ -51,6 +51,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2/rl2graphics.h"
+#include "rasterlite2_private.h"
 
 #include <cairo/cairo.h>
 #include <cairo/cairo-svg.h>
@@ -432,6 +433,139 @@ rl2_graph_create_pdf_context (const char *path, int dpi, double page_width,
     return NULL;
 }
 
+static cairo_status_t
+pdf_write_func (void *ptr, const unsigned char *data, unsigned int length)
+{
+/* writing into the in-memory PDF target */
+    rl2PrivMemPdfPtr mem = (rl2PrivMemPdfPtr) ptr;
+    if (mem == NULL)
+	return CAIRO_STATUS_WRITE_ERROR;
+
+    if (mem->write_offset + (int)length < mem->size)
+      {
+	  /* inserting into the current buffer */
+	  memcpy (mem->buffer + mem->write_offset, data, length);
+	  mem->write_offset += length;
+      }
+    else
+      {
+	  /* expanding the current buffer */
+	  int new_sz = mem->size + length + (64 * 1024);
+	  unsigned char *save = mem->buffer;
+	  mem->buffer = realloc (mem->buffer, new_sz);
+	  if (mem->buffer == NULL)
+	    {
+		free (save);
+		return CAIRO_STATUS_WRITE_ERROR;
+	    }
+	  mem->size = new_sz;
+	  memcpy (mem->buffer + mem->write_offset, data, length);
+	  mem->write_offset += length;
+      }
+    return CAIRO_STATUS_SUCCESS;
+}
+
+RL2_DECLARE rl2GraphicsContextPtr
+rl2_graph_create_mem_pdf_context (rl2MemPdfPtr mem_pdf, int dpi,
+				  double page_width, double page_height,
+				  double margin_width, double margin_height)
+{
+/* creating an in-memory PDF Graphics Context */
+    RL2GraphContextPtr ctx;
+    double scale = 72.0 / (double) dpi;
+    double page2_width = page_width * 72.0;
+    double page2_height = page_height * 72.0;
+    double horz_margin_sz = margin_width * 72.0;
+    double vert_margin_sz = margin_height * 72.0;
+    double img_width = (page_width - (margin_width * 2.0)) * 72.0;
+    double img_height = (page_height - (margin_height * 2.0)) * 72.0;
+
+    ctx = malloc (sizeof (RL2GraphContext));
+    if (ctx == NULL)
+	return NULL;
+
+    ctx->type = RL2_SURFACE_PDF;
+    ctx->clip_surface = NULL;
+    ctx->clip_cairo = NULL;
+    ctx->surface =
+	cairo_pdf_surface_create_for_stream (pdf_write_func, mem_pdf,
+					     page2_width, page2_height);
+    if (cairo_surface_status (ctx->surface) == CAIRO_STATUS_SUCCESS)
+	;
+    else
+	goto error1;
+    ctx->cairo = cairo_create (ctx->surface);
+    if (cairo_status (ctx->cairo) == CAIRO_STATUS_NO_MEMORY)
+	goto error2;
+
+/* priming a transparent background */
+    cairo_rectangle (ctx->cairo, 0, 0, page2_width, page2_height);
+    cairo_set_source_rgba (ctx->cairo, 0.0, 0.0, 0.0, 0.0);
+    cairo_fill (ctx->cairo);
+
+/* clipped surface respecting free margins */
+    ctx->clip_surface =
+	cairo_surface_create_for_rectangle (ctx->surface, horz_margin_sz,
+					    vert_margin_sz, img_width,
+					    img_height);
+    if (cairo_surface_status (ctx->clip_surface) == CAIRO_STATUS_SUCCESS)
+	;
+    else
+	goto error3;
+    ctx->clip_cairo = cairo_create (ctx->clip_surface);
+    if (cairo_status (ctx->clip_cairo) == CAIRO_STATUS_NO_MEMORY)
+	goto error4;
+
+/* setting up a default Black Pen */
+    ctx->current_pen.red = 0.0;
+    ctx->current_pen.green = 0.0;
+    ctx->current_pen.blue = 0.0;
+    ctx->current_pen.alpha = 1.0;
+    ctx->current_pen.width = 1.0;
+    ctx->current_pen.lengths[0] = 1.0;
+    ctx->current_pen.lengths_count = 1;
+
+/* setting up a default Black Brush */
+    ctx->current_brush.is_solid_color = 1;
+    ctx->current_brush.is_linear_gradient = 0;
+    ctx->current_brush.is_pattern = 0;
+    ctx->current_brush.red = 0.0;
+    ctx->current_brush.green = 0.0;
+    ctx->current_brush.blue = 0.0;
+    ctx->current_brush.alpha = 1.0;
+    ctx->current_brush.pattern = NULL;
+
+/* scaling accordingly to DPI resolution */
+    cairo_scale (ctx->clip_cairo, scale, scale);
+
+/* setting up default Font options */
+    ctx->font_red = 0.0;
+    ctx->font_green = 0.0;
+    ctx->font_blue = 0.0;
+    ctx->font_alpha = 1.0;
+    ctx->is_font_outlined = 0;
+    ctx->font_outline_width = 0.0;
+    return (rl2GraphicsContextPtr) ctx;
+  error4:
+    cairo_destroy (ctx->clip_cairo);
+    cairo_surface_destroy (ctx->clip_surface);
+    cairo_destroy (ctx->cairo);
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+  error3:
+    cairo_surface_destroy (ctx->clip_surface);
+    cairo_destroy (ctx->cairo);
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+  error2:
+    cairo_destroy (ctx->cairo);
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+  error1:
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_graph_set_pen (rl2GraphicsContextPtr context, unsigned char red,
 		   unsigned char green, unsigned char blue, unsigned char alpha,
@@ -643,29 +777,19 @@ adjust_for_endianness (unsigned char *rgbaArray, int width, int height)
 		green = *p_in++;
 		blue = *p_in++;
 		alpha = *p_in++;
-		if (alpha == 0)
+		if (little_endian)
 		  {
-		      *p_out++ = 0;
-		      *p_out++ = 0;
-		      *p_out++ = 0;
-		      *p_out++ = 0;
+		      *p_out++ = blue;
+		      *p_out++ = green;
+		      *p_out++ = red;
+		      *p_out++ = alpha;
 		  }
 		else
 		  {
-		      if (little_endian)
-			{
-			    *p_out++ = blue;
-			    *p_out++ = green;
-			    *p_out++ = red;
-			    *p_out++ = alpha;
-			}
-		      else
-			{
-			    *p_out++ = alpha;
-			    *p_out++ = red;
-			    *p_out++ = green;
-			    *p_out++ = blue;
-			}
+		      *p_out++ = alpha;
+		      *p_out++ = red;
+		      *p_out++ = green;
+		      *p_out++ = blue;
 		  }
 	    }
       }
@@ -1352,4 +1476,145 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
 	    }
       }
     return alpha;
+}
+
+RL2_DECLARE int
+rl2_rgba_to_pdf (unsigned short width, unsigned short height,
+		 unsigned char *rgba, unsigned char **pdf, int *pdf_size)
+{
+/* attempting to create an RGB PDF map */
+    rl2MemPdfPtr mem = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    rl2GraphicsBitmapPtr bmp = NULL;
+    int dpi;
+    double w_150 = (double) width / 150.0;
+    double h_150 = (double) height / 150.0;
+    double w_300 = (double) width / 300.0;
+    double h_300 = (double) height / 300.0;
+    double w_600 = (double) width / 600.0;
+    double h_600 = (double) height / 600.0;
+    double page_width;
+    double page_height;
+
+    if (w_150 <= 6.3 && h_150 <= 9.7)
+      {
+	  /* A4 portrait - 150 DPI */
+	  page_width = 8.3;
+	  page_height = 11.7;
+	  dpi = 150;
+      }
+    else if (w_150 <= 9.7 && h_150 < 6.3)
+      {
+	  /* A4 landscape - 150 DPI */
+	  page_width = 11.7;
+	  page_height = 8.3;;
+	  dpi = 150;
+      }
+    else if (w_300 <= 6.3 && h_300 <= 9.7)
+      {
+	  /* A4 portrait - 300 DPI */
+	  page_width = 8.3;
+	  page_height = 11.7;;
+	  dpi = 300;
+      }
+    else if (w_300 <= 9.7 && h_300 < 6.3)
+      {
+	  /* A4 landscape - 300 DPI */
+	  page_width = 11.7;
+	  page_height = 8.3;;
+	  dpi = 300;
+      }
+    else if (w_600 <= 6.3 && h_600 <= 9.7)
+      {
+	  /* A4 portrait - 600 DPI */
+	  page_width = 8.3;
+	  page_height = 11.7;;
+	  dpi = 600;
+      }
+    else
+      {
+	  /* A4 landscape - 600 DPI */
+	  page_width = 11.7;
+	  page_height = 8.3;;
+	  dpi = 600;
+      }
+
+    mem = rl2_create_mem_pdf_target ();
+    if (mem == NULL)
+	goto error;
+
+    ctx =
+	rl2_graph_create_mem_pdf_context (mem, dpi, page_width, page_height,
+					  1.0, 1.0);
+    if (ctx == NULL)
+	goto error;
+    bmp = rl2_graph_create_bitmap (rgba, width, height);
+    rgba = NULL;
+    if (bmp == NULL)
+	goto error;
+/* rendering the Bitmap */
+    if (ctx != NULL)
+	rl2_graph_draw_bitmap (ctx, bmp, 0, 0);
+    rl2_graph_destroy_bitmap (bmp);
+    rl2_graph_destroy_context (ctx);
+/* retrieving the PDF memory block */
+    if (rl2_get_mem_pdf_buffer (mem, pdf, pdf_size) != RL2_OK)
+	goto error;
+    rl2_destroy_mem_pdf_target (mem);
+
+    return RL2_OK;
+
+  error:
+    if (bmp != NULL)
+	rl2_graph_destroy_bitmap (bmp);
+    if (ctx != NULL)
+	rl2_graph_destroy_context (ctx);
+    if (mem != NULL)
+	rl2_destroy_mem_pdf_target (mem);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE rl2MemPdfPtr
+rl2_create_mem_pdf_target (void)
+{
+/* creating an initially empty in-memory PDF target */
+    rl2PrivMemPdfPtr mem = malloc (sizeof (rl2PrivMemPdf));
+    if (mem == NULL)
+	return NULL;
+    mem->write_offset = 0;
+    mem->size = 64 * 1024;
+    mem->buffer = malloc (mem->size);
+    if (mem->buffer == NULL)
+      {
+	  free (mem);
+	  return NULL;
+      }
+    return (rl2MemPdfPtr) mem;
+}
+
+RL2_DECLARE void
+rl2_destroy_mem_pdf_target (rl2MemPdfPtr target)
+{
+/* memory cleanup - destroying an in-memory PDF target */
+    rl2PrivMemPdfPtr mem = (rl2PrivMemPdfPtr) target;
+    if (mem == NULL)
+	return;
+    if (mem->buffer != NULL)
+	free (mem->buffer);
+    free (mem);
+}
+
+RL2_DECLARE int
+rl2_get_mem_pdf_buffer (rl2MemPdfPtr target, unsigned char **buffer, int *size)
+{
+/* exporting the internal buffer */
+    rl2PrivMemPdfPtr mem = (rl2PrivMemPdfPtr) target;
+    if (mem == NULL)
+	return RL2_ERROR;
+    if (mem->buffer == NULL)
+	return RL2_ERROR;
+    *buffer = mem->buffer;
+    mem->buffer = NULL;
+    *size = mem->write_offset;
+    return RL2_OK;
 }

@@ -14,7 +14,8 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_nile_dbl test_map_ascii \
 	test_map_rgb test_map_gray \
 	test_map_srtm test_map_mono \
-	test_map_indiana test_load_wms
+	test_map_indiana test_load_wms \
+	test_map_noref
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \

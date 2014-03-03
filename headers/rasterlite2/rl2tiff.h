@@ -105,6 +105,8 @@ extern "C"
     RL2_DECLARE const char
 	*rl2_get_tiff_origin_worldfile_path (rl2TiffOriginPtr tiff);
 
+    RL2_DECLARE int rl2_set_tiff_origin_not_referenced (rl2TiffOriginPtr tiff);
+
     RL2_DECLARE int
 	rl2_get_tiff_origin_size (rl2TiffOriginPtr tiff, unsigned short *width,
 				  unsigned short *height);

@@ -544,6 +544,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     int blob_odd_sz;
     int blob_even_sz;
     int srid;
+    int xsrid;
     double tile_minx;
     double tile_miny;
     double tile_maxx;
@@ -574,6 +575,11 @@ do_import_file (sqlite3 * handle, const char *src_path,
 				    sample_type, pixel_type, num_bands);
     if (origin == NULL)
 	goto error;
+    if (rl2_get_coverage_srid (cvg, &xsrid) == RL2_OK)
+      {
+	  if (xsrid == RL2_GEOREFERENCING_NONE)
+	      rl2_set_tiff_origin_not_referenced (origin);
+      }
 
     printf ("Importing: %s\n", rl2_get_tiff_origin_path (origin));
     printf ("------------------\n");
@@ -1772,6 +1778,8 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	      (sample_type == RL2_SAMPLE_2_BIT
 	       && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1) ||
 	      (sample_type == RL2_SAMPLE_4_BIT
+	       && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1) ||
+	      (sample_type == RL2_SAMPLE_UINT8
 	       && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1))
 	    {
 		/* expecting an RGB/PNG Pyramid tile */
@@ -4069,6 +4077,10 @@ get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
       case RL2_SAMPLE_2_BIT:
       case RL2_SAMPLE_4_BIT:
 	  break;
+      case RL2_SAMPLE_UINT8:
+	  if (pixel_type != RL2_PIXEL_PALETTE)
+	      goto error;
+	  break;
       default:
 	  goto error;
 	  break;
@@ -4696,6 +4708,228 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
     return 0;
 }
 
+static int
+do_build_palette_section_pyramid (sqlite3 * handle, const char *coverage,
+				  const char *section, int srid,
+				  unsigned short tileWidth,
+				  unsigned short tileHeight,
+				  unsigned char bgRed, unsigned char bgGreen,
+				  unsigned char bgBlue)
+{
+/* attempting to (re)build a Palette section pyramid from scratch */
+    double base_res_x;
+    double base_res_y;
+    sqlite3_int64 sect_id;
+    unsigned short sect_width;
+    unsigned short sect_height;
+    int id_level = 0;
+    int scale;
+    double x_res;
+    double y_res;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    unsigned int row;
+    unsigned int col;
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_stmt *stmt_rd = NULL;
+    sqlite3_stmt *stmt_levl = NULL;
+    sqlite3_stmt *stmt_tils = NULL;
+    sqlite3_stmt *stmt_data = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2PixelPtr no_data = NULL;
+    rl2PixelPtr nd = NULL;
+    unsigned char *inbuf = NULL;
+    int inbuf_size = 0;
+    unsigned char *outbuf = NULL;
+    int outbuf_sz = 0;
+    unsigned char out_pixel_type;
+    unsigned char out_bands;
+    unsigned char *tilebuf = NULL;
+    int tilebuf_sz = 0;
+    unsigned char *tilemask = NULL;
+    int tilemask_sz = 0;
+    unsigned char *blob_odd = NULL;
+    unsigned char *blob_even = NULL;
+    int blob_odd_sz;
+    int blob_even_sz;
+    unsigned int x;
+    unsigned int y;
+    unsigned char *p_out;
+
+    if (!get_section_infos
+	(handle, coverage, section, &sect_id, &sect_width, &sect_height, &minx,
+	 &miny, &maxx, &maxy, &palette, &no_data))
+	goto error;
+    if (palette == NULL)
+	goto error;
+
+    if (!find_base_resolution (handle, coverage, &base_res_x, &base_res_y))
+	goto error;
+    if (!get_section_raw_raster_data
+	(handle, coverage, sect_id, sect_width, sect_height, RL2_SAMPLE_UINT8,
+	 RL2_PIXEL_PALETTE, 1, minx, maxy, base_res_x,
+	 base_res_y, &inbuf, &inbuf_size, palette, no_data))
+	goto error;
+
+    if (!prepare_section_pyramid_stmts
+	(handle, coverage, &stmt_rd, &stmt_levl, &stmt_tils, &stmt_data))
+	goto error;
+
+    id_level = 1;
+    scale = 2;
+    x_res = base_res_x * 2.0;
+    y_res = base_res_y * 2.0;
+    while (1)
+      {
+	  /* looping on Pyramid levels */
+	  double t_minx;
+	  double t_miny;
+	  double t_maxx;
+	  double t_maxy;
+	  unsigned int out_width = sect_width / scale;
+	  unsigned int out_height = sect_height / scale;
+	  rl2RasterPtr raster = NULL;
+
+	  out_pixel_type = RL2_PIXEL_RGB;
+	  out_bands = 3;
+	  outbuf_sz = out_width * out_height * 3;
+	  outbuf = malloc (outbuf_sz);
+	  if (outbuf == NULL)
+	      goto error;
+	  p_out = outbuf;
+	  for (y = 0; y < out_height; y++)
+	    {
+		/* priming the background color */
+		for (x = 0; x < out_width; x++)
+		  {
+		      *p_out++ = bgRed;
+		      *p_out++ = bgGreen;
+		      *p_out++ = bgBlue;
+		  }
+	    }
+	  t_maxy = maxy;
+	  raster_tile_124_rescaled (outbuf, RL2_PIXEL_PALETTE, inbuf,
+				    sect_width, sect_height, out_width,
+				    out_height, palette);
+
+	  if (!do_insert_pyramid_levels
+	      (handle, id_level, x_res, y_res, stmt_levl))
+	      goto error;
+
+	  for (row = 0; row < out_height; row += tileHeight)
+	    {
+		t_minx = minx;
+		t_miny = t_maxy - (tileHeight * y_res);
+		for (col = 0; col < out_width; col += tileWidth)
+		  {
+		      if (no_data == NULL)
+			  nd = NULL;
+		      else
+			{
+			    /* converting the NO-DATA pixel */
+			    nd = rl2_create_pixel (RL2_SAMPLE_UINT8,
+						   RL2_PIXEL_RGB, 3);
+			    rl2_set_pixel_sample_uint8 (nd, RL2_RED_BAND,
+							bgRed);
+			    rl2_set_pixel_sample_uint8 (nd,
+							RL2_GREEN_BAND,
+							bgGreen);
+			    rl2_set_pixel_sample_uint8 (nd, RL2_BLUE_BAND,
+							bgBlue);
+			}
+		      t_maxx = t_minx + (tileWidth * x_res);
+		      if (!copy_124_tile (out_pixel_type, outbuf, &tilebuf,
+					  &tilebuf_sz, &tilemask, &tilemask_sz,
+					  row, col, out_width, out_height,
+					  tileWidth, tileHeight, no_data))
+			{
+			    fprintf (stderr,
+				     "ERROR: unable to extract a Pyramid Tile\n");
+			    goto error;
+			}
+
+		      raster =
+			  rl2_create_raster (tileWidth, tileHeight,
+					     RL2_SAMPLE_UINT8, out_pixel_type,
+					     out_bands, tilebuf, tilebuf_sz,
+					     NULL, tilemask, tilemask_sz, nd);
+		      tilebuf = NULL;
+		      tilemask = NULL;
+		      if (raster == NULL)
+			{
+			    fprintf (stderr,
+				     "ERROR: unable to create a Pyramid Tile\n");
+			    goto error;
+			}
+		      if (rl2_raster_encode
+			  (raster, RL2_COMPRESSION_PNG, &blob_odd, &blob_odd_sz,
+			   &blob_even, &blob_even_sz, 100, 1) != RL2_OK)
+			{
+			    fprintf (stderr,
+				     "ERROR: unable to encode a Pyramid tile\n");
+			    goto error;
+			}
+
+		      /* INSERTing the tile */
+		      if (!do_insert_pyramid_tile
+			  (handle, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, id_level, sect_id, srid, t_minx,
+			   t_miny, t_maxx, t_maxy, stmt_tils, stmt_data))
+			  goto error;
+		      rl2_destroy_raster (raster);
+		      t_minx += (tileWidth * x_res);
+		  }
+		t_maxy -= (tileHeight * y_res);
+	    }
+
+	  free (outbuf);
+	  if (out_width < tileWidth && out_height < tileHeight)
+	      break;
+	  x_res *= 4.0;
+	  y_res *= 4.0;
+	  scale *= 4;
+	  id_level++;
+      }
+
+    free (inbuf);
+    sqlite3_finalize (stmt_rd);
+    sqlite3_finalize (stmt_levl);
+    sqlite3_finalize (stmt_tils);
+    sqlite3_finalize (stmt_data);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return 1;
+
+  error:
+    if (outbuf != NULL)
+	free (outbuf);
+    if (tilebuf != NULL)
+	free (tilebuf);
+    if (tilemask != NULL)
+	free (tilemask);
+    if (inbuf != NULL)
+	free (inbuf);
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (stmt_rd != NULL)
+	sqlite3_finalize (stmt_rd);
+    if (stmt_levl != NULL)
+	sqlite3_finalize (stmt_levl);
+    if (stmt_tils != NULL)
+	sqlite3_finalize (stmt_tils);
+    if (stmt_data != NULL)
+	sqlite3_finalize (stmt_data);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return 0;
+}
+
 static void
 get_background_color (sqlite3 * handle, rl2CoveragePtr coverage,
 		      unsigned char *bgRed, unsigned char *bgGreen,
@@ -4854,6 +5088,16 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		    (handle, coverage, section, sample_type, pixel_type,
 		     num_bands, srid, tileWidth, tileHeight, bgRed, bgGreen,
 		     bgBlue))
+		    goto error;
+	    }
+	  else if (sample_type == RL2_SAMPLE_UINT8
+		   && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
+	    {
+		/* special case: 8 bit Palette Pyramid */
+		get_background_color (handle, cvg, &bgRed, &bgGreen, &bgBlue);
+		if (!do_build_palette_section_pyramid
+		    (handle, coverage, section, srid, tileWidth, tileHeight,
+		     bgRed, bgGreen, bgBlue))
 		    goto error;
 	    }
 	  else

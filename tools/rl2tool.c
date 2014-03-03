@@ -374,6 +374,11 @@ exec_create (sqlite3 * handle, const char *coverage,
 	  palette = rl2_create_palette (1);
 	  rl2_set_palette_color (palette, 0, 255, 255, 255);
       }
+    if (srid == -1)
+      {
+	  x_res = 1.0;
+	  y_res = 1.0;
+      }
 
     if (rl2_create_dbms_coverage
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
@@ -952,7 +957,7 @@ exec_catalog (sqlite3 * handle)
 		if (minx == NULL || miny == NULL)
 		    printf ("     UpperRightCorner: *** undefined ***\n");
 		else
-		    printf ("     UpperRightCorner: X=%s Y=%s\n", minx, miny);
+		    printf ("     UpperRightCorner: X=%s Y=%s\n", maxx, maxy);
 		printf
 		    ("-------------------------------------------------------------------------------\n");
 		if (no_data == NULL)
@@ -2181,10 +2186,16 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  break;
       };
     printf ("   Tile size (pixels): %d x %d\n", tile_width, tile_height);
-    if (srid <= 0)
+    if (srid < -1)
       {
 	  fprintf (stderr, "*** ERROR *** undefined SRID\n");
 	  err = 1;
+      }
+    else if (srid == -1)
+      {
+	  x_res = 1.0;
+	  y_res = 1.0;
+	  printf ("    Not Georeferenced:\n");
       }
     else
 	printf ("                 Srid: %d\n", srid);
@@ -2968,6 +2979,8 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "-tlh or --tile-height integer   Tile Height [pixels]\n");
 	  fprintf (stderr, "-srid or --srid       integer   SRID value\n");
+	  fprintf (stderr, "       or\n");
+	  fprintf (stderr, "-nosrid or --no-srid\n");
 	  fprintf (stderr,
 		   "-res or --resolution  number    pixel resolution(X and Y)\n");
 	  fprintf (stderr,
@@ -3216,7 +3229,7 @@ main (int argc, char *argv[])
     double cy = DBL_MAX;
     unsigned short width = 0;
     unsigned short height = 0;
-    int srid = -1;
+    int srid = -2;
     const char *no_data_str = NULL;
     rl2PixelPtr no_data = NULL;
     int worldfile = 0;
@@ -3513,6 +3526,12 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--srid") == 0)
 	    {
 		next_arg = ARG_SRID;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-nosrid") == 0
+	      || strcasecmp (argv[i], "--no-srid") == 0)
+	    {
+		srid = -1;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-res") == 0

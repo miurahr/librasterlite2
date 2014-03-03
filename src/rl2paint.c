@@ -441,7 +441,7 @@ pdf_write_func (void *ptr, const unsigned char *data, unsigned int length)
     if (mem == NULL)
 	return CAIRO_STATUS_WRITE_ERROR;
 
-    if (mem->write_offset + (int)length < mem->size)
+    if (mem->write_offset + (int) length < mem->size)
       {
 	  /* inserting into the current buffer */
 	  memcpy (mem->buffer + mem->write_offset, data, length);

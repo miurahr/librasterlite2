@@ -3153,7 +3153,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (argc > 8)
 	quality = sqlite3_value_int (argv[8]);
     if (argc > 9)
-	quality = sqlite3_value_int (argv[9]);
+	reaspect = sqlite3_value_int (argv[9]);
 
 /* coarse args validation */
     if (width < 64 || width > 5000)
@@ -3416,7 +3416,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
 		      if (!get_rgba_from_palette_transparent
-			  (base_width, base_height, outbuf, palette, rgba, bg_red, bg_green, bg_blue))
+			  (base_width, base_height, outbuf, palette, rgba,
+			   bg_red, bg_green, bg_blue))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -3494,7 +3495,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  rl2_graph_destroy_context (ctx);
 	  if (rgb == NULL)
 	      goto error;
-	  if (out_pixel == RL2_PIXEL_GRAYSCALE || out_pixel == RL2_PIXEL_MONOCHROME)
+	  if (out_pixel == RL2_PIXEL_GRAYSCALE
+	      || out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
 		/* Grayscale or Monochrome upsampled */
 		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)

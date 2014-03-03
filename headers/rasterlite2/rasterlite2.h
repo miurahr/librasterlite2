@@ -180,7 +180,7 @@ extern "C"
 #define RL2_PALETTE_BAND		0
 
 /** RasterLite2 constant: No Georeferencing infos */
-#define RL2_GEOREFERENCING_NONE		-1234
+#define RL2_GEOREFERENCING_NONE		-1
 
 /** RasterLite2 constant: Undefined Tile size */
 #define RL2_TILESIZE_UNDEFINED		0

@@ -430,7 +430,8 @@ connection_init (struct read_connection *conn, const char *path)
     rl2_init (db_handle, 0);
 
 /* creating the GetMap SQL statement */
-    sql = "SELECT RL2_GetMapImage(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_GetMapImage(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -1399,7 +1400,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		unsigned char green = 255;
 		unsigned char blue = 255;
 		srid = parse_srs (p_srs);
-		if (srid <= 0)
+		if (srid < -1)
 		  {
 		      args->error = WMS_INVALID_CRS;
 		      return 200;
@@ -2094,6 +2095,7 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     int payload_size;
     unsigned char *black;
     int black_sz;
+    char bgcolor[16];
 
     stmt = args->stmt_get_map;
     sqlite3_reset (stmt);
@@ -2114,11 +2116,16 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     else
 	sqlite3_bind_text (stmt, 9, "image/jpeg", strlen ("image/jpeg"),
 			   SQLITE_TRANSIENT);
-    sqlite3_bind_int (stmt, 10, args->transparent);
-    if (args->format == RL2_OUTPUT_FORMAT_PNG)
-	sqlite3_bind_int (stmt, 11, 100);
+    if (args->has_bgcolor)
+	sprintf (bgcolor, "#%02x%02x%02x", args->red, args->green, args->blue);
     else
-	sqlite3_bind_int (stmt, 11, 80);
+	strcpy (bgcolor, "#ffffff");
+    sqlite3_bind_text (stmt, 10, bgcolor, strlen (bgcolor), SQLITE_TRANSIENT);
+    sqlite3_bind_int (stmt, 11, args->transparent);
+    if (args->format == RL2_OUTPUT_FORMAT_PNG)
+	sqlite3_bind_int (stmt, 12, 100);
+    else
+	sqlite3_bind_int (stmt, 12, 80);
     while (1)
       {
 	  ret = sqlite3_step (stmt);
@@ -2735,9 +2742,11 @@ do_start_http (int port_no, struct neutral_socket *srv_skt)
       }
     srv_skt->socket = skt;
 #endif
-    fprintf (stderr, "======================================================\n");
+    fprintf (stderr,
+	     "======================================================\n");
     fprintf (stderr, "    HTTP micro-server listening on port: %d\n", port_no);
-    fprintf (stderr, "======================================================\n");
+    fprintf (stderr,
+	     "======================================================\n");
     return 1;
 }
 
@@ -2780,7 +2789,8 @@ compute_geographic_extents (sqlite3 * handle, struct wms_list *list)
 		      lyr->geo_miny = sqlite3_column_double (stmt, 1);
 		      lyr->geo_maxx = sqlite3_column_double (stmt, 2);
 		      lyr->geo_maxy = sqlite3_column_double (stmt, 3);
-		      fprintf (stderr, "Publishing layer \"%s\"\n", lyr->layer_name);
+		      fprintf (stderr, "Publishing layer \"%s\"\n",
+			       lyr->layer_name);
 		  }
 	    }
 	  sqlite3_finalize (stmt);
@@ -2940,13 +2950,16 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
     char sql[1024];
 
     *handle = NULL;
-    fprintf (stderr, "\n======================================================\n");
+    fprintf (stderr,
+	     "\n======================================================\n");
     fprintf (stderr, "              WmsLite server startup\n");
-    fprintf (stderr, "======================================================\n");
+    fprintf (stderr,
+	     "======================================================\n");
     fprintf (stderr, "         SQLite version: %s\n", sqlite3_libversion ());
     fprintf (stderr, "     SpatiaLite version: %s\n", spatialite_version ());
     fprintf (stderr, "    RasterLite2 version: %s\n", rl2_version ());
-    fprintf (stderr, "======================================================\n");
+    fprintf (stderr,
+	     "======================================================\n");
 /* enabling the SQLite's shared cache */
     ret = sqlite3_enable_shared_cache (1);
     if (ret != SQLITE_OK)

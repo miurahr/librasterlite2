@@ -4444,6 +4444,15 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
 		    && xcompression == RL2_COMPRESSION_PNG)
 		    return RL2_OK;
 	    }
+	  if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_PALETTE
+	      && num_bands == 1)
+	    {
+		/* expecting an RGB/PNG Pyramid tile */
+		if (xsample_type == RL2_SAMPLE_UINT8
+		    && xpixel_type == RL2_PIXEL_RGB && xnum_bands == 3
+		    && xcompression == RL2_COMPRESSION_PNG)
+		    return RL2_OK;
+	    }
 	  if (sample_type == xsample_type && pixel_type == RL2_PIXEL_DATAGRID
 	      && num_bands == xnum_bands && compression == xcompression)
 	      return RL2_OK;

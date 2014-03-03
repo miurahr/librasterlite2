@@ -1610,6 +1610,25 @@ rl2_create_tiff_worldfile_origin (const char *path, int srid,
     return NULL;
 }
 
+RL2_DECLARE int
+rl2_set_tiff_origin_not_referenced (rl2TiffOriginPtr tiff)
+{
+/* setting up a false GeoReferncing */
+    rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
+    if (origin == NULL)
+	return RL2_ERROR;
+    origin->hResolution = 1.0;
+    origin->vResolution = 1.0;
+    origin->minX = 0.0;
+    origin->minY = 0.0;
+    origin->maxX = origin->width - 1;
+    origin->maxY = origin->height - 1;
+    origin->Srid = -1;
+    origin->isGeoReferenced = 1;
+    origin->isGeoTiff = 1;
+    return RL2_OK;
+}
+
 RL2_DECLARE const char *
 rl2_get_tiff_origin_path (rl2TiffOriginPtr tiff)
 {

@@ -94,7 +94,8 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_nile_dbl$(EXEEXT) test_map_ascii$(EXEEXT) \
 	test_map_rgb$(EXEEXT) test_map_gray$(EXEEXT) \
 	test_map_srtm$(EXEEXT) test_map_mono$(EXEEXT) \
-	test_map_indiana$(EXEEXT) test_load_wms$(EXEEXT)
+	test_map_indiana$(EXEEXT) test_load_wms$(EXEEXT) \
+	test_map_noref$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -218,6 +219,9 @@ test_map_nile_u32_LDADD = $(LDADD)
 test_map_nile_u8_SOURCES = test_map_nile_u8.c
 test_map_nile_u8_OBJECTS = test_map_nile_u8.$(OBJEXT)
 test_map_nile_u8_LDADD = $(LDADD)
+test_map_noref_SOURCES = test_map_noref.c
+test_map_noref_OBJECTS = test_map_noref.$(OBJEXT)
+test_map_noref_LDADD = $(LDADD)
 test_map_rgb_SOURCES = test_map_rgb.c
 test_map_rgb_OBJECTS = test_map_rgb.$(OBJEXT)
 test_map_rgb_LDADD = $(LDADD)
@@ -295,10 +299,10 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_map_ascii.c test_map_gray.c test_map_indiana.c \
 	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
 	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
-	test_map_nile_u32.c test_map_nile_u8.c test_map_rgb.c \
-	test_map_srtm.c test_mask.c test_paint.c test_palette.c \
-	test_raster.c test_section.c test_tifin.c test_webp.c \
-	test_wms1.c test_wms2.c test_wr_tiff.c
+	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
+	test_map_rgb.c test_map_srtm.c test_mask.c test_paint.c \
+	test_palette.c test_raster.c test_section.c test_tifin.c \
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
@@ -306,10 +310,10 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_map_ascii.c test_map_gray.c test_map_indiana.c \
 	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
 	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
-	test_map_nile_u32.c test_map_nile_u8.c test_map_rgb.c \
-	test_map_srtm.c test_mask.c test_paint.c test_palette.c \
-	test_raster.c test_section.c test_tifin.c test_webp.c \
-	test_wms1.c test_wms2.c test_wr_tiff.c
+	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
+	test_map_rgb.c test_map_srtm.c test_mask.c test_paint.c \
+	test_palette.c test_raster.c test_section.c test_tifin.c \
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -944,6 +948,10 @@ test_map_nile_u8$(EXEEXT): $(test_map_nile_u8_OBJECTS) $(test_map_nile_u8_DEPEND
 	@rm -f test_map_nile_u8$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_nile_u8_OBJECTS) $(test_map_nile_u8_LDADD) $(LIBS)
 
+test_map_noref$(EXEEXT): $(test_map_noref_OBJECTS) $(test_map_noref_DEPENDENCIES) $(EXTRA_test_map_noref_DEPENDENCIES) 
+	@rm -f test_map_noref$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_noref_OBJECTS) $(test_map_noref_LDADD) $(LIBS)
+
 test_map_rgb$(EXEEXT): $(test_map_rgb_OBJECTS) $(test_map_rgb_DEPENDENCIES) $(EXTRA_test_map_rgb_DEPENDENCIES) 
 	@rm -f test_map_rgb$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_rgb_OBJECTS) $(test_map_rgb_LDADD) $(LIBS)
@@ -1033,6 +1041,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_u16.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_u32.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_u8.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_noref.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_rgb.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_srtm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mask.Po@am__quote@
@@ -1638,6 +1647,13 @@ test_map_indiana.log: test_map_indiana$(EXEEXT)
 test_load_wms.log: test_load_wms$(EXEEXT)
 	@p='test_load_wms$(EXEEXT)'; \
 	b='test_load_wms'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_noref.log: test_map_noref$(EXEEXT)
+	@p='test_map_noref$(EXEEXT)'; \
+	b='test_map_noref'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

@@ -877,6 +877,12 @@ extern "C"
 						      unsigned char bg_green,
 						      unsigned char bg_blue);
 
+    RL2_PRIVATE int get_rgba_from_monochrome_mask (unsigned short width,
+						   unsigned short height,
+						   unsigned char *pixels,
+						   unsigned char *mask,
+						   unsigned char *rgba);
+
     RL2_PRIVATE int get_rgba_from_monochrome_opaque (unsigned short width,
 						     unsigned short height,
 						     unsigned char *pixels,
@@ -886,6 +892,13 @@ extern "C"
 							  unsigned short height,
 							  unsigned char *pixels,
 							  unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_palette_mask (unsigned short base_width,
+						unsigned short base_height,
+						unsigned char *pixels,
+						unsigned char *mask,
+						rl2PalettePtr palette,
+						unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_palette_opaque (unsigned short base_width,
 						  unsigned short base_height,
@@ -902,6 +915,12 @@ extern "C"
 						       unsigned char bg_green,
 						       unsigned char bg_blue);
 
+    RL2_PRIVATE int get_rgba_from_grayscale_mask (unsigned short width,
+						  unsigned short height,
+						  unsigned char *pixels,
+						  unsigned char *mask,
+						  unsigned char *rgba);
+
     RL2_PRIVATE int get_rgba_from_grayscale_opaque (unsigned short width,
 						    unsigned short height,
 						    unsigned char *pixels,
@@ -912,6 +931,12 @@ extern "C"
 							 unsigned char *pixels,
 							 unsigned char *rgba,
 							 unsigned char bg_gray);
+
+    RL2_PRIVATE int get_rgba_from_rgb_mask (unsigned short width,
+					    unsigned short height,
+					    unsigned char *pixels,
+					    unsigned char *mask,
+					    unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_rgb_opaque (unsigned short width,
 					      unsigned short height,

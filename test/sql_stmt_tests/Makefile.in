@@ -440,6 +440,11 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getmapimage18.testcase \
 	getmapimage19.testcase \
 	getmapimage20.testcase \
+	gettileimage1.testcase \
+	gettileimage2.testcase \
+	gettileimage3.testcase \
+	gettileimage4.testcase \
+	gettileimage5.testcase \
 	getpixelnumbands1.testcase \
 	getpixelnumbands2.testcase \
 	getpixelnumbands3.testcase \

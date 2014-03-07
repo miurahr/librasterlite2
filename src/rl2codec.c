@@ -4456,6 +4456,9 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned short tile_width,
 	  if (sample_type == xsample_type && pixel_type == RL2_PIXEL_DATAGRID
 	      && num_bands == xnum_bands && compression == xcompression)
 	      return RL2_OK;
+	  if (sample_type == xsample_type && pixel_type == RL2_PIXEL_MULTIBAND
+	      && num_bands == xnum_bands)
+	      return RL2_OK;
       }
     return RL2_ERROR;
 }

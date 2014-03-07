@@ -78,6 +78,71 @@ execute_check (sqlite3 * sqlite, const char *sql)
 }
 
 static int
+get_max_tile_id (sqlite3 * sqlite, const char *coverage)
+{
+/* retriving the Max tile_id for a given Coverage */
+    char *sql;
+    char *table;
+    char *xtable;
+    sqlite3_stmt *stmt;
+    int ret;
+    int max = 0;
+
+    table = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql = sqlite3_mprintf ("SELECT Max(tile_id) FROM \"%s\"", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	      max = sqlite3_column_int (stmt, 0);
+      }
+    sqlite3_finalize (stmt);
+    return max;
+}
+
+static int
+do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
+{
+/* attempting to export a visible Tile */
+    char *sql;
+    char *path;
+    int ret;
+    int transparent = 1;
+
+    if (tile_id <= 1)
+	transparent = 0;
+    if (tile_id < 0)
+	tile_id = get_max_tile_id (sqlite, coverage);
+    path = sqlite3_mprintf ("./%s_tile_%d.png", coverage, tile_id);
+    sql =
+	sqlite3_mprintf
+	("SELECT BlobToFile(RL2_GetTileImage(%Q, %d, '#e0ffe0', %d), %Q)",
+	 coverage, tile_id, transparent, path);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    unlink (path);
+    sqlite3_free (path);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "ERROR: Unable to export an Image from \"%s\" tile_id=%d\n",
+		   coverage, tile_id);
+	  return 0;
+      }
+    return 1;
+}
+
+static int
 get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 		     double *y_res)
 {
@@ -702,6 +767,23 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
     gaiaFreeGeomColl (geom);
+
+/* testing GetTileImage() */
+    if (!do_export_tile_image (sqlite, coverage, 1))
+      {
+	  *retcode += -23;
+	  return 0;
+      }
+    if (!do_export_tile_image (sqlite, coverage, 2))
+      {
+	  *retcode += -24;
+	  return 0;
+      }
+    if (!do_export_tile_image (sqlite, coverage, -1))
+      {
+	  *retcode += -25;
+	  return 0;
+      }
 
     return 1;
 }

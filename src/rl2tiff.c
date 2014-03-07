@@ -634,9 +634,13 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
     if (origin->forced_pixel_type == RL2_PIXEL_UNKNOWN)
       {
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
-	      && origin->samplesPerPixel == 3
 	      && origin->photometric == PHOTOMETRIC_RGB)
-	      origin->forced_pixel_type = RL2_PIXEL_RGB;
+	    {
+		if (origin->samplesPerPixel == 3)
+		    origin->forced_pixel_type = RL2_PIXEL_RGB;
+		else
+		    origin->forced_pixel_type = RL2_PIXEL_MULTIBAND;
+	    }
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 1
 	      && origin->photometric < PHOTOMETRIC_RGB
@@ -718,6 +722,24 @@ check_tiff_origin_pixel_conversion (rl2PrivTiffOriginPtr origin)
 	  /* RGB color-space */
 	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
 	      && origin->samplesPerPixel == 3
+	      && origin->photometric == PHOTOMETRIC_RGB)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT8
+	&& origin->forced_pixel_type == RL2_PIXEL_MULTIBAND)
+      {
+	  /* MULTIBAND color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == origin->forced_num_bands
+	      && origin->photometric == PHOTOMETRIC_RGB)
+	      return 1;
+      }
+    if (origin->forced_sample_type == RL2_SAMPLE_UINT16
+	&& origin->forced_pixel_type == RL2_PIXEL_MULTIBAND)
+      {
+	  /* MULTIBAND color-space */
+	  if (origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && origin->samplesPerPixel == origin->forced_num_bands
 	      && origin->photometric == PHOTOMETRIC_RGB)
 	      return 1;
       }

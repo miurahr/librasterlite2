@@ -1828,6 +1828,49 @@ rl2_clone_pixel (rl2PixelPtr org)
     return dst;
 }
 
+RL2_DECLARE rl2PixelPtr
+rl2_create_band_composed_pixel (rl2PixelPtr org, unsigned char red_band,
+				unsigned char green_band,
+				unsigned char blue_band)
+{
+/* creating a new Pixel object by applying band composing */
+    rl2PrivSamplePtr sample_in;
+    rl2PrivSamplePtr sample_out;
+    rl2PixelPtr dst;
+    rl2PrivPixelPtr px_out;
+    rl2PrivPixelPtr px_in = (rl2PrivPixelPtr) org;
+    if (px_in == NULL)
+	return NULL;
+    if (px_in->sampleType != RL2_SAMPLE_UINT8)
+	return NULL;
+    if (px_in->pixelType != RL2_PIXEL_RGB
+	&& px_in->pixelType != RL2_PIXEL_MULTIBAND)
+	return NULL;
+    if (red_band >= px_in->nBands)
+	return NULL;
+    if (green_band >= px_in->nBands)
+	return NULL;
+    if (blue_band >= px_in->nBands)
+	return NULL;
+    dst = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+    if (dst == NULL)
+	return NULL;
+    px_out = (rl2PrivPixelPtr) dst;
+/* red band */
+    sample_in = px_in->Samples + red_band;
+    sample_out = px_out->Samples + 0;
+    sample_out->uint8 = sample_in->uint8;
+/* green band */
+    sample_in = px_in->Samples + green_band;
+    sample_out = px_out->Samples + 1;
+    sample_out->uint8 = sample_in->uint8;
+/* blue band */
+    sample_in = px_in->Samples + blue_band;
+    sample_out = px_out->Samples + 2;
+    sample_out->uint8 = sample_in->uint8;
+    return dst;
+}
+
 RL2_DECLARE void
 rl2_destroy_pixel (rl2PixelPtr ptr)
 {

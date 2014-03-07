@@ -1872,6 +1872,52 @@ get_payload_from_rgb_transparent (unsigned short width, unsigned short height,
 }
 
 RL2_PRIVATE int
+get_rgba_from_monochrome_mask (unsigned short width, unsigned short height,
+			       unsigned char *pixels, unsigned char *mask,
+			       unsigned char *rgba)
+{
+/* input: Monochrome    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+unsigned char value = 255;
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (*p_in++ == 1)
+		      value = 0;
+		      if (transparent)
+			  p_out += 4;
+		      else
+		  {
+		      *p_out++ = value;
+		      *p_out++ = value;
+		      *p_out++ = value;
+			  *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
 get_rgba_from_monochrome_opaque (unsigned short width, unsigned short height,
 				 unsigned char *pixels, unsigned char *rgba)
 {
@@ -1941,6 +1987,107 @@ get_rgba_from_monochrome_transparent (unsigned short width,
       }
     free (pixels);
     return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_palette_mask (unsigned short width, unsigned short height,
+			    unsigned char *pixels, unsigned char *mask,
+			    rl2PalettePtr palette, unsigned char *rgba)
+{
+/* input: Palette    output: Grayscale or RGB */
+    rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    unsigned char out_format;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    out_format = get_palette_format (plt);
+    if (out_format == RL2_PIXEL_RGB)
+      {
+	  /* converting from Palette to RGB */
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char red = 0;
+		      unsigned char green = 0;
+		      unsigned char blue = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    red = entry->red;
+			    green = entry->green;
+			    blue = entry->blue;
+			}
+		      transparent = 0;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				transparent = 1;
+			}
+		      if (transparent)
+			  p_out += 4;
+		      else
+{
+		      *p_out++ = red;	/* red */
+		      *p_out++ = green;	/* green */
+		      *p_out++ = blue;	/* blue */
+			  *p_out++ = 255;	/* opaque */
+}
+		  }
+	    }
+      }
+    else if (out_format == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* converting from Palette to Grayscale */
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      unsigned char value = 0;
+		      unsigned char index = *p_in++;
+		      if (index < plt->nEntries)
+			{
+			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
+			    value = entry->red;
+			}
+		      transparent = 0;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				transparent = 1;
+			}
+		      if (transparent)
+			  p_out += 4;
+		      else
+{
+		      *p_out++ = value;	/* red */
+		      *p_out++ = value;	/* green */
+		      *p_out++ = value;	/* blue */
+			  *p_out++ = 255;	/* opaque */
+}
+		  }
+	    }
+      }
+    else
+	goto error;
+    free (pixels);
+    if (mask)
+	free (mask);
+    return 1;
+
+  error:
+    free (pixels);
+    if (mask)
+	free (mask);
+    return 0;
 }
 
 RL2_PRIVATE int
@@ -2096,6 +2243,50 @@ get_rgba_from_palette_transparent (unsigned short width, unsigned short height,
 }
 
 RL2_PRIVATE int
+get_rgba_from_grayscale_mask (unsigned short width, unsigned short height,
+			      unsigned char *pixels, unsigned char *mask,
+			      unsigned char *rgba)
+{
+/* input: Grayscale    output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char gray = *p_in++;
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		    p_out += 4;
+		else
+{
+		*p_out++ = gray;	/* red */
+		*p_out++ = gray;	/* green */
+		*p_out++ = gray;	/* blue */
+		    *p_out++ = 255;	/* opaque */
+}
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
 get_rgba_from_grayscale_opaque (unsigned short width, unsigned short height,
 				unsigned char *pixels, unsigned char *rgba)
 {
@@ -2151,6 +2342,52 @@ get_rgba_from_grayscale_transparent (unsigned short width,
 	    }
       }
     free (pixels);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_rgb_mask (unsigned short width, unsigned short height,
+			unsigned char *pixels, unsigned char *mask,
+			unsigned char *rgba)
+{
+/* input: RGB    output: RGB */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+{
+		    p_out += 4;
+p_in += 3;
+}
+		else
+{
+		*p_out++ = *p_in++;	/* red */
+		*p_out++ = *p_in++;	/* green */
+		*p_out++ = *p_in++;	/* blue */
+*p_out++ = 255;	/* opaque */
+}
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
     return 1;
 }
 

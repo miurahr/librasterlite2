@@ -4129,58 +4129,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     sqlite3_result_null (context);
 }
 
-static int
-build_rgb_alpha (unsigned short width, unsigned short height,
-		 unsigned char *rgba, unsigned char **rgb,
-		 unsigned char **alpha, unsigned char bg_red,
-		 unsigned char bg_green, unsigned char bg_blue)
-{
-/* creating separate RGB and Alpha buffers from RGBA */
-    unsigned short row;
-    unsigned short col;
-    unsigned char *p_in = rgba;
-    unsigned char *p_out;
-    unsigned char *p_msk;
-
-    *rgb = NULL;
-    *alpha = NULL;
-    *rgb = malloc (width * height * 3);
-    if (*rgb == NULL)
-	goto error;
-    *alpha = malloc (width * height);
-    if (*alpha == NULL)
-	goto error;
-
-    p_out = *rgb;
-    p_msk = *alpha;
-    for (row = 0; row < height; row++)
-      {
-	  for (col = 0; col < width; col++)
-	    {
-		unsigned char r = *p_in++;
-		unsigned char g = *p_in++;
-		unsigned char b = *p_in++;
-		unsigned char alpha = *p_in++;
-		*p_out++ = r;
-		*p_out++ = g;
-		*p_out++ = b;
-		if (r == bg_red && g == bg_green && b == bg_blue)
-		    alpha = 0;
-		*p_msk++ = alpha;
-	    }
-      }
-    return 1;
-
-  error:
-    if (*rgb != NULL)
-	free (*rgb);
-    if (*alpha != NULL)
-	free (*alpha);
-    *rgb = NULL;
-    *alpha = NULL;
-    return 0;
-}
-
 static void
 fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
@@ -4559,6 +4507,286 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_GetBandComposedTileImage (sqlite3_context * context, int argc,
+			       sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandComposedTileImage(text coverage, int tile_id, int red_band,
+/                          int green_band, int blue_band)
+/ GetBandComposedTileImage(text coverage, int tile_id, int red_band,
+/                          int green_band, int blue_band, text bg_color)
+/ GetBandComposedTileImage(text coverage, int tile_id, int red_band,
+/                          int green_band, int blue_band, text bg_color,
+/                          int transparent)
+/
+/ will return a BLOB containing the Image payload
+/ or NULL (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    rl2CoveragePtr coverage = NULL;
+    rl2PrivCoveragePtr cvg;
+    sqlite3_int64 tile_id;
+    const char *bg_color = "#ffffff";
+    int transparent = 0;
+    int red_band;
+    int green_band;
+    int blue_band;
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+    unsigned short width;
+    unsigned short height;
+    sqlite3 *sqlite;
+    sqlite3_stmt *stmt = NULL;
+    int unsupported_tile;
+    char *table_tile_data;
+    char *xtable_tile_data;
+    char *table_tiles;
+    char *xtable_tiles;
+    char *sql;
+    int ret;
+    const unsigned char *blob_odd = NULL;
+    const unsigned char *blob_even = NULL;
+    int blob_odd_sz;
+    int blob_even_sz;
+    rl2RasterPtr raster = NULL;
+    rl2PrivRasterPtr rst;
+    unsigned char *buffer = NULL;
+    unsigned char *mask = NULL;
+    unsigned char *rgba = NULL;
+    unsigned char *p_rgba;
+    unsigned short row;
+    unsigned short col;
+    unsigned char *image = NULL;
+    int image_size;
+    unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
+    unsigned char sample_type;
+    unsigned char num_bands;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+
+/* retrieving the arguments */
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    tile_id = sqlite3_value_int64 (argv[1]);
+    red_band = sqlite3_value_int (argv[2]);
+    green_band = sqlite3_value_int (argv[3]);
+    blue_band = sqlite3_value_int (argv[4]);
+    if (argc > 5)
+	bg_color = (const char *) sqlite3_value_text (argv[5]);
+    if (argc > 6)
+	transparent = sqlite3_value_int (argv[6]);
+
+/* coarse args validation */
+    if (red_band < 0 || red_band > 255)
+	goto error;
+    if (green_band < 0 || green_band > 255)
+	goto error;
+    if (blue_band < 0 || blue_band > 255)
+	goto error;
+
+/* parsing the background color */
+    if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
+	goto error;
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+	goto error;
+    cvg = (rl2PrivCoveragePtr) coverage;
+    unsupported_tile = 0;
+    switch (cvg->pixelType)
+      {
+      case RL2_PIXEL_MULTIBAND:
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8)
+	      break;
+	  unsupported_tile = 1;
+	  break;
+      default:
+	  unsupported_tile = 1;
+	  break;
+      }
+    if (unsupported_tile)
+      {
+	  fprintf (stderr, "*** Unsupported Tile Type !!!!\n");
+	  goto error;
+      }
+    if (red_band >= cvg->nBands)
+	goto error;
+    if (green_band >= cvg->nBands)
+	goto error;
+    if (blue_band >= cvg->nBands)
+	goto error;
+
+/* querying the tile */
+    table_tile_data = sqlite3_mprintf ("%s_tile_data", cvg_name);
+    xtable_tile_data = gaiaDoubleQuotedSql (table_tile_data);
+    sqlite3_free (table_tile_data);
+    table_tiles = sqlite3_mprintf ("%s_tiles", cvg_name);
+    xtable_tiles = gaiaDoubleQuotedSql (table_tiles);
+    sqlite3_free (table_tiles);
+    sql = sqlite3_mprintf ("SELECT d.tile_data_odd, d.tile_data_even, "
+			   "t.pyramid_level FROM \"%s\" AS d "
+			   "JOIN \"%s\" AS t ON (t.tile_id = d.tile_id) "
+			   "WHERE t.tile_id = ?", xtable_tile_data,
+			   xtable_tiles);
+    free (xtable_tile_data);
+    free (xtable_tiles);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int64 (stmt, 1, tile_id);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      blob_odd = sqlite3_column_blob (stmt, 0);
+		      blob_odd_sz = sqlite3_column_bytes (stmt, 0);
+		  }
+		if (sqlite3_column_type (stmt, 1) == SQLITE_BLOB)
+		  {
+		      blob_even = sqlite3_column_blob (stmt, 1);
+		      blob_even_sz = sqlite3_column_bytes (stmt, 1);
+		  }
+		raster =
+		    rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz,
+				       blob_even, blob_even_sz, NULL);
+		if (raster == NULL)
+		  {
+		      fprintf (stderr, ERR_FRMT64, tile_id);
+		      goto error;
+		  }
+		rst = (rl2PrivRasterPtr) raster;
+		width = rst->width;
+		height = rst->height;
+		sample_type = rst->sampleType;
+		num_bands = rst->nBands;
+		buffer = rst->rasterBuffer;
+		mask = rst->maskBuffer;
+		rst->rasterBuffer = NULL;
+		rst->maskBuffer = NULL;
+		rl2_destroy_raster (raster);
+		rgba = malloc (width * height * 4);
+		if (rgba == NULL)
+		    goto error;
+		/* priming the image background */
+		p_rgba = rgba;
+		for (row = 0; row < height; row++)
+		  {
+		      for (col = 0; col < width; col++)
+			{
+			    *p_rgba++ = bg_red;
+			    *p_rgba++ = bg_green;
+			    *p_rgba++ = bg_blue;
+			    *p_rgba++ = 0;	/* transparent */
+			}
+		  }
+		switch (sample_type)
+		  {
+		  case RL2_SAMPLE_UINT8:
+		      ret =
+			  get_rgba_from_multiband8 (width, height, red_band,
+						    green_band, blue_band,
+						    num_bands, buffer, mask,
+						    rgba);
+		      buffer = NULL;
+		      mask = NULL;
+		      if (!ret)
+			  goto error;
+		      if (!build_rgb_alpha
+			  (width, height, rgba, &rgb, &alpha, bg_red, bg_green,
+			   bg_blue))
+			  goto error;
+		      free (rgba);
+		      rgba = NULL;
+		      if (transparent)
+			{
+			    if (!get_payload_from_rgb_rgba_transparent
+				(width, height, rgb, alpha,
+				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      else
+			{
+			    free (alpha);
+			    alpha = NULL;
+			    if (!get_payload_from_rgb_rgba_opaque
+				(width, height, sqlite, 0, 0, 0, 0, -1,
+				 rgb, RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      sqlite3_result_blob (context, image, image_size, free);
+		      break;
+		  default:
+		      goto error;
+		      break;
+		  };
+		break;
+	    }
+	  else
+	      goto error;
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+    rl2_destroy_coverage (coverage);
+    return;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    if (buffer != NULL)
+	free (buffer);
+    if (mask != NULL)
+	free (mask);
+    if (rgba != NULL)
+	free (rgba);
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    sqlite3_result_null (context);
+}
+
+static void
 register_rl2_sql_functions (void *p_db)
 {
     sqlite3 *db = p_db;
@@ -4727,6 +4955,18 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_GetTileImage, 0, 0);
     sqlite3_create_function (db, "RL2_GetTileImage", 4, SQLITE_ANY, 0,
 			     fnct_GetTileImage, 0, 0);
+    sqlite3_create_function (db, "GetBandComposedTileImage", 5, SQLITE_ANY, 0,
+			     fnct_GetBandComposedTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandComposedTileImage", 5, SQLITE_ANY,
+			     0, fnct_GetBandComposedTileImage, 0, 0);
+    sqlite3_create_function (db, "GetBandComposedTileImage", 6, SQLITE_ANY, 0,
+			     fnct_GetBandComposedTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandComposedTileImage", 6, SQLITE_ANY,
+			     0, fnct_GetBandComposedTileImage, 0, 0);
+    sqlite3_create_function (db, "GetBandComposedTileImage", 7, SQLITE_ANY, 0,
+			     fnct_GetBandComposedTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandComposedTileImage", 7, SQLITE_ANY,
+			     0, fnct_GetBandComposedTileImage, 0, 0);
 
 /*
 // enabling ImportRaster and ExportRaster

@@ -999,6 +999,23 @@ extern "C"
 							   **image,
 							   int *image_sz);
 
+    RL2_PRIVATE int build_rgb_alpha (unsigned short width,
+				     unsigned short height, unsigned char *rgba,
+				     unsigned char **rgb, unsigned char **alpha,
+				     unsigned char bg_red,
+				     unsigned char bg_green,
+				     unsigned char bg_blue);
+
+    RL2_PRIVATE int get_rgba_from_multiband8 (unsigned short width,
+					      unsigned short height,
+					      unsigned char red_band,
+					      unsigned char green_band,
+					      unsigned char blue_band,
+					      unsigned char num_bands,
+					      unsigned char *pixels,
+					      unsigned char *mask,
+					      unsigned char *rgba);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1891,7 +1891,7 @@ get_rgba_from_monochrome_mask (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
-unsigned char value = 255;
+		unsigned char value = 255;
 		transparent = 0;
 		if (p_msk != NULL)
 		  {
@@ -1899,15 +1899,15 @@ unsigned char value = 255;
 			  transparent = 1;
 		  }
 		if (*p_in++ == 1)
-		      value = 0;
-		      if (transparent)
-			  p_out += 4;
-		      else
+		    value = 0;
+		if (transparent)
+		    p_out += 4;
+		else
 		  {
 		      *p_out++ = value;
 		      *p_out++ = value;
 		      *p_out++ = value;
-			  *p_out++ = 255;	/* opaque */
+		      *p_out++ = 255;	/* opaque */
 		  }
 	    }
       }
@@ -2035,12 +2035,12 @@ get_rgba_from_palette_mask (unsigned short width, unsigned short height,
 		      if (transparent)
 			  p_out += 4;
 		      else
-{
-		      *p_out++ = red;	/* red */
-		      *p_out++ = green;	/* green */
-		      *p_out++ = blue;	/* blue */
-			  *p_out++ = 255;	/* opaque */
-}
+			{
+			    *p_out++ = red;	/* red */
+			    *p_out++ = green;	/* green */
+			    *p_out++ = blue;	/* blue */
+			    *p_out++ = 255;	/* opaque */
+			}
 		  }
 	    }
       }
@@ -2067,12 +2067,12 @@ get_rgba_from_palette_mask (unsigned short width, unsigned short height,
 		      if (transparent)
 			  p_out += 4;
 		      else
-{
-		      *p_out++ = value;	/* red */
-		      *p_out++ = value;	/* green */
-		      *p_out++ = value;	/* blue */
-			  *p_out++ = 255;	/* opaque */
-}
+			{
+			    *p_out++ = value;	/* red */
+			    *p_out++ = value;	/* green */
+			    *p_out++ = value;	/* blue */
+			    *p_out++ = 255;	/* opaque */
+			}
 		  }
 	    }
       }
@@ -2272,12 +2272,12 @@ get_rgba_from_grayscale_mask (unsigned short width, unsigned short height,
 		if (transparent)
 		    p_out += 4;
 		else
-{
-		*p_out++ = gray;	/* red */
-		*p_out++ = gray;	/* green */
-		*p_out++ = gray;	/* blue */
-		    *p_out++ = 255;	/* opaque */
-}
+		  {
+		      *p_out++ = gray;	/* red */
+		      *p_out++ = gray;	/* green */
+		      *p_out++ = gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
 	    }
       }
     free (pixels);
@@ -2372,17 +2372,17 @@ get_rgba_from_rgb_mask (unsigned short width, unsigned short height,
 			  transparent = 1;
 		  }
 		if (transparent)
-{
-		    p_out += 4;
-p_in += 3;
-}
+		  {
+		      p_out += 4;
+		      p_in += 3;
+		  }
 		else
-{
-		*p_out++ = *p_in++;	/* red */
-		*p_out++ = *p_in++;	/* green */
-		*p_out++ = *p_in++;	/* blue */
-*p_out++ = 255;	/* opaque */
-}
+		  {
+		      *p_out++ = *p_in++;	/* red */
+		      *p_out++ = *p_in++;	/* green */
+		      *p_out++ = *p_in++;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
 	    }
       }
     free (pixels);
@@ -2704,4 +2704,105 @@ get_payload_from_rgb_rgba_transparent (unsigned short width,
     if (mask != NULL)
 	free (mask);
     return 0;
+}
+
+RL2_PRIVATE int
+build_rgb_alpha (unsigned short width, unsigned short height,
+		 unsigned char *rgba, unsigned char **rgb,
+		 unsigned char **alpha, unsigned char bg_red,
+		 unsigned char bg_green, unsigned char bg_blue)
+{
+/* creating separate RGB and Alpha buffers from RGBA */
+    unsigned short row;
+    unsigned short col;
+    unsigned char *p_in = rgba;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+
+    *rgb = NULL;
+    *alpha = NULL;
+    *rgb = malloc (width * height * 3);
+    if (*rgb == NULL)
+	goto error;
+    *alpha = malloc (width * height);
+    if (*alpha == NULL)
+	goto error;
+
+    p_out = *rgb;
+    p_msk = *alpha;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char r = *p_in++;
+		unsigned char g = *p_in++;
+		unsigned char b = *p_in++;
+		unsigned char alpha = *p_in++;
+		*p_out++ = r;
+		*p_out++ = g;
+		*p_out++ = b;
+		if (r == bg_red && g == bg_green && b == bg_blue)
+		    alpha = 0;
+		*p_msk++ = alpha;
+	    }
+      }
+    return 1;
+
+  error:
+    if (*rgb != NULL)
+	free (*rgb);
+    if (*alpha != NULL)
+	free (*alpha);
+    *rgb = NULL;
+    *alpha = NULL;
+    return 0;
+}
+
+RL2_PRIVATE int
+get_rgba_from_multiband8 (unsigned short width, unsigned short height,
+			  unsigned char red_band, unsigned char green_band,
+			  unsigned char blue_band, unsigned char num_bands,
+			  unsigned char *pixels, unsigned char *mask,
+			  unsigned char *rgba)
+{
+/* input: MULTIBAND    output: RGB */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_out += 4;
+		      p_in += num_bands;
+		  }
+		else
+		  {
+		      *p_out++ = *(p_in + red_band);	/* red */
+		      *p_out++ = *(p_in + green_band);	/* green */
+		      *p_out++ = *(p_in + blue_band);	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		      p_in += num_bands;
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
 }

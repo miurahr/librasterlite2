@@ -3654,7 +3654,8 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     sqlite3_finalize (stmt_data);
     *buffer = bufpix;
     *buf_size = bufpix_size;
-    *palette = plt;
+    if (palette != NULL)
+	*palette = plt;
     return RL2_OK;
 
   error:

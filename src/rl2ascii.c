@@ -995,7 +995,7 @@ rl2_get_tile_from_ascii_grid_origin (rl2CoveragePtr cvg,
     int unused_width = 0;
     int unused_height = 0;
 
-    if (coverage == NULL || ascii == NULL)
+    if (coverage == NULL || origin == NULL)
 	return NULL;
     if (rl2_eval_ascii_grid_origin_compatibility (cvg, ascii) != RL2_TRUE)
 	return NULL;

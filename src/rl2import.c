@@ -505,6 +505,348 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 }
 
 static int
+check_jpeg_origin_compatibility (rl2RasterPtr raster, rl2CoveragePtr coverage,
+				 unsigned short *width, unsigned short *height,
+				 unsigned char *forced_conversion)
+{
+/* checking if the JPEG and the Coverage are mutually compatible */
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+    if (rst == NULL || cvg == NULL)
+	return 0;
+    if (rst->sampleType == RL2_SAMPLE_UINT8
+	&& rst->pixelType == RL2_PIXEL_GRAYSCALE && rst->nBands == 1)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_GRAYSCALE_TO_RGB;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT8 && rst->pixelType == RL2_PIXEL_RGB
+	&& rst->nBands == 3)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_RGB_TO_GRAYSCALE;
+		return 1;
+	    }
+      }
+    return 0;
+}
+
+static char *
+build_worldfile_path (const char *path, const char *suffix)
+{
+/* building the JGW path (WorldFile) */
+    char *wf_path;
+    const char *x = NULL;
+    const char *p = path;
+    int len;
+
+    if (path == NULL || suffix == NULL)
+	return NULL;
+    len = strlen (path);
+    len -= 1;
+    while (*p != '\0')
+      {
+	  if (*p == '.')
+	      x = p;
+	  p++;
+      }
+    if (x > path)
+	len = x - path;
+    wf_path = malloc (len + strlen (suffix) + 1);
+    memcpy (wf_path, path, len);
+    strcpy (wf_path + len, suffix);
+    return wf_path;
+}
+
+static int
+read_jgw_worldfile (const char *src_path, double *minx, double *maxy,
+		    double *pres_x, double *pres_y)
+{
+/* attempting to retrieve georeferencing from a JPEG+JGW origin */
+    FILE *jgw = NULL;
+    double res_x;
+    double res_y;
+    double x;
+    double y;
+    char *jgw_path = NULL;
+
+    jgw_path = build_worldfile_path (src_path, ".jgw");
+    if (jgw_path == NULL)
+	goto error;
+    jgw = fopen (jgw_path, "r");
+    free (jgw_path);
+    jgw_path = NULL;
+    if (jgw == NULL)
+	goto error;
+    if (!parse_worldfile (jgw, &x, &y, &res_x, &res_y))
+	goto error;
+    fclose (jgw);
+    *pres_x = res_x;
+    *pres_y = res_y;
+    *minx = x;
+    *maxy = y;
+    return 1;
+
+  error:
+    if (jgw_path != NULL)
+	free (jgw_path);
+    if (jgw != NULL)
+	fclose (jgw);
+    return 0;
+}
+
+static void
+write_jgw_worldfile (const char *path, double minx, double maxy, double x_res,
+		     double y_res)
+{
+/* exporting a JGW WorldFile */
+    FILE *jgw = NULL;
+    char *jgw_path = NULL;
+
+    jgw_path = build_worldfile_path (path, ".jgw");
+    if (jgw_path == NULL)
+	goto error;
+    jgw = fopen (jgw_path, "w");
+    free (jgw_path);
+    jgw_path = NULL;
+    if (jgw == NULL)
+	goto error;
+    fprintf (jgw, "        %1.16f\n", x_res);
+    fprintf (jgw, "        0.0\n");
+    fprintf (jgw, "        0.0\n");
+    fprintf (jgw, "        -%1.16f\n", y_res);
+    fprintf (jgw, "        %1.16f\n", minx);
+    fprintf (jgw, "        %1.16f\n", maxy);
+    fclose (jgw);
+    return;
+
+  error:
+    if (jgw_path != NULL)
+	free (jgw_path);
+    if (jgw != NULL)
+	fclose (jgw);
+}
+
+static int
+do_import_jpeg_image (sqlite3 * handle, const char *src_path,
+		      rl2CoveragePtr cvg, const char *section, int srid,
+		      unsigned short tile_w, unsigned short tile_h,
+		      int pyramidize, unsigned char sample_type,
+		      unsigned char num_bands,		      unsigned char compression, sqlite3_stmt * stmt_data,
+		      sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
+		      sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect)
+{
+/* importing a JPEG image file [with optional WorldFile */
+    rl2SectionPtr origin;
+    rl2RasterPtr rst_in;
+    rl2RasterPtr raster = NULL;
+    rl2RasterStatisticsPtr section_stats = NULL;
+    rl2PixelPtr no_data = NULL;
+    int row;
+    int col;
+    unsigned short width;
+    unsigned short height;
+    unsigned char *blob_odd = NULL;
+    unsigned char *blob_even = NULL;
+    int blob_odd_sz;
+    int blob_even_sz;
+    double tile_minx;
+    double tile_miny;
+    double tile_maxx;
+    double tile_maxy;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    double res_x;
+    double res_y;
+    char *dumb1;
+    char *dumb2;
+    sqlite3_int64 section_id;
+    unsigned char forced_conversion = RL2_CONVERT_NO;
+
+    origin = rl2_section_from_jpeg (src_path);
+    if (origin == NULL)
+	goto error;
+    rst_in = rl2_get_section_raster (origin);
+    if (!check_jpeg_origin_compatibility
+	(rst_in, cvg, &width, &height, &forced_conversion))
+	goto error;
+    if (read_jgw_worldfile (src_path, &minx, &maxy, &res_x, &res_y))
+      {
+	  /* georeferenced JPEG */
+	  maxx = minx + ((double) width * res_x);
+	  miny = maxy - ((double) height * res_y);
+      }
+    else
+      {
+	  /* not georeferenced JPEG */
+	  if (srid != -1)
+	      goto error;
+	  minx = 0.0;
+	  miny = 0.0;
+	  maxx = width - 1.0;
+	  maxy = height - 1.0;
+	  res_x = 1.0;
+	  res_y = 1.0;
+      }
+
+    printf ("Importing: %s\n", src_path);
+    printf ("------------------\n");
+    printf ("    Image Size (pixels): %d x %d\n", width, height);
+    printf ("                   SRID: %d\n", srid);
+    dumb1 = formatLong (minx);
+    dumb2 = formatLat (miny);
+    printf ("       LowerLeft Corner: X=%s Y=%s\n", dumb1, dumb2);
+    sqlite3_free (dumb1);
+    sqlite3_free (dumb2);
+    dumb1 = formatLong (maxx);
+    dumb2 = formatLat (maxy);
+    printf ("      UpperRight Corner: X=%s Y=%s\n", dumb1, dumb2);
+    sqlite3_free (dumb1);
+    sqlite3_free (dumb2);
+    dumb1 = formatFloat (res_x);
+    dumb2 = formatFloat (res_y);
+    printf ("       Pixel resolution: X=%s Y=%s\n", dumb1, dumb2);
+    sqlite3_free (dumb1);
+    sqlite3_free (dumb2);
+
+    no_data = rl2_get_coverage_no_data (cvg);
+
+/* INSERTing the section */
+    if (!do_insert_section
+	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
+	 stmt_sect, &section_id))
+	goto error;
+    section_stats = rl2_create_raster_statistics (sample_type, num_bands);
+    if (section_stats == NULL)
+	goto error;
+/* INSERTing the base-levels */
+    if (!do_insert_levels (handle, sample_type, res_x, res_y, stmt_levl))
+	goto error;
+
+    tile_maxy = maxy;
+    for (row = 0; row < height; row += tile_h)
+      {
+	  tile_minx = minx;
+	  for (col = 0; col < width; col += tile_w)
+	    {
+		raster =
+		    rl2_get_tile_from_jpeg_origin (cvg, rst_in, row, col,
+						   forced_conversion);
+		if (raster == NULL)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      goto error;
+		  }
+		if (rl2_raster_encode
+		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
+		     &blob_even_sz, 100, 1) != RL2_OK)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      goto error;
+		  }
+
+		/* INSERTing the tile */
+		if (!do_insert_tile
+		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
+		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
+		     NULL, no_data, stmt_tils, stmt_data, section_stats))
+		    goto error;
+		blob_odd = NULL;
+		blob_even = NULL;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+		tile_minx += (double) tile_w *res_x;
+	    }
+	  tile_maxy -= (double) tile_h *res_y;
+      }
+
+/* updating the Section's Statistics */
+    compute_aggregate_sq_diff (section_stats);
+    if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+	goto error;
+
+    rl2_destroy_section (origin);
+    rl2_destroy_raster_statistics (section_stats);
+    origin = NULL;
+    section_stats = NULL;
+
+    if (pyramidize)
+      {
+	  /* immediately building the Section's Pyramid */
+	  const char *coverage_name = rl2_get_coverage_name (cvg);
+	  const char *section_name = section;
+	  char *sect_name = NULL;
+	  if (coverage_name == NULL)
+	      goto error;
+	  if (section_name == NULL)
+	    {
+		sect_name = get_section_name (src_path);
+		section_name = sect_name;
+	    }
+	  if (section_name == NULL)
+	      goto error;
+	  if (rl2_build_section_pyramid (handle, coverage_name, section_name, 1)
+	      != RL2_OK)
+	    {
+		if (sect_name != NULL)
+		    free (sect_name);
+		fprintf (stderr, "unable to build the Section's Pyramid\n");
+		goto error;
+	    }
+	  if (sect_name != NULL)
+	      free (sect_name);
+      }
+
+    return 1;
+
+  error:
+    if (blob_odd != NULL)
+	free (blob_odd);
+    if (blob_even != NULL)
+	free (blob_even);
+    if (origin != NULL)
+	rl2_destroy_section (origin);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (section_stats != NULL)
+	rl2_destroy_raster_statistics (section_stats);
+    return 0;
+}
+
+static int
 is_ascii_grid (const char *path)
 {
 /* testing for an ASCII Grid */
@@ -512,6 +854,19 @@ is_ascii_grid (const char *path)
     if (len > 4)
       {
 	  if (strcasecmp (path + len - 4, ".asc") == 0)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+is_jpeg_image (const char *path)
+{
+/* testing for a JPEG image */
+    int len = strlen (path);
+    if (len > 4)
+      {
+	  if (strcasecmp (path + len - 4, ".jpg") == 0)
 	      return 1;
       }
     return 0;
@@ -565,6 +920,10 @@ do_import_file (sqlite3 * handle, const char *src_path,
 				     compression, stmt_data, stmt_tils,
 				     stmt_sect, stmt_levl, stmt_upd_sect);
 
+    if (is_jpeg_image (src_path))
+	return do_import_jpeg_image (handle, src_path, cvg, section, force_srid,
+				     tile_w, tile_h, pyramidize, sample_type,
+				     num_bands, compression, stmt_data, stmt_tils, stmt_sect, stmt_levl, stmt_upd_sect);
     if (worldfile)
 	origin =
 	    rl2_create_tiff_origin (src_path, RL2_TIFF_WORLDFILE, force_srid,
@@ -2408,6 +2767,86 @@ rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
 	free (pixels);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
+			   rl2CoveragePtr cvg, double x_res,
+			   double y_res, double minx, double miny,
+			   double maxx, double maxy,
+			   unsigned short width,
+			   unsigned short height, int quality,
+			   int with_worldfile)
+{
+/* exporting a JPEG (with possible JGW) from the DBMS into the file-system */
+    rl2SectionPtr section = NULL;
+    rl2RasterPtr raster = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_GRAYSCALE
+	&& num_bands == 1)
+	;
+    else if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_RGB
+	     && num_bands == 3)
+	;
+    else
+	goto error;
+
+    if (rl2_get_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, &outbuf, &outbuf_size, NULL, pixel_type) != RL2_OK)
+	goto error;
+
+    raster =
+	rl2_create_raster (width, height, sample_type, pixel_type, num_bands,
+			   outbuf, outbuf_size, NULL, NULL, 0, NULL);
+    outbuf = NULL;
+    if (raster == NULL)
+	goto error;
+    section =
+	rl2_create_section ("jpeg", RL2_COMPRESSION_JPEG, 256, 256, raster);
+    raster = NULL;
+    if (section == NULL)
+	goto error;
+    if (rl2_section_to_jpeg (section, dst_path, quality) != RL2_OK)
+	goto error;
+
+    if (with_worldfile)
+      {
+	  /* exporting the JGW WorldFile */
+	  write_jgw_worldfile (dst_path, minx, maxy, x_res, y_res);
+      }
+
+    rl2_destroy_section (section);
+    return RL2_OK;
+
+  error:
+    if (section != NULL)
+	rl2_destroy_section (section);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (outbuf != NULL)
+	free (outbuf);
     return RL2_ERROR;
 }
 

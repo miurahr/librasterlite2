@@ -354,6 +354,21 @@ EXTRA_DIST = loadraster1.testcase \
 	writegeotiff17.testcase \
 	writegeotiff18.testcase \
 	writegeotiff19.testcase \
+	writejpeg1.testcase \
+	writejpeg2.testcase \
+	writejpeg3.testcase \
+	writejpeg4.testcase \
+	writejpeg5.testcase \
+	writejpeg6.testcase \
+	writejpeg7.testcase \
+	writejpeg8.testcase \
+	writejpeg9.testcase \
+	writejpeg10.testcase \
+	writejpeg11.testcase \
+	writejpeg12.testcase \
+	writejpeg13.testcase \
+	writejpeg14.testcase \
+	writejpeg15.testcase \
 	writetiff1.testcase \
 	writetiff2.testcase \
 	writetiff3.testcase \

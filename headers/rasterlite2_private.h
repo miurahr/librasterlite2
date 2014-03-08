@@ -1015,6 +1015,9 @@ extern "C"
 					      unsigned char *pixels,
 					      unsigned char *mask,
 					      unsigned char *rgba);
+    RL2_PRIVATE int
+	parse_worldfile (FILE * in, double *px, double *py, double *pres_x,
+			 double *pres_y);
 
 #ifdef __cplusplus
 }

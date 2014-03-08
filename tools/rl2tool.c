@@ -434,6 +434,19 @@ is_ascii_grid (const char *path)
 }
 
 static int
+is_jpeg_image (const char *path)
+{
+/* testing for a JPEG Image */
+    int len = strlen (path);
+    if (len > 4)
+      {
+	  if (strcasecmp (path + len - 4, ".jpg") == 0)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
 exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	     double x_res, double y_res, double minx, double miny, double maxx,
 	     double maxy, unsigned short width, unsigned short height)
@@ -448,6 +461,21 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	  if (rl2_export_ascii_grid_from_dbms
 	      (handle, dst_path, cvg, x_res, minx, miny, maxx, maxy, width,
 	       height, 0, 4) != RL2_OK)
+	      goto error;
+      }
+    else if (is_jpeg_image (dst_path))
+      {
+	  /* export a JPEG Image (with possible WorldFile) */
+	  int srid;
+	  int with_worldfile = 0;
+	  if (rl2_get_coverage_srid (cvg, &srid) == RL2_OK)
+	    {
+		if (srid > 0)
+		    with_worldfile = 1;
+	    }
+	  if (rl2_export_jpeg_from_dbms
+	      (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
+	       width, height, 85, with_worldfile) != RL2_OK)
 	      goto error;
       }
     else

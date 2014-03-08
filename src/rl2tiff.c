@@ -379,30 +379,29 @@ is_valid_float (char *str)
     return 0;
 }
 
-static void
-worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int srid)
+RL2_PRIVATE int
+parse_worldfile (FILE * in, double *px, double *py, double *pres_x,
+		 double *pres_y)
 {
-/* attempting to retrieve georeferencing from a TIFF+TFW origin */
-    FILE *tfw;
+/* attemtping to parse a WorldFile */
     int line_no = 0;
-    double res_x;
-    double res_y;
-    double x;
-    double y;
     int ok_res_x = 0;
     int ok_res_y = 0;
     int ok_x = 0;
     int ok_y = 0;
     char buf[1024];
     char *p = buf;
+    double x;
+    double y;
+    double res_x;
+    double res_y;
 
-    origin_set_tfw_path (path, origin);
-    tfw = fopen (origin->tfw_path, "r");
-    if (tfw == NULL)
-	goto error;
+    if (in == NULL)
+	return 0;
+
     while (1)
       {
-	  int c = getc (tfw);
+	  int c = getc (in);
 	  if (c == '\n' || c == EOF)
 	    {
 		*p = '\0';
@@ -446,20 +445,46 @@ worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int srid)
 	    }
 	  *p++ = c;
       }
-    fclose (tfw);
 
-    if (ok_res_x && ok_res_y && ok_x && ok_y)
+    if (ok_x && ok_y && ok_res_x && ok_res_y)
       {
-	  origin->Srid = srid;
-	  origin->hResolution = res_x;
-	  origin->vResolution = res_y;
-	  origin->minX = x;
-	  origin->maxY = y;
-	  origin->isGeoReferenced = 1;
-	  return;
+	  *px = x;
+	  *py = y;
+	  *pres_x = res_x;
+	  *pres_y = res_y;
+	  return 1;
       }
+    return 0;
+}
+
+static void
+worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int srid)
+{
+/* attempting to retrieve georeferencing from a TIFF+TFW origin */
+    FILE *tfw = NULL;
+    double res_x;
+    double res_y;
+    double x;
+    double y;
+
+    origin_set_tfw_path (path, origin);
+    tfw = fopen (origin->tfw_path, "r");
+    if (tfw == NULL)
+	goto error;
+    if (!parse_worldfile (tfw, &x, &y, &res_x, &res_y))
+	goto error;
+    fclose (tfw);
+    origin->Srid = srid;
+    origin->hResolution = res_x;
+    origin->vResolution = res_y;
+    origin->minX = x;
+    origin->maxY = y;
+    origin->isGeoReferenced = 1;
+    return;
 
   error:
+    if (tfw != NULL)
+	fclose (tfw);
     if (origin->tfw_path != NULL)
 	free (origin->tfw_path);
     origin->tfw_path = NULL;
@@ -1647,7 +1672,7 @@ rl2_set_tiff_origin_not_referenced (rl2TiffOriginPtr tiff)
     origin->maxY = origin->height - 1;
     origin->Srid = -1;
     origin->isGeoReferenced = 1;
-    origin->isGeoTiff = 1;
+    origin->isGeoTiff = 0;
     return RL2_OK;
 }
 

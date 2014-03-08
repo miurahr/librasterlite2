@@ -2965,6 +2965,12 @@ extern "C"
 	rl2_write_ascii_grid_scanline (rl2AsciiGridDestinationPtr ascii,
 				       unsigned short *line_no);
 
+    RL2_DECLARE rl2RasterPtr
+	rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr rst,
+				       unsigned int startRow,
+				       unsigned int startCol,
+				       unsigned char forced_conversion);
+
     RL2_DECLARE int
 	rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
 				   rl2CoveragePtr coverage, int worldfile,
@@ -3072,6 +3078,14 @@ extern "C"
 					 double maxy, unsigned short width,
 					 unsigned short height, int is_centered,
 					 int decimal_digits);
+
+    RL2_DECLARE int
+	rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
+				   rl2CoveragePtr coverage, double x_res,
+				   double y_res, double minx, double miny,
+				   double maxx, double maxy,
+				   unsigned short width, unsigned short height,
+				   int quality, int with_worldfile);
 
     RL2_DECLARE int
 	rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,

@@ -3119,6 +3119,210 @@ fnct_WriteTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
+		   sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteJpeg?(text coverage, text tiff_path, int width,
+/            int height, BLOB geom, double resolution)
+/ WriteJpeg?(text coverage, text tiff_path, int width,
+/            int height, BLOB geom, double horz_res,
+/            double vert_res)
+/ WriteJpeg?(text coverage, text tiff_path, int width,
+/            int height, BLOB geom, double horz_res,
+/            double vert_res, int quality)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    const char *path;
+    int width;
+    int height;
+    const unsigned char *blob;
+    int blob_sz;
+    double horz_res;
+    double vert_res;
+    int quality = 80;
+    rl2CoveragePtr coverage = NULL;
+    sqlite3 *sqlite;
+    int ret;
+    int errcode = -1;
+    gaiaGeomCollPtr geom;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
+	err = 1;
+    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
+	err = 1;
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	&& sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	err = 1;
+    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* retrieving all arguments */
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    path = (const char *) sqlite3_value_text (argv[1]);
+    width = sqlite3_value_int (argv[2]);
+    height = sqlite3_value_int (argv[3]);
+    blob = sqlite3_value_blob (argv[4]);
+    blob_sz = sqlite3_value_bytes (argv[4]);
+    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+      {
+	  int ival = sqlite3_value_int (argv[5]);
+	  horz_res = ival;
+      }
+    else
+	horz_res = sqlite3_value_double (argv[5]);
+    if (argc > 6)
+      {
+	  if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[6]);
+		vert_res = ival;
+	    }
+	  else
+	      vert_res = sqlite3_value_double (argv[6]);
+      }
+    else
+	vert_res = horz_res;
+    if (argc > 7)
+	quality = sqlite3_value_int (argv[7]);
+
+/* coarse args validation */
+    if (width < 0 || width > UINT16_MAX)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    if (height < 0 || height > UINT16_MAX)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    if (quality < 0)
+	quality = 0;
+    if (quality > 100)
+	quality = 100;
+
+/* checking the Geometry */
+    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
+    if (geom == NULL)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    if (is_point (geom))
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  gaiaPointPtr pt = geom->FirstPoint;
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt->X - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt->Y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else
+      {
+	  /* assumed to be any possible Geometry defining a BBOX */
+	  minx = geom->MinX;
+	  maxx = geom->MaxX;
+	  miny = geom->MinY;
+	  maxy = geom->MaxY;
+      }
+    gaiaFreeGeomColl (geom);
+
+/* attempting to load the Coverage definitions from the DBMS */
+    sqlite = sqlite3_context_db_handle (context);
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    ret =
+	rl2_export_jpeg_from_dbms (sqlite, path, coverage, horz_res,
+				   vert_res, minx, miny, maxx, maxy,
+				   width, height, quality, with_worldfile);
+    if (ret != RL2_OK)
+      {
+	  errcode = 0;
+	  goto error;
+      }
+    rl2_destroy_coverage (coverage);
+    sqlite3_result_int (context, 1);
+    return;
+
+  error:
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    sqlite3_result_int (context, errcode);
+}
+
+static void
+fnct_WriteJpegJgw (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteJpegJgw(text coverage, text tiff_path, int width,
+/              int height, BLOB geom, double resolution)
+/ WriteJpegJgw(text coverage, text tiff_path, int width,
+/              int height, BLOB geom, double horz_res,
+/              double vert_res)
+/ WriteJpegJgw(text coverage, text tiff_path, int width,
+/              int height, BLOB geom, double horz_res,
+/              double vert_res, int quality)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_jpeg (1, context, argc, argv);
+}
+
+static void
+fnct_WriteJpeg (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteJpeg(text coverage, text tiff_path, int width,
+/           int height, BLOB geom, double resolution)
+/ WriteJpeg(text coverage, text tiff_path, int width,
+/           int height, BLOB geom, double horz_res,
+/              double vert_res)
+/ WriteJpeg(text coverage, text tiff_path, int width,
+/           int height, BLOB geom, double horz_res,
+/              double vert_res, int quality)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_jpeg (0, context, argc, argv);
+}
+
+static void
 common_write_band_composed_tiff (int with_worldfile, sqlite3_context * context,
 				 int argc, sqlite3_value ** argv)
 {
@@ -5114,6 +5318,30 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_WriteTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_ANY, 0,
 				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteJpegJgw", 6, SQLITE_ANY, 0,
+				   fnct_WriteJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 6, SQLITE_ANY, 0,
+				   fnct_WriteJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "WriteJpegJgw", 7, SQLITE_ANY, 0,
+				   fnct_WriteJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 7, SQLITE_ANY, 0,
+				   fnct_WriteJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "WriteJpegJgw", 8, SQLITE_ANY, 0,
+				   fnct_WriteJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 8, SQLITE_ANY, 0,
+				   fnct_WriteJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "WriteJpeg", 6, SQLITE_ANY, 0,
+				   fnct_WriteJpeg, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteJpeg", 6, SQLITE_ANY, 0,
+				   fnct_WriteJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteJpeg", 7, SQLITE_ANY, 0,
+				   fnct_WriteJpeg, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteJpeg", 7, SQLITE_ANY, 0,
+				   fnct_WriteJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteJpeg", 8, SQLITE_ANY, 0,
+				   fnct_WriteJpeg, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteJpeg", 8, SQLITE_ANY, 0,
+				   fnct_WriteJpeg, 0, 0);
 	  sqlite3_create_function (db, "WriteBandComposedGeoTiff", 9,
 				   SQLITE_ANY, 0, fnct_WriteBandComposedGeoTiff,
 				   0, 0);

@@ -55,6 +55,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #endif
 
 #include "rasterlite2/rasterlite2.h"
+#include "rasterlite2/rl2tiff.h"
 #include "rasterlite2_private.h"
 
 #define OUTPUT_BUF_SIZE  4096	/* choose an efficiently fwrite'able size */
@@ -1039,4 +1040,303 @@ rl2_decode_jpeg_scaled (int scale, const unsigned char *jpeg, int jpeg_size,
     if (data != NULL)
 	free (data);
     return RL2_ERROR;
+}
+
+static int
+read_jpeg_pixels_gray (rl2PrivRasterPtr origin, unsigned short width,
+		       unsigned short height, unsigned int startRow,
+		       unsigned int startCol, unsigned char *pixels)
+{
+/* Grayscale -> Grayscale */
+    unsigned short x;
+    unsigned short y;
+    unsigned short row;
+    unsigned short col;
+    for (y = 0, row = startRow; y < height && row < origin->height; y++, row++)
+      {
+	  /* looping on rows */
+	  unsigned char *p_out = pixels + (y * width);
+	  unsigned char *p_in_base =
+	      origin->rasterBuffer + (row * origin->width);
+	  for (x = 0, col = startCol; x < width && col < origin->width;
+	       x++, col++)
+	    {
+		unsigned char *p_in = p_in_base + col;
+		*p_out++ = *p_in;
+	    }
+      }
+    return 1;
+}
+
+static int
+read_jpeg_pixels_rgb (rl2PrivRasterPtr origin, unsigned short width,
+		      unsigned short height, unsigned int startRow,
+		      unsigned int startCol, unsigned char *pixels)
+{
+/* RGB -> RGB */
+    unsigned short x;
+    unsigned short y;
+    unsigned short row;
+    unsigned short col;
+    for (y = 0, row = startRow; y < height && row < origin->height; y++, row++)
+      {
+	  /* looping on rows */
+	  unsigned char *p_out = pixels + (y * width * 3);
+	  unsigned char *p_in_base =
+	      origin->rasterBuffer + (row * origin->width * 3);
+	  for (x = 0, col = startCol; x < width && col < origin->width;
+	       x++, col++)
+	    {
+		unsigned char *p_in = p_in_base + (col * 3);
+		*p_out++ = *p_in++;	/* red */
+		*p_out++ = *p_in++;	/* green */
+		*p_out++ = *p_in++;	/* blue */
+	    }
+      }
+    return 1;
+}
+
+static int
+read_jpeg_pixels_gray_to_rgb (rl2PrivRasterPtr origin, unsigned short width,
+			      unsigned short height, unsigned int startRow,
+			      unsigned int startCol, unsigned char *pixels)
+{
+/* Grayscale -> RGB */
+    unsigned short x;
+    unsigned short y;
+    unsigned short row;
+    unsigned short col;
+    for (y = 0, row = startRow; y < height && row < origin->height; y++, row++)
+      {
+	  /* looping on rows */
+	  unsigned char *p_out = pixels + (y * width * 3);
+	  unsigned char *p_in_base =
+	      origin->rasterBuffer + (row * origin->width);
+	  for (x = 0, col = startCol; x < width && col < origin->width;
+	       x++, col++)
+	    {
+		unsigned char *p_in = p_in_base + col;
+		unsigned char value = *p_in;
+		*p_out++ = value;	/* red */
+		*p_out++ = value;	/* green */
+		*p_out++ = value;	/* blue */
+	    }
+      }
+    return 1;
+}
+
+static int
+read_jpeg_pixels_rgb_to_gray (rl2PrivRasterPtr origin, unsigned short width,
+			      unsigned short height, unsigned int startRow,
+			      unsigned int startCol, unsigned char *pixels)
+{
+/* RGB -> Grayscale */
+    unsigned short x;
+    unsigned short y;
+    unsigned short row;
+    unsigned short col;
+    for (y = 0, row = startRow; y < height && row < origin->height; y++, row++)
+      {
+	  /* looping on rows */
+	  unsigned char *p_out = pixels + (y * width);
+	  unsigned char *p_in_base =
+	      origin->rasterBuffer + (row * origin->width * 3);
+	  for (x = 0, col = startCol; x < width && col < origin->width;
+	       x++, col++)
+	    {
+		unsigned char *p_in = p_in_base + (col * 3);
+		unsigned char r = *p_in++;
+		unsigned char g = *p_in++;
+		unsigned char b = *p_in++;
+		double gray =
+		    ((double) r * 0.2126) + ((double) g * 0.7152) +
+		    ((double) b * 0.0722);
+		*p_out++ = (unsigned char) gray;
+	    }
+      }
+    return 1;
+}
+
+static int
+read_from_jpeg (rl2PrivRasterPtr origin, unsigned short width,
+		unsigned short height, unsigned char sample_type,
+		unsigned char pixel_type, unsigned char num_bands,
+		unsigned char forced_conversion, unsigned int startRow,
+		unsigned int startCol, unsigned char **pixels, int *pixels_sz)
+{
+/* creating a tile from the JPEG origin */
+    int nb;
+    unsigned char *bufPixels = NULL;
+    int bufPixelsSz = 0;
+    rl2PixelPtr no_data = NULL;
+
+    no_data = rl2_create_pixel (sample_type, pixel_type, num_bands);
+    for (nb = 0; nb < num_bands; nb++)
+	rl2_set_pixel_sample_uint8 (no_data, nb, 255);
+
+/* allocating the pixels buffer */
+    bufPixelsSz = width * height * num_bands;
+    bufPixels = malloc (bufPixelsSz);
+    if (bufPixels == NULL)
+	goto error;
+    if ((startRow + height) > origin->height
+	|| (startCol + width) > origin->width)
+	rl2_prime_void_tile (bufPixels, width, height, sample_type, num_bands,
+			     no_data);
+
+    if (pixel_type == RL2_PIXEL_GRAYSCALE
+	&& forced_conversion == RL2_CONVERT_NO)
+      {
+	  if (!read_jpeg_pixels_gray
+	      (origin, width, height, startRow, startCol, bufPixels))
+	      goto error;
+      }
+    if (pixel_type == RL2_PIXEL_GRAYSCALE
+	&& forced_conversion == RL2_CONVERT_RGB_TO_GRAYSCALE)
+      {
+	  if (!read_jpeg_pixels_rgb_to_gray
+	      (origin, width, height, startRow, startCol, bufPixels))
+	      goto error;
+      }
+    if (pixel_type == RL2_PIXEL_RGB && forced_conversion == RL2_CONVERT_NO)
+      {
+	  if (!read_jpeg_pixels_rgb
+	      (origin, width, height, startRow, startCol, bufPixels))
+	      goto error;
+      }
+    if (pixel_type == RL2_PIXEL_RGB
+	&& forced_conversion == RL2_CONVERT_GRAYSCALE_TO_RGB)
+      {
+	  if (!read_jpeg_pixels_gray_to_rgb
+	      (origin, width, height, startRow, startCol, bufPixels))
+	      goto error;
+      }
+
+    *pixels = bufPixels;
+    *pixels_sz = bufPixelsSz;
+    return RL2_OK;
+  error:
+    if (bufPixels != NULL)
+	free (bufPixels);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return RL2_ERROR;
+}
+
+static int
+eval_jpeg_origin_compatibility (rl2PrivCoveragePtr coverage,
+				rl2PrivRasterPtr raster,
+				unsigned char forced_conversion)
+{
+/* checking for strict compatibility */
+    if (coverage->sampleType == RL2_SAMPLE_UINT8
+	&& coverage->pixelType == RL2_PIXEL_GRAYSCALE && coverage->nBands == 1)
+      {
+	  if (raster->sampleType == RL2_SAMPLE_UINT8
+	      && raster->pixelType == RL2_PIXEL_GRAYSCALE && raster->nBands == 1
+	      && forced_conversion == RL2_CONVERT_NO)
+	      return 1;
+	  if (raster->sampleType == RL2_SAMPLE_UINT8
+	      && raster->pixelType == RL2_PIXEL_RGB && raster->nBands == 3
+	      && forced_conversion == RL2_CONVERT_RGB_TO_GRAYSCALE)
+	      return 1;
+      }
+    if (coverage->sampleType == RL2_SAMPLE_UINT8
+	&& coverage->pixelType == RL2_PIXEL_RGB && coverage->nBands == 3)
+      {
+	  if (raster->sampleType == RL2_SAMPLE_UINT8
+	      && raster->pixelType == RL2_PIXEL_RGB && raster->nBands == 3
+	      && forced_conversion == RL2_CONVERT_NO)
+	      return 1;
+	  if (raster->sampleType == RL2_SAMPLE_UINT8
+	      && raster->pixelType == RL2_PIXEL_GRAYSCALE && raster->nBands == 1
+	      && forced_conversion == RL2_CONVERT_GRAYSCALE_TO_RGB)
+	      return 1;
+      }
+    return 0;
+}
+
+RL2_DECLARE rl2RasterPtr
+rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr jpeg,
+			       unsigned int startRow, unsigned int startCol,
+			       unsigned char forced_conversion)
+{
+/* attempting to create a Coverage-tile from a JPEG origin */
+    unsigned int x;
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
+    rl2PrivRasterPtr origin = (rl2PrivRasterPtr) jpeg;
+    rl2RasterPtr raster = NULL;
+    unsigned char *pixels = NULL;
+    int pixels_sz = 0;
+    unsigned char *mask = NULL;
+    int mask_size = 0;
+    int unused_width = 0;
+    int unused_height = 0;
+
+    if (coverage == NULL || origin == NULL)
+	return NULL;
+    if (!eval_jpeg_origin_compatibility (coverage, origin, forced_conversion))
+	return NULL;
+
+/* testing for tile's boundary validity */
+    if (startCol > origin->width)
+	return NULL;
+    if (startRow > origin->height)
+	return NULL;
+    x = startCol / coverage->tileWidth;
+    if ((x * coverage->tileWidth) != startCol)
+	return NULL;
+    x = startRow / coverage->tileHeight;
+    if ((x * coverage->tileHeight) != startRow)
+	return NULL;
+
+/* attempting to create the tile */
+    if (read_from_jpeg
+	(origin, coverage->tileWidth, coverage->tileHeight,
+	 coverage->sampleType, coverage->pixelType, coverage->nBands,
+	 forced_conversion, startRow, startCol, &pixels, &pixels_sz) != RL2_OK)
+	goto error;
+    if (startCol + coverage->tileWidth > origin->width)
+	unused_width = (startCol + coverage->tileWidth) - origin->width;
+    if (startRow + coverage->tileHeight > origin->height)
+	unused_height = (startRow + coverage->tileHeight) - origin->height;
+    if (unused_width || unused_height)
+      {
+	  /* 
+	   * creating a Transparency Mask so to shadow any 
+	   * unused portion of the current tile 
+	   */
+	  int shadow_x = coverage->tileWidth - unused_width;
+	  int shadow_y = coverage->tileHeight - unused_height;
+	  int row;
+	  mask_size = coverage->tileWidth * coverage->tileHeight;
+	  mask = malloc (mask_size);
+	  if (mask == NULL)
+	      goto error;
+	  /* full Transparent mask */
+	  memset (mask, 0, coverage->tileWidth * coverage->tileHeight);
+	  for (row = 0; row < coverage->tileHeight; row++)
+	    {
+		unsigned char *p = mask + (row * coverage->tileWidth);
+		if (row < shadow_y)
+		  {
+		      /* setting opaque pixels */
+		      memset (p, 1, shadow_x);
+		  }
+	    }
+      }
+    raster =
+	rl2_create_raster (coverage->tileWidth, coverage->tileHeight,
+			   coverage->sampleType, coverage->pixelType,
+			   coverage->nBands, pixels, pixels_sz, NULL, mask,
+			   mask_size, NULL);
+    if (raster == NULL)
+	goto error;
+    return raster;
+  error:
+    if (pixels != NULL)
+	free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return NULL;
 }

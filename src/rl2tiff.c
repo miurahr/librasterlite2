@@ -1360,11 +1360,15 @@ init_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin)
     if (TIFFGetField (origin->in, TIFFTAG_PLANARCONFIG, &value16) == 0)
       {
 	  /* attempting to recover badly formatted TIFFs */
-	  origin->planarConfig = 1;
+	  origin->planarConfig = PLANARCONFIG_CONTIG;
       }
     else
 	origin->planarConfig = value16;
-    if (origin->planarConfig != PLANARCONFIG_CONTIG)
+
+    if (origin->bitsPerSample == 16 && origin->sampleFormat == SAMPLEFORMAT_UINT
+	&& origin->planarConfig == PLANARCONFIG_SEPARATE)
+	;
+    else if (origin->planarConfig != PLANARCONFIG_CONTIG)
 	goto error;
 
     if (origin->photometric == PHOTOMETRIC_PALETTE
@@ -2047,11 +2051,12 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	(tiff, &sample_type, &pixel_type, &num_bands) != RL2_OK)
 	return RL2_ERROR;
 
-/* aliasing GRAYSCALE and DATAGRID for UINT8 AND UINT16 */
+/* aliasing GRAYSCALE and DATAGRID for UINT8 */
     if (coverage->sampleType == RL2_SAMPLE_UINT8
 	&& coverage->pixelType == RL2_PIXEL_DATAGRID
 	&& pixel_type == RL2_PIXEL_GRAYSCALE)
 	pixel_type = RL2_PIXEL_DATAGRID;
+/* aliasing GRAYSCALE and DATAGRID for UINT16 */
     if (coverage->sampleType == RL2_SAMPLE_UINT16
 	&& coverage->pixelType == RL2_PIXEL_DATAGRID
 	&& pixel_type == RL2_PIXEL_GRAYSCALE)
@@ -3444,6 +3449,186 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 }
 
 static int
+read_raw_separate_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
+			 unsigned short height, unsigned char sample_type,
+			 unsigned char num_bands, unsigned int startRow,
+			 unsigned int startCol, unsigned char *pixels)
+{
+/* reading TIFF raw tiles - separate planes */
+    uint32 tile_x;
+    uint32 tile_y;
+    uint32 x;
+    uint32 y;
+    uint32 *tiff_tile = NULL;
+    unsigned short *p_in_u16;
+    unsigned short *p_out_u16;
+    unsigned int dest_x;
+    unsigned int dest_y;
+    int skip;
+    unsigned char band;
+
+    if (sample_type != RL2_SAMPLE_UINT16)
+	goto error;
+
+    tiff_tile = malloc (TIFFTileSize (origin->in));
+    if (tiff_tile == NULL)
+	goto error;
+
+    for (tile_y = 0; tile_y < origin->height; tile_y += origin->tileHeight)
+      {
+	  /* scanning tiles by row */
+	  unsigned int tiff_min_y = tile_y;
+	  unsigned int tiff_max_y = tile_y + origin->tileHeight - 1;
+	  skip = 0;
+	  if (tiff_min_y > (startRow + height))
+	      skip = 1;
+	  if (tiff_max_y < startRow)
+	      skip = 1;
+	  if (skip)
+	    {
+		/* skipping any not required tile */
+		continue;
+	    }
+	  for (tile_x = 0; tile_x < origin->width; tile_x += origin->tileWidth)
+	    {
+		/* reading a TIFF tile */
+		unsigned int tiff_min_x = tile_x;
+		unsigned int tiff_max_x = tile_x + origin->tileWidth - 1;
+		skip = 0;
+		if (tiff_min_x > (startCol + width))
+		    skip = 1;
+		if (tiff_max_x < startCol)
+		    skip = 1;
+		if (skip)
+		  {
+		      /* skipping any not required tile */
+		      continue;
+		  }
+		for (band = 0; band < num_bands; band++)
+		  {
+		      /* one component for each separate plane */
+		      if (TIFFReadTile
+			  (origin->in, tiff_tile, tile_x, tile_y, 0, band) < 0)
+			  goto error;
+		      for (y = 0; y < origin->tileHeight; y++)
+			{
+			    dest_y = tile_y + y;
+			    if (dest_y < startRow
+				|| dest_y >= (startRow + height))
+				continue;
+			    for (x = 0; x < origin->tileWidth; x++)
+			      {
+				  dest_x = tile_x + x;
+				  if (dest_x < startCol
+				      || dest_x >= (startCol + width))
+				      continue;
+				  p_in_u16 = (unsigned short *) tiff_tile;
+				  p_in_u16 += y * origin->tileWidth;
+				  p_in_u16 += x;
+				  p_out_u16 = (unsigned short *) pixels;
+				  p_out_u16 +=
+				      ((dest_y -
+					startRow) * width * num_bands) +
+				      ((dest_x - startCol) * num_bands) + band;
+				  *p_out_u16 = *p_in_u16++;
+			      }
+			}
+		  }
+	    }
+      }
+
+    free (tiff_tile);
+    return RL2_OK;
+  error:
+    if (tiff_tile != NULL)
+	free (tiff_tile);
+    return RL2_ERROR;
+}
+
+static int
+read_raw_separate_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
+			     unsigned short height, unsigned char sample_type,
+			     unsigned char num_bands, unsigned int startRow,
+			     unsigned int startCol, unsigned char *pixels)
+{
+/* reading TIFF raw strips - separate planes */
+    uint32 line_no;
+    uint32 x;
+    uint32 y;
+    uint32 *tiff_scanline = NULL;
+    unsigned short *p_in_u16;
+    unsigned short *p_out_u16;
+    unsigned char band;
+    TIFF *in = (TIFF *) 0;
+
+    if (sample_type != RL2_SAMPLE_UINT16)
+	goto error;
+
+    tiff_scanline = malloc (TIFFScanlineSize (origin->in));
+    if (tiff_scanline == NULL)
+	goto error;
+
+/*
+/ random access doesn't work on compressed scanlines
+/ so we'll open an auxiliary TIFF handle, thus ensuring
+/ an always clean reading context
+*/
+    in = TIFFOpen (origin->path, "r");
+    if (in == NULL)
+	goto error;
+
+    for (band = 0; band < num_bands; band++)
+      {
+	  /* one component for each separate plane */
+	  for (y = 0; y < startRow; y++)
+	    {
+		/* skipping trailing scanlines */
+		if (TIFFReadScanline (in, tiff_scanline, y, band) < 0)
+		    goto error;
+	    }
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  /* scanning scanlines by row */
+	  line_no = y + startRow;
+	  if (line_no >= origin->height)
+	      continue;
+	  for (band = 0; band < num_bands; band++)
+	    {
+		/* one component for each separate plane */
+		if (TIFFReadScanline (in, tiff_scanline, line_no, band) < 0)
+		    goto error;
+		p_in_u16 = (unsigned short *) tiff_scanline;
+		p_out_u16 = (unsigned short *) pixels;
+		p_out_u16 += y * width * num_bands;
+		for (x = 0; x < origin->width; x++)
+		  {
+		      if (x >= (startCol + width))
+			  break;
+		      if (x < startCol)
+			{
+			    p_in_u16++;
+			    continue;
+			}
+		      *(p_out_u16 + band) = *p_in_u16++;
+		      p_out_u16 += num_bands;
+		  }
+	    }
+      }
+
+    free (tiff_scanline);
+    TIFFClose (in);
+    return RL2_OK;
+  error:
+    if (tiff_scanline != NULL)
+	free (tiff_scanline);
+    if (in != (TIFF *) 0)
+	TIFFClose (in);
+    return RL2_ERROR;
+}
+
+static int
 read_RGBA_tiles (rl2PrivTiffOriginPtr origin, unsigned short width,
 		 unsigned short height, unsigned char pixel_type,
 		 unsigned char num_bands, unsigned int startRow,
@@ -3813,39 +3998,71 @@ read_from_tiff (rl2PrivTiffOriginPtr origin, unsigned short width,
 	rl2_prime_void_tile (bufPixels, width, height, sample_type, num_bands,
 			     NULL);
 
-    if (origin->bitsPerSample <= 8 && origin->sampleFormat == SAMPLEFORMAT_UINT
-	&& (origin->samplesPerPixel == 1 || origin->samplesPerPixel == 3)
-	&& (pixel_type == RL2_PIXEL_MONOCHROME
-	    || pixel_type == RL2_PIXEL_PALETTE
-	    || pixel_type == RL2_PIXEL_GRAYSCALE
-	    || pixel_type == RL2_PIXEL_RGB))
+    if (origin->planarConfig == PLANARCONFIG_SEPARATE)
       {
-	  /* using the TIFF RGBA methods */
-	  if (origin->isTiled)
-	      ret =
-		  read_RGBA_tiles (origin, width, height, pixel_type, num_bands,
-				   startRow, startCol, bufPixels, palette);
+	  /* separate planes configuration */
+	  if (origin->bitsPerSample == 16
+	      && origin->sampleFormat == SAMPLEFORMAT_UINT)
+	    {
+		/* using raw TIFF methods - separate planes */
+		if (origin->isTiled)
+		    ret =
+			read_raw_separate_tiles (origin, width, height,
+						 sample_type, num_bands,
+						 startRow, startCol, bufPixels);
+		else
+		    ret =
+			read_raw_separate_scanlines (origin, width, height,
+						     sample_type, num_bands,
+						     startRow, startCol,
+						     bufPixels);
+		if (ret != RL2_OK)
+		    goto error;
+	    }
 	  else
-	      ret =
-		  read_RGBA_strips (origin, width, height, pixel_type,
-				    num_bands, startRow, startCol, bufPixels,
-				    palette);
-	  if (ret != RL2_OK)
 	      goto error;
       }
     else
       {
-	  /* using raw TIFF methods */
-	  if (origin->isTiled)
-	      ret =
-		  read_raw_tiles (origin, width, height, sample_type, num_bands,
-				  startRow, startCol, bufPixels);
+	  /* contiguous plane configuration */
+	  if (origin->bitsPerSample <= 8
+	      && origin->sampleFormat == SAMPLEFORMAT_UINT
+	      && (origin->samplesPerPixel == 1 || origin->samplesPerPixel == 3)
+	      && (pixel_type == RL2_PIXEL_MONOCHROME
+		  || pixel_type == RL2_PIXEL_PALETTE
+		  || pixel_type == RL2_PIXEL_GRAYSCALE
+		  || pixel_type == RL2_PIXEL_RGB))
+	    {
+		/* using the TIFF RGBA methods */
+		if (origin->isTiled)
+		    ret =
+			read_RGBA_tiles (origin, width, height, pixel_type,
+					 num_bands, startRow, startCol,
+					 bufPixels, palette);
+		else
+		    ret =
+			read_RGBA_strips (origin, width, height, pixel_type,
+					  num_bands, startRow, startCol,
+					  bufPixels, palette);
+		if (ret != RL2_OK)
+		    goto error;
+	    }
 	  else
-	      ret =
-		  read_raw_scanlines (origin, width, height, sample_type,
-				      num_bands, startRow, startCol, bufPixels);
-	  if (ret != RL2_OK)
-	      goto error;
+	    {
+		/* using raw TIFF methods */
+		if (origin->isTiled)
+		    ret =
+			read_raw_tiles (origin, width, height, sample_type,
+					num_bands, startRow, startCol,
+					bufPixels);
+		else
+		    ret =
+			read_raw_scanlines (origin, width, height, sample_type,
+					    num_bands, startRow, startCol,
+					    bufPixels);
+		if (ret != RL2_OK)
+		    goto error;
+	    }
       }
 
     *pixels = bufPixels;

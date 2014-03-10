@@ -15,7 +15,8 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_rgb test_map_gray \
 	test_map_srtm test_map_mono \
 	test_map_indiana test_load_wms \
-	test_map_noref test_map_trento 
+	test_map_noref test_map_trento \
+	test_map_trieste
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
@@ -66,7 +67,9 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/trento-gray/trento-gray1.jpg \
 	map_samples/trento-gray/trento-gray1.jgw \
 	map_samples/trento-gray/trento-gray2.jpg \
-	map_samples/trento-gray/trento-gray2.jgw 
+	map_samples/trento-gray/trento-gray2.jgw \
+	map_samples/orbview3-trieste/trieste1.tif \
+	map_samples/orbview3-trieste/trieste2.tif
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

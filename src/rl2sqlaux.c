@@ -45,6 +45,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+#include <limits.h>
 #include <stdint.h>
 #include <inttypes.h>
 
@@ -2452,6 +2453,960 @@ get_rgba_from_rgb_transparent (unsigned short width, unsigned short height,
 }
 
 RL2_PRIVATE int
+rgba_from_int8 (unsigned short width, unsigned short height,
+		char *pixels, unsigned char *mask, unsigned char *rgba)
+{
+/* input: DataGrid INT8   output: Grayscale */
+    char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		char gray = 128 + *p_in++;
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		    p_out += 4;
+		else
+		  {
+		      *p_out++ = gray;	/* red */
+		      *p_out++ = gray;	/* green */
+		      *p_out++ = gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_uint8 (unsigned short width, unsigned short height,
+		 unsigned char *pixels, unsigned char *mask,
+		 unsigned char *rgba)
+{
+/* input: DataGrid UINT8   output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char gray = *p_in++;
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		    p_out += 4;
+		else
+		  {
+		      *p_out++ = gray;	/* red */
+		      *p_out++ = gray;	/* green */
+		      *p_out++ = gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_int16 (unsigned short width, unsigned short height,
+		 short *pixels, unsigned char *mask, unsigned char *rgba)
+{
+/* input: DataGrid INT16   output: Grayscale */
+    short *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    short min = SHRT_MAX;
+    short max = SHRT_MIN;
+    double min2;
+    double max2;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		short gray = *p_in++;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = (double) (*p_in++ - min) / tic;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_in++;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      short val = *p_in++;
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_uint16 (unsigned short width, unsigned short height,
+		  unsigned short *pixels, unsigned char *mask,
+		  unsigned char *rgba)
+{
+/* input: DataGrid UINT16   output: Grayscale */
+    unsigned short *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    unsigned short min = USHRT_MAX;
+    unsigned short max = 0;
+    double min2;
+    double max2;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned short gray = *p_in++;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = (double) (*p_in++ - min) / tic;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_in++;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      unsigned short val = *p_in++;
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_int32 (unsigned short width, unsigned short height,
+		 int *pixels, unsigned char *mask, unsigned char *rgba)
+{
+/* input: DataGrid INT32   output: Grayscale */
+    int *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int min = INT_MAX;
+    int max = INT_MIN;
+    double min2;
+    double max2;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		int gray = *p_in++;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = (double) (*p_in++ - min) / tic;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_in++;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      int val = *p_in++;
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_uint32 (unsigned short width, unsigned short height,
+		  unsigned int *pixels, unsigned char *mask,
+		  unsigned char *rgba)
+{
+/* input: DataGrid UINT32   output: Grayscale */
+    unsigned int *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    unsigned int min = UINT_MAX;
+    unsigned int max = 0;
+    double min2;
+    double max2;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned int gray = *p_in++;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = (double) (*p_in++ - min) / tic;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_in++;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      unsigned int val = *p_in++;
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_float (unsigned short width, unsigned short height,
+		 float *pixels, unsigned char *mask, unsigned char *rgba)
+{
+/* input: DataGrid FLOAT   output: Grayscale */
+    float *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    float min = FLT_MAX;
+    float max = 0.0 - FLT_MAX;
+    double min2;
+    double max2;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		float gray = *p_in++;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = (double) (*p_in++ - min) / tic;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_in++;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      float val = *p_in++;
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_double (unsigned short width, unsigned short height,
+		  double *pixels, unsigned char *mask, unsigned char *rgba)
+{
+/* input: DataGrid DOUBLE   output: Grayscale */
+    double *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    double min = DBL_MAX;
+    double max = 0.0 - DBL_MAX;
+    double min2;
+    double max2;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = *p_in++;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		double gray = (double) (*p_in++ - min) / tic;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_in++;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      double val = *p_in++;
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_datagrid_mask (unsigned short width, unsigned short height,
+			     unsigned char sample_type, void *pixels,
+			     unsigned char *mask, unsigned char *rgba)
+{
+/* input: DataGrid    output: Grayscale */
+    int ret = 0;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT8:
+	  ret = rgba_from_int8 (width, height, (char *) pixels, mask, rgba);
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  ret =
+	      rgba_from_uint8 (width, height, (unsigned char *) pixels, mask,
+			       rgba);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  ret = rgba_from_int16 (width, height, (short *) pixels, mask, rgba);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  ret =
+	      rgba_from_uint16 (width, height, (unsigned short *) pixels, mask,
+				rgba);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  ret = rgba_from_int32 (width, height, (int *) pixels, mask, rgba);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  ret =
+	      rgba_from_uint32 (width, height, (unsigned int *) pixels, mask,
+				rgba);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  ret = rgba_from_float (width, height, (float *) pixels, mask, rgba);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  ret = rgba_from_double (width, height, (double *) pixels, mask, rgba);
+	  break;
+      };
+    return ret;
+}
+
+RL2_PRIVATE int
 get_payload_from_gray_rgba_opaque (unsigned short width, unsigned short height,
 				   sqlite3 * handle, double minx, double miny,
 				   double maxx, double maxy, int srid,
@@ -2765,7 +3720,7 @@ get_rgba_from_multiband8 (unsigned short width, unsigned short height,
 			  unsigned char *pixels, unsigned char *mask,
 			  unsigned char *rgba)
 {
-/* input: MULTIBAND    output: RGB */
+/* input: MULTIBAND UINT8   output: RGB */
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *p_msk;
@@ -2796,6 +3751,344 @@ get_rgba_from_multiband8 (unsigned short width, unsigned short height,
 		      *p_out++ = *(p_in + red_band);	/* red */
 		      *p_out++ = *(p_in + green_band);	/* green */
 		      *p_out++ = *(p_in + blue_band);	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		      p_in += num_bands;
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_multiband16 (unsigned short width, unsigned short height,
+			   unsigned char red_band, unsigned char green_band,
+			   unsigned char blue_band, unsigned char num_bands,
+			   unsigned short *pixels, unsigned char *mask,
+			   unsigned char *rgba)
+{
+/* input: MULTIBAND UINT16   output: RGB */
+    unsigned short *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned short row;
+    unsigned short col;
+    int transparent;
+    unsigned short min = USHRT_MAX;
+    unsigned short max = 0;
+    double tic;
+    double red_min;
+    double red_max;
+    double red_tic;
+    double green_min;
+    double green_max;
+    double green_tic;
+    double blue_min;
+    double blue_max;
+    double blue_tic;
+    int i;
+    int sum;
+    int total;
+    int band;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying RED Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		for (band = 0; band < num_bands; band++)
+		  {
+		      unsigned short gray = *p_in++;
+		      if (band != red_band)
+			  continue;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				continue;
+			}
+		      if (min > gray)
+			  min = gray;
+		      if (max < gray)
+			  max = gray;
+		      total++;
+		  }
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building the RED histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		for (band = 0; band < num_bands; band++)
+		  {
+		      double gray = (double) (*p_in++ - min) / tic;
+		      if (band != red_band)
+			  continue;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				continue;
+			}
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 1023.0)
+			  gray = 1023.0;
+		      histogram[(int) gray] += 1;
+		  }
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		red_min = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		red_max = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    red_tic = (double) (red_max - red_min) / 254.0;
+
+/* identifying GREEN Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		for (band = 0; band < num_bands; band++)
+		  {
+		      unsigned short gray = *p_in++;
+		      if (band != green_band)
+			  continue;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				continue;
+			}
+		      if (min > gray)
+			  min = gray;
+		      if (max < gray)
+			  max = gray;
+		      total++;
+		  }
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building the GREEN histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		for (band = 0; band < num_bands; band++)
+		  {
+		      double gray = (double) (*p_in++ - min) / tic;
+		      if (band != green_band)
+			  continue;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				continue;
+			}
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 1023.0)
+			  gray = 1023.0;
+		      histogram[(int) gray] += 1;
+		  }
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		green_min = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		green_max = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    green_tic = (double) (green_max - green_min) / 254.0;
+
+/* identifying BLUE Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		for (band = 0; band < num_bands; band++)
+		  {
+		      unsigned short gray = *p_in++;
+		      if (band != blue_band)
+			  continue;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				continue;
+			}
+		      if (min > gray)
+			  min = gray;
+		      if (max < gray)
+			  max = gray;
+		      total++;
+		  }
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building the BLUE histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		for (band = 0; band < num_bands; band++)
+		  {
+		      double gray = (double) (*p_in++ - min) / tic;
+		      if (band != blue_band)
+			  continue;
+		      if (p_msk != NULL)
+			{
+			    if (*p_msk++ == 0)
+				continue;
+			}
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 1023.0)
+			  gray = 1023.0;
+		      histogram[(int) gray] += 1;
+		  }
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		blue_min = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		blue_max = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    blue_tic = (double) (blue_max - blue_min) / 254.0;
+
+/* rescaling RGB-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent)
+		  {
+		      p_out += 4;
+		      p_in += num_bands;
+		  }
+		else
+		  {
+		      double r;
+		      double g;
+		      double b;
+		      unsigned short red = *(p_in + red_band);
+		      unsigned short green = *(p_in + green_band);
+		      unsigned short blue = *(p_in + blue_band);
+		      if (red <= red_min)
+			  r = 0.0;
+		      else if (red >= red_max)
+			  r = 255.0;
+		      else
+			  r = 1.0 + (((double) red - red_min) / red_tic);
+		      if (r < 0.0)
+			  r = 0.0;
+		      if (r > 255.0)
+			  r = 255.0;
+		      if (green <= green_min)
+			  g = 0.0;
+		      else if (green >= green_max)
+			  g = 255.0;
+		      else
+			  g = 1.0 + (((double) green - green_min) / green_tic);
+		      if (g < 0.0)
+			  g = 0.0;
+		      if (g > 255.0)
+			  g = 255.0;
+		      if (blue <= blue_min)
+			  b = 0.0;
+		      else if (blue >= blue_max)
+			  b = 255.0;
+		      else
+			  b = 1.0 + (((double) blue - blue_min) / blue_tic);
+		      if (b < 0.0)
+			  b = 0.0;
+		      if (b > 255.0)
+			  b = 255.0;
+		      *p_out++ = (unsigned char) r;	/* red */
+		      *p_out++ = (unsigned char) g;	/* green */
+		      *p_out++ = (unsigned char) b;	/* blue */
 		      *p_out++ = 255;	/* opaque */
 		      p_in += num_bands;
 		  }

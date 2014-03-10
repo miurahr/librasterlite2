@@ -4386,6 +4386,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int image_size;
     unsigned char *rgb = NULL;
     unsigned char *alpha = NULL;
+    unsigned char sample_type;
     unsigned char pixel_type;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
@@ -4424,16 +4425,13 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsupported_tile = 0;
     switch (cvg->pixelType)
       {
-      case RL2_PIXEL_MONOCHROME:
-	  break;
       case RL2_PIXEL_PALETTE:
 	  has_palette = 1;
 	  break;
+      case RL2_PIXEL_MONOCHROME:
       case RL2_PIXEL_GRAYSCALE:
       case RL2_PIXEL_RGB:
-	  if (cvg->sampleType == RL2_SAMPLE_UINT8)
-	      break;
-	  unsupported_tile = 1;
+      case RL2_PIXEL_DATAGRID:
 	  break;
       default:
 	  unsupported_tile = 1;
@@ -4512,6 +4510,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		rst = (rl2PrivRasterPtr) raster;
 		width = rst->width;
 		height = rst->height;
+		sample_type = rst->sampleType;
 		pixel_type = rst->pixelType;
 		buffer = rst->rasterBuffer;
 		mask = rst->maskBuffer;
@@ -4609,6 +4608,41 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		      ret =
 			  get_rgba_from_grayscale_mask (width, height, buffer,
 							mask, rgba);
+		      buffer = NULL;
+		      mask = NULL;
+		      if (!ret)
+			  goto error;
+		      if (!build_rgb_alpha
+			  (width, height, rgba, &rgb, &alpha, bg_red, bg_green,
+			   bg_blue))
+			  goto error;
+		      free (rgba);
+		      rgba = NULL;
+		      if (transparent)
+			{
+			    if (!get_payload_from_gray_rgba_transparent
+				(width, height, rgb, alpha,
+				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      else
+			{
+			    free (alpha);
+			    alpha = NULL;
+			    if (!get_payload_from_gray_rgba_opaque
+				(width, height, sqlite, 0, 0, 0, 0, -1,
+				 rgb, RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      sqlite3_result_blob (context, image, image_size, free);
+		      break;
+		  case RL2_PIXEL_DATAGRID:
+		      ret =
+			  get_rgba_from_datagrid_mask (width, height,
+						       sample_type, buffer,
+						       mask, rgba);
 		      buffer = NULL;
 		      mask = NULL;
 		      if (!ret)
@@ -4824,7 +4858,8 @@ fnct_GetBandComposedTileImage (sqlite3_context * context, int argc,
     switch (cvg->pixelType)
       {
       case RL2_PIXEL_MULTIBAND:
-	  if (cvg->sampleType == RL2_SAMPLE_UINT8)
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      || cvg->sampleType == RL2_SAMPLE_UINT16)
 	      break;
 	  unsupported_tile = 1;
 	  break;
@@ -4927,6 +4962,43 @@ fnct_GetBandComposedTileImage (sqlite3_context * context, int argc,
 						    green_band, blue_band,
 						    num_bands, buffer, mask,
 						    rgba);
+		      buffer = NULL;
+		      mask = NULL;
+		      if (!ret)
+			  goto error;
+		      if (!build_rgb_alpha
+			  (width, height, rgba, &rgb, &alpha, bg_red, bg_green,
+			   bg_blue))
+			  goto error;
+		      free (rgba);
+		      rgba = NULL;
+		      if (transparent)
+			{
+			    if (!get_payload_from_rgb_rgba_transparent
+				(width, height, rgb, alpha,
+				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      else
+			{
+			    free (alpha);
+			    alpha = NULL;
+			    if (!get_payload_from_rgb_rgba_opaque
+				(width, height, sqlite, 0, 0, 0, 0, -1,
+				 rgb, RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      sqlite3_result_blob (context, image, image_size, free);
+		      break;
+		  case RL2_SAMPLE_UINT16:
+		      ret =
+			  get_rgba_from_multiband16 (width, height, red_band,
+						     green_band, blue_band,
+						     num_bands,
+						     (unsigned short *) buffer,
+						     mask, rgba);
 		      buffer = NULL;
 		      mask = NULL;
 		      if (!ret)

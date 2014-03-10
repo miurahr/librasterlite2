@@ -95,7 +95,8 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_rgb$(EXEEXT) test_map_gray$(EXEEXT) \
 	test_map_srtm$(EXEEXT) test_map_mono$(EXEEXT) \
 	test_map_indiana$(EXEEXT) test_load_wms$(EXEEXT) \
-	test_map_noref$(EXEEXT) test_map_trento$(EXEEXT)
+	test_map_noref$(EXEEXT) test_map_trento$(EXEEXT) \
+	test_map_trieste$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -231,6 +232,9 @@ test_map_srtm_LDADD = $(LDADD)
 test_map_trento_SOURCES = test_map_trento.c
 test_map_trento_OBJECTS = test_map_trento.$(OBJEXT)
 test_map_trento_LDADD = $(LDADD)
+test_map_trieste_SOURCES = test_map_trieste.c
+test_map_trieste_OBJECTS = test_map_trieste.$(OBJEXT)
+test_map_trieste_LDADD = $(LDADD)
 test_mask_SOURCES = test_mask.c
 test_mask_OBJECTS = test_mask.$(OBJEXT)
 test_mask_LDADD = $(LDADD)
@@ -303,10 +307,10 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
 	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
 	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
-	test_map_rgb.c test_map_srtm.c test_map_trento.c test_mask.c \
-	test_paint.c test_palette.c test_raster.c test_section.c \
-	test_tifin.c test_webp.c test_wms1.c test_wms2.c \
-	test_wr_tiff.c
+	test_map_rgb.c test_map_srtm.c test_map_trento.c \
+	test_map_trieste.c test_mask.c test_paint.c test_palette.c \
+	test_raster.c test_section.c test_tifin.c test_webp.c \
+	test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
@@ -315,10 +319,10 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
 	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
 	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
-	test_map_rgb.c test_map_srtm.c test_map_trento.c test_mask.c \
-	test_paint.c test_palette.c test_raster.c test_section.c \
-	test_tifin.c test_webp.c test_wms1.c test_wms2.c \
-	test_wr_tiff.c
+	test_map_rgb.c test_map_srtm.c test_map_trento.c \
+	test_map_trieste.c test_mask.c test_paint.c test_palette.c \
+	test_raster.c test_section.c test_tifin.c test_webp.c \
+	test_wms1.c test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -774,7 +778,9 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/trento-gray/trento-gray1.jpg \
 	map_samples/trento-gray/trento-gray1.jgw \
 	map_samples/trento-gray/trento-gray2.jpg \
-	map_samples/trento-gray/trento-gray2.jgw 
+	map_samples/trento-gray/trento-gray2.jgw \
+	map_samples/orbview3-trieste/trieste1.tif \
+	map_samples/orbview3-trieste/trieste2.tif
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 all: all-recursive
@@ -977,6 +983,10 @@ test_map_trento$(EXEEXT): $(test_map_trento_OBJECTS) $(test_map_trento_DEPENDENC
 	@rm -f test_map_trento$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_trento_OBJECTS) $(test_map_trento_LDADD) $(LIBS)
 
+test_map_trieste$(EXEEXT): $(test_map_trieste_OBJECTS) $(test_map_trieste_DEPENDENCIES) $(EXTRA_test_map_trieste_DEPENDENCIES) 
+	@rm -f test_map_trieste$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_trieste_OBJECTS) $(test_map_trieste_LDADD) $(LIBS)
+
 test_mask$(EXEEXT): $(test_mask_OBJECTS) $(test_mask_DEPENDENCIES) $(EXTRA_test_mask_DEPENDENCIES) 
 	@rm -f test_mask$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_mask_OBJECTS) $(test_mask_LDADD) $(LIBS)
@@ -1062,6 +1072,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_rgb.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_srtm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_trento.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_trieste.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mask.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_paint.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_palette.Po@am__quote@
@@ -1679,6 +1690,13 @@ test_map_noref.log: test_map_noref$(EXEEXT)
 test_map_trento.log: test_map_trento$(EXEEXT)
 	@p='test_map_trento$(EXEEXT)'; \
 	b='test_map_trento'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_trieste.log: test_map_trieste$(EXEEXT)
+	@p='test_map_trieste$(EXEEXT)'; \
+	b='test_map_trieste'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

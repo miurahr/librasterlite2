@@ -658,9 +658,10 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 		      rl2CoveragePtr cvg, const char *section, int srid,
 		      unsigned short tile_w, unsigned short tile_h,
 		      int pyramidize, unsigned char sample_type,
-		      unsigned char num_bands,		      unsigned char compression, sqlite3_stmt * stmt_data,
-		      sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
-		      sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect)
+		      unsigned char num_bands, unsigned char compression,
+		      sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
+		      sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
+		      sqlite3_stmt * stmt_upd_sect)
 {
 /* importing a JPEG image file [with optional WorldFile */
     rl2SectionPtr origin;
@@ -923,7 +924,10 @@ do_import_file (sqlite3 * handle, const char *src_path,
     if (is_jpeg_image (src_path))
 	return do_import_jpeg_image (handle, src_path, cvg, section, force_srid,
 				     tile_w, tile_h, pyramidize, sample_type,
-				     num_bands, compression, stmt_data, stmt_tils, stmt_sect, stmt_levl, stmt_upd_sect);
+				     num_bands, compression, stmt_data,
+				     stmt_tils, stmt_sect, stmt_levl,
+				     stmt_upd_sect);
+
     if (worldfile)
 	origin =
 	    rl2_create_tiff_origin (src_path, RL2_TIFF_WORLDFILE, force_srid,
@@ -4203,17 +4207,14 @@ upate_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		      for (col = 0; col < tileWidth; col++)
 			{
 			    int x_col = tile_out->col + col;
-			    if (*p > 128)
-				*p = 1;
-			    else
-				*p = 0;
 			    if (x_row >= pyr->scaled_height
 				|| x_col >= pyr->scaled_width)
 			      {
 				  /* masking any portion of the tile exceeding the scaled section size */
-				  *p = 0;
+				  *p++ = 0;
 			      }
-			    p++;
+			    else
+				*p++ = 1;
 			}
 		  }
 	    }
@@ -4584,17 +4585,14 @@ upate_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		      for (col = 0; col < tileWidth; col++)
 			{
 			    int x_col = tile_out->col + col;
-			    if (*p > 128)
-				*p = 1;
-			    else
-				*p = 0;
 			    if (x_row >= pyr->scaled_height
 				|| x_col >= pyr->scaled_width)
 			      {
 				  /* masking any portion of the tile exceeding the scaled section size */
-				  *p = 0;
+				  *p++ = 0;
 			      }
-			    p++;
+			    else
+				*p++ = 1;
 			}
 		  }
 	    }
@@ -4795,17 +4793,14 @@ upate_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		for (col = 0; col < tileWidth; col++)
 		  {
 		      int x_col = tile_out->col + col;
-		      if (*p > 128)
-			  *p = 1;
-		      else
-			  *p = 0;
 		      if (x_row >= pyr->scaled_height
 			  || x_col >= pyr->scaled_width)
 			{
 			    /* masking any portion of the tile exceeding the scaled section size */
-			    *p = 0;
+			    *p++ = 0;
 			}
-		      p++;
+		      else
+			  *p++ = 1;
 		  }
 	    }
 

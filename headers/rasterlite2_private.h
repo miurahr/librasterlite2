@@ -951,6 +951,13 @@ extern "C"
 						   unsigned char bg_green,
 						   unsigned char bg_blue);
 
+    RL2_PRIVATE int get_rgba_from_datagrid_mask (unsigned short width,
+						 unsigned short height,
+						 unsigned char sample_type,
+						 void *pixels,
+						 unsigned char *mask,
+						 unsigned char *rgba);
+
     RL2_PRIVATE int get_payload_from_gray_rgba_opaque (unsigned short width,
 						       unsigned short height,
 						       sqlite3 * handle,
@@ -1015,6 +1022,16 @@ extern "C"
 					      unsigned char *pixels,
 					      unsigned char *mask,
 					      unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_multiband16 (unsigned short width,
+					       unsigned short height,
+					       unsigned char red_band,
+					       unsigned char green_band,
+					       unsigned char blue_band,
+					       unsigned char num_bands,
+					       unsigned short *pixels,
+					       unsigned char *mask,
+					       unsigned char *rgba);
     RL2_PRIVATE int
 	parse_worldfile (FILE * in, double *px, double *py, double *pres_x,
 			 double *pres_y);

@@ -5251,6 +5251,8 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
     sqlite3_finalize (stmt_levl);
     sqlite3_finalize (stmt_tils);
     sqlite3_finalize (stmt_data);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
     return 1;
 
   error:
@@ -5266,6 +5268,8 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	sqlite3_finalize (stmt_tils);
     if (stmt_data != NULL)
 	sqlite3_finalize (stmt_data);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
     return 0;
 }
 

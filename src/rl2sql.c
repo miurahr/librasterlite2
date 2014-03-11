@@ -4264,6 +4264,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		  }
 		else
 		  {
+		      if (alpha != NULL)
+			  free (alpha);
+		      alpha = NULL;
 		      if (!get_payload_from_gray_rgba_opaque
 			  (width, height, sqlite, minx, miny, maxx, maxy, srid,
 			   rgb, format_id, quality, &image, &image_size))
@@ -4294,6 +4297,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		  }
 		else
 		  {
+		      if (alpha != NULL)
+			  free (alpha);
+		      alpha = NULL;
 		      if (!get_payload_from_rgb_rgba_opaque
 			  (width, height, sqlite, minx, miny, maxx, maxy, srid,
 			   rgb, format_id, quality, &image, &image_size))

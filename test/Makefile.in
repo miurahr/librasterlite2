@@ -96,7 +96,7 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_srtm$(EXEEXT) test_map_mono$(EXEEXT) \
 	test_map_indiana$(EXEEXT) test_load_wms$(EXEEXT) \
 	test_map_noref$(EXEEXT) test_map_trento$(EXEEXT) \
-	test_map_trieste$(EXEEXT)
+	test_map_trieste$(EXEEXT) test_map_infrared$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -196,6 +196,9 @@ test_map_gray_LDADD = $(LDADD)
 test_map_indiana_SOURCES = test_map_indiana.c
 test_map_indiana_OBJECTS = test_map_indiana.$(OBJEXT)
 test_map_indiana_LDADD = $(LDADD)
+test_map_infrared_SOURCES = test_map_infrared.c
+test_map_infrared_OBJECTS = test_map_infrared.$(OBJEXT)
+test_map_infrared_LDADD = $(LDADD)
 test_map_mono_SOURCES = test_map_mono.c
 test_map_mono_OBJECTS = test_map_mono.$(OBJEXT)
 test_map_mono_LDADD = $(LDADD)
@@ -304,25 +307,25 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test20.c test3.c test4.c test5.c test6.c test7.c test8.c \
 	test9.c test_coverage.c test_gif.c test_load_wms.c \
 	test_map_ascii.c test_map_gray.c test_map_indiana.c \
-	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
-	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
-	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
-	test_map_rgb.c test_map_srtm.c test_map_trento.c \
-	test_map_trieste.c test_mask.c test_paint.c test_palette.c \
-	test_raster.c test_section.c test_tifin.c test_webp.c \
-	test_wms1.c test_wms2.c test_wr_tiff.c
+	test_map_infrared.c test_map_mono.c test_map_nile_32.c \
+	test_map_nile_8.c test_map_nile_dbl.c test_map_nile_flt.c \
+	test_map_nile_u16.c test_map_nile_u32.c test_map_nile_u8.c \
+	test_map_noref.c test_map_rgb.c test_map_srtm.c \
+	test_map_trento.c test_map_trieste.c test_mask.c test_paint.c \
+	test_palette.c test_raster.c test_section.c test_tifin.c \
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
 	test8.c test9.c test_coverage.c test_gif.c test_load_wms.c \
 	test_map_ascii.c test_map_gray.c test_map_indiana.c \
-	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
-	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
-	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
-	test_map_rgb.c test_map_srtm.c test_map_trento.c \
-	test_map_trieste.c test_mask.c test_paint.c test_palette.c \
-	test_raster.c test_section.c test_tifin.c test_webp.c \
-	test_wms1.c test_wms2.c test_wr_tiff.c
+	test_map_infrared.c test_map_mono.c test_map_nile_32.c \
+	test_map_nile_8.c test_map_nile_dbl.c test_map_nile_flt.c \
+	test_map_nile_u16.c test_map_nile_u32.c test_map_nile_u8.c \
+	test_map_noref.c test_map_rgb.c test_map_srtm.c \
+	test_map_trento.c test_map_trieste.c test_mask.c test_paint.c \
+	test_palette.c test_raster.c test_section.c test_tifin.c \
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -780,7 +783,10 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/trento-gray/trento-gray2.jpg \
 	map_samples/trento-gray/trento-gray2.jgw \
 	map_samples/orbview3-trieste/trieste1.tif \
-	map_samples/orbview3-trieste/trieste2.tif
+	map_samples/orbview3-trieste/trieste2.tif \
+	map_samples/tuscany-infrared/infrared1.tif \
+	map_samples/tuscany-infrared/infrared2.tfw \
+	map_samples/tuscany-infrared/infrared2.tif
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 all: all-recursive
@@ -935,6 +941,10 @@ test_map_indiana$(EXEEXT): $(test_map_indiana_OBJECTS) $(test_map_indiana_DEPEND
 	@rm -f test_map_indiana$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_indiana_OBJECTS) $(test_map_indiana_LDADD) $(LIBS)
 
+test_map_infrared$(EXEEXT): $(test_map_infrared_OBJECTS) $(test_map_infrared_DEPENDENCIES) $(EXTRA_test_map_infrared_DEPENDENCIES) 
+	@rm -f test_map_infrared$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_map_infrared_OBJECTS) $(test_map_infrared_LDADD) $(LIBS)
+
 test_map_mono$(EXEEXT): $(test_map_mono_OBJECTS) $(test_map_mono_DEPENDENCIES) $(EXTRA_test_map_mono_DEPENDENCIES) 
 	@rm -f test_map_mono$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_map_mono_OBJECTS) $(test_map_mono_LDADD) $(LIBS)
@@ -1060,6 +1070,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_ascii.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_gray.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_indiana.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_infrared.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_mono.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_32.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_nile_8.Po@am__quote@
@@ -1697,6 +1708,13 @@ test_map_trento.log: test_map_trento$(EXEEXT)
 test_map_trieste.log: test_map_trieste$(EXEEXT)
 	@p='test_map_trieste$(EXEEXT)'; \
 	b='test_map_trieste'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_map_infrared.log: test_map_infrared$(EXEEXT)
+	@p='test_map_infrared$(EXEEXT)'; \
+	b='test_map_infrared'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

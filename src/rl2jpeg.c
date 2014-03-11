@@ -1211,6 +1211,8 @@ read_from_jpeg (rl2PrivRasterPtr origin, unsigned short width,
 	      (origin, width, height, startRow, startCol, bufPixels))
 	      goto error;
       }
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
 
     *pixels = bufPixels;
     *pixels_sz = bufPixelsSz;

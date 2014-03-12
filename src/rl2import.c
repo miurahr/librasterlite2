@@ -2286,7 +2286,7 @@ rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
 	goto error;
     if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
 	goto error;
-    if (sample_type != RL2_SAMPLE_UINT8)
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
 	goto error;
     if (red_band >= num_bands)
 	goto error;
@@ -2307,9 +2307,10 @@ rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
 	 no_data) != RL2_OK)
 	goto error;
 
+
     tiff =
 	rl2_create_geotiff_destination (dst_path, handle, width, height,
-					RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+					sample_type, RL2_PIXEL_RGB, 3,
 					NULL, compression, 1, tile_sz, srid,
 					minx, miny, maxx, maxy, xx_res, yy_res,
 					with_worldfile);
@@ -2321,6 +2322,8 @@ rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
 	    {
 		/* exporting all tiles from the output buffer */
 		bufpix_size = 3 * tile_sz * tile_sz;
+		if (sample_type == RL2_SAMPLE_UINT16)
+		    bufpix_size *= 2;
 		bufpix = malloc (bufpix_size);
 		if (bufpix == NULL)
 		  {
@@ -2328,13 +2331,13 @@ rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
 			       "rl2tool Export: Insufficient Memory !!!\n");
 		      goto error;
 		  }
-		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, RL2_SAMPLE_UINT8,
+		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     3, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, RL2_SAMPLE_UINT8,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  3, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
-		    rl2_create_raster (tile_sz, tile_sz, RL2_SAMPLE_UINT8,
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
 				       RL2_PIXEL_RGB, 3, bufpix,
 				       bufpix_size, NULL, NULL, 0, NULL);
 		bufpix = NULL;
@@ -2423,7 +2426,7 @@ rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
 	goto error;
     if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
 	goto error;
-    if (sample_type != RL2_SAMPLE_UINT8)
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
 	goto error;
     if (red_band >= num_bands)
 	goto error;
@@ -2446,7 +2449,7 @@ rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
 
     tiff =
 	rl2_create_tiff_worldfile_destination (dst_path, width, height,
-					       RL2_SAMPLE_UINT8, RL2_PIXEL_RGB,
+					       sample_type, RL2_PIXEL_RGB,
 					       3, NULL, compression, 1, tile_sz,
 					       srid, minx, miny, maxx, maxy,
 					       xx_res, yy_res);
@@ -2458,6 +2461,8 @@ rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
 	    {
 		/* exporting all tiles from the output buffer */
 		bufpix_size = 3 * tile_sz * tile_sz;
+		if (sample_type == RL2_SAMPLE_UINT16)
+		    bufpix_size *= 2;
 		bufpix = malloc (bufpix_size);
 		if (bufpix == NULL)
 		  {
@@ -2465,13 +2470,13 @@ rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
 			       "rl2tool Export: Insufficient Memory !!!\n");
 		      goto error;
 		  }
-		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, RL2_SAMPLE_UINT8,
+		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     3, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, RL2_SAMPLE_UINT8,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  3, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
-		    rl2_create_raster (tile_sz, tile_sz, RL2_SAMPLE_UINT8,
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
 				       RL2_PIXEL_RGB, 3, bufpix,
 				       bufpix_size, NULL, NULL, 0, NULL);
 		bufpix = NULL;
@@ -2555,7 +2560,7 @@ rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	goto error;
     if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
 	goto error;
-    if (sample_type != RL2_SAMPLE_UINT8)
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
 	goto error;
     if (red_band >= num_bands)
 	goto error;
@@ -2576,9 +2581,14 @@ rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	 no_data) != RL2_OK)
 	goto error;
 
+    if (sample_type == RL2_SAMPLE_UINT16)
+	pixel_type = RL2_PIXEL_MULTIBAND;
+    else
+	pixel_type = RL2_PIXEL_RGB;
+
     tiff =
-	rl2_create_tiff_destination (dst_path, width, height, RL2_SAMPLE_UINT8,
-				     RL2_PIXEL_RGB, 3, NULL,
+	rl2_create_tiff_destination (dst_path, width, height, sample_type,
+				     pixel_type, 3, NULL,
 				     compression, 1, tile_sz);
     if (tiff == NULL)
 	goto error;
@@ -2588,6 +2598,8 @@ rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	    {
 		/* exporting all tiles from the output buffer */
 		bufpix_size = 3 * tile_sz * tile_sz;
+		if (sample_type == RL2_SAMPLE_UINT16)
+		    bufpix_size *= 2;
 		bufpix = malloc (bufpix_size);
 		if (bufpix == NULL)
 		  {
@@ -2595,14 +2607,14 @@ rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 			       "rl2tool Export: Insufficient Memory !!!\n");
 		      goto error;
 		  }
-		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, RL2_SAMPLE_UINT8,
+		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     3, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, RL2_SAMPLE_UINT8,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
 					  3, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
-		    rl2_create_raster (tile_sz, tile_sz, RL2_SAMPLE_UINT8,
-				       RL2_PIXEL_RGB, 3, bufpix,
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       pixel_type, 3, bufpix,
 				       bufpix_size, NULL, NULL, 0, NULL);
 		bufpix = NULL;
 		if (raster == NULL)

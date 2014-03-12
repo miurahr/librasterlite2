@@ -2923,6 +2923,150 @@ load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 }
 
 static int
+copy_band_composed_raw_pixels_u16 (rl2RasterPtr raster, unsigned char *outbuf,
+				   unsigned short width,
+				   unsigned short height,
+				   unsigned char red_band,
+				   unsigned char green_band,
+				   unsigned char blue_band, double x_res,
+				   double y_res, double minx, double maxy,
+				   double tile_minx, double tile_maxy,
+				   rl2PixelPtr no_data)
+{
+/* copying raw pixels into the output buffer - UINT16 */
+    unsigned short tile_width;
+    unsigned short tile_height;
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const unsigned short *p_in;
+    const unsigned char *p_msk;
+    unsigned short *p_out;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    unsigned char num_bands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+
+    if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
+	return 0;
+    if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	return 0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &nbands) != RL2_OK)
+	      ignore_no_data = 1;
+	  if (pixel_type != RL2_PIXEL_RGB)
+	      ignore_no_data = 1;
+	  if (nbands != 3)
+	      ignore_no_data = 1;
+	  if (sample_type != RL2_SAMPLE_UINT16)
+	      ignore_no_data = 1;
+      }
+
+    p_in = (unsigned short *) (rst->rasterBuffer);
+    p_msk = (unsigned short *) (rst->maskBuffer);
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width * num_bands;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in += num_bands;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out = outbuf + (out_y * width * 3) + (out_x * 3);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    p_out += 3;
+			    p_in += num_bands;
+			}
+		      else
+			{
+			    unsigned short r = *(p_in + red_band);
+			    unsigned short g = *(p_in + green_band);
+			    unsigned short b = *(p_in + blue_band);
+			    p_in += num_bands;
+			    *p_out++ = r;
+			    *p_out++ = g;
+			    *p_out++ = b;
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      unsigned short sample;
+		      unsigned short r = *(p_in + red_band);
+		      unsigned short g = *(p_in + green_band);
+		      unsigned short b = *(p_in + blue_band);
+		      p_in += num_bands;
+		      rl2_get_pixel_sample_uint8 (no_data, 0, &sample);
+		      if (sample == r)
+			  match++;
+		      rl2_get_pixel_sample_uint8 (no_data, 1, &sample);
+		      if (sample == g)
+			  match++;
+		      rl2_get_pixel_sample_uint8 (no_data, 2, &sample);
+		      if (sample == b)
+			  match++;
+		      if (match != 3)
+			{
+			    /* opaque pixel */
+			    *p_out++ = r;
+			    *p_out++ = g;
+			    *p_out++ = b;
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    p_out += 3;
+			}
+		  }
+	    }
+      }
+
+    return 1;
+}
+
+static int
 copy_band_composed_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			       unsigned short width,
 			       unsigned short height, unsigned char red_band,
@@ -2954,24 +3098,32 @@ copy_band_composed_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
     double x_res2 = x_res / 2.0;
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
 
+    if (rst->sampleType == RL2_SAMPLE_UINT16)
+	return copy_band_composed_raw_pixels_u16 (raster, outbuf, width, height,
+						  red_band, green_band,
+						  blue_band, x_res, y_res, minx,
+						  maxy, tile_minx, tile_maxy,
+						  no_data);
+
     if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
 	return 0;
     if (rl2_get_raster_type (raster, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
+	return 0;
 
-	if (no_data != NULL)
-	  {
-	      ignore_no_data = 0;
-	      if (rl2_get_pixel_type
-		  (no_data, &sample_type, &pixel_type, &nbands) != RL2_OK)
-		  ignore_no_data = 1;
-	      if (pixel_type != RL2_PIXEL_RGB)
-		  ignore_no_data = 1;
-	      if (nbands != 3)
-		  ignore_no_data = 1;
-	      if (sample_type != RL2_SAMPLE_UINT8)
-		  ignore_no_data = 1;
-	  }
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &nbands) != RL2_OK)
+	      ignore_no_data = 1;
+	  if (pixel_type != RL2_PIXEL_RGB)
+	      ignore_no_data = 1;
+	  if (nbands != 3)
+	      ignore_no_data = 1;
+	  if (sample_type != RL2_SAMPLE_UINT8)
+	      ignore_no_data = 1;
+      }
 
     p_in = rst->rasterBuffer;
     p_msk = rst->maskBuffer;
@@ -3730,7 +3882,7 @@ get_band_composed_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	goto error;
     if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
 	goto error;
-    if (sample_type != RL2_SAMPLE_UINT8)
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
 	goto error;
     if (red_band >= num_bands)
 	goto error;
@@ -3748,6 +3900,8 @@ get_band_composed_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 
   ok_no_data:
     bufpix_size = 3 * width * height;
+    if (sample_type == RL2_SAMPLE_UINT16)
+	bufpix_size *= 2;
     bufpix = malloc (bufpix_size);
     if (bufpix == NULL)
       {
@@ -3793,7 +3947,7 @@ get_band_composed_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
       }
 
 /* preparing a raw pixels buffer */
-    void_raw_buffer (bufpix, width, height, RL2_SAMPLE_UINT8, 3, no_data);
+    void_raw_buffer (bufpix, width, height, sample_type, 3, no_data);
     if (!load_band_composed_dbms_tiles
 	(handle, stmt_tiles, stmt_data, bufpix, width, height, red_band,
 	 green_band, blue_band, xx_res, yy_res, minx, miny, maxx, maxy, level,

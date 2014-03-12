@@ -335,6 +335,63 @@ EXTRA_DIST = loadraster1.testcase \
 	writeascii14.testcase \
 	writeascii15.testcase \
 	writeascii16.testcase \
+	writeascii17.testcase \
+	writeascii18.testcase \
+	writebandtiff1.testcase \
+	writebandtiff2.testcase \
+	writebandtiff3.testcase \
+	writebandtiff4.testcase \
+	writebandtiff5.testcase \
+	writebandtiff6.testcase \
+	writebandtiff7.testcase \
+	writebandtiff8.testcase \
+	writebandtiff9.testcase \
+	writebandtiff10.testcase \
+	writebandtiff11.testcase \
+	writebandtiff12.testcase \
+	writebandtiff13.testcase \
+	writebandtiff14.testcase \
+	writebandtiff15.testcase \
+	writebandtiff16.testcase \
+	writebandtiff17.testcase \
+	writebandtiff18.testcase \
+	writebandtiff19.testcase \
+	writebandtiff20.testcase \
+	writebandtiff21.testcase \
+	writebandtiff22.testcase \
+	writebandtiff23.testcase \
+	writebandtiff24.testcase \
+	writebandtiff25.testcase \
+	writebandtiff26.testcase \
+	writebandtiff27.testcase \
+	writebandgeotiff1.testcase \
+	writebandgeotiff2.testcase \
+	writebandgeotiff3.testcase \
+	writebandgeotiff4.testcase \
+	writebandgeotiff5.testcase \
+	writebandgeotiff6.testcase \
+	writebandgeotiff7.testcase \
+	writebandgeotiff8.testcase \
+	writebandgeotiff9.testcase \
+	writebandgeotiff10.testcase \
+	writebandgeotiff11.testcase \
+	writebandgeotiff12.testcase \
+	writebandgeotiff13.testcase \
+	writebandgeotiff14.testcase \
+	writebandgeotiff15.testcase \
+	writebandgeotiff16.testcase \
+	writebandgeotiff17.testcase \
+	writebandgeotiff18.testcase \
+	writebandgeotiff19.testcase \
+	writebandgeotiff20.testcase \
+	writebandgeotiff21.testcase \
+	writebandgeotiff22.testcase \
+	writebandgeotiff23.testcase \
+	writebandgeotiff24.testcase \
+	writebandgeotiff25.testcase \
+	writebandgeotiff26.testcase \
+	writebandgeotiff27.testcase \
+	writebandgeotiff28.testcase \
 	writegeotiff1.testcase \
 	writegeotiff2.testcase \
 	writegeotiff3.testcase \

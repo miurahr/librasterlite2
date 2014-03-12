@@ -2703,7 +2703,7 @@ fnct_WriteBandComposedGeoTiff (sqlite3_context * context, int argc,
 	&& sqlite3_value_type (argv[8]) != SQLITE_FLOAT)
 	err = 1;
     if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	&& sqlite3_value_type (argv[9]) != SQLITE_FLOAT)
 	err = 1;
     if (argc > 10 && sqlite3_value_type (argv[10]) != SQLITE_INTEGER)
 	err = 1;

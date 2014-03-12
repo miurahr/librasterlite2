@@ -4484,23 +4484,40 @@ check_color_model (unsigned char sample_type, unsigned char pixel_type,
 	  switch (sample_type)
 	    {
 	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_UINT16:
 		break;
 	    default:
 		return 0;
 	    };
 	  if (num_bands != 3)
 	      return 0;
-	  switch (compression)
+	  if (sample_type == RL2_SAMPLE_UINT16)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
-	    case RL2_COMPRESSION_LZW:
-	    case RL2_COMPRESSION_JPEG:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZW:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZW:
+		  case RL2_COMPRESSION_JPEG:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       case RL2_PIXEL_DATAGRID:
 	  switch (sample_type)
@@ -4711,13 +4728,17 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
       {
 	  /* RGB */
 	  destination->sampleFormat = SAMPLEFORMAT_UINT;
-	  destination->bitsPerSample = 8;
+	  if (sample_type == RL2_SAMPLE_UINT16)
+	      destination->bitsPerSample = 16;
+	  else
+	      destination->bitsPerSample = 8;
 	  destination->samplesPerPixel = 3;
 	  destination->photometric = PHOTOMETRIC_RGB;
 	  TIFFSetField (destination->out, TIFFTAG_SAMPLEFORMAT,
 			SAMPLEFORMAT_UINT);
 	  TIFFSetField (destination->out, TIFFTAG_SAMPLESPERPIXEL, 3);
-	  TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE, 8);
+	  TIFFSetField (destination->out, TIFFTAG_BITSPERSAMPLE,
+			destination->bitsPerSample);
 	  TIFFSetField (destination->out, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
 	  if (tiff_compression == RL2_COMPRESSION_LZW)
 	    {
@@ -6033,10 +6054,10 @@ tiff_write_tile_multiband16 (rl2PrivTiffDestinationPtr tiff,
 }
 
 static int
-tiff_write_tile_rgb (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
-		     int row, int col)
+tiff_write_tile_rgb_u8 (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
+			int row, int col)
 {
-/* writing a TIFF RGB tile */
+/* writing a TIFF RGB tile - UINT8 */
     int y;
     int x;
     unsigned char *p_in = raster->rasterBuffer;
@@ -6051,6 +6072,30 @@ tiff_write_tile_rgb (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 		*p_out++ = *p_in++;
 		if (raster->nBands == 4)
 		    p_in++;
+	    }
+      }
+    if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
+	return 0;
+    return 1;
+}
+
+static int
+tiff_write_tile_rgb_u16 (rl2PrivTiffDestinationPtr tiff,
+			 rl2PrivRasterPtr raster, int row, int col)
+{
+/* writing a TIFF RGB tile - UINT16 */
+    int y;
+    int x;
+    unsigned short *p_in = (unsigned short *) (raster->rasterBuffer);
+    unsigned short *p_out = (unsigned short *) (tiff->tiffBuffer);
+
+    for (y = 0; y < raster->height; y++)
+      {
+	  for (x = 0; x < raster->width; x++)
+	    {
+		*p_out++ = *p_in++;
+		*p_out++ = *p_in++;
+		*p_out++ = *p_in++;
 	    }
       }
     if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
@@ -6367,7 +6412,16 @@ rl2_write_tiff_tile (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
 					       || rst->nBands == 4)
 	&& destination->tileWidth == rst->width
 	&& destination->tileHeight == rst->height)
-	ret = tiff_write_tile_rgb (destination, rst, startRow, startCol);
+	ret = tiff_write_tile_rgb_u8 (destination, rst, startRow, startCol);
+    else if (destination->sampleFormat == SAMPLEFORMAT_UINT
+	     && destination->samplesPerPixel == 3
+	     && destination->photometric == 2
+	     && destination->bitsPerSample == 16
+	     && rst->sampleType == RL2_SAMPLE_UINT16
+	     && rst->pixelType == RL2_PIXEL_RGB && rst->nBands == 3
+	     && destination->tileWidth == rst->width
+	     && destination->tileHeight == rst->height)
+	ret = tiff_write_tile_rgb_u16 (destination, rst, startRow, startCol);
     else if (destination->sampleFormat == SAMPLEFORMAT_UINT
 	     && destination->samplesPerPixel >= 2
 	     && destination->bitsPerSample == 8

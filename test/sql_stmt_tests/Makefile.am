@@ -208,6 +208,14 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getbandtileimage10.testcase \
 	getbandtileimage11.testcase \
 	getbandtileimage12.testcase \
+	getmonotileimage1.testcase \
+	getmonotileimage2.testcase \
+	getmonotileimage3.testcase \
+	getmonotileimage4.testcase \
+	getmonotileimage5.testcase \
+	getmonotileimage6.testcase \
+	getmonotileimage7.testcase \
+	getmonotileimage8.testcase \
 	getpixelnumbands1.testcase \
 	getpixelnumbands2.testcase \
 	getpixelnumbands3.testcase \

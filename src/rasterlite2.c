@@ -190,25 +190,41 @@ check_coverage_self_consistency (unsigned char sample_type,
 	  switch (sample_type)
 	    {
 	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_UINT16:
 		break;
 	    default:
 		return 0;
 	    };
 	  if (num_samples != 3)
 	      return 0;
-	  switch (compression)
+	  if (sample_type == RL2_SAMPLE_UINT16)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
-	    case RL2_COMPRESSION_PNG:
-	    case RL2_COMPRESSION_JPEG:
-	    case RL2_COMPRESSION_LOSSY_WEBP:
-	    case RL2_COMPRESSION_LOSSLESS_WEBP:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
+		  case RL2_COMPRESSION_JPEG:
+		  case RL2_COMPRESSION_LOSSY_WEBP:
+		  case RL2_COMPRESSION_LOSSLESS_WEBP:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       case RL2_PIXEL_MULTIBAND:
 	  switch (sample_type)
@@ -1829,9 +1845,8 @@ rl2_clone_pixel (rl2PixelPtr org)
 }
 
 RL2_DECLARE rl2PixelPtr
-rl2_create_band_composed_pixel (rl2PixelPtr org, unsigned char red_band,
-				unsigned char green_band,
-				unsigned char blue_band)
+rl2_create_triple_band_pixel (rl2PixelPtr org, unsigned char red_band,
+			      unsigned char green_band, unsigned char blue_band)
 {
 /* creating a new Pixel object by applying band composing */
     rl2PrivSamplePtr sample_in;
@@ -1841,7 +1856,8 @@ rl2_create_band_composed_pixel (rl2PixelPtr org, unsigned char red_band,
     rl2PrivPixelPtr px_in = (rl2PrivPixelPtr) org;
     if (px_in == NULL)
 	return NULL;
-    if (px_in->sampleType != RL2_SAMPLE_UINT8)
+    if (px_in->sampleType != RL2_SAMPLE_UINT8
+	&& px_in->sampleType != RL2_SAMPLE_UINT16)
 	return NULL;
     if (px_in->pixelType != RL2_PIXEL_RGB
 	&& px_in->pixelType != RL2_PIXEL_MULTIBAND)
@@ -1852,22 +1868,67 @@ rl2_create_band_composed_pixel (rl2PixelPtr org, unsigned char red_band,
 	return NULL;
     if (blue_band >= px_in->nBands)
 	return NULL;
-    dst = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+    dst = rl2_create_pixel (px_in->sampleType, RL2_PIXEL_RGB, 3);
     if (dst == NULL)
 	return NULL;
     px_out = (rl2PrivPixelPtr) dst;
 /* red band */
     sample_in = px_in->Samples + red_band;
     sample_out = px_out->Samples + 0;
-    sample_out->uint8 = sample_in->uint8;
+    if (px_in->sampleType == RL2_SAMPLE_UINT16)
+	sample_out->uint16 = sample_in->uint16;
+    else
+	sample_out->uint8 = sample_in->uint8;
 /* green band */
     sample_in = px_in->Samples + green_band;
     sample_out = px_out->Samples + 1;
-    sample_out->uint8 = sample_in->uint8;
+    if (px_in->sampleType == RL2_SAMPLE_UINT16)
+	sample_out->uint16 = sample_in->uint16;
+    else
+	sample_out->uint8 = sample_in->uint8;
 /* blue band */
     sample_in = px_in->Samples + blue_band;
     sample_out = px_out->Samples + 2;
-    sample_out->uint8 = sample_in->uint8;
+    if (px_in->sampleType == RL2_SAMPLE_UINT16)
+	sample_out->uint16 = sample_in->uint16;
+    else
+	sample_out->uint8 = sample_in->uint8;
+    return dst;
+}
+
+RL2_DECLARE rl2PixelPtr
+rl2_create_mono_band_pixel (rl2PixelPtr org, unsigned char mono_band)
+{
+/* creating a new Pixel object by applying band composing */
+    rl2PrivSamplePtr sample_in;
+    rl2PrivSamplePtr sample_out;
+    rl2PixelPtr dst;
+    rl2PrivPixelPtr px_out;
+    rl2PrivPixelPtr px_in = (rl2PrivPixelPtr) org;
+    if (px_in == NULL)
+	return NULL;
+    if (px_in->sampleType != RL2_SAMPLE_UINT8
+	&& px_in->sampleType != RL2_SAMPLE_UINT16)
+	return NULL;
+    if (px_in->pixelType != RL2_PIXEL_RGB
+	&& px_in->pixelType != RL2_PIXEL_MULTIBAND)
+	return NULL;
+    if (mono_band >= px_in->nBands)
+	return NULL;
+    if (px_in->sampleType == RL2_SAMPLE_UINT16)
+	dst = rl2_create_pixel (RL2_SAMPLE_UINT16, RL2_PIXEL_DATAGRID, 1);
+    else
+	dst = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+    if (dst == NULL)
+	return NULL;
+    px_out = (rl2PrivPixelPtr) dst;
+/* mono band */
+    sample_in = px_in->Samples + mono_band;
+    sample_out = px_out->Samples + 0;
+    if (px_in->sampleType == RL2_SAMPLE_UINT16)
+	sample_out->uint16 = sample_in->uint16;
+    else
+	sample_out->uint8 = sample_in->uint8;
     return dst;
 }
 

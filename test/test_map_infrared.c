@@ -143,8 +143,48 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id,
     path = sqlite3_mprintf ("./%s_tile_%d_%d.png", coverage, tile_id, band_mix);
     sql =
 	sqlite3_mprintf
-	("SELECT BlobToFile(RL2_GetBandComposedTileImage(%Q, %d, %d, %d, %d, '#e0ffe0', %d), %Q)",
+	("SELECT BlobToFile(RL2_GetTripleBandTileImage(%Q, %d, %d, %d, %d, '#e0ffe0', %d), %Q)",
 	 coverage, tile_id, red_band, green_band, blue_band, transparent, path);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    unlink (path);
+    sqlite3_free (path);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "ERROR: Unable to export an Image from \"%s\" tile_id=%d\n",
+		   coverage, tile_id);
+	  return 0;
+      }
+    return 1;
+}
+
+static int
+do_export_mono_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id,
+			   int band_mix)
+{
+/* attempting to export a visible Tile (Mono-Band) */
+    char *sql;
+    char *path;
+    int ret;
+    int transparent = 1;
+    unsigned char mono_band = 0;
+
+    if (band_mix == 1)
+	mono_band = 2;
+    if (band_mix == 2)
+	mono_band = 3;
+    if (tile_id <= 1)
+	transparent = 0;
+    if (tile_id < 0)
+	tile_id = get_max_tile_id (sqlite, coverage);
+    path =
+	sqlite3_mprintf ("./%s_mono_tile_%d_%d.png", coverage, tile_id,
+			 band_mix);
+    sql =
+	sqlite3_mprintf
+	("SELECT BlobToFile(RL2_GetMonoBandTileImage(%Q, %d, %d, '#e0ffe0', %d), %Q)",
+	 coverage, tile_id, mono_band, transparent, path);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     unlink (path);
@@ -290,7 +330,7 @@ do_export_band_composed_geotiff (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteBandComposedGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteTripleBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -366,7 +406,7 @@ do_export_band_composed_tiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteBandComposedTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteTripleBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -438,8 +478,7 @@ do_export_band_composed_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql =
-	"SELECT RL2_WriteBandComposedTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteTripleBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -469,6 +508,198 @@ do_export_band_composed_tiff_tfw (sqlite3 * sqlite, const char *coverage,
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
     path = sqlite3_mprintf ("./%s_bc_tfw_%d_%d.tfw", coverage, scale, band_mix);
+    unlink (path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_mono_band_geotiff (sqlite3 * sqlite, const char *coverage,
+			     gaiaGeomCollPtr geom, int scale, int band_mix,
+			     int with_worldfile)
+{
+/* exporting a GeoTiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    unsigned char mono_band = 0;
+
+    if (band_mix == 1)
+	mono_band = 1;
+    if (band_mix == 2)
+	mono_band = 3;
+
+    path =
+	sqlite3_mprintf ("./%s_mono_gt_%d_%d.tif", coverage, scale, band_mix);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteMonoBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, mono_band);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 7, xx_res);
+    sqlite3_bind_double (stmt, 8, yy_res);
+    sqlite3_bind_int (stmt, 9, with_worldfile);
+    sqlite3_bind_text (stmt, 10, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    path =
+	sqlite3_mprintf ("./%s_mono_gt_%d_%d.tfw", coverage, scale, band_mix);
+    unlink (path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_mono_band_tiff (sqlite3 * sqlite, const char *coverage,
+			  gaiaGeomCollPtr geom, int scale, int band_mix)
+{
+/* exporting a plain Tiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    unsigned char mono_band = 0;
+
+    if (band_mix == 1)
+	mono_band = 1;
+    if (band_mix == 2)
+	mono_band = 3;
+
+    path = sqlite3_mprintf ("./%s_mono_%d_%d.tif", coverage, scale, band_mix);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteMonoBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, mono_band);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 7, xx_res);
+    sqlite3_bind_double (stmt, 8, yy_res);
+    sqlite3_bind_text (stmt, 9, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_mono_band_tiff_tfw (sqlite3 * sqlite, const char *coverage,
+			      gaiaGeomCollPtr geom, int scale, int band_mix)
+{
+/* exporting a Tiff+TFW */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    unsigned char mono_band = 0;
+
+    if (band_mix == 1)
+	mono_band = 1;
+    if (band_mix == 2)
+	mono_band = 3;
+
+    path =
+	sqlite3_mprintf ("./%s_mono_tfw_%d_%d.tif", coverage, scale, band_mix);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteMonoBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, mono_band);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 7, xx_res);
+    sqlite3_bind_double (stmt, 8, yy_res);
+    sqlite3_bind_text (stmt, 9, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    path =
+	sqlite3_mprintf ("./%s_mono_tfw_%d_%d.tfw", coverage, scale, band_mix);
     unlink (path);
     sqlite3_free (path);
     return retcode;
@@ -723,7 +954,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  return 0;
       }
 
-/* testing BandComposed (Geo)TIFF export */
+/* testing TripleBand (Geo)TIFF export */
     if (!do_export_band_composed_geotiff (sqlite, coverage, geom, 1, 0, 0))
       {
 	  *retcode += -12;
@@ -801,27 +1032,128 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  *retcode += -26;
 	  return 0;
       }
+
+/* testing MonoBand (Geo)TIFF export */
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 1, 0, 0))
+      {
+	  *retcode += -27;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 1, 1, 0))
+      {
+	  *retcode += -28;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 1, 2, 1))
+      {
+	  *retcode += -29;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 4, 0, 0))
+      {
+	  *retcode += -30;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 4, 1, 1))
+      {
+	  *retcode += -31;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 4, 2, 0))
+      {
+	  *retcode += -32;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 8, 0, 1))
+      {
+	  *retcode += -33;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 8, 1, 0))
+      {
+	  *retcode += -34;
+	  return 0;
+      }
+    if (!do_export_mono_band_geotiff (sqlite, coverage, geom, 8, 2, 0))
+      {
+	  *retcode += -35;
+	  return 0;
+      }
+
+    if (!do_export_mono_band_tiff (sqlite, coverage, geom, 1, 0))
+      {
+	  *retcode += -36;
+	  return 0;
+      }
+    if (!do_export_mono_band_tiff (sqlite, coverage, geom, 1, 1))
+      {
+	  *retcode += -37;
+	  return 0;
+      }
+    if (!do_export_mono_band_tiff (sqlite, coverage, geom, 1, 2))
+      {
+	  *retcode += -38;
+	  return 0;
+      }
+
+    if (!do_export_mono_band_tiff_tfw (sqlite, coverage, geom, 1, 0))
+      {
+	  *retcode += -39;
+	  return 0;
+      }
+    if (!do_export_mono_band_tiff_tfw (sqlite, coverage, geom, 1, 1))
+      {
+	  *retcode += -40;
+	  return 0;
+      }
+    if (!do_export_mono_band_tiff_tfw (sqlite, coverage, geom, 1, 2))
+      {
+	  *retcode += -41;
+	  return 0;
+      }
     gaiaFreeGeomColl (geom);
 
 /* testing GetTileImage() */
     if (!do_export_tile_image (sqlite, coverage, 1, 0))
       {
-	  *retcode += -27;
+	  *retcode += -42;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, 1, 1))
       {
-	  *retcode += -28;
+	  *retcode += -43;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, 1, 2))
       {
-	  *retcode += -29;
+	  *retcode += -44;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, -1, 0))
       {
-	  *retcode += -24;
+	  *retcode += -45;
+	  return 0;
+      }
+
+/* testing GetTileImage() - Mono-Band */
+    if (!do_export_mono_tile_image (sqlite, coverage, 1, 0))
+      {
+	  *retcode += -46;
+	  return 0;
+      }
+    if (!do_export_mono_tile_image (sqlite, coverage, 1, 1))
+      {
+	  *retcode += -47;
+	  return 0;
+      }
+    if (!do_export_mono_tile_image (sqlite, coverage, 1, 2))
+      {
+	  *retcode += -48;
+	  return 0;
+      }
+    if (!do_export_mono_tile_image (sqlite, coverage, -1, 0))
+      {
+	  *retcode += -49;
 	  return 0;
       }
 

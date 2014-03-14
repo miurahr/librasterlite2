@@ -884,23 +884,39 @@ check_encode_self_consistency (unsigned char sample_type,
 	  switch (sample_type)
 	    {
 	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_UINT16:
 		break;
 	    default:
 		return 0;
 	    };
 	  if (num_samples != 3)
 	      return 0;
-	  switch (compression)
+	  if (sample_type == RL2_SAMPLE_UINT16)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_PNG:
-	    case RL2_COMPRESSION_JPEG:
-	    case RL2_COMPRESSION_LOSSY_WEBP:
-	    case RL2_COMPRESSION_LOSSLESS_WEBP:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_PNG:
+		  case RL2_COMPRESSION_JPEG:
+		  case RL2_COMPRESSION_LOSSY_WEBP:
+		  case RL2_COMPRESSION_LOSSLESS_WEBP:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       case RL2_PIXEL_MULTIBAND:
 	  switch (sample_type)

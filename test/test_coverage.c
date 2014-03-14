@@ -201,7 +201,7 @@ main (int argc, char *argv[])
       }
 
     if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_RGB, 3,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) == NULL)
       {
 	  fprintf (stderr, "Invalid coverage - rgb 16\n");
 	  return -19;

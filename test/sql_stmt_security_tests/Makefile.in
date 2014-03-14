@@ -392,6 +392,49 @@ EXTRA_DIST = loadraster1.testcase \
 	writebandgeotiff26.testcase \
 	writebandgeotiff27.testcase \
 	writebandgeotiff28.testcase \
+	writemonotiff1.testcase \
+	writemonotiff2.testcase \
+	writemonotiff3.testcase \
+	writemonotiff4.testcase \
+	writemonotiff5.testcase \
+	writemonotiff6.testcase \
+	writemonotiff7.testcase \
+	writemonotiff8.testcase \
+	writemonotiff9.testcase \
+	writemonotiff10.testcase \
+	writemonotiff11.testcase \
+	writemonotiff12.testcase \
+	writemonotiff13.testcase \
+	writemonotiff14.testcase \
+	writemonotiff15.testcase \
+	writemonotiff16.testcase \
+	writemonotiff17.testcase \
+	writemonotiff18.testcase \
+	writemonotiff19.testcase \
+	writemonotiff20.testcase \
+	writemonotiff21.testcase \
+	writemonogeotiff1.testcase \
+	writemonogeotiff2.testcase \
+	writemonogeotiff3.testcase \
+	writemonogeotiff4.testcase \
+	writemonogeotiff5.testcase \
+	writemonogeotiff6.testcase \
+	writemonogeotiff7.testcase \
+	writemonogeotiff8.testcase \
+	writemonogeotiff9.testcase \
+	writemonogeotiff10.testcase \
+	writemonogeotiff11.testcase \
+	writemonogeotiff12.testcase \
+	writemonogeotiff13.testcase \
+	writemonogeotiff14.testcase \
+	writemonogeotiff15.testcase \
+	writemonogeotiff16.testcase \
+	writemonogeotiff17.testcase \
+	writemonogeotiff18.testcase \
+	writemonogeotiff19.testcase \
+	writemonogeotiff20.testcase \
+	writemonogeotiff21.testcase \
+	writemonogeotiff22.testcase \
 	writegeotiff1.testcase \
 	writegeotiff2.testcase \
 	writegeotiff3.testcase \

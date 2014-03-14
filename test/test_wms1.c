@@ -671,7 +671,7 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 
 /* testing Child Layer */
     count = get_wms_layer_children_count (layer);
-    if (count != 95)
+    if (count != 43)
       {
 	  fprintf (stderr, "GetWmsLayerChildrenCount: unexpected result %d\n",
 		   count);
@@ -684,7 +684,7 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 	  return -124;
       }
     str = get_wms_layer_name (child);
-    if (strcmp (str, "REG_Regione") != 0)
+    if (strcmp (str, "Sfumo_Altimetrico_40x40") != 0)
       {
 	  fprintf (stderr,
 		   "GetWmsLayerTitle (Child): unexpected result \"%s\"\n", str);
@@ -757,7 +757,7 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 	  return -135;
       }
     str = get_wms_title (catalog);
-    if (strcmp (str, "dbtr2008") != 0)
+    if (strcmp (str, "dbtr2008_map") != 0)
       {
 	  fprintf (stderr, "GetWmsTitle: unexpected result \"%s\"\n", str);
 	  return -136;
@@ -769,8 +769,9 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 	  return -137;
       }
     str = get_wms_url_GetMap_get (catalog);
-    if (strcmp (str, "http://servizigis.regione.emilia-romagna.it/wms/dbtr2008")
-	!= 0)
+    if (strcmp
+	(str,
+	 "http://servizigis.regione.emilia-romagna.it/wms/dbtr2008_map") != 0)
       {
 	  fprintf (stderr, "GetWmsGetMapGet: unexpected result \"%s\"\n", str);
 	  return -138;
@@ -782,8 +783,9 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 	  return -139;
       }
     str = get_wms_url_GetFeatureInfo_get (catalog);
-    if (strcmp (str, "http://servizigis.regione.emilia-romagna.it/wms/dbtr2008")
-	!= 0)
+    if (strcmp
+	(str,
+	 "http://servizigis.regione.emilia-romagna.it/wms/dbtr2008_map") != 0)
       {
 	  fprintf (stderr,
 		   "GetWmsGetFeatureInfoGet: unexpected result \"%s\"\n", str);
@@ -827,8 +829,7 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 	  return -145;
       }
     str = get_wms_contact_position (catalog);
-    if (strcmp (str, "Centro Servizi Regionale per l'informazione geografica")
-	!= 0)
+    if (strcmp (str, "Centro Servizi per l'informazione geografica") != 0)
       {
 	  fprintf (stderr, "GetContactPosition: unexpected result \"%s\"\n",
 		   str);
@@ -1280,7 +1281,7 @@ main (int argc, char *argv[])
 	  return -85;
       }
     dblval = get_wms_total_download_size (cache);
-    if (dblval != 301670)
+    if (dblval != 139874)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n",
 		   dblval);

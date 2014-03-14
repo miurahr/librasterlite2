@@ -2239,19 +2239,19 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
-					    const char *dst_path,
-					    rl2CoveragePtr cvg, double x_res,
-					    double y_res, double minx,
-					    double miny, double maxx,
-					    double maxy, unsigned short width,
-					    unsigned short height,
-					    unsigned char red_band,
-					    unsigned char green_band,
-					    unsigned char blue_band,
-					    unsigned char compression,
-					    unsigned short tile_sz,
-					    int with_worldfile)
+rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
+					  const char *dst_path,
+					  rl2CoveragePtr cvg, double x_res,
+					  double y_res, double minx,
+					  double miny, double maxx,
+					  double maxy, unsigned short width,
+					  unsigned short height,
+					  unsigned char red_band,
+					  unsigned char green_band,
+					  unsigned char blue_band,
+					  unsigned char compression,
+					  unsigned short tile_sz,
+					  int with_worldfile)
 {
 /* exporting a Band-Composed GeoTIFF from the DBMS into the file-system */
     rl2RasterPtr raster = NULL;
@@ -2298,15 +2298,14 @@ rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
 	goto error;
     no_data_multi = rl2_get_coverage_no_data (cvg);
     no_data =
-	rl2_create_band_composed_pixel (no_data_multi, red_band, green_band,
-					blue_band);
+	rl2_create_triple_band_pixel (no_data_multi, red_band, green_band,
+				      blue_band);
 
-    if (rl2_get_band_composed_raw_raster_data
+    if (rl2_get_triple_band_raw_raster_data
 	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
 	 yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
 	 no_data) != RL2_OK)
 	goto error;
-
 
     tiff =
 	rl2_create_geotiff_destination (dst_path, handle, width, height,
@@ -2379,19 +2378,155 @@ rl2_export_band_composed_geotiff_from_dbms (sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
-						   const char *dst_path,
-						   rl2CoveragePtr cvg,
-						   double x_res, double y_res,
-						   double minx, double miny,
-						   double maxx, double maxy,
-						   unsigned short width,
-						   unsigned short height,
-						   unsigned char red_band,
-						   unsigned char green_band,
-						   unsigned char blue_band,
-						   unsigned char compression,
-						   unsigned short tile_sz)
+rl2_export_mono_band_geotiff_from_dbms (sqlite3 * handle,
+					const char *dst_path,
+					rl2CoveragePtr cvg, double x_res,
+					double y_res, double minx,
+					double miny, double maxx,
+					double maxy, unsigned short width,
+					unsigned short height,
+					unsigned char mono_band,
+					unsigned char compression,
+					unsigned short tile_sz,
+					int with_worldfile)
+{
+/* exporting a Mono-Band GeoTIFF from the DBMS into the file-system */
+    rl2RasterPtr raster = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    rl2PixelPtr no_data_mono = NULL;
+    rl2PixelPtr no_data = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int base_x;
+    int base_y;
+    unsigned char out_pixel;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
+	goto error;
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
+	goto error;
+    if (mono_band >= num_bands)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+    no_data_mono = rl2_get_coverage_no_data (cvg);
+    no_data = rl2_create_mono_band_pixel (no_data_mono, mono_band);
+
+    if (rl2_get_mono_band_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
+	goto error;
+
+    if (sample_type == RL2_SAMPLE_UINT16)
+	out_pixel = RL2_PIXEL_DATAGRID;
+    else
+	out_pixel = RL2_PIXEL_GRAYSCALE;
+
+    tiff =
+	rl2_create_geotiff_destination (dst_path, handle, width, height,
+					sample_type, out_pixel, 1,
+					NULL, compression, 1, tile_sz, srid,
+					minx, miny, maxx, maxy, xx_res, yy_res,
+					with_worldfile);
+    if (tiff == NULL)
+	goto error;
+    for (base_y = 0; base_y < height; base_y += tile_sz)
+      {
+	  for (base_x = 0; base_x < width; base_x += tile_sz)
+	    {
+		/* exporting all tiles from the output buffer */
+		bufpix_size = tile_sz * tile_sz;
+		if (sample_type == RL2_SAMPLE_UINT16)
+		    bufpix_size *= 2;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
+				     1, no_data);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  1, width, height, tile_sz,
+					  tile_sz, base_y, base_x);
+		raster =
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       out_pixel, 1, bufpix,
+				       bufpix_size, NULL, NULL, 0, NULL);
+		bufpix = NULL;
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+      }
+
+    if (with_worldfile)
+      {
+	  /* exporting the Worldfile */
+	  if (rl2_write_tiff_worldfile (tiff) != RL2_OK)
+	      goto error;
+      }
+
+    rl2_destroy_tiff_destination (tiff);
+    free (outbuf);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return RL2_OK;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (bufpix != NULL)
+	free (bufpix);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+						 const char *dst_path,
+						 rl2CoveragePtr cvg,
+						 double x_res, double y_res,
+						 double minx, double miny,
+						 double maxx, double maxy,
+						 unsigned short width,
+						 unsigned short height,
+						 unsigned char red_band,
+						 unsigned char green_band,
+						 unsigned char blue_band,
+						 unsigned char compression,
+						 unsigned short tile_sz)
 {
 /* exporting a Band-Composed TIFF+TFW from the DBMS into the file-system */
     rl2RasterPtr raster = NULL;
@@ -2438,10 +2573,10 @@ rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
 	goto error;
     no_data_multi = rl2_get_coverage_no_data (cvg);
     no_data =
-	rl2_create_band_composed_pixel (no_data_multi, red_band, green_band,
-					blue_band);
+	rl2_create_triple_band_pixel (no_data_multi, red_band, green_band,
+				      blue_band);
 
-    if (rl2_get_band_composed_raw_raster_data
+    if (rl2_get_triple_band_raw_raster_data
 	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
 	 yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
 	 no_data) != RL2_OK)
@@ -2515,17 +2650,150 @@ rl2_export_band_composed_tiff_worldfile_from_dbms (sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-					 rl2CoveragePtr cvg, double x_res,
-					 double y_res, double minx, double miny,
-					 double maxx, double maxy,
-					 unsigned short width,
-					 unsigned short height,
-					 unsigned char red_band,
-					 unsigned char green_band,
-					 unsigned char blue_band,
-					 unsigned char compression,
-					 unsigned short tile_sz)
+rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+					       const char *dst_path,
+					       rl2CoveragePtr cvg,
+					       double x_res, double y_res,
+					       double minx, double miny,
+					       double maxx, double maxy,
+					       unsigned short width,
+					       unsigned short height,
+					       unsigned char mono_band,
+					       unsigned char compression,
+					       unsigned short tile_sz)
+{
+/* exporting a Mono-Band TIFF+TFW from the DBMS into the file-system */
+    rl2RasterPtr raster = NULL;
+    rl2PixelPtr no_data_multi = NULL;
+    rl2PixelPtr no_data = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int base_x;
+    int base_y;
+    unsigned char out_pixel;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
+	goto error;
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
+	goto error;
+    if (mono_band >= num_bands)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+    no_data_multi = rl2_get_coverage_no_data (cvg);
+    no_data = rl2_create_mono_band_pixel (no_data_multi, mono_band);
+
+    if (rl2_get_mono_band_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
+	goto error;
+
+    if (sample_type == RL2_SAMPLE_UINT16)
+	out_pixel = RL2_PIXEL_DATAGRID;
+    else
+	out_pixel = RL2_PIXEL_GRAYSCALE;
+
+    tiff =
+	rl2_create_tiff_worldfile_destination (dst_path, width, height,
+					       sample_type, out_pixel,
+					       1, NULL, compression, 1, tile_sz,
+					       srid, minx, miny, maxx, maxy,
+					       xx_res, yy_res);
+    if (tiff == NULL)
+	goto error;
+    for (base_y = 0; base_y < height; base_y += tile_sz)
+      {
+	  for (base_x = 0; base_x < width; base_x += tile_sz)
+	    {
+		/* exporting all tiles from the output buffer */
+		bufpix_size = tile_sz * tile_sz;
+		if (sample_type == RL2_SAMPLE_UINT16)
+		    bufpix_size *= 2;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
+				     1, no_data);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  1, width, height, tile_sz,
+					  tile_sz, base_y, base_x);
+		raster =
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       out_pixel, 1, bufpix,
+				       bufpix_size, NULL, NULL, 0, NULL);
+		bufpix = NULL;
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+      }
+
+/* exporting the Worldfile */
+    if (rl2_write_tiff_worldfile (tiff) != RL2_OK)
+	goto error;
+
+    rl2_destroy_tiff_destination (tiff);
+    free (outbuf);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return RL2_OK;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (bufpix != NULL)
+	free (bufpix);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				       rl2CoveragePtr cvg, double x_res,
+				       double y_res, double minx, double miny,
+				       double maxx, double maxy,
+				       unsigned short width,
+				       unsigned short height,
+				       unsigned char red_band,
+				       unsigned char green_band,
+				       unsigned char blue_band,
+				       unsigned char compression,
+				       unsigned short tile_sz)
 {
 /* exporting a plain Band-Composed TIFF from the DBMS into the file-system */
     rl2RasterPtr raster = NULL;
@@ -2572,23 +2840,18 @@ rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	goto error;
     no_data_multi = rl2_get_coverage_no_data (cvg);
     no_data =
-	rl2_create_band_composed_pixel (no_data_multi, red_band, green_band,
-					blue_band);
+	rl2_create_triple_band_pixel (no_data_multi, red_band, green_band,
+				      blue_band);
 
-    if (rl2_get_band_composed_raw_raster_data
+    if (rl2_get_triple_band_raw_raster_data
 	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
 	 yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
 	 no_data) != RL2_OK)
 	goto error;
 
-    if (sample_type == RL2_SAMPLE_UINT16)
-	pixel_type = RL2_PIXEL_MULTIBAND;
-    else
-	pixel_type = RL2_PIXEL_RGB;
-
     tiff =
 	rl2_create_tiff_destination (dst_path, width, height, sample_type,
-				     pixel_type, 3, NULL,
+				     RL2_PIXEL_RGB, 3, NULL,
 				     compression, 1, tile_sz);
     if (tiff == NULL)
 	goto error;
@@ -2614,7 +2877,132 @@ rl2_export_band_composed_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 					  tile_sz, base_y, base_x);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       pixel_type, 3, bufpix,
+				       RL2_PIXEL_RGB, 3, bufpix,
+				       bufpix_size, NULL, NULL, 0, NULL);
+		bufpix = NULL;
+		if (raster == NULL)
+		    goto error;
+		if (rl2_write_tiff_tile (tiff, raster, base_y, base_x) !=
+		    RL2_OK)
+		    goto error;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+	    }
+      }
+
+    rl2_destroy_tiff_destination (tiff);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    free (outbuf);
+    return RL2_OK;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (tiff != NULL)
+	rl2_destroy_tiff_destination (tiff);
+    if (outbuf != NULL)
+	free (outbuf);
+    if (bufpix != NULL)
+	free (bufpix);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				     rl2CoveragePtr cvg, double x_res,
+				     double y_res, double minx, double miny,
+				     double maxx, double maxy,
+				     unsigned short width,
+				     unsigned short height,
+				     unsigned char mono_band,
+				     unsigned char compression,
+				     unsigned short tile_sz)
+{
+/* exporting a plain Mono-Band TIFF from the DBMS into the file-system */
+    rl2RasterPtr raster = NULL;
+    rl2PixelPtr no_data_multi = NULL;
+    rl2PixelPtr no_data = NULL;
+    rl2TiffDestinationPtr tiff = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int srid;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    int base_x;
+    int base_y;
+    unsigned char out_pixel;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (pixel_type != RL2_PIXEL_RGB && pixel_type != RL2_PIXEL_MULTIBAND)
+	goto error;
+    if (sample_type != RL2_SAMPLE_UINT8 && sample_type != RL2_SAMPLE_UINT16)
+	goto error;
+    if (mono_band >= num_bands)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+    no_data_multi = rl2_get_coverage_no_data (cvg);
+    no_data = rl2_create_mono_band_pixel (no_data_multi, mono_band);
+
+    if (rl2_get_mono_band_raw_raster_data
+	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	 yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
+	goto error;
+
+    if (sample_type == RL2_SAMPLE_UINT16)
+	out_pixel = RL2_PIXEL_DATAGRID;
+    else
+	out_pixel = RL2_PIXEL_GRAYSCALE;
+
+    tiff =
+	rl2_create_tiff_destination (dst_path, width, height, sample_type,
+				     out_pixel, 1, NULL,
+				     compression, 1, tile_sz);
+    if (tiff == NULL)
+	goto error;
+    for (base_y = 0; base_y < height; base_y += tile_sz)
+      {
+	  for (base_x = 0; base_x < width; base_x += tile_sz)
+	    {
+		/* exporting all tiles from the output buffer */
+		bufpix_size = tile_sz * tile_sz;
+		if (sample_type == RL2_SAMPLE_UINT16)
+		    bufpix_size *= 2;
+		bufpix = malloc (bufpix_size);
+		if (bufpix == NULL)
+		  {
+		      fprintf (stderr,
+			       "rl2tool Export: Insufficient Memory !!!\n");
+		      goto error;
+		  }
+		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
+				     1, no_data);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  1, width, height, tile_sz,
+					  tile_sz, base_y, base_x);
+		raster =
+		    rl2_create_raster (tile_sz, tile_sz, sample_type,
+				       out_pixel, 1, bufpix,
 				       bufpix_size, NULL, NULL, 0, NULL);
 		bufpix = NULL;
 		if (raster == NULL)

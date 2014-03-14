@@ -4575,6 +4575,9 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
     if (pixel_type == RL2_PIXEL_MULTIBAND)
 	TIFFSetField (destination->out, TIFFTAG_PLANARCONFIG,
 		      PLANARCONFIG_SEPARATE);
+    else if (pixel_type == RL2_PIXEL_RGB && sample_type == RL2_SAMPLE_UINT16)
+	TIFFSetField (destination->out, TIFFTAG_PLANARCONFIG,
+		      PLANARCONFIG_SEPARATE);
     else
 	TIFFSetField (destination->out, TIFFTAG_PLANARCONFIG,
 		      PLANARCONFIG_CONTIG);
@@ -6080,30 +6083,6 @@ tiff_write_tile_rgb_u8 (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 }
 
 static int
-tiff_write_tile_rgb_u16 (rl2PrivTiffDestinationPtr tiff,
-			 rl2PrivRasterPtr raster, int row, int col)
-{
-/* writing a TIFF RGB tile - UINT16 */
-    int y;
-    int x;
-    unsigned short *p_in = (unsigned short *) (raster->rasterBuffer);
-    unsigned short *p_out = (unsigned short *) (tiff->tiffBuffer);
-
-    for (y = 0; y < raster->height; y++)
-      {
-	  for (x = 0; x < raster->width; x++)
-	    {
-		*p_out++ = *p_in++;
-		*p_out++ = *p_in++;
-		*p_out++ = *p_in++;
-	    }
-      }
-    if (TIFFWriteTile (tiff->out, tiff->tiffBuffer, col, row, 0, 0) < 0)
-	return 0;
-    return 1;
-}
-
-static int
 tiff_write_tile_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 		      int row, int col)
 {
@@ -6421,7 +6400,8 @@ rl2_write_tiff_tile (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
 	     && rst->pixelType == RL2_PIXEL_RGB && rst->nBands == 3
 	     && destination->tileWidth == rst->width
 	     && destination->tileHeight == rst->height)
-	ret = tiff_write_tile_rgb_u16 (destination, rst, startRow, startCol);
+	ret =
+	    tiff_write_tile_multiband16 (destination, rst, startRow, startCol);
     else if (destination->sampleFormat == SAMPLEFORMAT_UINT
 	     && destination->samplesPerPixel >= 2
 	     && destination->bitsPerSample == 8

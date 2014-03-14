@@ -881,6 +881,7 @@ extern "C"
 						   unsigned short height,
 						   unsigned char *pixels,
 						   unsigned char *mask,
+						   rl2PrivPixelPtr no_data,
 						   unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_monochrome_opaque (unsigned short width,
@@ -898,6 +899,7 @@ extern "C"
 						unsigned char *pixels,
 						unsigned char *mask,
 						rl2PalettePtr palette,
+						rl2PrivPixelPtr no_data,
 						unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_palette_opaque (unsigned short base_width,
@@ -919,6 +921,7 @@ extern "C"
 						  unsigned short height,
 						  unsigned char *pixels,
 						  unsigned char *mask,
+						  rl2PrivPixelPtr no_data,
 						  unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_grayscale_opaque (unsigned short width,
@@ -936,6 +939,7 @@ extern "C"
 					    unsigned short height,
 					    unsigned char *pixels,
 					    unsigned char *mask,
+					    rl2PrivPixelPtr no_data,
 					    unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_rgb_opaque (unsigned short width,
@@ -956,6 +960,7 @@ extern "C"
 						 unsigned char sample_type,
 						 void *pixels,
 						 unsigned char *mask,
+						 rl2PrivPixelPtr no_made,
 						 unsigned char *rgba);
 
     RL2_PRIVATE int get_payload_from_gray_rgba_opaque (unsigned short width,
@@ -1021,6 +1026,7 @@ extern "C"
 					      unsigned char num_bands,
 					      unsigned char *pixels,
 					      unsigned char *mask,
+					      rl2PrivPixelPtr no_data,
 					      unsigned char *rgba);
 
     RL2_PRIVATE int get_rgba_from_multiband16 (unsigned short width,
@@ -1031,10 +1037,10 @@ extern "C"
 					       unsigned char num_bands,
 					       unsigned short *pixels,
 					       unsigned char *mask,
+					       rl2PrivPixelPtr no_data,
 					       unsigned char *rgba);
-    RL2_PRIVATE int
-	parse_worldfile (FILE * in, double *px, double *py, double *pres_x,
-			 double *pres_y);
+    RL2_PRIVATE int parse_worldfile (FILE * in, double *px, double *py,
+				     double *pres_x, double *pres_y);
 
 #ifdef __cplusplus
 }

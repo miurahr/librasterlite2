@@ -1872,10 +1872,31 @@ get_payload_from_rgb_transparent (unsigned short width, unsigned short height,
     return 0;
 }
 
+static int
+test_no_data_8 (rl2PrivPixelPtr no_data, unsigned char *p_in)
+{
+/* testing for NO-DATA */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->uint8)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
 RL2_PRIVATE int
 get_rgba_from_monochrome_mask (unsigned short width, unsigned short height,
 			       unsigned char *pixels, unsigned char *mask,
-			       unsigned char *rgba)
+			       rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: Monochrome    output: Grayscale */
     unsigned char *p_in;
@@ -1899,12 +1920,17 @@ get_rgba_from_monochrome_mask (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (*p_in++ == 1)
-		    value = 0;
+		if (!transparent)
+		    transparent = test_no_data_8 (no_data, p_in);
 		if (transparent)
-		    p_out += 4;
+		  {
+		      p_out += 4;
+		      p_in++;
+		  }
 		else
 		  {
+		      if (*p_in++ == 1)
+			  value = 0;
 		      *p_out++ = value;
 		      *p_out++ = value;
 		      *p_out++ = value;
@@ -1993,7 +2019,8 @@ get_rgba_from_monochrome_transparent (unsigned short width,
 RL2_PRIVATE int
 get_rgba_from_palette_mask (unsigned short width, unsigned short height,
 			    unsigned char *pixels, unsigned char *mask,
-			    rl2PalettePtr palette, unsigned char *rgba)
+			    rl2PalettePtr palette, rl2PrivPixelPtr no_data,
+			    unsigned char *rgba)
 {
 /* input: Palette    output: Grayscale or RGB */
     rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
@@ -2019,24 +2046,31 @@ get_rgba_from_palette_mask (unsigned short width, unsigned short height,
 		      unsigned char red = 0;
 		      unsigned char green = 0;
 		      unsigned char blue = 0;
-		      unsigned char index = *p_in++;
-		      if (index < plt->nEntries)
-			{
-			    rl2PrivPaletteEntryPtr entry = plt->entries + index;
-			    red = entry->red;
-			    green = entry->green;
-			    blue = entry->blue;
-			}
+		      unsigned char index;
 		      transparent = 0;
 		      if (p_msk != NULL)
 			{
 			    if (*p_msk++ == 0)
 				transparent = 1;
 			}
+		      if (!transparent)
+			  transparent = test_no_data_8 (no_data, p_in);
 		      if (transparent)
-			  p_out += 4;
+			{
+			    p_out += 4;
+			    p_in++;
+			}
 		      else
 			{
+			    index = *p_in++;
+			    if (index < plt->nEntries)
+			      {
+				  rl2PrivPaletteEntryPtr entry =
+				      plt->entries + index;
+				  red = entry->red;
+				  green = entry->green;
+				  blue = entry->blue;
+			      }
 			    *p_out++ = red;	/* red */
 			    *p_out++ = green;	/* green */
 			    *p_out++ = blue;	/* blue */
@@ -2246,7 +2280,7 @@ get_rgba_from_palette_transparent (unsigned short width, unsigned short height,
 RL2_PRIVATE int
 get_rgba_from_grayscale_mask (unsigned short width, unsigned short height,
 			      unsigned char *pixels, unsigned char *mask,
-			      unsigned char *rgba)
+			      rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: Grayscale    output: Grayscale */
     unsigned char *p_in;
@@ -2263,17 +2297,22 @@ get_rgba_from_grayscale_mask (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
-		unsigned char gray = *p_in++;
 		transparent = 0;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_8 (no_data, p_in);
 		if (transparent)
-		    p_out += 4;
+		  {
+		      p_out += 4;
+		      p_in++;
+		  }
 		else
 		  {
+		      unsigned char gray = *p_in++;
 		      *p_out++ = gray;	/* red */
 		      *p_out++ = gray;	/* green */
 		      *p_out++ = gray;	/* blue */
@@ -2349,7 +2388,7 @@ get_rgba_from_grayscale_transparent (unsigned short width,
 RL2_PRIVATE int
 get_rgba_from_rgb_mask (unsigned short width, unsigned short height,
 			unsigned char *pixels, unsigned char *mask,
-			unsigned char *rgba)
+			rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: RGB    output: RGB */
     unsigned char *p_in;
@@ -2372,6 +2411,8 @@ get_rgba_from_rgb_mask (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_8 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_out += 4;
@@ -3366,7 +3407,8 @@ rgba_from_double (unsigned short width, unsigned short height,
 RL2_PRIVATE int
 get_rgba_from_datagrid_mask (unsigned short width, unsigned short height,
 			     unsigned char sample_type, void *pixels,
-			     unsigned char *mask, unsigned char *rgba)
+			     unsigned char *mask, rl2PrivPixelPtr no_data,
+			     unsigned char *rgba)
 {
 /* input: DataGrid    output: Grayscale */
     int ret = 0;
@@ -3718,7 +3760,7 @@ get_rgba_from_multiband8 (unsigned short width, unsigned short height,
 			  unsigned char red_band, unsigned char green_band,
 			  unsigned char blue_band, unsigned char num_bands,
 			  unsigned char *pixels, unsigned char *mask,
-			  unsigned char *rgba)
+			  rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: MULTIBAND UINT8   output: RGB */
     unsigned char *p_in;
@@ -3739,6 +3781,36 @@ get_rgba_from_multiband8 (unsigned short width, unsigned short height,
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (!transparent && no_data != NULL)
+		  {
+		      /* testing for NO-DATA */
+		      int match = 0;
+		      rl2PrivSamplePtr sample;
+		      unsigned char value;
+		      if (red_band < no_data->nBands)
+			{
+			    sample = no_data->Samples + red_band;
+			    value = sample->uint8;
+			    if (*(p_in + red_band) == value)
+				match++;
+			}
+		      if (green_band < no_data->nBands)
+			{
+			    sample = no_data->Samples + green_band;
+			    value = sample->uint8;
+			    if (*(p_in + green_band) == value)
+				match++;
+			}
+		      if (blue_band < no_data->nBands)
+			{
+			    sample = no_data->Samples + blue_band;
+			    value = sample->uint8;
+			    if (*(p_in + blue_band) == value)
+				match++;
+			}
+		      if (match == 3)
 			  transparent = 1;
 		  }
 		if (transparent)
@@ -3762,12 +3834,33 @@ get_rgba_from_multiband8 (unsigned short width, unsigned short height,
     return 1;
 }
 
+static int
+test_no_data_16 (rl2PrivPixelPtr no_data, unsigned short *p_in)
+{
+/* testing for NO-DATA */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->uint16)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
 RL2_PRIVATE int
 get_rgba_from_multiband16 (unsigned short width, unsigned short height,
 			   unsigned char red_band, unsigned char green_band,
 			   unsigned char blue_band, unsigned char num_bands,
 			   unsigned short *pixels, unsigned char *mask,
-			   unsigned char *rgba)
+			   rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: MULTIBAND UINT16   output: RGB */
     unsigned short *p_in;
@@ -3803,16 +3896,24 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    p_in += num_bands;
+			    continue;
+			}
+		  }
+		if (test_no_data_16 (no_data, p_in))
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (band = 0; band < num_bands; band++)
 		  {
 		      unsigned short gray = *p_in++;
 		      if (band != red_band)
 			  continue;
-		      if (p_msk != NULL)
-			{
-			    if (*p_msk++ == 0)
-				continue;
-			}
 		      if (min > gray)
 			  min = gray;
 		      if (max < gray)
@@ -3833,16 +3934,24 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    p_in += num_bands;
+			    continue;
+			}
+		  }
+		if (test_no_data_16 (no_data, p_in))
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (band = 0; band < num_bands; band++)
 		  {
 		      double gray = (double) (*p_in++ - min) / tic;
 		      if (band != red_band)
 			  continue;
-		      if (p_msk != NULL)
-			{
-			    if (*p_msk++ == 0)
-				continue;
-			}
 		      if (gray < 0.0)
 			  gray = 0.0;
 		      if (gray > 1023.0)
@@ -3881,16 +3990,24 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    p_in += num_bands;
+			    continue;
+			}
+		  }
+		if (test_no_data_16 (no_data, p_in))
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (band = 0; band < num_bands; band++)
 		  {
 		      unsigned short gray = *p_in++;
 		      if (band != green_band)
 			  continue;
-		      if (p_msk != NULL)
-			{
-			    if (*p_msk++ == 0)
-				continue;
-			}
 		      if (min > gray)
 			  min = gray;
 		      if (max < gray)
@@ -3911,16 +4028,24 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    p_in += num_bands;
+			    continue;
+			}
+		  }
+		if (test_no_data_16 (no_data, p_in))
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (band = 0; band < num_bands; band++)
 		  {
 		      double gray = (double) (*p_in++ - min) / tic;
 		      if (band != green_band)
 			  continue;
-		      if (p_msk != NULL)
-			{
-			    if (*p_msk++ == 0)
-				continue;
-			}
 		      if (gray < 0.0)
 			  gray = 0.0;
 		      if (gray > 1023.0)
@@ -3959,16 +4084,24 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    p_in += num_bands;
+			    continue;
+			}
+		  }
+		if (test_no_data_16 (no_data, p_in))
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (band = 0; band < num_bands; band++)
 		  {
 		      unsigned short gray = *p_in++;
 		      if (band != blue_band)
 			  continue;
-		      if (p_msk != NULL)
-			{
-			    if (*p_msk++ == 0)
-				continue;
-			}
 		      if (min > gray)
 			  min = gray;
 		      if (max < gray)
@@ -3989,16 +4122,24 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			{
+			    p_in += num_bands;
+			    continue;
+			}
+		  }
+		if (test_no_data_16 (no_data, p_in))
+		  {
+		      p_in += num_bands;
+		      continue;
+		  }
 		for (band = 0; band < num_bands; band++)
 		  {
 		      double gray = (double) (*p_in++ - min) / tic;
 		      if (band != blue_band)
 			  continue;
-		      if (p_msk != NULL)
-			{
-			    if (*p_msk++ == 0)
-				continue;
-			}
 		      if (gray < 0.0)
 			  gray = 0.0;
 		      if (gray > 1023.0)
@@ -4043,6 +4184,8 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (test_no_data_16 (no_data, p_in))
+		    transparent = 1;
 		if (transparent)
 		  {
 		      p_out += 4;

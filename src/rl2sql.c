@@ -4341,6 +4341,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char *gray = NULL;
     rl2GraphicsBitmapPtr base_img = NULL;
     rl2GraphicsContextPtr ctx = NULL;
+    rl2RasterStylePtr stl = NULL;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -4389,14 +4390,23 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	reaspect = sqlite3_value_int (argv[9]);
 
 /* coarse args validation */
+    sqlite = sqlite3_context_db_handle (context);
     if (width < 64 || width > 5000)
 	goto error;
     if (height < 64 || height > 5000)
 	goto error;
 /* validating the style */
     ok_style = 0;
-    if (strcmp (style, "default") == 0)
+    if (strcasecmp (style, "default") == 0)
 	ok_style = 1;
+    else
+      {
+	  /* attempting to get a RasterSymbolizer style */
+	  stl = rl2_create_raster_style_from_dbms (sqlite, cvg_name, style);
+	  fprintf (stderr, "stl=%d\n", stl);
+	  if (stl == NULL)
+	      goto error;
+      }
     if (!ok_style)
 	goto error;
 /* validating the format */
@@ -4444,7 +4454,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
 	goto error;
@@ -4804,6 +4813,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	free (outbuf);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    if (stl != NULL)
+	rl2_destroy_raster_style (stl);
     return;
 
   error:
@@ -4821,6 +4832,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	free (gray);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    if (stl != NULL)
+	rl2_destroy_raster_style (stl);
     sqlite3_result_null (context);
 }
 

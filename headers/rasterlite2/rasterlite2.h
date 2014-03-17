@@ -205,6 +205,15 @@ extern "C"
 /** RasterLite2 constant: output format PDF */
 #define RL2_OUTPUT_FORMAT_PDF		0x74
 
+/** RasterLite2 constant: contrast enhancement NONE */
+#define RL2_CONTRAST_ENHANCEMENT_NONE		0x90
+/** RasterLite2 constant: contrast enhancement NORMALIZE */
+#define RL2_CONTRAST_ENHANCEMENT_NORMALIZE	0x91
+/** RasterLite2 constant: contrast enhancement HISTOGRAM */
+#define RL2_CONTRAST_ENHANCEMENT_HISTOGRAM	0x92
+/** RasterLite2 constant: contrast enhancement GAMMA-VALUE */
+#define RL2_CONTRAST_ENHANCEMENT_GAMMA		0x93
+
 /**
  Typedef for RL2 Pixel object (opaque, hidden)
 
@@ -269,6 +278,19 @@ extern "C"
  \sa rl2Coverage
  */
     typedef rl2Coverage *rl2CoveragePtr;
+
+/**
+ Typedef for RL2 RasterStyle object (opaque, hidden)
+
+ \sa rl2RasterStylePtr
+ */
+    typedef struct rl2_raster_style rl2RasterStyle;
+/**
+ Typedef for RL2 RasterStyle object pointer (opaque, hidden)
+
+ \sa rl2RasterStyle
+ */
+    typedef rl2RasterStyle *rl2RasterStylePtr;
 
 /**
  Typedef for RL2 TIFF Origin object (opaque, hidden)
@@ -3088,24 +3110,23 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
-							 const char *dst_path,
-							 rl2CoveragePtr
-							 coverage,
-							 double x_res,
-							 double y_res,
-							 double minx,
-							 double miny,
-							 double maxx,
-							 double maxy,
-							 unsigned short width,
-							 unsigned short
-							 height,
-							 unsigned char
-							 mono_band,
-							 unsigned char
-							 compression,
-							 unsigned short
-							 tile_sz);
+						       const char *dst_path,
+						       rl2CoveragePtr
+						       coverage,
+						       double x_res,
+						       double y_res,
+						       double minx,
+						       double miny,
+						       double maxx,
+						       double maxy,
+						       unsigned short width,
+						       unsigned short
+						       height,
+						       unsigned char
+						       mono_band,
+						       unsigned char
+						       compression,
+						       unsigned short tile_sz);
 
     RL2_DECLARE int
 	rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle,
@@ -3124,16 +3145,16 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle,
-					       const char *dst_path,
-					       rl2CoveragePtr coverage,
-					       double x_res, double y_res,
-					       double minx, double miny,
-					       double maxx, double maxy,
-					       unsigned short width,
-					       unsigned short height,
-					       unsigned char mono_band,
-					       unsigned char compression,
-					       unsigned short tile_sz);
+					     const char *dst_path,
+					     rl2CoveragePtr coverage,
+					     double x_res, double y_res,
+					     double minx, double miny,
+					     double maxx, double maxy,
+					     unsigned short width,
+					     unsigned short height,
+					     unsigned char mono_band,
+					     unsigned char compression,
+					     unsigned short tile_sz);
 
     RL2_DECLARE int
 	rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
@@ -3411,6 +3432,121 @@ extern "C"
     RL2_DECLARE int
 	rl2_parse_hexrgb (const char *hex, unsigned char *red,
 			  unsigned char *green, unsigned char *blue);
+
+    RL2_DECLARE rl2RasterStylePtr
+	rl2_create_raster_style_from_dbms (sqlite3 * handle,
+					   const char *coverage,
+					   const char *style);
+
+    RL2_DECLARE void rl2_destroy_raster_style (rl2RasterStylePtr style);
+
+    RL2_DECLARE const char *rl2_get_raster_style_name (rl2RasterStylePtr style);
+
+    RL2_DECLARE const char *rl2_get_raster_style_title (rl2RasterStylePtr
+							style);
+
+    RL2_DECLARE const char *rl2_get_raster_style_abstract (rl2RasterStylePtr
+							   style);
+
+    RL2_DECLARE int rl2_get_raster_style_opacity (rl2RasterStylePtr style,
+						  double *opacity);
+
+    RL2_DECLARE int rl2_is_raster_style_mono_band_selected (rl2RasterStylePtr
+							    style,
+							    int *selected);
+
+    RL2_DECLARE int rl2_get_raster_style_mono_band_selection (rl2RasterStylePtr
+							      style,
+							      unsigned char
+							      *gray_band);
+
+    RL2_DECLARE int rl2_is_raster_style_triple_band_selected (rl2RasterStylePtr
+							      style,
+							      int *selected);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_triple_band_selection (rl2RasterStylePtr style,
+						    unsigned char *red_band,
+						    unsigned char *green_band,
+						    unsigned char *blue_band);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_overall_contrast_enhancement (rl2RasterStylePtr
+							   style,
+							   unsigned char
+							   *contrast_enhancement,
+							   double *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_red_band_contrast_enhancement (rl2RasterStylePtr
+							    style,
+							    unsigned char
+							    *contrast_enhancement,
+							    double
+							    *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_green_band_contrast_enhancement (rl2RasterStylePtr
+							      style,
+							      unsigned char
+							      *contrast_enhancement,
+							      double
+							      *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_blue_band_contrast_enhancement (rl2RasterStylePtr
+							     style,
+							     unsigned char
+							     *contrast_enhancement,
+							     double
+							     *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_gray_band_contrast_enhancement (rl2RasterStylePtr
+							     style,
+							     unsigned char
+							     *contrast_enhancement,
+							     double
+							     *gamma_value);
+
+    RL2_DECLARE int
+	rl2_has_raster_style_color_map_interpolated (rl2RasterStylePtr style,
+						     int *interpolated);
+
+    RL2_DECLARE int
+	rl2_has_raster_style_color_map_categorized (rl2RasterStylePtr style,
+						    int *categorized);
+
+    RL2_DECLARE int rl2_get_raster_style_color_map_default (rl2RasterStylePtr
+							    style,
+							    unsigned char *red,
+							    unsigned char
+							    *green,
+							    unsigned char
+							    *blue);
+
+    RL2_DECLARE int
+	rl2_get_raster_style_color_map_category_base (rl2RasterStylePtr style,
+						      unsigned char *red,
+						      unsigned char *green,
+						      unsigned char *blue);
+
+    RL2_DECLARE int rl2_get_raster_style_color_map_count (rl2RasterStylePtr
+							  style, int *count);
+
+    RL2_DECLARE int rl2_get_raster_style_color_map_entry (rl2RasterStylePtr
+							  style, int index,
+							  double *value,
+							  unsigned char *red,
+							  unsigned char *green,
+							  unsigned char *blue);
+
+    RL2_DECLARE int rl2_has_raster_style_shaded_relief (rl2RasterStylePtr style,
+							int *shaded_relief);
+
+    RL2_DECLARE int rl2_get_raster_style_shaded_relief (rl2RasterStylePtr style,
+							int *brightness_only,
+							double *relief_factor);
 
 #ifdef __cplusplus
 }

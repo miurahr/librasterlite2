@@ -5819,6 +5819,7 @@ test_null (sqlite3 * handle)
 		   "Unexpected success: TIFF Write Worldfile - NULL destination\n");
 	  return -72;
       }
+    unlink ("test.tif");
 
     return 0;
 }

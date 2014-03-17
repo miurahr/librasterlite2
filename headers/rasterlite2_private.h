@@ -189,6 +189,10 @@ extern "C"
 #define RL2_CONVERT_GRID_DOUBLE_TO_INT32	0x3e
 #define RL2_CONVERT_GRID_DOUBLE_TO_FLOAT	0x3f
 
+/* internal RasterStyle constants */
+#define RL2_BAND_SELECTION_TRIPLE		0xd1
+#define RL2_BAND_SELECTION_MONO			0xd2
+
     typedef union rl2_priv_sample
     {
 	char int8;
@@ -430,6 +434,74 @@ extern "C"
 	rl2PrivBandStatisticsPtr band_stats;
     } rl2PrivRasterStatistics;
     typedef rl2PrivRasterStatistics *rl2PrivRasterStatisticsPtr;
+
+    typedef struct rl2_priv_band_selection
+    {
+	int selectionType;
+	unsigned char redBand;
+	unsigned char greenBand;
+	unsigned char blueBand;
+	unsigned char grayBand;
+	unsigned char redContrast;
+	double redGamma;
+	unsigned char greenContrast;
+	double greenGamma;
+	unsigned char blueContrast;
+	double blueGamma;
+	unsigned char grayContrast;
+	double grayGamma;
+    } rl2PrivBandSelection;
+    typedef rl2PrivBandSelection *rl2PrivBandSelectionPtr;
+
+    typedef struct rl2_priv_color_map_point
+    {
+	double value;
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+	struct rl2_priv_color_map_point *next;
+    } rl2PrivColorMapPoint;
+    typedef rl2PrivColorMapPoint *rl2PrivColorMapPointPtr;
+
+    typedef struct rl2_priv_color_map_categorize
+    {
+	unsigned char baseRed;
+	unsigned char baseGreen;
+	unsigned char baseBlue;
+	rl2PrivColorMapPointPtr first;
+	rl2PrivColorMapPointPtr last;
+	unsigned char dfltRed;
+	unsigned char dfltGreen;
+	unsigned char dfltBlue;
+    } rl2PrivColorMapCategorize;
+    typedef rl2PrivColorMapCategorize *rl2PrivColorMapCategorizePtr;
+
+    typedef struct rl2_priv_color_map_interpolate
+    {
+	rl2PrivColorMapPointPtr first;
+	rl2PrivColorMapPointPtr last;
+	unsigned char dfltRed;
+	unsigned char dfltGreen;
+	unsigned char dfltBlue;
+    } rl2PrivColorMapInterpolate;
+    typedef rl2PrivColorMapInterpolate *rl2PrivColorMapInterpolatePtr;
+
+    typedef struct rl2_priv_raster_style
+    {
+	char *name;
+	char *title;
+	char *abstract;
+	double opacity;
+	unsigned char contrast;
+	double gamma;
+	rl2PrivBandSelectionPtr bandSelection;
+	rl2PrivColorMapCategorizePtr categorize;
+	rl2PrivColorMapInterpolatePtr interpolate;
+	int shadedRelief;
+	int brightnessOnly;
+	double reliefFactor;
+    } rl2PrivRasterStyle;
+    typedef rl2PrivRasterStyle *rl2PrivRasterStylePtr;
 
     typedef struct wms_retry_item
     {
@@ -1041,6 +1113,12 @@ extern "C"
 					       unsigned char *rgba);
     RL2_PRIVATE int parse_worldfile (FILE * in, double *px, double *py,
 				     double *pres_x, double *pres_y);
+
+    RL2_PRIVATE rl2RasterStylePtr raster_style_from_sld_se_xml (char *name,
+								char *title,
+								char *abstract,
+								unsigned char
+								*xml);
 
 #ifdef __cplusplus
 }

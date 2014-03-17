@@ -5241,3 +5241,93 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
 	rl2_destroy_raster_statistics (coverage_stats);
     return RL2_ERROR;
 }
+
+RL2_DECLARE rl2RasterStylePtr
+rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
+				   const char *style)
+{
+/* attempting to parse a RasterSymbolizer style */
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    rl2RasterStylePtr stl = NULL;
+    char *name = NULL;
+    char *title = NULL;
+    char *abstract = NULL;
+    unsigned char *xml = NULL;
+
+    sql = "SELECT style_name, XB_GetTitle(style), XB_GetAbstract(style), "
+	"XB_GetDocument(style) FROM SE_raster_styled_layers "
+	"WHERE Lower(coverage_name) = Lower(?) AND Lower(style_name) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, style, strlen (style), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		int len;
+		const char *str;
+		const unsigned char *ustr;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+		  {
+		      str = (const char *) sqlite3_column_text (stmt, 0);
+		      len = strlen (str);
+		      name = malloc (len + 1);
+		      strcpy (name, str);
+		  }
+		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+		  {
+		      str = (const char *) sqlite3_column_text (stmt, 1);
+		      len = strlen (str);
+		      title = malloc (len + 1);
+		      strcpy (title, str);
+		  }
+		if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
+		  {
+		      str = (const char *) sqlite3_column_text (stmt, 2);
+		      len = strlen (str);
+		      abstract = malloc (len + 1);
+		      strcpy (abstract, str);
+		  }
+		if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
+		  {
+		      ustr = sqlite3_column_text (stmt, 3);
+		      len = strlen ((const char *) ustr);
+		      xml = malloc (len + 1);
+		      strcpy ((char *) xml, (const char *) ustr);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+    stl = raster_style_from_sld_se_xml (name, title, abstract, xml);
+    if (stl == NULL)
+	goto error;
+    return stl;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (stl != NULL)
+	rl2_destroy_raster_style (stl);
+    return 0;
+}

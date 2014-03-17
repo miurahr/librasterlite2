@@ -97,7 +97,7 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_indiana$(EXEEXT) test_load_wms$(EXEEXT) \
 	test_map_noref$(EXEEXT) test_map_trento$(EXEEXT) \
 	test_map_trieste$(EXEEXT) test_map_infrared$(EXEEXT) \
-	test_map_orbetello$(EXEEXT)
+	test_map_orbetello$(EXEEXT) test_raster_symbolizer$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -254,6 +254,9 @@ test_palette_LDADD = $(LDADD)
 test_raster_SOURCES = test_raster.c
 test_raster_OBJECTS = test_raster.$(OBJEXT)
 test_raster_LDADD = $(LDADD)
+test_raster_symbolizer_SOURCES = test_raster_symbolizer.c
+test_raster_symbolizer_OBJECTS = test_raster_symbolizer.$(OBJEXT)
+test_raster_symbolizer_LDADD = $(LDADD)
 test_section_SOURCES = test_section.c
 test_section_OBJECTS = test_section.$(OBJEXT)
 test_section_LDADD = $(LDADD)
@@ -317,8 +320,8 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
 	test_map_srtm.c test_map_trento.c test_map_trieste.c \
 	test_mask.c test_paint.c test_palette.c test_raster.c \
-	test_section.c test_tifin.c test_webp.c test_wms1.c \
-	test_wms2.c test_wr_tiff.c
+	test_raster_symbolizer.c test_section.c test_tifin.c \
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
@@ -330,8 +333,8 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
 	test_map_srtm.c test_map_trento.c test_map_trieste.c \
 	test_mask.c test_paint.c test_palette.c test_raster.c \
-	test_section.c test_tifin.c test_webp.c test_wms1.c \
-	test_wms2.c test_wr_tiff.c
+	test_raster_symbolizer.c test_section.c test_tifin.c \
+	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -795,7 +798,9 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/tuscany-infrared/infrared2.tif \
 	map_samples/orbview3-orbetello/orbetello1.tif \
 	map_samples/orbview3-orbetello/orbetello2.tfw \
-	map_samples/orbview3-orbetello/orbetello2.tif 
+	map_samples/orbview3-orbetello/orbetello2.tif \
+	raster_symbolizer_1.xml raster_symbolizer_2.xml \
+	raster_symbolizer_3.xml
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 all: all-recursive
@@ -1026,6 +1031,10 @@ test_raster$(EXEEXT): $(test_raster_OBJECTS) $(test_raster_DEPENDENCIES) $(EXTRA
 	@rm -f test_raster$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_raster_OBJECTS) $(test_raster_LDADD) $(LIBS)
 
+test_raster_symbolizer$(EXEEXT): $(test_raster_symbolizer_OBJECTS) $(test_raster_symbolizer_DEPENDENCIES) $(EXTRA_test_raster_symbolizer_DEPENDENCIES) 
+	@rm -f test_raster_symbolizer$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_raster_symbolizer_OBJECTS) $(test_raster_symbolizer_LDADD) $(LIBS)
+
 test_section$(EXEEXT): $(test_section_OBJECTS) $(test_section_DEPENDENCIES) $(EXTRA_test_section_DEPENDENCIES) 
 	@rm -f test_section$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_section_OBJECTS) $(test_section_LDADD) $(LIBS)
@@ -1102,6 +1111,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_paint.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_palette.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster_symbolizer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_section.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tifin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_webp.Po@am__quote@
@@ -1736,6 +1746,13 @@ test_map_infrared.log: test_map_infrared$(EXEEXT)
 test_map_orbetello.log: test_map_orbetello$(EXEEXT)
 	@p='test_map_orbetello$(EXEEXT)'; \
 	b='test_map_orbetello'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_raster_symbolizer.log: test_raster_symbolizer$(EXEEXT)
+	@p='test_raster_symbolizer$(EXEEXT)'; \
+	b='test_raster_symbolizer'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

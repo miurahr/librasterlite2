@@ -17,7 +17,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_indiana test_load_wms \
 	test_map_noref test_map_trento \
 	test_map_trieste test_map_infrared \
-	test_map_orbetello
+	test_map_orbetello test_raster_symbolizer
 
 AM_CPPFLAGS = -I@srcdir@/../headers
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
@@ -76,7 +76,10 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/tuscany-infrared/infrared2.tif \
 	map_samples/orbview3-orbetello/orbetello1.tif \
 	map_samples/orbview3-orbetello/orbetello2.tfw \
-	map_samples/orbview3-orbetello/orbetello2.tif 
+	map_samples/orbview3-orbetello/orbetello2.tif \
+	raster_symbolizer_1.xml raster_symbolizer_2.xml \
+	raster_symbolizer_3.xml raster_symbolizer_4.xml \
+	raster_symbolizer_5.xml raster_symbolizer_6.xml 
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

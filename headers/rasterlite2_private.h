@@ -435,6 +435,17 @@ extern "C"
     } rl2PrivRasterStatistics;
     typedef rl2PrivRasterStatistics *rl2PrivRasterStatisticsPtr;
 
+    typedef struct rl2_band_contrast
+    {
+	unsigned char contrastEnhancement;
+	double gammaValue;
+	unsigned char look_up[256];
+	double minValue;
+	double maxValue;
+	double scaleFactor;
+    } rl2BandContrast;
+    typedef rl2BandContrast *rl2BandContrastPtr;
+
     typedef struct rl2_priv_band_selection
     {
 	int selectionType;
@@ -492,8 +503,8 @@ extern "C"
 	char *title;
 	char *abstract;
 	double opacity;
-	unsigned char contrast;
-	double gamma;
+	unsigned char contrastEnhancement;
+	double gammaValue;
 	rl2PrivBandSelectionPtr bandSelection;
 	rl2PrivColorMapCategorizePtr categorize;
 	rl2PrivColorMapInterpolatePtr interpolate;
@@ -738,7 +749,9 @@ extern "C"
 				     double y_res, double minx, double miny,
 				     double maxx, double maxy, int level,
 				     int scale, rl2PalettePtr palette,
-				     rl2PixelPtr no_data);
+				     rl2PixelPtr no_data,
+				     rl2RasterStylePtr style,
+				     rl2RasterStatisticsPtr stats);
 
     RL2_PRIVATE int load_dbms_tiles_section (sqlite3 * handle,
 					     sqlite3_int64 section_id,

@@ -611,21 +611,19 @@ parse_sld_se_categorize (xmlNodePtr node, rl2PrivRasterStylePtr style)
 						{
 						    style->categorize->baseRed =
 							red;
-						    style->
-							categorize->baseGreen =
-							green;
-						    style->
-							categorize->baseBlue =
-							blue;
+						    style->categorize->
+							baseGreen = green;
+						    style->categorize->
+							baseBlue = blue;
 						}
 					      else
 						{
-						    style->categorize->
-							last->red = red;
-						    style->categorize->
-							last->green = green;
-						    style->categorize->
-							last->blue = blue;
+						    style->categorize->last->
+							red = red;
+						    style->categorize->last->
+							green = green;
+						    style->categorize->last->
+							blue = blue;
 						}
 					  }
 					else
@@ -969,7 +967,7 @@ parse_raster_symbolizer (xmlNodePtr node, rl2PrivRasterStylePtr style)
     if (!parse_sld_se_color_map (node->children, style))
 	return 0;
     if (!parse_sld_se_contrast_enhancement
-	(node->children, &(style->contrast), &(style->gamma)))
+	(node->children, &(style->contrastEnhancement), &(style->gammaValue)))
 	return 0;
     parse_sld_se_shaded_relief (node->children, style);
     return 1;
@@ -988,7 +986,7 @@ find_raster_symbolizer (xmlNodePtr node, rl2PrivRasterStylePtr style, int *loop)
 		  {
 		      int ret = parse_raster_symbolizer (node, style);
 		      *loop = 0;
-		      return loop;
+		      return ret;
 		  }
 		if (strcmp (name, "CoverageStyle") == 0 ||
 		    strcmp (name, "Rule") == 0)
@@ -1025,8 +1023,8 @@ raster_style_from_sld_se_xml (char *name, char *title, char *abstract,
     style->bandSelection = NULL;
     style->categorize = NULL;
     style->interpolate = NULL;
-    style->contrast = RL2_CONTRAST_ENHANCEMENT_NONE;
-    style->gamma = 1.0;
+    style->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
+    style->gammaValue = 1.0;
     style->shadedRelief = 0;
     style->brightnessOnly = 1;
     style->reliefFactor = 55.0;
@@ -1234,8 +1232,8 @@ rl2_get_raster_style_overall_contrast_enhancement (rl2RasterStylePtr style,
     rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
     if (stl == NULL)
 	return RL2_ERROR;
-    *contrast_enhancement = stl->contrast;
-    *gamma_value = stl->gamma;
+    *contrast_enhancement = stl->contrastEnhancement;
+    *gamma_value = stl->gammaValue;
     return RL2_OK;
 }
 

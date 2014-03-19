@@ -2846,7 +2846,9 @@ extern "C"
 					 unsigned char out_pixel,
 					 unsigned char bg_red,
 					 unsigned char bg_green,
-					 unsigned char bg_blue);
+					 unsigned char bg_blue,
+					 rl2RasterStylePtr style,
+					 rl2RasterStatisticsPtr stats);
 
     RL2_DECLARE int
 	rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
@@ -3437,6 +3439,10 @@ extern "C"
 	rl2_create_raster_style_from_dbms (sqlite3 * handle,
 					   const char *coverage,
 					   const char *style);
+
+    RL2_DECLARE rl2RasterStatisticsPtr
+	rl2_create_raster_statistics_from_dbms (sqlite3 * handle,
+						const char *coverage);
 
     RL2_DECLARE void rl2_destroy_raster_style (rl2RasterStylePtr style);
 

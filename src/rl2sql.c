@@ -1120,6 +1120,462 @@ fnct_PixelEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_GetRasterStatistics_NoDataPixelsCount (sqlite3_context * context, int argc,
+					    sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetRasterStatistics_NoDataPixelsCount(BLOBencoded statistics)
+/
+/ will return the total count of NoData pixels
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    sqlite3_result_int64 (context, st->no_data);
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetRasterStatistics_ValidPixelsCount (sqlite3_context * context, int argc,
+					   sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetRasterStatistics_ValidPixelsCount(BLOBencoded statistics)
+/
+/ will return the total count of valid pixels
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    sqlite3_result_int64 (context, st->count);
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetRasterStatistics_SampleType (sqlite3_context * context, int argc,
+				     sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetRasterStatistics_SampleType(BLOBencoded statistics)
+/
+/ will return the name of the SampleType
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    const char *name = NULL;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    switch (st->sampleType)
+      {
+      case RL2_SAMPLE_1_BIT:
+	  name = "1-BIT";
+	  break;
+      case RL2_SAMPLE_2_BIT:
+	  name = "2-BIT";
+	  break;
+      case RL2_SAMPLE_4_BIT:
+	  name = "4-BIT";
+	  break;
+      case RL2_SAMPLE_INT8:
+	  name = "INT8";
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  name = "UINT8";
+	  break;
+      case RL2_SAMPLE_INT16:
+	  name = "INT16";
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  name = "UINT16";
+	  break;
+      case RL2_SAMPLE_INT32:
+	  name = "INT32";
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  name = "UINT32";
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  name = "FLOAT";
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  name = "DOUBLE";
+	  break;
+      };
+    if (name == NULL)
+	sqlite3_result_null (context);
+    else
+	sqlite3_result_text (context, name, strlen (name), SQLITE_STATIC);
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetRasterStatistics_BandsCount (sqlite3_context * context, int argc,
+				     sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetRasterStatistics_BandsCount(BLOBencoded statistics)
+/
+/ will return how many Bands are into this statistics object
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    sqlite3_result_int (context, st->nBands);
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetBandStatistics_Min (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandStatistics_Min(BLOBencoded statistics, int band_index)
+/
+/ will return the Minimum value for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_index = sqlite3_value_int (argv[1]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  sqlite3_result_double (context, band->min);
+      }
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetBandStatistics_Max (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandStatistics_Max(BLOBencoded statistics, int band_index)
+/
+/ will return the Maximum value for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_index = sqlite3_value_int (argv[1]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  sqlite3_result_double (context, band->max);
+      }
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetBandStatistics_Avg (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandStatistics_Avg(BLOBencoded statistics, int band_index)
+/
+/ will return the Average value for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_index = sqlite3_value_int (argv[1]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  sqlite3_result_double (context, band->mean);
+      }
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetBandStatistics_Var (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandStatistics_Var(BLOBencoded statistics, int band_index)
+/
+/ will return the Variance for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    double variance;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_index = sqlite3_value_int (argv[1]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  if (band->first != NULL)
+	    {
+		double count = 0.0;
+		double sum_var = 0.0;
+		double sum_count = 0.0;
+		rl2PoolVariancePtr pV = band->first;
+		while (pV != NULL)
+		  {
+		      count += 1.0;
+		      sum_var += (pV->count - 1.0) * pV->variance;
+		      sum_count += pV->count;
+		      pV = pV->next;
+		  }
+		variance = sum_var / (sum_count - count);
+	    }
+	  else
+	      variance = band->sum_sq_diff / (st->count - 1.0);
+	  sqlite3_result_double (context, variance);
+      }
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetBandStatistics_StdDev (sqlite3_context * context, int argc,
+			       sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandStatistics_StdDev(BLOBencoded statistics, int band_index)
+/
+/ will return the StandardDeviation for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    double variance;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_index = sqlite3_value_int (argv[1]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  if (band->first != NULL)
+	    {
+		double count = 0.0;
+		double sum_var = 0.0;
+		double sum_count = 0.0;
+		rl2PoolVariancePtr pV = band->first;
+		while (pV != NULL)
+		  {
+		      count += 1.0;
+		      sum_var += (pV->count - 1.0) * pV->variance;
+		      sum_count += pV->count;
+		      pV = pV->next;
+		  }
+		variance = sum_var / (sum_count - count);
+	    }
+	  else
+	      variance = band->sum_sq_diff / (st->count - 1.0);
+	  sqlite3_result_double (context, sqrt (variance));
+      }
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
 fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -4341,7 +4797,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char *gray = NULL;
     rl2GraphicsBitmapPtr base_img = NULL;
     rl2GraphicsContextPtr ctx = NULL;
-    rl2RasterStylePtr stl = NULL;
+    rl2RasterStylePtr symbolizer = NULL;
+    rl2RasterStatisticsPtr stats = NULL;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -4402,10 +4859,14 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     else
       {
 	  /* attempting to get a RasterSymbolizer style */
-	  stl = rl2_create_raster_style_from_dbms (sqlite, cvg_name, style);
-	  fprintf (stderr, "stl=%d\n", stl);
-	  if (stl == NULL)
+	  symbolizer =
+	      rl2_create_raster_style_from_dbms (sqlite, cvg_name, style);
+	  if (symbolizer == NULL)
 	      goto error;
+	  stats = rl2_create_raster_statistics_from_dbms (sqlite, cvg_name);
+	  if (stats == NULL)
+	      goto error;
+	  ok_style = 1;
       }
     if (!ok_style)
 	goto error;
@@ -4461,6 +4922,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	srid = -1;
     cvg = (rl2PrivCoveragePtr) coverage;
     out_pixel = RL2_PIXEL_UNKNOWN;
+/* default style */
     if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
 	&& cvg->nBands == 3)
 	out_pixel = RL2_PIXEL_RGB;
@@ -4471,6 +4933,30 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	out_pixel = RL2_PIXEL_PALETTE;
     if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
 	out_pixel = RL2_PIXEL_MONOCHROME;
+    if (symbolizer != NULL)
+      {
+	  /* applying a RasterSymbolizer */
+	  int yes_no;
+	  if (rl2_is_raster_style_triple_band_selected (symbolizer, &yes_no) ==
+	      RL2_OK)
+	    {
+		if ((cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT16)
+		    && (cvg->pixelType == RL2_PIXEL_RGB
+			|| cvg->pixelType == RL2_PIXEL_MULTIBAND) && yes_no)
+		    out_pixel = RL2_PIXEL_RGB;
+	    }
+	  if (rl2_is_raster_style_mono_band_selected (symbolizer, &yes_no) ==
+	      RL2_OK)
+	    {
+		if ((cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT16)
+		    && (cvg->pixelType == RL2_PIXEL_RGB
+			|| cvg->pixelType == RL2_PIXEL_MULTIBAND
+			|| cvg->pixelType == RL2_PIXEL_GRAYSCALE) && yes_no)
+		    out_pixel = RL2_PIXEL_GRAYSCALE;
+	    }
+      }
     if (out_pixel == RL2_PIXEL_UNKNOWN)
       {
 	  fprintf (stderr, "*** Unsupported Pixel !!!!\n");
@@ -4509,7 +4995,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (rl2_get_raw_raster_data_bgcolor
 	(sqlite, coverage, base_width, base_height, minx, miny, maxx, maxy,
 	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, out_pixel, bg_red,
-	 bg_green, bg_blue) != RL2_OK)
+	 bg_green, bg_blue, symbolizer, stats) != RL2_OK)
 	goto error;
     if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
 	goto error;
@@ -4807,14 +5293,15 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  sqlite3_result_blob (context, image, image_size, free);
       }
 
-
     rl2_destroy_coverage (coverage);
     if (outbuf != NULL)
 	free (outbuf);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
-    if (stl != NULL)
-	rl2_destroy_raster_style (stl);
+    if (symbolizer != NULL)
+	rl2_destroy_raster_style (symbolizer);
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
     return;
 
   error:
@@ -4832,8 +5319,10 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	free (gray);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
-    if (stl != NULL)
-	rl2_destroy_raster_style (stl);
+    if (symbolizer != NULL)
+	rl2_destroy_raster_style (symbolizer);
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
     sqlite3_result_null (context);
 }
 
@@ -5767,6 +6256,50 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_PixelEquals, 0, 0);
     sqlite3_create_function (db, "RL2_PixelEquals", 2, SQLITE_ANY, 0,
 			     fnct_PixelEquals, 0, 0);
+    sqlite3_create_function (db, "GetRasterStatistics_NoDataPixelsCount", 1,
+			     SQLITE_ANY, 0,
+			     fnct_GetRasterStatistics_NoDataPixelsCount, 0, 0);
+    sqlite3_create_function (db, "RL2_GetRasterStatistics_NoDataPixelsCount", 1,
+			     SQLITE_ANY, 0,
+			     fnct_GetRasterStatistics_NoDataPixelsCount, 0, 0);
+    sqlite3_create_function (db, "GetRasterStatistics_ValidPixelsCount", 1,
+			     SQLITE_ANY, 0,
+			     fnct_GetRasterStatistics_ValidPixelsCount, 0, 0);
+    sqlite3_create_function (db, "RL2_GetRasterStatistics_ValidPixelsCount", 1,
+			     SQLITE_ANY, 0,
+			     fnct_GetRasterStatistics_ValidPixelsCount, 0, 0);
+    sqlite3_create_function (db, "GetRasterStatistics_SampleType", 1,
+			     SQLITE_ANY, 0, fnct_GetRasterStatistics_SampleType,
+			     0, 0);
+    sqlite3_create_function (db, "RL2_GetRasterStatistics_SampleType", 1,
+			     SQLITE_ANY, 0, fnct_GetRasterStatistics_SampleType,
+			     0, 0);
+    sqlite3_create_function (db, "GetRasterStatistics_BandsCount", 1,
+			     SQLITE_ANY, 0, fnct_GetRasterStatistics_BandsCount,
+			     0, 0);
+    sqlite3_create_function (db, "RL2_GetRasterStatistics_BandsCount", 1,
+			     SQLITE_ANY, 0, fnct_GetRasterStatistics_BandsCount,
+			     0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Min", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Min, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Min", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Min, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Max", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Max, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Max", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Max, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Avg", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Avg, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Avg", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Avg, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Var", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Var, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Var", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_Var, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_StdDev", 2, SQLITE_ANY, 0,
+			     fnct_GetBandStatistics_StdDev, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_StdDev", 2, SQLITE_ANY,
+			     0, fnct_GetBandStatistics_StdDev, 0, 0);
     sqlite3_create_function (db, "Pyramidize", 1, SQLITE_ANY, 0,
 			     fnct_Pyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_Pyramidize", 1, SQLITE_ANY, 0,
@@ -5837,28 +6370,28 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_GetTileImage, 0, 0);
     sqlite3_create_function (db, "GetTripleBandTileImage", 5, SQLITE_ANY, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 5, SQLITE_ANY,
-			     0, fnct_GetTripleBandTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 5, SQLITE_ANY, 0,
+			     fnct_GetTripleBandTileImage, 0, 0);
     sqlite3_create_function (db, "GetTripleBandTileImage", 6, SQLITE_ANY, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 6, SQLITE_ANY,
-			     0, fnct_GetTripleBandTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 6, SQLITE_ANY, 0,
+			     fnct_GetTripleBandTileImage, 0, 0);
     sqlite3_create_function (db, "GetTripleBandTileImage", 7, SQLITE_ANY, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 7, SQLITE_ANY,
-			     0, fnct_GetTripleBandTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 7, SQLITE_ANY, 0,
+			     fnct_GetTripleBandTileImage, 0, 0);
     sqlite3_create_function (db, "GetMonoBandTileImage", 3, SQLITE_ANY, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 3, SQLITE_ANY,
-			     0, fnct_GetMonoBandTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 3, SQLITE_ANY, 0,
+			     fnct_GetMonoBandTileImage, 0, 0);
     sqlite3_create_function (db, "GetMonoBandTileImage", 4, SQLITE_ANY, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 4, SQLITE_ANY,
-			     0, fnct_GetMonoBandTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 4, SQLITE_ANY, 0,
+			     fnct_GetMonoBandTileImage, 0, 0);
     sqlite3_create_function (db, "GetMonoBandTileImage", 5, SQLITE_ANY, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 5, SQLITE_ANY,
-			     0, fnct_GetMonoBandTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 5, SQLITE_ANY, 0,
+			     fnct_GetMonoBandTileImage, 0, 0);
 
 /*
 // enabling ImportRaster and ExportRaster

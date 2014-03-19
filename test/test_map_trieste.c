@@ -269,6 +269,201 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 }
 
 static int
+test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
+{
+/* testing Coverage and Band statistics */
+    int ret;
+    char *err_msg = NULL;
+    char *sql;
+    char **results;
+    int rows;
+    int columns;
+    const char *string;
+    int intval;
+
+/* testing RasterStatistics */
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_GetRasterStatistics_NoDataPixelsCount(statistics), "
+	 "RL2_GetRasterStatistics_ValidPixelsCount(statistics), "
+	 "RL2_GetRasterStatistics_SampleType(statistics), "
+	 "RL2_GetRasterStatistics_BandsCount(statistics) "
+	 "FROM raster_coverages WHERE Lower(coverage_name) = Lower(%Q)",
+	 coverage);
+    ret = sqlite3_get_table (sqlite, sql, &results, &rows, &columns, &err_msg);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "Error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (rows != 1 || columns != 4)
+      {
+	  fprintf (stderr, "Unexpected error: bad result: %i/%i.\n", rows,
+		   columns);
+	  *retcode += -2;
+	  return 0;
+      }
+
+/* NoData Pixels */
+    string = results[4];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (NoDataPixelsCount)\n");
+	  *retcode += -3;
+	  return 0;
+      }
+
+/* Valid Pixels */
+    string = results[5];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (ValidPixelsCount)\n");
+	  *retcode += -5;
+	  return 0;
+      }
+    intval = atoi (string);
+    if (intval != 719996)
+      {
+	  fprintf (stderr, "Unexpected ValidPixelsCount: %d\n", intval);
+	  *retcode += -6;
+	  return 0;
+      }
+
+/* Sample Type */
+    string = results[6];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (SampleType)\n");
+	  *retcode += -7;
+	  return 0;
+      }
+    if (strcmp (string, "UINT16") != 0)
+      {
+	  fprintf (stderr, "Unexpected SampleType: %s\n", string);
+	  *retcode += -8;
+	  return 0;
+      }
+
+/* Bands */
+    string = results[7];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (BandsCount)\n");
+	  *retcode += -9;
+	  return 0;
+      }
+    intval = atoi (string);
+    if (intval != 1)
+      {
+	  fprintf (stderr, "Unexpected BandsCount: %d\n", intval);
+	  *retcode += -10;
+	  return 0;
+      }
+
+    sqlite3_free_table (results);
+
+/* testing BandStatistics */
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_GetBandStatistics_Min(statistics, 0), "
+	 "RL2_GetBandStatistics_Max(statistics, 0), "
+	 "RL2_GetBandStatistics_Avg(statistics, 0), "
+	 "RL2_GetBandStatistics_Var(statistics, 0), "
+	 "RL2_GetBandStatistics_StdDev(statistics, 0) "
+	 "FROM raster_coverages WHERE Lower(coverage_name) = Lower(%Q)",
+	 coverage);
+    ret = sqlite3_get_table (sqlite, sql, &results, &rows, &columns, &err_msg);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "Error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (rows != 1 || columns != 5)
+      {
+	  fprintf (stderr, "Unexpected error: bad result: %i/%i.\n", rows,
+		   columns);
+	  *retcode += -2;
+	  return 0;
+      }
+
+/* Min */
+    string = results[5];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (Band Min)\n");
+	  *retcode += -12;
+	  return 0;
+      }
+    intval = atoi (string);
+    if (intval != 6)
+      {
+	  fprintf (stderr, "Unexpected Band Min: %d\n", intval);
+	  *retcode += -13;
+	  return 0;
+      }
+
+/* Max */
+    string = results[6];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (Band Max)\n");
+	  *retcode += -14;
+	  return 0;
+      }
+    intval = atoi (string);
+    if (intval != 1841)
+      {
+	  fprintf (stderr, "Unexpected Band Max: %d\n", intval);
+	  *retcode += -15;
+	  return 0;
+      }
+
+/* Avg */
+    string = results[7];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (Band Avg)\n");
+	  *retcode += -16;
+	  return 0;
+      }
+    intval = atoi (string);
+    if (intval != 183)
+      {
+	  fprintf (stderr, "Unexpected Band Avg: %d\n", intval);
+	  *retcode += -17;
+	  return 0;
+      }
+
+/* Var */
+    string = results[8];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (Band Var)\n");
+	  *retcode += -18;
+	  return 0;
+      }
+
+/* StdDev */
+    string = results[9];
+    if (string == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL (Band StdDev)\n");
+	  *retcode += -20;
+	  return 0;
+      }
+
+    sqlite3_free_table (results);
+
+    return 1;
+}
+
+static int
 test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	       int tile_sz, int *retcode)
 {
@@ -510,6 +705,10 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -25;
 	  return 0;
       }
+
+    *retcode += -26;
+    if (!test_statistics (sqlite, coverage, retcode))
+	return 0;
 
     return 1;
 }

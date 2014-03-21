@@ -1945,6 +1945,255 @@ copy_int8_raw_pixels (const char *buffer, const unsigned char *mask,
       }
 }
 
+static unsigned char *
+mono_int8_pixel_handler (const char *p_in, unsigned char *p_out,
+			 unsigned char mono_band,
+			 rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - INT8 */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+	  rl2ColorMapItemPtr color;
+	  char mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  char mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  char mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
+static void
+copy_int8_raw_mono_pixels (const char *buffer,
+			   const unsigned char *mask, unsigned char *outbuf,
+			   unsigned short width, unsigned short height,
+			   unsigned char out_num_bands, double x_res,
+			   double y_res, double minx, double maxy,
+			   double tile_minx, double tile_maxy,
+			   unsigned short tile_width,
+			   unsigned short tile_height, rl2PixelPtr no_data,
+			   unsigned char mono_band,
+			   rl2BandHandlingPtr mono_handling)
+{
+/* copying INT8 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const char *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int ib;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT8)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in++;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_int8_pixel_handler (p_in, p_out, mono_band,
+							 mono_handling);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const char *p_save = p_in;
+		      char sample = 0;
+		      rl2_get_pixel_sample_int8 (no_data, &sample);
+		      if (sample == *p_save++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_int8_pixel_handler (p_in, p_out, mono_band,
+							 mono_handling);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		  }
+		p_in++;
+	    }
+      }
+}
+
 static void
 copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 		       unsigned char *outbuf, unsigned short width,
@@ -2093,9 +2342,9 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 				unsigned char red_band,
 				unsigned char green_band,
 				unsigned char blue_band,
-				rl2BandContrastPtr red_contrast,
-				rl2BandContrastPtr green_contrast,
-				rl2BandContrastPtr blue_contrast)
+				rl2BandHandlingPtr red_handling,
+				rl2BandHandlingPtr green_handling,
+				rl2BandHandlingPtr blue_handling)
 {
 /* copying UINT8 raw pixels from the DBMS tile into the output image */
     int x;
@@ -2171,23 +2420,23 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			}
 		      else
 			{
-			    if (red_contrast->contrastEnhancement ==
+			    if (red_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned char red = *(p_in + red_band);
-				  if (red <= red_contrast->minValue)
-				      *p_out++ = red_contrast->look_up[0];
-				  else if (red >= red_contrast->maxValue)
-				      *p_out++ = red_contrast->look_up[255];
+				  if (red <= red_handling->minValue)
+				      *p_out++ = red_handling->look_up[0];
+				  else if (red >= red_handling->maxValue)
+				      *p_out++ = red_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) red -
-					      red_contrast->minValue) /
-					     red_contrast->scaleFactor);
+					      red_handling->minValue) /
+					     red_handling->scaleFactor);
 					*p_out++ =
-					    red_contrast->look_up[(unsigned
+					    red_handling->look_up[(unsigned
 								   char)
 								  scaled];
 				    }
@@ -2195,42 +2444,42 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			    else
 			      {
 				  unsigned char red = *(p_in + red_band);
-				  if (red_contrast->scaleFactor == 1.0)
-				      *p_out++ = red - red_contrast->minValue;
+				  if (red_handling->scaleFactor == 1.0)
+				      *p_out++ = red - red_handling->minValue;
 				  else
 				    {
-					if (red <= red_contrast->minValue)
+					if (red <= red_handling->minValue)
 					    *p_out++ = 0;
-					else if (red >= red_contrast->maxValue)
+					else if (red >= red_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) red -
-						    red_contrast->minValue) /
-						   red_contrast->scaleFactor);
+						    red_handling->minValue) /
+						   red_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (green_contrast->contrastEnhancement ==
+			    if (green_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned char green = *(p_in + green_band);
-				  if (green <= green_contrast->minValue)
-				      *p_out++ = green_contrast->look_up[0];
-				  else if (green >= green_contrast->maxValue)
-				      *p_out++ = green_contrast->look_up[255];
+				  if (green <= green_handling->minValue)
+				      *p_out++ = green_handling->look_up[0];
+				  else if (green >= green_handling->maxValue)
+				      *p_out++ = green_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) green -
-					      green_contrast->minValue) /
-					     green_contrast->scaleFactor);
+					      green_handling->minValue) /
+					     green_handling->scaleFactor);
 					*p_out++ =
-					    green_contrast->look_up[(unsigned
+					    green_handling->look_up[(unsigned
 								     char)
 								    scaled];
 				    }
@@ -2238,44 +2487,44 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			    else
 			      {
 				  unsigned char green = *(p_in + green_band);
-				  if (green_contrast->scaleFactor == 1.0)
+				  if (green_handling->scaleFactor == 1.0)
 				      *p_out++ =
-					  green - green_contrast->minValue;
+					  green - green_handling->minValue;
 				  else
 				    {
-					if (green <= green_contrast->minValue)
+					if (green <= green_handling->minValue)
 					    *p_out++ = 0;
 					else if (green >=
-						 green_contrast->maxValue)
+						 green_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) green -
-						    green_contrast->minValue) /
-						   green_contrast->scaleFactor);
+						    green_handling->minValue) /
+						   green_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (blue_contrast->contrastEnhancement ==
+			    if (blue_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned char blue = *(p_in + blue_band);
-				  if (blue <= blue_contrast->minValue)
-				      *p_out++ = blue_contrast->look_up[0];
-				  else if (blue >= blue_contrast->maxValue)
-				      *p_out++ = blue_contrast->look_up[255];
+				  if (blue <= blue_handling->minValue)
+				      *p_out++ = blue_handling->look_up[0];
+				  else if (blue >= blue_handling->maxValue)
+				      *p_out++ = blue_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) blue -
-					      blue_contrast->minValue) /
-					     blue_contrast->scaleFactor);
+					      blue_handling->minValue) /
+					     blue_handling->scaleFactor);
 					*p_out++ =
-					    blue_contrast->look_up[(unsigned
+					    blue_handling->look_up[(unsigned
 								    char)
 								   scaled];
 				    }
@@ -2283,22 +2532,22 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			    else
 			      {
 				  unsigned char blue = *(p_in + blue_band);
-				  if (blue_contrast->scaleFactor == 1.0)
-				      *p_out++ = blue - blue_contrast->minValue;
+				  if (blue_handling->scaleFactor == 1.0)
+				      *p_out++ = blue - blue_handling->minValue;
 				  else
 				    {
-					if (blue <= blue_contrast->minValue)
+					if (blue <= blue_handling->minValue)
 					    *p_out++ = 0;
 					else if (blue >=
-						 blue_contrast->maxValue)
+						 blue_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) blue -
-						    blue_contrast->minValue) /
-						   blue_contrast->scaleFactor);
+						    blue_handling->minValue) /
+						   blue_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
@@ -2320,23 +2569,23 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 		      if (match != num_bands)
 			{
 			    /* opaque pixel */
-			    if (red_contrast->contrastEnhancement ==
+			    if (red_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned char red = *(p_in + red_band);
-				  if (red <= red_contrast->minValue)
-				      *p_out++ = red_contrast->look_up[0];
-				  else if (red >= red_contrast->maxValue)
-				      *p_out++ = red_contrast->look_up[255];
+				  if (red <= red_handling->minValue)
+				      *p_out++ = red_handling->look_up[0];
+				  else if (red >= red_handling->maxValue)
+				      *p_out++ = red_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) red -
-					      red_contrast->minValue) /
-					     red_contrast->scaleFactor);
+					      red_handling->minValue) /
+					     red_handling->scaleFactor);
 					*p_out++ =
-					    red_contrast->look_up[(unsigned
+					    red_handling->look_up[(unsigned
 								   char)
 								  scaled];
 				    }
@@ -2344,42 +2593,42 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			    else
 			      {
 				  unsigned char red = *(p_in + red_band);
-				  if (red_contrast->scaleFactor == 1.0)
-				      *p_out++ = red - red_contrast->minValue;
+				  if (red_handling->scaleFactor == 1.0)
+				      *p_out++ = red - red_handling->minValue;
 				  else
 				    {
-					if (red <= red_contrast->minValue)
+					if (red <= red_handling->minValue)
 					    *p_out++ = 0;
-					else if (red >= red_contrast->maxValue)
+					else if (red >= red_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) red -
-						    red_contrast->minValue) /
-						   red_contrast->scaleFactor);
+						    red_handling->minValue) /
+						   red_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (green_contrast->contrastEnhancement ==
+			    if (green_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned char green = *(p_in + green_band);
-				  if (green <= green_contrast->minValue)
-				      *p_out++ = green_contrast->look_up[0];
-				  else if (green >= green_contrast->maxValue)
-				      *p_out++ = green_contrast->look_up[255];
+				  if (green <= green_handling->minValue)
+				      *p_out++ = green_handling->look_up[0];
+				  else if (green >= green_handling->maxValue)
+				      *p_out++ = green_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) green -
-					      green_contrast->minValue) /
-					     green_contrast->scaleFactor);
+					      green_handling->minValue) /
+					     green_handling->scaleFactor);
 					*p_out++ =
-					    green_contrast->look_up[(unsigned
+					    green_handling->look_up[(unsigned
 								     char)
 								    scaled];
 				    }
@@ -2387,44 +2636,44 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			    else
 			      {
 				  unsigned char green = *(p_in + green_band);
-				  if (green_contrast->scaleFactor == 1.0)
+				  if (green_handling->scaleFactor == 1.0)
 				      *p_out++ =
-					  green - green_contrast->minValue;
+					  green - green_handling->minValue;
 				  else
 				    {
-					if (green <= green_contrast->minValue)
+					if (green <= green_handling->minValue)
 					    *p_out++ = 0;
 					else if (green >=
-						 green_contrast->maxValue)
+						 green_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) green -
-						    green_contrast->minValue) /
-						   green_contrast->scaleFactor);
+						    green_handling->minValue) /
+						   green_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (blue_contrast->contrastEnhancement ==
+			    if (blue_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned char blue = *(p_in + blue_band);
-				  if (blue <= blue_contrast->minValue)
-				      *p_out++ = blue_contrast->look_up[0];
-				  else if (blue >= blue_contrast->maxValue)
-				      *p_out++ = blue_contrast->look_up[255];
+				  if (blue <= blue_handling->minValue)
+				      *p_out++ = blue_handling->look_up[0];
+				  else if (blue >= blue_handling->maxValue)
+				      *p_out++ = blue_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) blue -
-					      blue_contrast->minValue) /
-					     blue_contrast->scaleFactor);
+					      blue_handling->minValue) /
+					     blue_handling->scaleFactor);
 					*p_out++ =
-					    blue_contrast->look_up[(unsigned
+					    blue_handling->look_up[(unsigned
 								    char)
 								   scaled];
 				    }
@@ -2432,22 +2681,22 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
 			    else
 			      {
 				  unsigned char blue = *(p_in + blue_band);
-				  if (blue_contrast->scaleFactor == 1.0)
-				      *p_out++ = blue - blue_contrast->minValue;
+				  if (blue_handling->scaleFactor == 1.0)
+				      *p_out++ = blue - blue_handling->minValue;
 				  else
 				    {
-					if (blue <= blue_contrast->minValue)
+					if (blue <= blue_handling->minValue)
 					    *p_out++ = 0;
 					else if (blue >=
-						 blue_contrast->maxValue)
+						 blue_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) blue -
-						    blue_contrast->minValue) /
-						   blue_contrast->scaleFactor);
+						    blue_handling->minValue) /
+						   blue_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
@@ -2464,16 +2713,143 @@ copy_uint8_raw_selected_pixels (const unsigned char *buffer,
       }
 }
 
+static unsigned char *
+mono_uint8_pixel_handler (const unsigned char *p_in, unsigned char *p_out,
+			  unsigned char mono_band,
+			  rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - UINT8 */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+	  rl2ColorMapItemPtr color;
+	  unsigned char mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  unsigned char mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  unsigned char mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
 static void
 copy_uint8_raw_mono_pixels (const unsigned char *buffer,
 			    const unsigned char *mask, unsigned char *outbuf,
 			    unsigned short width, unsigned short height,
+			    unsigned char out_num_bands,
 			    unsigned char num_bands, double x_res, double y_res,
 			    double minx, double maxy, double tile_minx,
 			    double tile_maxy, unsigned short tile_width,
 			    unsigned short tile_height, rl2PixelPtr no_data,
 			    unsigned char mono_band,
-			    rl2BandContrastPtr mono_contrast)
+			    rl2BandHandlingPtr mono_handling)
 {
 /* copying UINT8 raw pixels from the DBMS tile into the output image */
     int x;
@@ -2486,6 +2862,7 @@ copy_uint8_raw_mono_pixels (const unsigned char *buffer,
     const unsigned char *p_in = buffer;
     const unsigned char *p_msk = mask;
     unsigned char *p_out;
+    int ib;
     int transparent;
     unsigned char sample_type;
     unsigned char pixel_type;
@@ -2532,7 +2909,9 @@ copy_uint8_raw_mono_pixels (const unsigned char *buffer,
 			  p_msk++;
 		      continue;
 		  }
-		p_out = outbuf + (out_y * width) + out_x;
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
 		transparent = 0;
 		if (p_msk != NULL)
 		  {
@@ -2545,54 +2924,16 @@ copy_uint8_raw_mono_pixels (const unsigned char *buffer,
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
-			    p_out++;
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
 			}
 		      else
 			{
-			    if (mono_contrast->contrastEnhancement ==
-				RL2_CONTRAST_ENHANCEMENT_GAMMA)
-			      {
-				  unsigned char mono = *(p_in + mono_band);
-				  if (mono <= mono_contrast->minValue)
-				      *p_out++ = mono_contrast->look_up[0];
-				  else if (mono >= mono_contrast->maxValue)
-				      *p_out++ = mono_contrast->look_up[255];
-				  else
-				    {
-					double scaled =
-					    1.0 +
-					    (((double) mono -
-					      mono_contrast->minValue) /
-					     mono_contrast->scaleFactor);
-					*p_out++ =
-					    mono_contrast->look_up[(unsigned
-								    char)
-								   scaled];
-				    }
-			      }
-			    else
-			      {
-				  unsigned char mono = *(p_in + mono_band);
-				  if (mono_contrast->scaleFactor == 1.0)
-				      *p_out++ = mono - mono_contrast->minValue;
-				  else
-				    {
-					if (mono <= mono_contrast->minValue)
-					    *p_out++ = 0;
-					else if (mono >=
-						 mono_contrast->maxValue)
-					    *p_out++ = 255;
-					else
-					  {
-					      double scaled =
-						  1.0 +
-						  (((double) mono -
-						    mono_contrast->minValue) /
-						   mono_contrast->scaleFactor);
-					      *p_out++ = (unsigned char) scaled;
-					  }
-				    }
-			      }
+			    /* opaque pixel */
+			    p_out =
+				mono_uint8_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
 			}
 		  }
 		else
@@ -2610,55 +2951,16 @@ copy_uint8_raw_mono_pixels (const unsigned char *buffer,
 		      if (match != num_bands)
 			{
 			    /* opaque pixel */
-			    if (mono_contrast->contrastEnhancement ==
-				RL2_CONTRAST_ENHANCEMENT_GAMMA)
-			      {
-				  unsigned char mono = *(p_in + mono_band);
-				  if (mono <= mono_contrast->minValue)
-				      *p_out++ = mono_contrast->look_up[0];
-				  else if (mono >= mono_contrast->maxValue)
-				      *p_out++ = mono_contrast->look_up[255];
-				  else
-				    {
-					double scaled =
-					    1.0 +
-					    (((double) mono -
-					      mono_contrast->minValue) /
-					     mono_contrast->scaleFactor);
-					*p_out++ =
-					    mono_contrast->look_up[(unsigned
-								    char)
-								   scaled];
-				    }
-			      }
-			    else
-			      {
-				  unsigned char mono = *(p_in + mono_band);
-				  if (mono_contrast->scaleFactor == 1.0)
-				      *p_out++ = mono - mono_contrast->minValue;
-				  else
-				    {
-					if (mono <= mono_contrast->minValue)
-					    *p_out++ = 0;
-					else if (mono >=
-						 mono_contrast->maxValue)
-					    *p_out++ = 255;
-					else
-					  {
-					      double scaled =
-						  1.0 +
-						  (((double) mono -
-						    mono_contrast->minValue) /
-						   mono_contrast->scaleFactor);
-					      *p_out++ = (unsigned char) scaled;
-					  }
-				    }
-			      }
+			    p_out =
+				mono_uint8_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
 			}
 		      else
 			{
 			    /* NO-DATA pixel */
-			    p_out++;
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
 			}
 		  }
 		p_in += num_bands;
@@ -2770,6 +3072,257 @@ copy_int16_raw_pixels (const short *buffer, const unsigned char *mask,
 			    p_out++;
 			}
 		  }
+	    }
+      }
+}
+
+static unsigned char *
+mono_int16_pixel_handler (const short *p_in, unsigned char *p_out,
+			  unsigned char mono_band,
+			  rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - INT16 */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+rl2ColorMapItemPtr color;
+	  short mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  short mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  short mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
+static void
+copy_int16_raw_mono_pixels (const short *buffer,
+			    const unsigned char *mask, unsigned char *outbuf,
+			    unsigned short width, unsigned short height,
+			    unsigned char out_num_bands, double x_res,
+			    double y_res, double minx, double maxy,
+			    double tile_minx, double tile_maxy,
+			    unsigned short tile_width,
+			    unsigned short tile_height, rl2PixelPtr no_data,
+			    unsigned char mono_band,
+			    rl2BandHandlingPtr mono_handling)
+{
+/* copying INT16 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const short *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int ib;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT16)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in++;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_int16_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const short *p_save = p_in;
+		      short sample = 0;
+		      rl2_get_pixel_sample_int16 (no_data, &sample);
+		      if (sample == *p_save++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_int16_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		  }
+		p_in++;
 	    }
       }
 }
@@ -2905,9 +3458,9 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 				 rl2PixelPtr no_data, unsigned char red_band,
 				 unsigned char green_band,
 				 unsigned char blue_band,
-				 rl2BandContrastPtr red_contrast,
-				 rl2BandContrastPtr green_contrast,
-				 rl2BandContrastPtr blue_contrast)
+				 rl2BandHandlingPtr red_handling,
+				 rl2BandHandlingPtr green_handling,
+				 rl2BandHandlingPtr blue_handling)
 {
 /* copying UINT16 raw pixels from the DBMS tile into the output image */
     int x;
@@ -2983,23 +3536,23 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 			}
 		      else
 			{
-			    if (red_contrast->contrastEnhancement ==
+			    if (red_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned short red = *(p_in + red_band);
-				  if (red <= red_contrast->minValue)
-				      *p_out++ = red_contrast->look_up[0];
-				  else if (red >= red_contrast->maxValue)
-				      *p_out++ = red_contrast->look_up[255];
+				  if (red <= red_handling->minValue)
+				      *p_out++ = red_handling->look_up[0];
+				  else if (red >= red_handling->maxValue)
+				      *p_out++ = red_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) red -
-					      red_contrast->minValue) /
-					     red_contrast->scaleFactor);
+					      red_handling->minValue) /
+					     red_handling->scaleFactor);
 					*p_out++ =
-					    red_contrast->look_up[(unsigned
+					    red_handling->look_up[(unsigned
 								   char)
 								  scaled];
 				    }
@@ -3007,85 +3560,85 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 			    else
 			      {
 				  unsigned short red = *(p_in + red_band);
-				  if (red_contrast->scaleFactor == 1.0)
-				      *p_out++ = red - red_contrast->minValue;
+				  if (red_handling->scaleFactor == 1.0)
+				      *p_out++ = red - red_handling->minValue;
 				  else
 				    {
-					if (red <= red_contrast->minValue)
+					if (red <= red_handling->minValue)
 					    *p_out++ = 0;
-					else if (red >= red_contrast->maxValue)
+					else if (red >= red_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) red -
-						    red_contrast->minValue) /
-						   red_contrast->scaleFactor);
+						    red_handling->minValue) /
+						   red_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (green_contrast->contrastEnhancement ==
+			    if (green_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned short green = *(p_in + green_band);
-				  if (green <= green_contrast->minValue)
-				      *p_out++ = green_contrast->look_up[0];
-				  else if (green >= green_contrast->maxValue)
-				      *p_out++ = green_contrast->look_up[255];
+				  if (green <= green_handling->minValue)
+				      *p_out++ = green_handling->look_up[0];
+				  else if (green >= green_handling->maxValue)
+				      *p_out++ = green_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) green -
-					      green_contrast->minValue) /
-					     green_contrast->scaleFactor);
+					      green_handling->minValue) /
+					     green_handling->scaleFactor);
 					*p_out++ =
-					    green_contrast->look_up[(unsigned
+					    green_handling->look_up[(unsigned
 								     char)
 								    scaled];
 				    }
 			      }
 			    {
 				unsigned short green = *(p_in + green_band);
-				if (green_contrast->scaleFactor == 1.0)
-				    *p_out++ = green - green_contrast->minValue;
+				if (green_handling->scaleFactor == 1.0)
+				    *p_out++ = green - green_handling->minValue;
 				else
 				  {
-				      if (green <= green_contrast->minValue)
+				      if (green <= green_handling->minValue)
 					  *p_out++ = 0;
 				      else if (green >=
-					       green_contrast->maxValue)
+					       green_handling->maxValue)
 					  *p_out++ = 255;
 				      else
 					{
 					    double scaled =
 						1.0 +
 						(((double) green -
-						  green_contrast->minValue) /
-						 green_contrast->scaleFactor);
+						  green_handling->minValue) /
+						 green_handling->scaleFactor);
 					    *p_out++ = (unsigned char) scaled;
 					}
 				  }
 			    }
-			    if (blue_contrast->contrastEnhancement ==
+			    if (blue_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned short blue = *(p_in + blue_band);
-				  if (blue <= blue_contrast->minValue)
-				      *p_out++ = blue_contrast->look_up[0];
-				  else if (blue >= blue_contrast->maxValue)
-				      *p_out++ = blue_contrast->look_up[255];
+				  if (blue <= blue_handling->minValue)
+				      *p_out++ = blue_handling->look_up[0];
+				  else if (blue >= blue_handling->maxValue)
+				      *p_out++ = blue_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) blue -
-					      blue_contrast->minValue) /
-					     blue_contrast->scaleFactor);
+					      blue_handling->minValue) /
+					     blue_handling->scaleFactor);
 					*p_out++ =
-					    blue_contrast->look_up[(unsigned
+					    blue_handling->look_up[(unsigned
 								    char)
 								   scaled];
 				    }
@@ -3093,22 +3646,22 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 			    else
 			      {
 				  unsigned short blue = *(p_in + blue_band);
-				  if (blue_contrast->scaleFactor == 1.0)
-				      *p_out++ = blue - blue_contrast->minValue;
+				  if (blue_handling->scaleFactor == 1.0)
+				      *p_out++ = blue - blue_handling->minValue;
 				  else
 				    {
-					if (blue <= blue_contrast->minValue)
+					if (blue <= blue_handling->minValue)
 					    *p_out++ = 0;
 					else if (blue >=
-						 blue_contrast->maxValue)
+						 blue_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) blue -
-						    blue_contrast->minValue) /
-						   blue_contrast->scaleFactor);
+						    blue_handling->minValue) /
+						   blue_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
@@ -3130,23 +3683,23 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 		      if (match != num_bands)
 			{
 			    /* opaque pixel */
-			    if (red_contrast->contrastEnhancement ==
+			    if (red_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned short red = *(p_in + red_band);
-				  if (red <= red_contrast->minValue)
-				      *p_out++ = red_contrast->look_up[0];
-				  else if (red >= red_contrast->maxValue)
-				      *p_out++ = red_contrast->look_up[255];
+				  if (red <= red_handling->minValue)
+				      *p_out++ = red_handling->look_up[0];
+				  else if (red >= red_handling->maxValue)
+				      *p_out++ = red_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) red -
-					      red_contrast->minValue) /
-					     red_contrast->scaleFactor);
+					      red_handling->minValue) /
+					     red_handling->scaleFactor);
 					*p_out++ =
-					    red_contrast->look_up[(unsigned
+					    red_handling->look_up[(unsigned
 								   char)
 								  scaled];
 				    }
@@ -3154,42 +3707,42 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 			    else
 			      {
 				  unsigned short red = *(p_in + red_band);
-				  if (red_contrast->scaleFactor == 1.0)
-				      *p_out++ = red - red_contrast->minValue;
+				  if (red_handling->scaleFactor == 1.0)
+				      *p_out++ = red - red_handling->minValue;
 				  else
 				    {
-					if (red <= red_contrast->minValue)
+					if (red <= red_handling->minValue)
 					    *p_out++ = 0;
-					else if (red >= red_contrast->maxValue)
+					else if (red >= red_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) red -
-						    red_contrast->minValue) /
-						   red_contrast->scaleFactor);
+						    red_handling->minValue) /
+						   red_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (green_contrast->contrastEnhancement ==
+			    if (green_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned short green = *(p_in + green_band);
-				  if (green <= green_contrast->minValue)
-				      *p_out++ = green_contrast->look_up[0];
-				  else if (green >= green_contrast->maxValue)
-				      *p_out++ = green_contrast->look_up[255];
+				  if (green <= green_handling->minValue)
+				      *p_out++ = green_handling->look_up[0];
+				  else if (green >= green_handling->maxValue)
+				      *p_out++ = green_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) green -
-					      green_contrast->minValue) /
-					     green_contrast->scaleFactor);
+					      green_handling->minValue) /
+					     green_handling->scaleFactor);
 					*p_out++ =
-					    green_contrast->look_up[(unsigned
+					    green_handling->look_up[(unsigned
 								     char)
 								    scaled];
 				    }
@@ -3197,44 +3750,44 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 			    else
 			      {
 				  unsigned short green = *(p_in + green_band);
-				  if (green_contrast->scaleFactor == 1.0)
+				  if (green_handling->scaleFactor == 1.0)
 				      *p_out++ =
-					  green - green_contrast->minValue;
+					  green - green_handling->minValue;
 				  else
 				    {
-					if (green <= green_contrast->minValue)
+					if (green <= green_handling->minValue)
 					    *p_out++ = 0;
 					else if (green >=
-						 green_contrast->maxValue)
+						 green_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) green -
-						    green_contrast->minValue) /
-						   green_contrast->scaleFactor);
+						    green_handling->minValue) /
+						   green_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
 			      }
-			    if (blue_contrast->contrastEnhancement ==
+			    if (blue_handling->contrastEnhancement ==
 				RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			      {
 				  unsigned short blue = *(p_in + blue_band);
-				  if (blue <= blue_contrast->minValue)
-				      *p_out++ = blue_contrast->look_up[0];
-				  else if (blue >= blue_contrast->maxValue)
-				      *p_out++ = blue_contrast->look_up[255];
+				  if (blue <= blue_handling->minValue)
+				      *p_out++ = blue_handling->look_up[0];
+				  else if (blue >= blue_handling->maxValue)
+				      *p_out++ = blue_handling->look_up[255];
 				  else
 				    {
 					double scaled =
 					    1.0 +
 					    (((double) blue -
-					      blue_contrast->minValue) /
-					     blue_contrast->scaleFactor);
+					      blue_handling->minValue) /
+					     blue_handling->scaleFactor);
 					*p_out++ =
-					    blue_contrast->look_up[(unsigned
+					    blue_handling->look_up[(unsigned
 								    char)
 								   scaled];
 				    }
@@ -3242,22 +3795,22 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
 			    else
 			      {
 				  unsigned short blue = *(p_in + blue_band);
-				  if (blue_contrast->scaleFactor == 1.0)
-				      *p_out++ = blue - blue_contrast->minValue;
+				  if (blue_handling->scaleFactor == 1.0)
+				      *p_out++ = blue - blue_handling->minValue;
 				  else
 				    {
-					if (blue <= blue_contrast->minValue)
+					if (blue <= blue_handling->minValue)
 					    *p_out++ = 0;
 					else if (blue >=
-						 blue_contrast->maxValue)
+						 blue_handling->maxValue)
 					    *p_out++ = 255;
 					else
 					  {
 					      double scaled =
 						  1.0 +
 						  (((double) blue -
-						    blue_contrast->minValue) /
-						   blue_contrast->scaleFactor);
+						    blue_handling->minValue) /
+						   blue_handling->scaleFactor);
 					      *p_out++ = (unsigned char) scaled;
 					  }
 				    }
@@ -3274,17 +3827,144 @@ copy_uint16_raw_selected_pixels (const unsigned short *buffer,
       }
 }
 
+static unsigned char *
+mono_uint16_pixel_handler (const unsigned short *p_in, unsigned char *p_out,
+			   unsigned char mono_band,
+			   rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - UINT16 */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+rl2ColorMapItemPtr color;
+	  unsigned short mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  unsigned short mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  unsigned short mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
 static void
 copy_uint16_raw_mono_pixels (const unsigned short *buffer,
 			     const unsigned char *mask, unsigned char *outbuf,
 			     unsigned short width, unsigned short height,
+			     unsigned char out_num_bands,
 			     unsigned char num_bands, double x_res,
 			     double y_res, double minx, double maxy,
 			     double tile_minx, double tile_maxy,
 			     unsigned short tile_width,
 			     unsigned short tile_height, rl2PixelPtr no_data,
 			     unsigned char mono_band,
-			     rl2BandContrastPtr mono_contrast)
+			     rl2BandHandlingPtr mono_handling)
 {
 /* copying UINT16 raw pixels from the DBMS tile into the output image */
     int x;
@@ -3297,6 +3977,7 @@ copy_uint16_raw_mono_pixels (const unsigned short *buffer,
     const unsigned short *p_in = buffer;
     const unsigned char *p_msk = mask;
     unsigned char *p_out;
+    int ib;
     int transparent;
     unsigned char sample_type;
     unsigned char pixel_type;
@@ -3343,7 +4024,9 @@ copy_uint16_raw_mono_pixels (const unsigned short *buffer,
 			  p_msk++;
 		      continue;
 		  }
-		p_out = outbuf + (out_y * width) + out_x;
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
 		transparent = 0;
 		if (p_msk != NULL)
 		  {
@@ -3356,54 +4039,16 @@ copy_uint16_raw_mono_pixels (const unsigned short *buffer,
 		      if (transparent)
 			{
 			    /* skipping a transparent pixel */
-			    p_out++;
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
 			}
 		      else
 			{
-			    if (mono_contrast->contrastEnhancement ==
-				RL2_CONTRAST_ENHANCEMENT_GAMMA)
-			      {
-				  unsigned short mono = *(p_in + mono_band);
-				  if (mono <= mono_contrast->minValue)
-				      *p_out++ = mono_contrast->look_up[0];
-				  else if (mono >= mono_contrast->maxValue)
-				      *p_out++ = mono_contrast->look_up[255];
-				  else
-				    {
-					double scaled =
-					    1.0 +
-					    (((double) mono -
-					      mono_contrast->minValue) /
-					     mono_contrast->scaleFactor);
-					*p_out++ =
-					    mono_contrast->look_up[(unsigned
-								    char)
-								   scaled];
-				    }
-			      }
-			    else
-			      {
-				  unsigned short mono = *(p_in + mono_band);
-				  if (mono_contrast->scaleFactor == 1.0)
-				      *p_out++ = mono - mono_contrast->minValue;
-				  else
-				    {
-					if (mono <= mono_contrast->minValue)
-					    *p_out++ = 0;
-					else if (mono >=
-						 mono_contrast->maxValue)
-					    *p_out++ = 255;
-					else
-					  {
-					      double scaled =
-						  1.0 +
-						  (((double) mono -
-						    mono_contrast->minValue) /
-						   mono_contrast->scaleFactor);
-					      *p_out++ = (unsigned char) scaled;
-					  }
-				    }
-			      }
+			    /* opaque pixel */
+			    p_out =
+				mono_uint16_pixel_handler (p_in, p_out,
+							   mono_band,
+							   mono_handling);
 			}
 		  }
 		else
@@ -3421,55 +4066,16 @@ copy_uint16_raw_mono_pixels (const unsigned short *buffer,
 		      if (match != num_bands)
 			{
 			    /* opaque pixel */
-			    if (mono_contrast->contrastEnhancement ==
-				RL2_CONTRAST_ENHANCEMENT_GAMMA)
-			      {
-				  unsigned short mono = *(p_in + mono_band);
-				  if (mono <= mono_contrast->minValue)
-				      *p_out++ = mono_contrast->look_up[0];
-				  else if (mono >= mono_contrast->maxValue)
-				      *p_out++ = mono_contrast->look_up[255];
-				  else
-				    {
-					double scaled =
-					    1.0 +
-					    (((double) mono -
-					      mono_contrast->minValue) /
-					     mono_contrast->scaleFactor);
-					*p_out++ =
-					    mono_contrast->look_up[(unsigned
-								    char)
-								   scaled];
-				    }
-			      }
-			    else
-			      {
-				  unsigned short mono = *(p_in + mono_band);
-				  if (mono_contrast->scaleFactor == 1.0)
-				      *p_out++ = mono - mono_contrast->minValue;
-				  else
-				    {
-					if (mono <= mono_contrast->minValue)
-					    *p_out++ = 0;
-					else if (mono >=
-						 mono_contrast->maxValue)
-					    *p_out++ = 255;
-					else
-					  {
-					      double scaled =
-						  1.0 +
-						  (((double) mono -
-						    mono_contrast->minValue) /
-						   mono_contrast->scaleFactor);
-					      *p_out++ = (unsigned char) scaled;
-					  }
-				    }
-			      }
+			    p_out =
+				mono_uint16_pixel_handler (p_in, p_out,
+							   mono_band,
+							   mono_handling);
 			}
 		      else
 			{
 			    /* NO-DATA pixel */
-			    p_out++;
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
 			}
 		  }
 		p_in += num_bands;
@@ -3585,6 +4191,257 @@ copy_int32_raw_pixels (const int *buffer, const unsigned char *mask,
       }
 }
 
+static unsigned char *
+mono_int32_pixel_handler (const int *p_in, unsigned char *p_out,
+			  unsigned char mono_band,
+			  rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - INT32 */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+	  rl2ColorMapItemPtr color;
+	  int mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  int mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  int mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
+static void
+copy_int32_raw_mono_pixels (const int *buffer,
+			    const unsigned char *mask, unsigned char *outbuf,
+			    unsigned short width, unsigned short height,
+			    unsigned char out_num_bands, double x_res,
+			    double y_res, double minx, double maxy,
+			    double tile_minx, double tile_maxy,
+			    unsigned short tile_width,
+			    unsigned short tile_height, rl2PixelPtr no_data,
+			    unsigned char mono_band,
+			    rl2BandHandlingPtr mono_handling)
+{
+/* copying INT32 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const int *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int ib;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT32)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in++;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_int32_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const int *p_save = p_in;
+		      int sample = 0;
+		      rl2_get_pixel_sample_int32 (no_data, &sample);
+		      if (sample == *p_save++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_int32_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		  }
+		p_in++;
+	    }
+      }
+}
+
 static void
 copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
 			unsigned int *outbuf, unsigned short width,
@@ -3689,6 +4546,257 @@ copy_uint32_raw_pixels (const unsigned int *buffer, const unsigned char *mask,
 			    p_out++;
 			}
 		  }
+	    }
+      }
+}
+
+static unsigned char *
+mono_uint32_pixel_handler (const unsigned int *p_in, unsigned char *p_out,
+			   unsigned char mono_band,
+			   rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - UINT32 */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+	  rl2ColorMapItemPtr color;
+	  unsigned int mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  unsigned int mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  unsigned int mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
+static void
+copy_uint32_raw_mono_pixels (const unsigned int *buffer,
+			     const unsigned char *mask, unsigned char *outbuf,
+			     unsigned short width, unsigned short height,
+			     unsigned char out_num_bands, double x_res,
+			     double y_res, double minx, double maxy,
+			     double tile_minx, double tile_maxy,
+			     unsigned short tile_width,
+			     unsigned short tile_height, rl2PixelPtr no_data,
+			     unsigned char mono_band,
+			     rl2BandHandlingPtr mono_handling)
+{
+/* copying UINT32 raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const unsigned int *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int ib;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_UINT32)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in++;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_uint32_pixel_handler (p_in, p_out,
+							   mono_band,
+							   mono_handling);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const unsigned int *p_save = p_in;
+		      unsigned int sample = 0;
+		      rl2_get_pixel_sample_uint32 (no_data, &sample);
+		      if (sample == *p_save++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_uint32_pixel_handler (p_in, p_out,
+							   mono_band,
+							   mono_handling);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		  }
+		p_in++;
 	    }
       }
 }
@@ -3801,6 +4909,257 @@ copy_float_raw_pixels (const float *buffer, const unsigned char *mask,
       }
 }
 
+static unsigned char *
+mono_float_pixel_handler (const float *p_in, unsigned char *p_out,
+			  unsigned char mono_band,
+			  rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - FLOAT */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+	  rl2ColorMapItemPtr color;
+	  float mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  float mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  float mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
+static void
+copy_float_raw_mono_pixels (const float *buffer,
+			    const unsigned char *mask, unsigned char *outbuf,
+			    unsigned short width, unsigned short height,
+			    unsigned char out_num_bands, double x_res,
+			    double y_res, double minx, double maxy,
+			    double tile_minx, double tile_maxy,
+			    unsigned short tile_width,
+			    unsigned short tile_height, rl2PixelPtr no_data,
+			    unsigned char mono_band,
+			    rl2BandHandlingPtr mono_handling)
+{
+/* copying FLOAT raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const float *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int ib;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_FLOAT)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in++;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_float_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const float *p_save = p_in;
+		      float sample = 0.0;
+		      rl2_get_pixel_sample_float (no_data, &sample);
+		      if (sample == *p_save++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_float_pixel_handler (p_in, p_out,
+							  mono_band,
+							  mono_handling);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		  }
+		p_in++;
+	    }
+      }
+}
+
 static void
 copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
 			double *outbuf, unsigned short width,
@@ -3909,19 +5268,270 @@ copy_double_raw_pixels (const double *buffer, const unsigned char *mask,
       }
 }
 
+static unsigned char *
+mono_double_pixel_handler (const double *p_in, unsigned char *p_out,
+			   unsigned char mono_band,
+			   rl2BandHandlingPtr mono_handling)
+{
+/* styling an opaque pixel - DOUBLE */
+    if (mono_handling->colorMap != NULL)
+      {
+	  /* applying a ColorMap */
+	  int found = 0;
+	  rl2ColorMapRefPtr rule;
+	  rl2ColorMapItemPtr color;
+	  double mono = *(p_in + mono_band);
+	  double scaled =
+	      ((double) mono -
+	       mono_handling->minValue) / mono_handling->scaleFactor;
+	  int i = (int) scaled;
+	  if (i < 0)
+	      i = 0;
+	  if (i > 255)
+	      i = 255;
+	  color = &(mono_handling->colorMap->look_up[i]);
+	  rule = color->first;
+	  while (rule != NULL)
+	    {
+		if (rule->min <= mono && rule->max > mono)
+		  {
+		      if (mono_handling->colorMap->interpolate)
+			{
+			    /* Interpolate */
+			    double span = rule->max - rule->min;
+			    double pos = (double) mono - rule->min;
+			    double scale = pos / span;
+			    double red_span =
+				(double) (rule->maxRed - rule->red);
+			    double green_span =
+				(double) (rule->maxGreen - rule->green);
+			    double blue_span =
+				(double) (rule->maxBlue - rule->blue);
+			    double red =
+				(double) (rule->red) + (red_span * scale);
+			    double green =
+				(double) (rule->green) + (green_span * scale);
+			    double blue =
+				(double) (rule->blue) + (blue_span * scale);
+			    if (red < 0.0)
+				red = 0.0;
+			    if (red > 255.0)
+				red = 255.0;
+			    if (green < 0.0)
+				green = 0.0;
+			    if (green > 255.0)
+				green = 255.0;
+			    if (blue < 0.0)
+				blue = 0.0;
+			    if (blue > 255.0)
+				blue = 255.0;
+			    *p_out++ = (unsigned char) red;
+			    *p_out++ = (unsigned char) green;
+			    *p_out++ = (unsigned char) blue;
+			}
+		      else
+			{
+			    /* Categorize */
+			    *p_out++ = rule->red;
+			    *p_out++ = rule->green;
+			    *p_out++ = rule->blue;
+			}
+		      found = 1;
+		      break;
+		  }
+		rule = rule->next;
+	    }
+	  if (!found)
+	    {
+		/* applying the default RGB color */
+		*p_out++ = mono_handling->colorMap->red;
+		*p_out++ = mono_handling->colorMap->green;
+		*p_out++ = mono_handling->colorMap->blue;
+	    }
+	  return p_out;
+      }
+
+    if (mono_handling->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+      {
+	  /* applying Gamma Value */
+	  double mono = *(p_in + mono_band);
+	  if (mono <= mono_handling->minValue)
+	      *p_out++ = mono_handling->look_up[0];
+	  else if (mono >= mono_handling->maxValue)
+	      *p_out++ = mono_handling->look_up[255];
+	  else
+	    {
+		double scaled =
+		    1.0 +
+		    (((double) mono -
+		      mono_handling->minValue) / mono_handling->scaleFactor);
+		*p_out++ = mono_handling->look_up[(unsigned char) scaled];
+	    }
+      }
+    else
+      {
+	  /* applying Normalize */
+	  double mono = *(p_in + mono_band);
+	  if (mono_handling->scaleFactor == 1.0)
+	      *p_out++ = mono - mono_handling->minValue;
+	  else
+	    {
+		if (mono <= mono_handling->minValue)
+		    *p_out++ = 0;
+		else if (mono >= mono_handling->maxValue)
+		    *p_out++ = 255;
+		else
+		  {
+		      double scaled =
+			  1.0 +
+			  (((double) mono -
+			    mono_handling->minValue) /
+			   mono_handling->scaleFactor);
+		      *p_out++ = (char) scaled;
+		  }
+	    }
+      }
+    return p_out;
+}
+
 static void
-build_triple_band_contrast (rl2PrivRasterStylePtr style,
+copy_double_raw_mono_pixels (const double *buffer,
+			     const unsigned char *mask, unsigned char *outbuf,
+			     unsigned short width, unsigned short height,
+			     unsigned char out_num_bands, double x_res,
+			     double y_res, double minx, double maxy,
+			     double tile_minx, double tile_maxy,
+			     unsigned short tile_width,
+			     unsigned short tile_height, rl2PixelPtr no_data,
+			     unsigned char mono_band,
+			     rl2BandHandlingPtr mono_handling)
+{
+/* copying DOUBLE raw pixels from the DBMS tile into the output image */
+    int x;
+    int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const double *p_in = buffer;
+    const unsigned char *p_msk = mask;
+    unsigned char *p_out;
+    int ib;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_DOUBLE)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= height)
+	    {
+		p_in += tile_width;
+		if (p_msk != NULL)
+		    p_msk += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= width)
+		  {
+		      p_in++;
+		      if (p_msk != NULL)
+			  p_msk++;
+		      continue;
+		  }
+		p_out =
+		    outbuf + (out_y * width * out_num_bands) +
+		    (out_x * out_num_bands);
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    /* skipping a transparent pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_double_pixel_handler (p_in, p_out,
+							   mono_band,
+							   mono_handling);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const double *p_save = p_in;
+		      double sample = 0;
+		      rl2_get_pixel_sample_double (no_data, &sample);
+		      if (sample == *p_save++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    p_out =
+				mono_double_pixel_handler (p_in, p_out,
+							   mono_band,
+							   mono_handling);
+			}
+		      else
+			{
+			    /* NO-DATA pixel */
+			    for (ib = 0; ib < out_num_bands; ib++)
+				p_out++;
+			}
+		  }
+		p_in++;
+	    }
+      }
+}
+
+static void
+build_triple_band_handling (rl2PrivRasterStylePtr style,
 			    rl2PrivRasterStatisticsPtr stats,
 			    unsigned char red_band, unsigned char green_band,
 			    unsigned char blue_band,
-			    rl2BandContrastPtr * red_contrast,
-			    rl2BandContrastPtr * green_contrast,
-			    rl2BandContrastPtr * blue_contrast)
+			    rl2BandHandlingPtr * red_handling,
+			    rl2BandHandlingPtr * green_handling,
+			    rl2BandHandlingPtr * blue_handling)
 {
 /* creating BandContrastEnhancement helper structs */
-    rl2BandContrastPtr r = NULL;
-    rl2BandContrastPtr g = NULL;
-    rl2BandContrastPtr b = NULL;
+    rl2BandHandlingPtr r = NULL;
+    rl2BandHandlingPtr g = NULL;
+    rl2BandHandlingPtr b = NULL;
     rl2PrivBandStatisticsPtr band;
     double range;
     int i;
@@ -3936,7 +5546,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->redContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 			{
-			    r = malloc (sizeof (rl2BandContrast));
+			    r = malloc (sizeof (rl2BandHandling));
 			    r->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 			    r->minValue = band->min;
@@ -3947,7 +5557,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->redContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			{
-			    r = malloc (sizeof (rl2BandContrast));
+			    r = malloc (sizeof (rl2BandHandling));
 			    r->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_GAMMA;
 			    r->minValue = band->min;
@@ -3960,9 +5570,8 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->redGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 redGamma) * 254 + 0.5);
 			}
 		  }
 		if (green_band < stats->nBands)
@@ -3971,7 +5580,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->greenContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 			{
-			    g = malloc (sizeof (rl2BandContrast));
+			    g = malloc (sizeof (rl2BandHandling));
 			    g->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 			    g->minValue = band->min;
@@ -3982,7 +5591,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->greenContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			{
-			    g = malloc (sizeof (rl2BandContrast));
+			    g = malloc (sizeof (rl2BandHandling));
 			    g->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_GAMMA;
 			    g->minValue = band->min;
@@ -3995,9 +5604,8 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->greenGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 greenGamma) * 254 + 0.5);
 			}
 		  }
 		if (blue_band < stats->nBands)
@@ -4006,7 +5614,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->blueContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 			{
-			    b = malloc (sizeof (rl2BandContrast));
+			    b = malloc (sizeof (rl2BandHandling));
 			    b->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 			    b->minValue = band->min;
@@ -4017,7 +5625,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->blueContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			{
-			    b = malloc (sizeof (rl2BandContrast));
+			    b = malloc (sizeof (rl2BandHandling));
 			    b->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_GAMMA;
 			    b->minValue = band->min;
@@ -4030,9 +5638,8 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->blueGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 blueGamma) * 254 + 0.5);
 			}
 		  }
 	    }
@@ -4046,7 +5653,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 		  {
-		      r = malloc (sizeof (rl2BandContrast));
+		      r = malloc (sizeof (rl2BandHandling));
 		      r->contrastEnhancement =
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 		      r->minValue = band->min;
@@ -4056,7 +5663,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		  }
 		if (style->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NONE)
 		  {
-		      r = malloc (sizeof (rl2BandContrast));
+		      r = malloc (sizeof (rl2BandHandling));
 		      r->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
 		      if (band->min >= 0.0 && band->max <= 255.0)
 			{
@@ -4075,7 +5682,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_GAMMA)
 		  {
-		      r = malloc (sizeof (rl2BandContrast));
+		      r = malloc (sizeof (rl2BandHandling));
 		      r->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_GAMMA;
 		      r->minValue = band->min;
 		      r->maxValue = band->max;
@@ -4100,7 +5707,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 		  {
-		      g = malloc (sizeof (rl2BandContrast));
+		      g = malloc (sizeof (rl2BandHandling));
 		      g->contrastEnhancement =
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 		      g->minValue = band->min;
@@ -4110,7 +5717,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		  }
 		if (style->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NONE)
 		  {
-		      g = malloc (sizeof (rl2BandContrast));
+		      g = malloc (sizeof (rl2BandHandling));
 		      g->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
 		      if (band->min >= 0.0 && band->max <= 255.0)
 			{
@@ -4129,7 +5736,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_GAMMA)
 		  {
-		      g = malloc (sizeof (rl2BandContrast));
+		      g = malloc (sizeof (rl2BandHandling));
 		      g->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_GAMMA;
 		      g->minValue = band->min;
 		      g->maxValue = band->max;
@@ -4154,7 +5761,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 		  {
-		      b = malloc (sizeof (rl2BandContrast));
+		      b = malloc (sizeof (rl2BandHandling));
 		      b->contrastEnhancement =
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 		      b->minValue = band->min;
@@ -4164,7 +5771,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		  }
 		if (style->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NONE)
 		  {
-		      b = malloc (sizeof (rl2BandContrast));
+		      b = malloc (sizeof (rl2BandHandling));
 		      b->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
 		      if (band->min >= 0.0 && band->max <= 255.0)
 			{
@@ -4183,7 +5790,7 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_GAMMA)
 		  {
-		      b = malloc (sizeof (rl2BandContrast));
+		      b = malloc (sizeof (rl2BandHandling));
 		      b->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_GAMMA;
 		      b->minValue = band->min;
 		      b->maxValue = band->max;
@@ -4199,22 +5806,198 @@ build_triple_band_contrast (rl2PrivRasterStylePtr style,
 		  }
 	    }
       }
-    *red_contrast = r;
-    *green_contrast = g;
-    *blue_contrast = b;
+    *red_handling = r;
+    *green_handling = g;
+    *blue_handling = b;
 }
 
 static void
-build_mono_band_contrast (rl2PrivRasterStylePtr style,
+add_color_rule (rl2ColorMapItemPtr c, rl2ColorMapRefPtr col)
+{
+/* appending a color rule to the look-up table enty */
+    rl2ColorMapRefPtr rule = malloc (sizeof (rl2ColorMapRef));
+    rule->min = col->min;
+    rule->max = col->max;
+    rule->red = col->red;
+    rule->green = col->green;
+    rule->blue = col->blue;
+    rule->maxRed = col->maxRed;
+    rule->maxGreen = col->maxGreen;
+    rule->maxBlue = col->maxBlue;
+    rule->next = NULL;
+    if (c->first == NULL)
+	c->first = rule;
+    if (c->last != NULL)
+	c->last->next = rule;
+    c->last = rule;
+}
+
+static void
+build_mono_band_handling (rl2PrivRasterStylePtr style,
 			  rl2PrivRasterStatisticsPtr stats,
 			  unsigned char mono_band,
-			  rl2BandContrastPtr * mono_contrast)
+			  rl2BandHandlingPtr * mono_handling)
 {
 /* creating BandContrastEnhancement helper structs */
-    rl2BandContrastPtr g = NULL;
+    rl2BandHandlingPtr g = NULL;
     rl2PrivBandStatisticsPtr band;
     double range;
     int i;
+    rl2PrivColorMapPointPtr color;
+    rl2PrivColorMapPointPtr prev_color;
+    if (style->categorize != NULL)
+      {
+	  /* using the Categorize ColorMap */
+	  band = stats->band_stats + mono_band;
+	  g = malloc (sizeof (rl2BandHandling));
+	  g->minValue = band->min;
+	  g->maxValue = band->max;
+	  range = band->max - band->min;
+	  g->scaleFactor = range / 256.0;
+	  g->colorMap = malloc (sizeof (rl2ColorMapLocator));
+	  g->colorMap->interpolate = 0;
+	  for (i = 0; i < 256; i++)
+	    {
+		rl2ColorMapItemPtr c = &(g->colorMap->look_up[i]);
+		c->first = NULL;
+		c->last = NULL;
+	    }
+	  g->colorMap->red = style->categorize->dfltRed;
+	  g->colorMap->green = style->categorize->dfltGreen;
+	  g->colorMap->blue = style->categorize->dfltBlue;
+	  color = style->categorize->first;
+	  prev_color = NULL;
+	  while (color != NULL)
+	    {
+		rl2ColorMapRef col;
+		if (prev_color == NULL)
+		  {
+		      /* first category */
+		      col.min = 0.0 - DBL_MAX;
+		      col.max = color->value;
+		      col.red = style->categorize->baseRed;
+		      col.green = style->categorize->baseGreen;
+		      col.blue = style->categorize->baseBlue;
+		      for (i = 0; i < 256; i++)
+			{
+			    rl2ColorMapItemPtr c = &(g->colorMap->look_up[i]);
+			    double v1 =
+				band->min + ((double) i * g->scaleFactor);
+			    double v2 =
+				band->min + ((double) (i + 1) * g->scaleFactor);
+			    if ((v1 >= col.min && v1 < col.max)
+				|| (v2 >= col.min && v2 < col.max)
+				|| (col.min >= v1 && col.min < v2)
+				|| (col.max >= v2 && col.max < v2))
+				add_color_rule (c, &col);
+			}
+		  }
+		else
+		  {
+		      /* any other category */
+		      col.min = prev_color->value;
+		      col.max = color->value;
+		      col.red = prev_color->red;
+		      col.green = prev_color->green;
+		      col.blue = prev_color->blue;
+		      for (i = 0; i < 256; i++)
+			{
+			    rl2ColorMapItemPtr c = &(g->colorMap->look_up[i]);
+			    double v1 =
+				band->min + ((double) i * g->scaleFactor);
+			    double v2 =
+				band->min + ((double) (i + 1) * g->scaleFactor);
+			    if ((v1 >= col.min && v1 < col.max)
+				|| (v2 >= col.min && v2 < col.max)
+				|| (col.min >= v1 && col.min < v2)
+				|| (col.max >= v2 && col.max < v2))
+				add_color_rule (c, &col);
+			}
+		  }
+		if (color->next == NULL)
+		  {
+		      /* last category */
+		      col.min = color->value;
+		      col.max = DBL_MAX;
+		      col.red = color->red;
+		      col.green = color->green;
+		      col.blue = color->blue;
+		      for (i = 0; i < 256; i++)
+			{
+			    rl2ColorMapItemPtr c = &(g->colorMap->look_up[i]);
+			    double v1 =
+				band->min + ((double) i * g->scaleFactor);
+			    double v2 =
+				band->min + ((double) (i + 1) * g->scaleFactor);
+			    if ((v1 >= col.min && v1 < col.max)
+				|| (v2 >= col.min && v2 < col.max)
+				|| (col.min >= v1 && col.min < v2)
+				|| (col.max >= v2 && col.max < v2))
+				add_color_rule (c, &col);
+			}
+		  }
+		prev_color = color;
+		color = color->next;
+	    }
+	  *mono_handling = g;
+	  return;
+      }
+    if (style->interpolate != NULL)
+      {
+	  /* using the Interpolate ColorMap */
+	  band = stats->band_stats + mono_band;
+	  g = malloc (sizeof (rl2BandHandling));
+	  g->minValue = band->min;
+	  g->maxValue = band->max;
+	  range = band->max - band->min;
+	  g->scaleFactor = range / 256.0;
+	  g->colorMap = malloc (sizeof (rl2ColorMapLocator));
+	  g->colorMap->interpolate = 1;
+	  for (i = 0; i < 256; i++)
+	    {
+		rl2ColorMapItemPtr c = &(g->colorMap->look_up[i]);
+		c->first = NULL;
+		c->last = NULL;
+	    }
+	  g->colorMap->red = style->interpolate->dfltRed;
+	  g->colorMap->green = style->interpolate->dfltGreen;
+	  g->colorMap->blue = style->interpolate->dfltBlue;
+	  color = style->interpolate->first;
+	  prev_color = NULL;
+	  while (color != NULL)
+	    {
+		rl2ColorMapRef col;
+		if (prev_color != NULL)
+		  {
+		      col.min = prev_color->value;
+		      col.max = color->value;
+		      col.red = prev_color->red;
+		      col.green = prev_color->green;
+		      col.blue = prev_color->blue;
+		      col.maxRed = color->red;
+		      col.maxGreen = color->green;
+		      col.maxBlue = color->blue;
+		      for (i = 0; i < 256; i++)
+			{
+			    rl2ColorMapItemPtr c = &(g->colorMap->look_up[i]);
+			    double v1 =
+				band->min + ((double) i * g->scaleFactor);
+			    double v2 =
+				band->min + ((double) (i + 1) * g->scaleFactor);
+			    if ((v1 >= col.min && v1 < col.max)
+				|| (v2 >= col.min && v2 < col.max)
+				|| (col.min >= v1 && col.min < v2)
+				|| (col.max >= v2 && col.max < v2))
+				add_color_rule (c, &col);
+			}
+		  }
+		prev_color = color;
+		color = color->next;
+	    }
+	  *mono_handling = g;
+	  return;
+      }
+
     if (style->bandSelection != NULL)
       {
 	  /* attempting to use band specific settings */
@@ -4226,33 +6009,34 @@ build_mono_band_contrast (rl2PrivRasterStylePtr style,
 		      if (style->bandSelection->grayContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 			{
-			    g = malloc (sizeof (rl2BandContrast));
+			    g = malloc (sizeof (rl2BandHandling));
 			    g->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 			    g->minValue = band->min;
 			    g->maxValue = band->max;
 			    range = band->max - band->min;
 			    g->scaleFactor = range / 254.0;
+			    g->colorMap = NULL;
 			}
 		      if (style->bandSelection->grayContrast ==
 			  RL2_CONTRAST_ENHANCEMENT_GAMMA)
 			{
-			    g = malloc (sizeof (rl2BandContrast));
+			    g = malloc (sizeof (rl2BandHandling));
 			    g->contrastEnhancement =
 				RL2_CONTRAST_ENHANCEMENT_GAMMA;
 			    g->minValue = band->min;
 			    g->maxValue = band->max;
 			    range = band->max - band->min;
 			    g->scaleFactor = range / 254.0;
+			    g->colorMap = NULL;
 			    g->look_up[0] = 0;
 			    for (i = 1; i < 255; i++)
 				g->look_up[i] =
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->grayGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 grayGamma) * 254 + 0.5);
 			}
 		  }
 	    }
@@ -4266,17 +6050,18 @@ build_mono_band_contrast (rl2PrivRasterStylePtr style,
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_NORMALIZE)
 		  {
-		      g = malloc (sizeof (rl2BandContrast));
+		      g = malloc (sizeof (rl2BandHandling));
 		      g->contrastEnhancement =
 			  RL2_CONTRAST_ENHANCEMENT_NORMALIZE;
 		      g->minValue = band->min;
 		      g->maxValue = band->max;
 		      range = band->max - band->min;
 		      g->scaleFactor = range / 254.0;
+		      g->colorMap = NULL;
 		  }
 		if (style->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NONE)
 		  {
-		      g = malloc (sizeof (rl2BandContrast));
+		      g = malloc (sizeof (rl2BandHandling));
 		      g->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
 		      if (band->min >= 0.0 && band->max <= 255.0)
 			{
@@ -4290,17 +6075,20 @@ build_mono_band_contrast (rl2PrivRasterStylePtr style,
 			    g->maxValue = band->max;
 			    range = band->max - band->min;
 			    g->scaleFactor = range / 254.0;
+			    g->colorMap = NULL;
 			}
+		      g->colorMap = NULL;
 		  }
 		if (style->contrastEnhancement ==
 		    RL2_CONTRAST_ENHANCEMENT_GAMMA)
 		  {
-		      g = malloc (sizeof (rl2BandContrast));
+		      g = malloc (sizeof (rl2BandHandling));
 		      g->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_GAMMA;
 		      g->minValue = band->min;
 		      g->maxValue = band->max;
 		      range = band->max - band->min;
 		      g->scaleFactor = range / 254.0;
+		      g->colorMap = NULL;
 		      g->look_up[0] = 0;
 		      for (i = 1; i < 255; i++)
 			  g->look_up[i] =
@@ -4311,7 +6099,34 @@ build_mono_band_contrast (rl2PrivRasterStylePtr style,
 		  }
 	    }
       }
-    *mono_contrast = g;
+    *mono_handling = g;
+}
+
+static void
+destroy_mono_handling (rl2BandHandlingPtr mono)
+{
+/* memory cleanup - destroying a MONO handler */
+    if (mono == NULL)
+	return;
+    if (mono->colorMap != NULL)
+      {
+	  int i;
+	  for (i = 0; i < 256; i++)
+	    {
+		rl2ColorMapRefPtr rule;
+		rl2ColorMapRefPtr n_rule;
+		rl2ColorMapItemPtr item = &(mono->colorMap->look_up[i]);
+		rule = item->first;
+		while (rule != NULL)
+		  {
+		      n_rule = rule->next;
+		      free (rule);
+		      rule = n_rule;
+		  }
+	    }
+free(mono->colorMap);
+      }
+    free (mono);
 }
 
 static int
@@ -4330,7 +6145,6 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 
     if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
 	return 0;
-
     if (style != NULL && stats != NULL)
       {
 	  /* attempting to apply a RasterSymbolizer */
@@ -4345,9 +6159,9 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 		      unsigned char red_band;
 		      unsigned char green_band;
 		      unsigned char blue_band;
-		      rl2BandContrastPtr red_contrast = NULL;
-		      rl2BandContrastPtr green_contrast = NULL;
-		      rl2BandContrastPtr blue_contrast = NULL;
+		      rl2BandHandlingPtr red_handling = NULL;
+		      rl2BandHandlingPtr green_handling = NULL;
+		      rl2BandHandlingPtr blue_handling = NULL;
 		      if (rl2_get_raster_style_triple_band_selection
 			  (style, &red_band, &green_band, &blue_band) != RL2_OK)
 			  return 0;
@@ -4357,24 +6171,24 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			  return 0;
 		      if (blue_band >= rst->nBands)
 			  return 0;
-		      build_triple_band_contrast ((rl2PrivRasterStylePtr) style,
+		      build_triple_band_handling ((rl2PrivRasterStylePtr) style,
 						  (rl2PrivRasterStatisticsPtr)
 						  stats, red_band, green_band,
-						  blue_band, &red_contrast,
-						  &green_contrast,
-						  &blue_contrast);
-		      if (red_contrast == NULL || green_contrast == NULL
-			  || blue_contrast == NULL)
+						  blue_band, &red_handling,
+						  &green_handling,
+						  &blue_handling);
+		      if (red_handling == NULL || green_handling == NULL
+			  || blue_handling == NULL)
 			  return 0;
 		      switch (rst->sampleType)
 			{
 			case RL2_SAMPLE_UINT8:
 			    copy_uint8_raw_selected_pixels ((const unsigned char
-							     *) (rst->
-								 rasterBuffer),
+							     *)
+							    (rst->rasterBuffer),
 							    (const unsigned char
-							     *) (rst->
-								 maskBuffer),
+							     *)
+							    (rst->maskBuffer),
 							    (unsigned char *)
 							    outbuf, width,
 							    height, rst->nBands,
@@ -4386,23 +6200,25 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 							    no_data, red_band,
 							    green_band,
 							    blue_band,
-							    red_contrast,
-							    green_contrast,
-							    blue_contrast);
-			    if (red_contrast != NULL)
-				free (red_contrast);
-			    if (green_contrast != NULL)
-				free (green_contrast);
-			    if (blue_contrast != NULL)
-				free (blue_contrast);
+							    red_handling,
+							    green_handling,
+							    blue_handling);
+			    if (red_handling != NULL)
+				free (red_handling);
+			    if (green_handling != NULL)
+				free (green_handling);
+			    if (blue_handling != NULL)
+				free (blue_handling);
 			    return 1;
 			case RL2_SAMPLE_UINT16:
 			    copy_uint16_raw_selected_pixels ((const unsigned
-							      short *) (rst->
-									rasterBuffer),
+							      short
+							      *)
+							     (rst->rasterBuffer),
 							     (const unsigned
-							      char *) (rst->
-								       maskBuffer),
+							      char
+							      *)
+							     (rst->maskBuffer),
 							     (unsigned char *)
 							     outbuf, width,
 							     height,
@@ -4415,40 +6231,56 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 							     no_data, red_band,
 							     green_band,
 							     blue_band,
-							     red_contrast,
-							     green_contrast,
-							     blue_contrast);
-			    if (red_contrast != NULL)
-				free (red_contrast);
-			    if (green_contrast != NULL)
-				free (green_contrast);
-			    if (blue_contrast != NULL)
-				free (blue_contrast);
+							     red_handling,
+							     green_handling,
+							     blue_handling);
+			    if (red_handling != NULL)
+				free (red_handling);
+			    if (green_handling != NULL)
+				free (green_handling);
+			    if (blue_handling != NULL)
+				free (blue_handling);
 			    return 1;
 			};
 		  }
 	    }
 	  if (rl2_is_raster_style_mono_band_selected (style, &yes_no) == RL2_OK)
 	    {
-		if ((rst->sampleType == RL2_SAMPLE_UINT8
-		     || rst->sampleType == RL2_SAMPLE_UINT16) && yes_no)
+		if (((rst->sampleType == RL2_SAMPLE_UINT8
+		      || rst->sampleType == RL2_SAMPLE_UINT16)
+		     || rst->pixelType == RL2_PIXEL_DATAGRID) && yes_no)
 		  {
 		      /* mono band selection - false color Grayscale */
 		      unsigned char mono_band;
-		      rl2BandContrastPtr mono_contrast = NULL;
+		      rl2BandHandlingPtr mono_handling = NULL;
 		      if (rl2_get_raster_style_mono_band_selection
 			  (style, &mono_band) != RL2_OK)
 			  return 0;
 		      if (mono_band >= rst->nBands)
 			  return 0;
-		      build_mono_band_contrast ((rl2PrivRasterStylePtr) style,
+		      build_mono_band_handling ((rl2PrivRasterStylePtr) style,
 						(rl2PrivRasterStatisticsPtr)
 						stats, mono_band,
-						&mono_contrast);
-		      if (mono_contrast == NULL)
+						&mono_handling);
+		      if (mono_handling == NULL)
 			  return 0;
 		      switch (rst->sampleType)
 			{
+			case RL2_SAMPLE_INT8:
+			    copy_int8_raw_mono_pixels ((const char *) (rst->
+								       rasterBuffer),
+						       (const unsigned char
+							*) (rst->maskBuffer),
+						       (unsigned char *) outbuf,
+						       width, height, num_bands,
+						       x_res, y_res, minx, maxy,
+						       tile_minx, tile_maxy,
+						       tile_width, tile_height,
+						       no_data, mono_band,
+						       mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
+			    return 1;
 			case RL2_SAMPLE_UINT8:
 			    copy_uint8_raw_mono_pixels ((const unsigned char
 							 *) (rst->rasterBuffer),
@@ -4456,14 +6288,31 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 							 *) (rst->maskBuffer),
 							(unsigned char *)
 							outbuf, width, height,
-							rst->nBands, x_res,
-							y_res, minx, maxy,
-							tile_minx, tile_maxy,
-							tile_width, tile_height,
-							no_data, mono_band,
-							mono_contrast);
-			    if (mono_contrast != NULL)
-				free (mono_contrast);
+							num_bands, rst->nBands,
+							x_res, y_res, minx,
+							maxy, tile_minx,
+							tile_maxy, tile_width,
+							tile_height, no_data,
+							mono_band,
+							mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
+			    return 1;
+			case RL2_SAMPLE_INT16:
+			    copy_int16_raw_mono_pixels ((const short *) (rst->
+									 rasterBuffer),
+							(const unsigned char
+							 *) (rst->maskBuffer),
+							(unsigned char *)
+							outbuf, width, height,
+							num_bands, x_res, y_res,
+							minx, maxy, tile_minx,
+							tile_maxy, tile_width,
+							tile_height, no_data,
+							mono_band,
+							mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
 			    return 1;
 			case RL2_SAMPLE_UINT16:
 			    copy_uint16_raw_mono_pixels ((const unsigned short
@@ -4473,15 +6322,82 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 							  *) (rst->maskBuffer),
 							 (unsigned char *)
 							 outbuf, width, height,
-							 rst->nBands, x_res,
+							 num_bands, rst->nBands,
+							 x_res, y_res, minx,
+							 maxy, tile_minx,
+							 tile_maxy, tile_width,
+							 tile_height, no_data,
+							 mono_band,
+							 mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
+			    return 1;
+			case RL2_SAMPLE_INT32:
+			    copy_int32_raw_mono_pixels ((const int *) (rst->
+								       rasterBuffer),
+							(const unsigned char
+							 *) (rst->maskBuffer),
+							(unsigned char *)
+							outbuf, width, height,
+							num_bands, x_res, y_res,
+							minx, maxy, tile_minx,
+							tile_maxy, tile_width,
+							tile_height, no_data,
+							mono_band,
+							mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
+			    return 1;
+			case RL2_SAMPLE_UINT32:
+			    copy_uint32_raw_mono_pixels ((const unsigned int
+							  *) (rst->
+							      rasterBuffer),
+							 (const unsigned char
+							  *) (rst->maskBuffer),
+							 (unsigned char *)
+							 outbuf, width, height,
+							 num_bands, x_res,
 							 y_res, minx, maxy,
 							 tile_minx, tile_maxy,
 							 tile_width,
 							 tile_height, no_data,
 							 mono_band,
-							 mono_contrast);
-			    if (mono_contrast != NULL)
-				free (mono_contrast);
+							 mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
+			    return 1;
+			case RL2_SAMPLE_FLOAT:
+			    copy_float_raw_mono_pixels ((const float *) (rst->
+									 rasterBuffer),
+							(const unsigned char
+							 *) (rst->maskBuffer),
+							(unsigned char *)
+							outbuf, width, height,
+							num_bands, x_res, y_res,
+							minx, maxy, tile_minx,
+							tile_maxy, tile_width,
+							tile_height, no_data,
+							mono_band,
+							mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
+			    return 1;
+			case RL2_SAMPLE_DOUBLE:
+			    copy_double_raw_mono_pixels ((const double *) (rst->
+									   rasterBuffer),
+							 (const unsigned char
+							  *) (rst->maskBuffer),
+							 (unsigned char *)
+							 outbuf, width, height,
+							 num_bands, x_res,
+							 y_res, minx, maxy,
+							 tile_minx, tile_maxy,
+							 tile_width,
+							 tile_height, no_data,
+							 mono_band,
+							 mono_handling);
+			    if (mono_handling != NULL)
+				destroy_mono_handling (mono_handling);
 			    return 1;
 			};
 		  }
@@ -5673,12 +7589,62 @@ rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
 }
 
 static int
+has_styled_rgb_colors (rl2RasterStylePtr style)
+{
+/* testing for a RasterSymbolizer requiring RGB colors */
+    rl2PrivColorMapPointPtr color;
+    rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
+    if (stl == NULL)
+	return 0;
+    if (stl->categorize != NULL)
+      {
+	  if (stl->categorize->dfltRed == stl->categorize->dfltGreen
+	      && stl->categorize->dfltRed == stl->categorize->dfltBlue)
+	      ;
+	  else
+	      return 1;
+	  if (stl->categorize->baseRed == stl->categorize->baseGreen
+	      && stl->categorize->baseRed == stl->categorize->baseBlue)
+	      ;
+	  else
+	      return 1;
+	  color = stl->categorize->first;
+	  while (color != NULL)
+	    {
+		if (color->red == color->green && color->red == color->blue)
+		    ;
+		else
+		    return 1;
+		color = color->next;
+	    }
+      }
+    if (stl->interpolate != NULL)
+      {
+	  if (stl->interpolate->dfltRed == stl->interpolate->dfltGreen
+	      && stl->interpolate->dfltRed == stl->interpolate->dfltBlue)
+	      ;
+	  else
+	      return 1;
+	  color = stl->interpolate->first;
+	  while (color != NULL)
+	    {
+		if (color->red == color->green && color->red == color->blue)
+		    ;
+		else
+		    return 1;
+		color = color->next;
+	    }
+      }
+    return 0;
+}
+
+static int
 get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 			    unsigned short width, unsigned short height,
 			    double minx, double miny, double maxx, double maxy,
 			    double x_res, double y_res, unsigned char **buffer,
 			    int *buf_size, rl2PalettePtr * palette,
-			    unsigned char out_pixel, rl2PixelPtr bgcolor,
+			    unsigned char *out_pixel, rl2PixelPtr bgcolor,
 			    rl2RasterStylePtr style,
 			    rl2RasterStatisticsPtr stats)
 {
@@ -5696,6 +7662,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     int pix_sz = 1;
     unsigned char sample_type;
     unsigned char pixel_type;
+    unsigned char cvg_pixel_type;
     unsigned char num_bands;
     char *xtiles;
     char *xxtiles;
@@ -5717,13 +7684,14 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
 	goto error;
+    cvg_pixel_type = pixel_type;
 
     if (bgcolor != NULL)
       {
 	  /* using the externally define background color */
 	  no_data = bgcolor;
 	  if (pixel_type == RL2_PIXEL_MONOCHROME
-	      && out_pixel == RL2_PIXEL_GRAYSCALE)
+	      && *out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
 		/* Pyramid tiles MONOCHROME */
 		sample_type = RL2_SAMPLE_UINT8;
@@ -5731,7 +7699,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 		num_bands = 1;
 	    }
 	  else if (pixel_type == RL2_PIXEL_PALETTE
-		   && out_pixel == RL2_PIXEL_RGB)
+		   && *out_pixel == RL2_PIXEL_RGB)
 	    {
 		/* Pyramid tiles PALETTE */
 		sample_type = RL2_SAMPLE_UINT8;
@@ -5741,7 +7709,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  goto ok_no_data;
       }
 
-    if (pixel_type == RL2_PIXEL_MONOCHROME && out_pixel == RL2_PIXEL_GRAYSCALE)
+    if (pixel_type == RL2_PIXEL_MONOCHROME && *out_pixel == RL2_PIXEL_GRAYSCALE)
       {
 	  /* Pyramid tiles MONOCHROME */
 	  rl2PixelPtr nd = NULL;
@@ -5764,7 +7732,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  pixel_type = RL2_PIXEL_GRAYSCALE;
 	  num_bands = 1;
       }
-    else if (pixel_type == RL2_PIXEL_PALETTE && out_pixel == RL2_PIXEL_RGB)
+    else if (pixel_type == RL2_PIXEL_PALETTE && *out_pixel == RL2_PIXEL_RGB)
       {
 	  /* Pyramid tiles PALETTE */
 	  rl2PixelPtr nd = NULL;
@@ -5846,15 +7814,15 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  no_data = rl2_get_coverage_no_data (cvg);
       }
 
-    if (style != NULL)
+    if (style != NULL && stats != NULL)
       {
-	  if (out_pixel == RL2_PIXEL_RGB)
+	  if (*out_pixel == RL2_PIXEL_RGB)
 	    {
 		sample_type = RL2_SAMPLE_UINT8;
 		pixel_type = RL2_PIXEL_RGB;
 		num_bands = 3;
 	    }
-	  if (out_pixel == RL2_PIXEL_GRAYSCALE)
+	  if (*out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
 		sample_type = RL2_SAMPLE_UINT8;
 		pixel_type = RL2_PIXEL_GRAYSCALE;
@@ -5878,6 +7846,19 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  pix_sz = 8;
 	  break;
       };
+    if (*out_pixel == RL2_PIXEL_GRAYSCALE
+	&& cvg_pixel_type == RL2_PIXEL_DATAGRID)
+      {
+	  if (has_styled_rgb_colors (style))
+	    {
+		/* RGB RasterSymbolizer: promoting to RGB */
+		*out_pixel = RL2_PIXEL_RGB;
+		sample_type = RL2_SAMPLE_UINT8;
+		pixel_type = RL2_PIXEL_RGB;
+		pix_sz = 1;
+		num_bands = 3;
+	    }
+      }
     bufpix_size = pix_sz * num_bands * width * height;
     bufpix = malloc (bufpix_size);
     if (bufpix == NULL)
@@ -5990,8 +7971,8 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
     return get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
 				       maxx, maxy, x_res, y_res, buffer,
-				       buf_size, palette, out_pixel, NULL, NULL,
-				       NULL);
+				       buf_size, palette, &out_pixel, NULL,
+				       NULL, NULL);
 }
 
 RL2_DECLARE int
@@ -6277,7 +8258,7 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
 				 double maxy, double x_res, double y_res,
 				 unsigned char **buffer, int *buf_size,
 				 rl2PalettePtr * palette,
-				 unsigned char out_pixel, unsigned char bg_red,
+				 unsigned char *out_pixel, unsigned char bg_red,
 				 unsigned char bg_green, unsigned char bg_blue,
 				 rl2RasterStylePtr style,
 				 rl2RasterStatisticsPtr stats)
@@ -6299,13 +8280,13 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
     if (coverage == NULL)
 	return RL2_ERROR;
 
-    if (pixel_type == RL2_PIXEL_MONOCHROME && out_pixel == RL2_PIXEL_GRAYSCALE)
+    if (pixel_type == RL2_PIXEL_MONOCHROME && *out_pixel == RL2_PIXEL_GRAYSCALE)
       {
 	  /* Pyramid tiles MONOCHROME - Grayscale pixel */
 	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
 	  rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, bg_red);
       }
-    else if (pixel_type == RL2_PIXEL_PALETTE && out_pixel == RL2_PIXEL_RGB)
+    else if (pixel_type == RL2_PIXEL_PALETTE && *out_pixel == RL2_PIXEL_RGB)
       {
 	  /* Pyramid tiles PALETTE - RGB pixel */
 	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
@@ -7074,6 +9055,18 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
     sqlite3_finalize (stmt);
     stmt = NULL;
 
+    if (name == NULL || xml == NULL)
+      {
+	  if (name != NULL)
+	      free (name);
+	  if (title != NULL)
+	      free (title);
+	  if (abstract != NULL)
+	      free (abstract);
+	  if (xml != NULL)
+	      free (xml);
+	  goto error;
+      }
     stl = raster_style_from_sld_se_xml (name, title, abstract, xml);
     if (stl == NULL)
 	goto error;

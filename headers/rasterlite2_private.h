@@ -435,7 +435,38 @@ extern "C"
     } rl2PrivRasterStatistics;
     typedef rl2PrivRasterStatistics *rl2PrivRasterStatisticsPtr;
 
-    typedef struct rl2_band_contrast
+    typedef struct rl2_color_map_ref
+    {
+	double min;
+	double max;
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+	unsigned char maxRed;
+	unsigned char maxGreen;
+	unsigned char maxBlue;
+	struct rl2_color_map_ref *next;
+    } rl2ColorMapRef;
+    typedef rl2ColorMapRef *rl2ColorMapRefPtr;
+
+    typedef struct rl2_color_map_item
+    {
+	rl2ColorMapRefPtr first;
+	rl2ColorMapRefPtr last;
+    } rl2ColorMapItem;
+    typedef rl2ColorMapItem *rl2ColorMapItemPtr;
+
+    typedef struct rl2_color_map_locator
+    {
+	int interpolate;
+	rl2ColorMapItem look_up[256];
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+    } rl2ColorMapLocator;
+    typedef rl2ColorMapLocator *rl2ColorMapLocatorPtr;
+
+    typedef struct rl2_band_handling
     {
 	unsigned char contrastEnhancement;
 	double gammaValue;
@@ -443,8 +474,9 @@ extern "C"
 	double minValue;
 	double maxValue;
 	double scaleFactor;
-    } rl2BandContrast;
-    typedef rl2BandContrast *rl2BandContrastPtr;
+	rl2ColorMapLocatorPtr colorMap;
+    } rl2BandHandling;
+    typedef rl2BandHandling *rl2BandHandlingPtr;
 
     typedef struct rl2_priv_band_selection
     {
@@ -675,10 +707,10 @@ extern "C"
 
     RL2_PRIVATE int
 	rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
-			 rl2PalettePtr plt, unsigned short width,
-			 unsigned short height, unsigned char sample_type,
-			 unsigned char pixel_type, unsigned char **compr_data,
-			 int *compressed_size);
+			 double opacity, rl2PalettePtr plt,
+			 unsigned short width, unsigned short height,
+			 unsigned char sample_type, unsigned char pixel_type,
+			 unsigned char **compr_data, int *compressed_size);
 
     RL2_PRIVATE int
 	rl2_decode_png (const unsigned char *png, int png_sz,
@@ -885,7 +917,8 @@ extern "C"
 							     int quality,
 							     unsigned char
 							     **image,
-							     int *image_sz);
+							     int *image_sz,
+							     double opacity);
 
     RL2_PRIVATE int get_payload_from_palette_opaque (unsigned short width,
 						     unsigned short height,
@@ -912,7 +945,8 @@ extern "C"
 							  unsigned char
 							  bg_green,
 							  unsigned char
-							  bg_blue);
+							  bg_blue,
+							  double opacity);
 
     RL2_PRIVATE int get_payload_from_grayscale_opaque (unsigned short width,
 						       unsigned short height,
@@ -938,7 +972,8 @@ extern "C"
 							    **image,
 							    int *image_sz,
 							    unsigned char
-							    bg_gray);
+							    bg_gray,
+							    double opacity);
 
     RL2_PRIVATE int get_payload_from_rgb_opaque (unsigned short width,
 						 unsigned short height,
@@ -960,7 +995,8 @@ extern "C"
 						      int *image_sz,
 						      unsigned char bg_red,
 						      unsigned char bg_green,
-						      unsigned char bg_blue);
+						      unsigned char bg_blue,
+						      double opacity);
 
     RL2_PRIVATE int get_rgba_from_monochrome_mask (unsigned short width,
 						   unsigned short height,
@@ -1071,7 +1107,8 @@ extern "C"
 							    format, int quality,
 							    unsigned char
 							    **image,
-							    int *image_sz);
+							    int *image_sz,
+							    double opacity);
 
     RL2_PRIVATE int get_payload_from_rgb_rgba_opaque (unsigned short width,
 						      unsigned short height,
@@ -1094,7 +1131,8 @@ extern "C"
 							   int quality,
 							   unsigned char
 							   **image,
-							   int *image_sz);
+							   int *image_sz,
+							   double opacity);
 
     RL2_PRIVATE int build_rgb_alpha (unsigned short width,
 				     unsigned short height, unsigned char *rgba,

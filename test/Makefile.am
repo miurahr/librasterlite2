@@ -79,7 +79,11 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	map_samples/orbview3-orbetello/orbetello2.tif \
 	raster_symbolizer_1.xml raster_symbolizer_2.xml \
 	raster_symbolizer_3.xml raster_symbolizer_4.xml \
-	raster_symbolizer_5.xml raster_symbolizer_6.xml 
+	raster_symbolizer_5.xml raster_symbolizer_6.xml \
+	srtm_categ.xml srtm_interp.xml ir_gray.xml \
+	ir_gray_gamma.xml ir_false_color1.xml \
+	ir_false_color2.xml ir_false_color1_gamma.xml \
+	ir_false_color2_gamma.xml
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

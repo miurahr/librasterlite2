@@ -2843,7 +2843,7 @@ extern "C"
 					 double x_res, double y_res,
 					 unsigned char **buffer, int *buf_size,
 					 rl2PalettePtr * palette,
-					 unsigned char out_pixel,
+					 unsigned char *out_pixel,
 					 unsigned char bg_red,
 					 unsigned char bg_green,
 					 unsigned char bg_blue,
@@ -3228,7 +3228,7 @@ extern "C"
 	rl2_rgb_alpha_to_png (unsigned short width, unsigned short height,
 			      const unsigned char *rgb,
 			      const unsigned char *alpha, unsigned char **png,
-			      int *png_size);
+			      int *png_size, double opacity);
 
 /**
  Exports an RGB buffer as an in-memory stored JPEG image
@@ -3338,7 +3338,7 @@ extern "C"
 	rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
 			       const unsigned char *gray,
 			       const unsigned char *alpha, unsigned char **png,
-			       int *png_size);
+			       int *png_size, double opacity);
 
 /**
  Exports a Grayscale buffer as an in-memory stored JPEG image

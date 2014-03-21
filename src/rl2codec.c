@@ -2237,7 +2237,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		/* split between Odd/Even Blocks */
 		rl2PalettePtr plt = rl2_get_raster_palette (rst);
 		if (rl2_data_to_png
-		    (pixels_odd, NULL, plt, raster->width,
+		    (pixels_odd, NULL, 1.0, plt, raster->width,
 		     odd_rows, raster->sampleType, raster->pixelType,
 		     &compr_data, &compressed) == RL2_OK)
 		  {
@@ -2426,7 +2426,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      /* split between Odd/Even Blocks */
 		      rl2PalettePtr plt = rl2_get_raster_palette (rst);
 		      if (rl2_data_to_png
-			  (pixels_even, NULL, plt, raster->width,
+			  (pixels_even, NULL, 1.0, plt, raster->width,
 			   even_rows, raster->sampleType, raster->pixelType,
 			   &compr_data, &compressed) == RL2_OK)
 			{

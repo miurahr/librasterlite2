@@ -47,6 +47,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <float.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <limits.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -4799,6 +4800,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     rl2GraphicsContextPtr ctx = NULL;
     rl2RasterStylePtr symbolizer = NULL;
     rl2RasterStatisticsPtr stats = NULL;
+    double opacity = 1.0;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -4922,7 +4924,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	srid = -1;
     cvg = (rl2PrivCoveragePtr) coverage;
     out_pixel = RL2_PIXEL_UNKNOWN;
-/* default style */
     if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
 	&& cvg->nBands == 3)
 	out_pixel = RL2_PIXEL_RGB;
@@ -4933,6 +4934,34 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	out_pixel = RL2_PIXEL_PALETTE;
     if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
 	out_pixel = RL2_PIXEL_MONOCHROME;
+
+    if (cvg->pixelType == RL2_PIXEL_DATAGRID && symbolizer == NULL)
+      {
+	  /* creating a default RasterStyle */
+	  rl2PrivRasterStylePtr symb = malloc (sizeof (rl2PrivRasterStyle));
+	  symbolizer = (rl2RasterStylePtr) symb;
+	  symb->name = malloc (8);
+	  strcpy (symb->name, "default");
+	  symb->title = NULL;
+	  symb->abstract = NULL;
+	  symb->opacity = 1.0;
+	  symb->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
+	  symb->bandSelection = malloc (sizeof (rl2PrivBandSelection));
+	  symb->bandSelection->selectionType = RL2_BAND_SELECTION_MONO;
+	  symb->bandSelection->grayBand = 0;
+	  symb->bandSelection->grayContrast = RL2_CONTRAST_ENHANCEMENT_NONE;
+	  symb->categorize = NULL;
+	  symb->interpolate = NULL;
+	  symb->shadedRelief = 0;
+	  if (stats == NULL)
+	    {
+		stats =
+		    rl2_create_raster_statistics_from_dbms (sqlite, cvg_name);
+		if (stats == NULL)
+		    goto error;
+	    }
+      }
+
     if (symbolizer != NULL)
       {
 	  /* applying a RasterSymbolizer */
@@ -4955,7 +4984,25 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			|| cvg->pixelType == RL2_PIXEL_MULTIBAND
 			|| cvg->pixelType == RL2_PIXEL_GRAYSCALE) && yes_no)
 		    out_pixel = RL2_PIXEL_GRAYSCALE;
+		if ((cvg->sampleType == RL2_SAMPLE_INT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_INT16
+		     || cvg->sampleType == RL2_SAMPLE_UINT16
+		     || cvg->sampleType == RL2_SAMPLE_INT32
+		     || cvg->sampleType == RL2_SAMPLE_UINT32
+		     || cvg->sampleType == RL2_SAMPLE_FLOAT
+		     || cvg->sampleType == RL2_SAMPLE_DOUBLE)
+		    && cvg->pixelType == RL2_PIXEL_DATAGRID && yes_no)
+		    out_pixel = RL2_PIXEL_GRAYSCALE;
 	    }
+	  if (rl2_get_raster_style_opacity (symbolizer, &opacity) != RL2_OK)
+	      opacity = 1.0;
+	  if (opacity > 1.0)
+	      opacity = 1.0;
+	  if (opacity < 0.0)
+	      opacity = 0.0;
+	  if (opacity < 1.0)
+	      transparent = 1;
       }
     if (out_pixel == RL2_PIXEL_UNKNOWN)
       {
@@ -4970,6 +5017,9 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	goto error;
     base_width = (int) (ext_x / xx_res);
     base_height = (int) (ext_y / yy_res);
+    if ((base_width <= 0 && base_width >= USHRT_MAX)
+	|| (base_height <= 0 && base_height >= USHRT_MAX))
+	goto error;
     aspect_org = (double) base_width / (double) base_height;
     aspect_dst = (double) width / (double) height;
     confidence = aspect_org / 100.0;
@@ -4994,7 +5044,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 
     if (rl2_get_raw_raster_data_bgcolor
 	(sqlite, coverage, base_width, base_height, minx, miny, maxx, maxy,
-	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, out_pixel, bg_red,
+	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, &out_pixel, bg_red,
 	 bg_green, bg_blue, symbolizer, stats) != RL2_OK)
 	goto error;
     if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
@@ -5008,7 +5058,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		  {
 		      if (!get_payload_from_monochrome_transparent
 			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size))
+			   &image, &image_size, opacity))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -5035,7 +5085,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		      if (!get_payload_from_palette_transparent
 			  (base_width, base_height, outbuf, palette, format_id,
 			   quality, &image, &image_size, bg_red, bg_green,
-			   bg_blue))
+			   bg_blue, opacity))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -5061,7 +5111,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		  {
 		      if (!get_payload_from_grayscale_transparent
 			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size, bg_red))
+			   &image, &image_size, bg_red, opacity))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -5087,7 +5137,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		  {
 		      if (!get_payload_from_rgb_transparent
 			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size, bg_red, bg_green, bg_blue))
+			   &image, &image_size, bg_red, bg_green, bg_blue,
+			   opacity))
 			{
 			    outbuf = NULL;
 			    goto error;
@@ -5233,7 +5284,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			  goto error;
 		      if (!get_payload_from_gray_rgba_transparent
 			  (width, height, rgb, alpha, format_id, quality,
-			   &image, &image_size))
+			   &image, &image_size, opacity))
 			{
 			    rgb = NULL;
 			    alpha = NULL;
@@ -5266,7 +5317,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			  goto error;
 		      if (!get_payload_from_rgb_rgba_transparent
 			  (width, height, rgb, alpha, format_id, quality,
-			   &image, &image_size))
+			   &image, &image_size, opacity))
 			{
 			    rgb = NULL;
 			    alpha = NULL;
@@ -5382,6 +5433,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char sample_type;
     unsigned char pixel_type;
     rl2PrivPixelPtr no_data = NULL;
+    double opacity = 1.0;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -5550,7 +5602,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_gray_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else
@@ -5585,7 +5637,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else
@@ -5619,7 +5671,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_gray_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else
@@ -5654,7 +5706,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_gray_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else
@@ -5700,7 +5752,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else
@@ -5792,6 +5844,7 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
     unsigned char sample_type;
     unsigned char num_bands;
     rl2PrivPixelPtr no_data = NULL;
+    double opacity = 1.0;
 
 /* attempting to load the Coverage definitions from the DBMS */
     sqlite = sqlite3_context_db_handle (context);
@@ -5809,6 +5862,17 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
 	      break;
 	  unsupported_tile = 1;
 	  break;
+      case RL2_PIXEL_DATAGRID:
+	  if (cvg->sampleType == RL2_SAMPLE_INT8
+	      || cvg->sampleType == RL2_SAMPLE_UINT8
+	      || cvg->sampleType == RL2_SAMPLE_INT16
+	      || cvg->sampleType == RL2_SAMPLE_UINT16
+	      || cvg->sampleType == RL2_SAMPLE_INT32
+	      || cvg->sampleType == RL2_SAMPLE_UINT32
+	      || cvg->sampleType == RL2_SAMPLE_FLOAT
+	      || cvg->sampleType == RL2_SAMPLE_DOUBLE)
+	      break;
+	  unsupported_tile = 1;
       default:
 	  unsupported_tile = 1;
 	  break;
@@ -5924,7 +5988,7 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else
@@ -5957,7 +6021,7 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size))
+				 &image_size, opacity))
 				goto error;
 			}
 		      else

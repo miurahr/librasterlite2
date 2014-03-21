@@ -173,7 +173,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	  *retcode += 9;
 	  return 0;
       }
-    if (intval != 0)
+    if (intval != 1)
       {
 	  fprintf (stderr, "Unexpected IsMonoBandSelected %d\n", intval);
 	  *retcode += 10;
@@ -389,9 +389,15 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    if (rl2_get_raster_style_mono_band_selection (style, &red) == RL2_OK)
+    if (rl2_get_raster_style_mono_band_selection (style, &red) != RL2_OK)
       {
-	  fprintf (stderr, "Unexpected success: MonoBand selection\n");
+	  fprintf (stderr, "Unable to get MonoBand selection\n");
+	  *retcode += 36;
+	  return 0;
+      }
+    if (red != 0)
+      {
+	  fprintf (stderr, "Unexpected MonoBand selection: %d\n", intval);
 	  *retcode += 36;
 	  return 0;
       }
@@ -399,7 +405,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
     if (rl2_get_raster_style_color_map_count (NULL, &intval) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected ColorMapCount\n");
-	  *retcode += 37;
+	  *retcode += 38;
 	  return 0;
       }
 
@@ -407,7 +413,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr, "Unexpected ColorMapDefault\n");
-	  *retcode += 38;
+	  *retcode += 39;
 	  return 0;
       }
 
@@ -415,7 +421,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	(style, &enhancement, &value) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected GrayBandContrastEnhancement\n");
-	  *retcode += 39;
+	  *retcode += 40;
 	  return 0;
       }
 
@@ -423,7 +429,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	(style, &enhancement, &value) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected RedBandContrastEnhancement\n");
-	  *retcode += 40;
+	  *retcode += 41;
 	  return 0;
       }
 
@@ -431,7 +437,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	(style, &enhancement, &value) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected GreenBandContrastEnhancement\n");
-	  *retcode += 41;
+	  *retcode += 42;
 	  return 0;
       }
 
@@ -439,7 +445,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	(style, &enhancement, &value) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected BlueBandContrastEnhancement\n");
-	  *retcode += 42;
+	  *retcode += 43;
 	  return 0;
       }
 

@@ -1283,7 +1283,8 @@ get_payload_from_monochrome_transparent (unsigned short width,
 					 unsigned short height,
 					 unsigned char *pixels,
 					 unsigned char format, int quality,
-					 unsigned char **image, int *image_sz)
+					 unsigned char **image, int *image_sz,
+					 double opacity)
 {
 /* input: Monochrome    output: Grayscale */
     unsigned char *p_in;
@@ -1325,8 +1326,8 @@ get_payload_from_monochrome_transparent (unsigned short width,
     pixels = NULL;
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
-	  if (rl2_gray_alpha_to_png (width, height, gray, mask, image, image_sz)
-	      != RL2_OK)
+	  if (rl2_gray_alpha_to_png
+	      (width, height, gray, mask, image, image_sz, opacity) != RL2_OK)
 	      goto error;
       }
     else
@@ -1523,7 +1524,7 @@ get_payload_from_palette_transparent (unsigned short width,
 				      unsigned char **image, int *image_sz,
 				      unsigned char bg_red,
 				      unsigned char bg_green,
-				      unsigned char bg_blue)
+				      unsigned char bg_blue, double opacity)
 {
 /* input: Palette    output: Grayscale or RGB */
     rl2PrivPalettePtr plt = (rl2PrivPalettePtr) palette;
@@ -1622,7 +1623,8 @@ get_payload_from_palette_transparent (unsigned short width,
 	  if (format == RL2_OUTPUT_FORMAT_PNG)
 	    {
 		if (rl2_gray_alpha_to_png
-		    (width, height, gray, mask, image, image_sz) != RL2_OK)
+		    (width, height, gray, mask, image, image_sz,
+		     opacity) != RL2_OK)
 		    goto error;
 	    }
 	  else
@@ -1714,7 +1716,7 @@ get_payload_from_grayscale_transparent (unsigned short width,
 					unsigned char *pixels,
 					unsigned char format, int quality,
 					unsigned char **image, int *image_sz,
-					unsigned char bg_gray)
+					unsigned char bg_gray, double opacity)
 {
 /* input: Grayscale    output: Grayscale */
     unsigned char *p_in;
@@ -1743,7 +1745,7 @@ get_payload_from_grayscale_transparent (unsigned short width,
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
 	  if (rl2_gray_alpha_to_png
-	      (width, height, pixels, mask, image, image_sz) != RL2_OK)
+	      (width, height, pixels, mask, image, image_sz, opacity) != RL2_OK)
 	      goto error;
       }
     else
@@ -1824,7 +1826,8 @@ get_payload_from_rgb_transparent (unsigned short width, unsigned short height,
 				  unsigned char *pixels, unsigned char format,
 				  int quality, unsigned char **image,
 				  int *image_sz, unsigned char bg_red,
-				  unsigned char bg_green, unsigned char bg_blue)
+				  unsigned char bg_green, unsigned char bg_blue,
+				  double opacity)
 {
 /* input: RGB    output: RGB */
     unsigned char *p_in;
@@ -1856,7 +1859,7 @@ get_payload_from_rgb_transparent (unsigned short width, unsigned short height,
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
 	  if (rl2_rgb_alpha_to_png
-	      (width, height, pixels, mask, image, image_sz) != RL2_OK)
+	      (width, height, pixels, mask, image, image_sz, opacity) != RL2_OK)
 	      goto error;
       }
     else
@@ -1990,6 +1993,7 @@ get_rgba_from_monochrome_transparent (unsigned short width,
     unsigned char *p_out;
     unsigned short row;
     unsigned short col;
+
     p_in = pixels;
     p_out = rgba;
     for (row = 0; row < height; row++)
@@ -3535,7 +3539,8 @@ get_payload_from_gray_rgba_transparent (unsigned short width,
 					unsigned char *rgb,
 					unsigned char *alpha,
 					unsigned char format, int quality,
-					unsigned char **image, int *image_sz)
+					unsigned char **image, int *image_sz,
+					double opacity)
 {
 /* Grayscale, Transparent */
     unsigned char *p_in;
@@ -3575,8 +3580,8 @@ get_payload_from_gray_rgba_transparent (unsigned short width,
     alpha = NULL;
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
-	  if (rl2_gray_alpha_to_png (width, height, gray, mask, image, image_sz)
-	      != RL2_OK)
+	  if (rl2_gray_alpha_to_png
+	      (width, height, gray, mask, image, image_sz, opacity) != RL2_OK)
 	      goto error;
       }
     else
@@ -3658,7 +3663,8 @@ get_payload_from_rgb_rgba_transparent (unsigned short width,
 				       unsigned short height,
 				       unsigned char *rgb, unsigned char *alpha,
 				       unsigned char format, int quality,
-				       unsigned char **image, int *image_sz)
+				       unsigned char **image, int *image_sz,
+				       double opacity)
 {
 /* RGB, Transparent */
     unsigned char *p_msk;
@@ -3687,8 +3693,8 @@ get_payload_from_rgb_rgba_transparent (unsigned short width,
     alpha = NULL;
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
-	  if (rl2_rgb_alpha_to_png (width, height, rgb, mask, image, image_sz)
-	      != RL2_OK)
+	  if (rl2_rgb_alpha_to_png
+	      (width, height, rgb, mask, image, image_sz, opacity) != RL2_OK)
 	      goto error;
       }
     else

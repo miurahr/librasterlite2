@@ -7027,6 +7027,10 @@ output_rgb_geotiff (const unsigned char *buffer,
     XTIFFClose (out);
     *blob = clientdata.buffer;
     *blob_size = clientdata.eof;
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
     return 1;
 
   error:
@@ -7250,6 +7254,10 @@ output_palette_geotiff (const unsigned char *buffer,
     XTIFFClose (out);
     *blob = clientdata.buffer;
     *blob_size = clientdata.eof;
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
     return 1;
 
   error:
@@ -7547,6 +7555,10 @@ output_gray_geotiff (const unsigned char *buffer,
     XTIFFClose (out);
     *blob = clientdata.buffer;
     *blob_size = clientdata.eof;
+    if (srs_name != NULL)
+	free (srs_name);
+    if (proj4text != NULL)
+	free (proj4text);
     return 1;
 
   error:

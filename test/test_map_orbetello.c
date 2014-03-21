@@ -704,6 +704,63 @@ do_export_mono_band_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     return retcode;
 }
 
+static int
+do_export_map_image (sqlite3 * sqlite, const char *coverage,
+		     gaiaGeomCollPtr geom, const char *style,
+		     const char *suffix)
+{
+/* exporting a Map Image (full rendered) */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    const char *format = "text/plain";
+
+    if (strcmp (suffix, "png") == 0)
+	format = "image/png";
+    if (strcmp (suffix, "jpg") == 0)
+	format = "image/jpeg";
+    if (strcmp (suffix, "tif") == 0)
+	format = "image/tiff";
+    if (strcmp (suffix, "pdf") == 0)
+	format = "application/x-pdf";
+
+    path = sqlite3_mprintf ("./%s_map_%s.%s", coverage, style, suffix);
+
+    sql =
+	"SELECT BlobToFile(RL2_GetMapImage(?, ST_Buffer(?, 2000), ?, ?, ?, ?, ?, ?), ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 2, blob, blob_size, free);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_text (stmt, 5, style, strlen (style), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 6, format, strlen (format), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 7, "#ffe0e0", 7, SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 8, 1);
+    sqlite3_bind_text (stmt, 9, path, strlen (path), SQLITE_STATIC);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
 static gaiaGeomCollPtr
 get_center_point (sqlite3 * sqlite, const char *coverage)
 {
@@ -756,6 +813,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
     int tile_size;
     char *sql;
     gaiaGeomCollPtr geom;
+    int test_map_image = 0;
 
 /* setting the coverage name */
     switch (compression)
@@ -765,6 +823,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	    {
 	    case TILE_256:
 		coverage = "orbetello_none_256";
+		test_map_image = 1;
 		break;
 	    case TILE_512:
 		coverage = "orbetello_none_512";
@@ -1110,49 +1169,198 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  *retcode += -41;
 	  return 0;
       }
+    if (!test_map_image)
+	goto skip;
+
+/* loading the RasterSymbolizers */
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "ir_false_color2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -42;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "ir_false_color2_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -43;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "ir_gray.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #2 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -44;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "ir_gray_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -45;
+	  return 0;
+      }
+
+/* testing GetMapImage - IR false color */
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "png"))
+      {
+	  *retcode += 46;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "jpg"))
+      {
+	  *retcode += 47;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "tif"))
+      {
+	  *retcode += 48;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "pdf"))
+      {
+	  *retcode += 49;
+	  return 0;
+      }
+
+/* testing GetMapImage - IR false color - GammaValue */
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color2_gamma", "png"))
+      {
+	  *retcode += 50;
+	  return 0;
+      }
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color2_gamma", "jpg"))
+      {
+	  *retcode += 51;
+	  return 0;
+      }
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color2_gamma", "tif"))
+      {
+	  *retcode += 52;
+	  return 0;
+      }
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color2_gamma", "pdf"))
+      {
+	  *retcode += 53;
+	  return 0;
+      }
+
+/* testing GetMapImage - IR gray */
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "png"))
+      {
+	  *retcode += 54;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "jpg"))
+      {
+	  *retcode += 55;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "tif"))
+      {
+	  *retcode += 56;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "pdf"))
+      {
+	  *retcode += 57;
+	  return 0;
+      }
+
+/* testing GetMapImage - IR gray - GammaValue */
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "png"))
+      {
+	  *retcode += 58;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "jpg"))
+      {
+	  *retcode += 59;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "tif"))
+      {
+	  *retcode += 60;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "pdf"))
+      {
+	  *retcode += 61;
+	  return 0;
+      }
+  skip:
     gaiaFreeGeomColl (geom);
 
 /* testing GetTileImage() */
     if (!do_export_tile_image (sqlite, coverage, 1, 0))
       {
-	  *retcode += -42;
+	  *retcode += -62;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, 1, 1))
       {
-	  *retcode += -43;
+	  *retcode += -63;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, 1, 2))
       {
-	  *retcode += -44;
+	  *retcode += -64;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, -1, 0))
       {
-	  *retcode += -45;
+	  *retcode += -65;
 	  return 0;
       }
 
 /* testing GetTileImage() - Mono-Band */
     if (!do_export_mono_tile_image (sqlite, coverage, 1, 0))
       {
-	  *retcode += -46;
+	  *retcode += -66;
 	  return 0;
       }
     if (!do_export_mono_tile_image (sqlite, coverage, 1, 1))
       {
-	  *retcode += -47;
+	  *retcode += -67;
 	  return 0;
       }
     if (!do_export_mono_tile_image (sqlite, coverage, 1, 2))
       {
-	  *retcode += -48;
+	  *retcode += -68;
 	  return 0;
       }
     if (!do_export_mono_tile_image (sqlite, coverage, -1, 0))
       {
-	  *retcode += -49;
+	  *retcode += -69;
 	  return 0;
       }
 
@@ -1280,6 +1488,15 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "CreateRasterCoveragesTable() error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  return -3;
+      }
+    ret =
+	sqlite3_exec (db_handle, "SELECT CreateStylingTables()", NULL,
+		      NULL, &err_msg);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CreateStylingTables() error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  return 4;
       }
 
 /* tests */

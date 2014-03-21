@@ -229,9 +229,10 @@ compress_palette_png (const unsigned char *pixels, unsigned short width,
 
 static int
 compress_grayscale_png (const unsigned char *pixels, const unsigned char *mask,
-			unsigned short width, unsigned short height,
-			unsigned char sample_type, unsigned char pixel_type,
-			unsigned char **png, int *png_size)
+			double opacity, unsigned short width,
+			unsigned short height, unsigned char sample_type,
+			unsigned char pixel_type, unsigned char **png,
+			int *png_size)
 {
 /* compressing a PNG image of the GRAYSCALE type */
     png_structp png_ptr;
@@ -246,9 +247,17 @@ compress_grayscale_png (const unsigned char *pixels, const unsigned char *mask,
     int nBands;
     int type;
     int is_monochrome = 0;
+    unsigned char alpha = 255;
     struct png_memory_buffer membuf;
     membuf.buffer = NULL;
     membuf.size = 0;
+
+    if (opacity < 0.0)
+	opacity = 0.0;
+    if (opacity > 1.0)
+	opacity = 1.0;
+    if (opacity < 1.0)
+	alpha = (unsigned char) (255.0 * opacity);
 
     if (pixel_type == RL2_PIXEL_MONOCHROME)
 	is_monochrome = 1;
@@ -326,7 +335,7 @@ compress_grayscale_png (const unsigned char *pixels, const unsigned char *mask,
 		      if (transparent)
 			  *p_out++ = 0;
 		      else
-			  *p_out++ = 255;
+			  *p_out++ = alpha;
 		  }
 	    }
       }
@@ -353,7 +362,7 @@ compress_grayscale_png (const unsigned char *pixels, const unsigned char *mask,
 
 static int
 compress_rgb_png (const unsigned char *pixels, const unsigned char *mask,
-		  unsigned short width, unsigned short height,
+		  double opacity, unsigned short width, unsigned short height,
 		  unsigned char **png, int *png_size)
 {
 /* compressing a PNG image of the RGB type */
@@ -367,9 +376,17 @@ compress_rgb_png (const unsigned char *pixels, const unsigned char *mask,
     const unsigned char *p_mask;
     int nBands;
     int type;
+    unsigned char alpha = 255;
     struct png_memory_buffer membuf;
     membuf.buffer = NULL;
     membuf.size = 0;
+
+    if (opacity < 0.0)
+	opacity = 0.0;
+    if (opacity > 1.0)
+	opacity = 1.0;
+    if (opacity < 1.0)
+	alpha = (unsigned char) (255.0 * opacity);
 
     png_ptr = png_create_write_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr)
@@ -422,7 +439,7 @@ compress_rgb_png (const unsigned char *pixels, const unsigned char *mask,
 		      if (transparent)
 			  *p_out++ = 0;
 		      else
-			  *p_out++ = 255;
+			  *p_out++ = alpha;
 		  }
 	    }
       }
@@ -573,7 +590,7 @@ rl2_raster_to_png (rl2RasterPtr rst, unsigned char **png, int *png_size)
     plt = rl2_get_raster_palette (rst);
 
     if (rl2_data_to_png
-	(raster->rasterBuffer, raster->maskBuffer, plt, raster->width,
+	(raster->rasterBuffer, raster->maskBuffer, 1.0, plt, raster->width,
 	 raster->height, sample_type, pixel_type, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     *png = blob;
@@ -592,8 +609,8 @@ rl2_rgb_to_png (unsigned short width, unsigned short height,
 	return RL2_ERROR;
 
     if (rl2_data_to_png
-	(rgb, NULL, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, &blob,
-	 &blob_size) != RL2_OK)
+	(rgb, NULL, 1.0, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB,
+	 &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     *png = blob;
     *png_size = blob_size;
@@ -603,17 +620,17 @@ rl2_rgb_to_png (unsigned short width, unsigned short height,
 RL2_DECLARE int
 rl2_rgb_alpha_to_png (unsigned short width, unsigned short height,
 		      const unsigned char *rgb, const unsigned char *alpha,
-		      unsigned char **png, int *png_size)
+		      unsigned char **png, int *png_size, double opacity)
 {
 /* creating a PNG image from two distinct RGB + Alpha buffer */
     unsigned char *blob;
     int blob_size;
-    if (rgb == NULL)
+    if (rgb == NULL || alpha == NULL)
 	return RL2_ERROR;
 
     if (rl2_data_to_png
-	(rgb, alpha, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB,
-	 &blob, &blob_size) != RL2_OK)
+	(rgb, alpha, opacity, NULL, width, height, RL2_SAMPLE_UINT8,
+	 RL2_PIXEL_RGB, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     *png = blob;
     *png_size = blob_size;
@@ -631,8 +648,8 @@ rl2_gray_to_png (unsigned short width, unsigned short height,
 	return RL2_ERROR;
 
     if (rl2_data_to_png
-	(gray, NULL, NULL, width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE,
-	 &blob, &blob_size) != RL2_OK)
+	(gray, NULL, 1.0, NULL, width, height, RL2_SAMPLE_UINT8,
+	 RL2_PIXEL_GRAYSCALE, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     *png = blob;
     *png_size = blob_size;
@@ -642,7 +659,7 @@ rl2_gray_to_png (unsigned short width, unsigned short height,
 RL2_DECLARE int
 rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
 		       const unsigned char *gray, const unsigned char *alpha,
-		       unsigned char **png, int *png_size)
+		       unsigned char **png, int *png_size, double opacity)
 {
 /* creating a PNG image from two distinct Grayscale + Alpha buffer */
     unsigned char *blob;
@@ -651,7 +668,7 @@ rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
 	return RL2_ERROR;
 
     if (rl2_data_to_png
-	(gray, alpha, NULL, width, height, RL2_SAMPLE_UINT8,
+	(gray, alpha, opacity, NULL, width, height, RL2_SAMPLE_UINT8,
 	 RL2_PIXEL_GRAYSCALE, &blob, &blob_size) != RL2_OK)
 	return RL2_ERROR;
     *png = blob;
@@ -661,9 +678,9 @@ rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
 
 RL2_PRIVATE int
 rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
-		 rl2PalettePtr plt, unsigned short width, unsigned short height,
-		 unsigned char sample_type, unsigned char pixel_type,
-		 unsigned char **png, int *png_size)
+		 double opacity, rl2PalettePtr plt, unsigned short width,
+		 unsigned short height, unsigned char sample_type,
+		 unsigned char pixel_type, unsigned char **png, int *png_size)
 {
 /* encoding a PNG image */
     int ret;
@@ -682,12 +699,14 @@ rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
       case RL2_PIXEL_MONOCHROME:
       case RL2_PIXEL_GRAYSCALE:
 	  ret =
-	      compress_grayscale_png (pixels, mask, width, height, sample_type,
-				      pixel_type, &blob, &blob_size);
+	      compress_grayscale_png (pixels, mask, opacity, width, height,
+				      sample_type, pixel_type, &blob,
+				      &blob_size);
 	  break;
       case RL2_PIXEL_RGB:
 	  ret =
-	      compress_rgb_png (pixels, mask, width, height, &blob, &blob_size);
+	      compress_rgb_png (pixels, mask, opacity, width, height, &blob,
+				&blob_size);
 	  break;
       };
     if (ret != RL2_OK)

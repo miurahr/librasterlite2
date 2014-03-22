@@ -4248,3 +4248,65 @@ get_rgba_from_multiband16 (unsigned short width, unsigned short height,
 	free (mask);
     return 1;
 }
+
+RL2_PRIVATE int
+get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
+			   unsigned char **image, int *image_sz)
+{
+/* attempting to create an in-memory PNG image representing a Band Histogram */
+    int r;
+    int c;
+    int j;
+    int h;
+    double count = 0.0;
+    double max = 0.0;
+    unsigned short width = 512;
+    unsigned short height = 128 + 32;
+    double scale;
+    unsigned char *raster = malloc (width * height);
+    unsigned char *p = raster;
+    for (r = 0; r < height; r++)
+      {
+	  /* priming a WHITE background */
+	  for (c = 0; c < width; c++)
+	      *p++ = 255;
+      }
+    for (j = 1; j < 256; j++)
+      {
+	  /* computing optimal height */
+	  double value = *(band->histogram + j);
+	  count += value;
+	  if (max < value)
+	      max = value;
+      }
+    scale = 1.0 / (max / count);
+    for (j = 1; j < 256; j++)
+      {
+	  /* drawing the histogram */
+	  double freq = *(band->histogram + j);
+	  double high = (height - 32.0) * scale * freq / count;
+	  r = (j - 1) * 2;
+	  for (c = 0, h = height - 32; c < high; c++, h--)
+	    {
+		p = raster + (h * width) + r;
+		*p++ = 128;
+		*p = 128;
+	    }
+      }
+    for (j = 1; j < 256; j++)
+      {
+	  /* drawing the scale-bar */
+	  r = (j - 1) * 2;
+	  for (c = 0, h = height - 1; c < 25; c++, h--)
+	    {
+		p = raster + (h * width) + r;
+		*p++ = j;
+		*p = j;
+	    }
+      }
+    if (rl2_data_to_png
+	(raster, NULL, 1.0, NULL, width, height, RL2_SAMPLE_UINT8,
+	 RL2_PIXEL_GRAYSCALE, image, image_sz) == RL2_OK)
+	return RL2_OK;
+    return RL2_ERROR;
+}

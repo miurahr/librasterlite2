@@ -1577,6 +1577,59 @@ fnct_GetBandStatistics_StdDev (sqlite3_context * context, int argc,
 }
 
 static void
+fnct_GetBandStatistics_Histogram (sqlite3_context * context, int argc,
+				  sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandStatistics_Histogram(BLOBencoded statistics, int band_index)
+/
+/ will return a PNG image representing the Histogram for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    unsigned char *image = NULL;
+    int image_size;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    band_index = sqlite3_value_int (argv[1]);
+    stats = rl2_deserialize_dbms_raster_statistics (blob, blob_sz);
+    if (stats == NULL)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  if (get_raster_band_histogram (band, &image, &image_size) == RL2_OK)
+	      sqlite3_result_blob (context, image, image_size, free);
+	  else
+	      sqlite3_result_null (context);
+      }
+    rl2_destroy_raster_statistics (stats);
+}
+
+static void
 fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -6364,6 +6417,11 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_GetBandStatistics_StdDev, 0, 0);
     sqlite3_create_function (db, "RL2_GetBandStatistics_StdDev", 2, SQLITE_ANY,
 			     0, fnct_GetBandStatistics_StdDev, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Histogram", 2, SQLITE_ANY,
+			     0, fnct_GetBandStatistics_Histogram, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Histogram", 2,
+			     SQLITE_ANY, 0, fnct_GetBandStatistics_Histogram, 0,
+			     0);
     sqlite3_create_function (db, "Pyramidize", 1, SQLITE_ANY, 0,
 			     fnct_Pyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_Pyramidize", 1, SQLITE_ANY, 0,

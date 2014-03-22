@@ -4916,6 +4916,29 @@ add_pooled_variance (rl2PrivBandStatisticsPtr band_in,
     band_out->last = pool;
 }
 
+static void
+do_aggregate_histograms (rl2PrivBandStatisticsPtr band_in,
+			 rl2PrivBandStatisticsPtr band_out)
+{
+/* rescaling and aggregating histograms */
+    int ih;
+    double interval_in = band_in->max - band_in->min;
+    double interval_out = band_out->max - band_out->min;
+    double step_in = interval_in / ((double) (band_in->nHistogram) - 1.0);
+    double step_out = interval_out / ((double) (band_out->nHistogram) - 1.0);
+    for (ih = 0; ih < band_in->nHistogram; ih++)
+      {
+	  double value = (((double) ih + 0.5) * step_in) + band_in->min;
+	  double qty = *(band_in->histogram + ih);
+	  double index = floor ((value - band_out->min) / step_out);
+	  if (index < 0.0)
+	      index = 0.0;
+	  if (index > 255.0)
+	      index = 255.0;
+	  *(band_out->histogram + (unsigned int) index) += qty;
+      }
+}
+
 RL2_DECLARE int
 rl2_aggregate_raster_statistics (rl2RasterStatisticsPtr stats_in,
 				 rl2RasterStatisticsPtr stats_out)
@@ -4968,8 +4991,19 @@ rl2_aggregate_raster_statistics (rl2RasterStatisticsPtr stats_in,
 		band_out->mean =
 		    ((band_out->mean * out->count) +
 		     (band_in->mean * in->count)) / (out->count + in->count);
-		for (ih = 0; ih < band_in->nHistogram; ih++)
-		    *(band_out->histogram + ih) += *(band_in->histogram + ih);
+		if (out->sampleType == RL2_SAMPLE_INT8
+		    || out->sampleType == RL2_SAMPLE_UINT8)
+		  {
+		      /* just copying 8-bit histograms */
+		      for (ih = 0; ih < band_in->nHistogram; ih++)
+			  *(band_out->histogram + ih) +=
+			      *(band_in->histogram + ih);
+		  }
+		else
+		  {
+		      /* rescaling and aggregating histograms */
+		      do_aggregate_histograms (band_in, band_out);
+		  }
 	    }
 	  out->count += in->count;
       }
@@ -5226,6 +5260,99 @@ update_uint8_stats (unsigned short width, unsigned short height,
 }
 
 static void
+update_histogram (rl2PrivRasterStatisticsPtr st, int band, double value)
+{
+/* updating the Histogram */
+    double interval;
+    double step;
+    double index;
+    rl2PrivBandStatisticsPtr band_st = st->band_stats + band;
+
+    interval = band_st->max - band_st->min;
+    step = interval / ((double) (band_st->nHistogram) - 1.0);
+    index = floor ((value - band_st->min) / step);
+    if (index < 0.0)
+	index = 0.0;
+    if (index > 255.0)
+	index = 255.0;
+    *(band_st->histogram + (unsigned int) index) += 1.0;
+}
+
+static void
+compute_int16_histogram (unsigned short width, unsigned short height,
+			 const short *pixels, const unsigned char *mask,
+			 rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
+{
+/* computing INT16 tile histogram */
+    int x;
+    int y;
+    const short *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT16)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			  p_in++;
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const short *p_save = p_in;
+		      short sample = 0;
+		      rl2_get_pixel_sample_int16 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+	    }
+      }
+}
+
+static void
 update_int16_stats (unsigned short width, unsigned short height,
 		    const short *pixels, const unsigned char *mask,
 		    rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
@@ -5303,6 +5430,95 @@ update_int16_stats (unsigned short width, unsigned short height,
 			{
 			    /* NO-DATA pixel */
 			    update_no_data_stats (st);
+			}
+		  }
+	    }
+      }
+    compute_int16_histogram (width, height, pixels, mask, st, no_data);
+}
+
+static void
+compute_uint16_histogram (unsigned short width, unsigned short height,
+			  unsigned char num_bands,
+			  const unsigned short *pixels,
+			  const unsigned char *mask,
+			  rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
+{
+/* computing INT16 tile histogram */
+    int x;
+    int y;
+    int ib;
+    const unsigned short *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != num_bands)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_UINT16)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			{
+			    for (ib = 0; ib < num_bands; ib++)
+				p_in++;
+			}
+		      else
+			{
+			    /* opaque pixel */
+			    for (ib = 0; ib < num_bands; ib++)
+			      {
+				  double value = *p_in++;
+				  update_histogram (st, ib, value);
+			      }
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const unsigned short *p_save = p_in;
+		      for (ib = 0; ib < num_bands; ib++)
+			{
+			    unsigned short sample = 0;
+			    rl2_get_pixel_sample_uint16 (no_data, ib, &sample);
+			    if (sample == *p_in++)
+				match++;
+			}
+		      if (match != num_bands)
+			{
+			    /* opaque pixel */
+			    p_in = p_save;
+			    for (ib = 0; ib < num_bands; ib++)
+			      {
+				  double value = *p_in++;
+				  update_histogram (st, ib, value);
+			      }
 			}
 		  }
 	    }
@@ -5402,6 +5618,82 @@ update_uint16_stats (unsigned short width, unsigned short height,
 		  }
 	    }
       }
+    compute_uint16_histogram (width, height, num_bands, pixels, mask, st,
+			      no_data);
+}
+
+static void
+compute_int32_histogram (unsigned short width, unsigned short height,
+			 const int *pixels, const unsigned char *mask,
+			 rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
+{
+/* computing INT16 tile histogram */
+    int x;
+    int y;
+    const int *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_INT32)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			  p_in++;
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const int *p_save = p_in;
+		      int sample = 0;
+		      rl2_get_pixel_sample_int32 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+	    }
+      }
 }
 
 static void
@@ -5482,6 +5774,81 @@ update_int32_stats (unsigned short width, unsigned short height,
 			{
 			    /* NO-DATA pixel */
 			    update_no_data_stats (st);
+			}
+		  }
+	    }
+      }
+    compute_int32_histogram (width, height, pixels, mask, st, no_data);
+}
+
+static void
+compute_uint32_histogram (unsigned short width, unsigned short height,
+			  const unsigned int *pixels, const unsigned char *mask,
+			  rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
+{
+/* computing INT16 tile histogram */
+    int x;
+    int y;
+    const unsigned int *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_UINT32)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			  p_in++;
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const unsigned int *p_save = p_in;
+		      unsigned int sample = 0;
+		      rl2_get_pixel_sample_uint32 (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_histogram (st, 0, value);
 			}
 		  }
 	    }
@@ -5570,6 +5937,81 @@ update_uint32_stats (unsigned short width, unsigned short height,
 		  }
 	    }
       }
+    compute_uint32_histogram (width, height, pixels, mask, st, no_data);
+}
+
+static void
+compute_float_histogram (unsigned short width, unsigned short height,
+			 const float *pixels, const unsigned char *mask,
+			 rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
+{
+/* computing FLOAT tile histogram */
+    int x;
+    int y;
+    const float *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_FLOAT)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			  p_in++;
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const float *p_save = p_in;
+		      float sample = 0;
+		      rl2_get_pixel_sample_float (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+	    }
+      }
 }
 
 static void
@@ -5650,6 +6092,81 @@ update_float_stats (unsigned short width, unsigned short height,
 			{
 			    /* NO-DATA pixel */
 			    update_no_data_stats (st);
+			}
+		  }
+	    }
+      }
+    compute_float_histogram (width, height, pixels, mask, st, no_data);
+}
+
+static void
+compute_double_histogram (unsigned short width, unsigned short height,
+			  const double *pixels, const unsigned char *mask,
+			  rl2PrivRasterStatisticsPtr st, rl2PixelPtr no_data)
+{
+/* computing INT16 tile histogram */
+    int x;
+    int y;
+    const double *p_in = pixels;
+    const unsigned char *p_msk = mask;
+    int transparent;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char nbands;
+    int ignore_no_data = 1;
+
+    if (no_data != NULL)
+      {
+	  ignore_no_data = 0;
+	  if (rl2_get_pixel_type (no_data, &sample_type, &pixel_type, &nbands)
+	      != RL2_OK)
+	      ignore_no_data = 1;
+	  if (nbands != 1)
+	      ignore_no_data = 1;
+	  if (sample_type == RL2_SAMPLE_DOUBLE)
+	      ;
+	  else
+	      ignore_no_data = 1;
+      }
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (transparent || ignore_no_data)
+		  {
+		      /* already transparent or missing NO-DATA value */
+		      if (transparent)
+			  p_in++;
+		      else
+			{
+			    /* opaque pixel */
+			    double value = *p_in++;
+			    update_histogram (st, 0, value);
+			}
+		  }
+		else
+		  {
+		      /* testing for NO-DATA values */
+		      int match = 0;
+		      const double *p_save = p_in;
+		      double sample = 0;
+		      rl2_get_pixel_sample_double (no_data, &sample);
+		      if (sample == *p_in++)
+			  match++;
+		      if (match != 1)
+			{
+			    /* opaque pixel */
+			    double value;
+			    p_in = p_save;
+			    value = *p_in++;
+			    update_histogram (st, 0, value);
 			}
 		  }
 	    }
@@ -5738,6 +6255,7 @@ update_double_stats (unsigned short width, unsigned short height,
 		  }
 	    }
       }
+    compute_double_histogram (width, height, pixels, mask, st, no_data);
 }
 
 RL2_DECLARE rl2RasterStatisticsPtr

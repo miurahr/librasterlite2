@@ -282,6 +282,9 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getrasterstats21.testcase \
 	getrasterstats22.testcase \
 	getrasterstats23.testcase \
+	getrasterstats24.testcase \
+	getrasterstats25.testcase \
+	getrasterstats26.testcase \
 	ispixelopaque1.testcase \
 	ispixelopaque2.testcase \
 	ispixelopaque3.testcase \

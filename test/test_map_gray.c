@@ -72,6 +72,7 @@ execute_check (sqlite3 * sqlite, const char *sql)
 	  if (sqlite3_column_int (stmt, 0) == 1)
 	      retcode = 1;
       }
+    sqlite3_finalize (stmt);
     if (retcode == 1)
 	return SQLITE_OK;
     return SQLITE_ERROR;

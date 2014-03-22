@@ -1171,6 +1171,10 @@ extern "C"
 								unsigned char
 								*xml);
 
+    RL2_PRIVATE int get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
+					       unsigned char **image,
+					       int *image_sz);
+
 #ifdef __cplusplus
 }
 #endif

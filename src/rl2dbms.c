@@ -3087,7 +3087,7 @@ mono_int16_pixel_handler (const short *p_in, unsigned char *p_out,
 	  /* applying a ColorMap */
 	  int found = 0;
 	  rl2ColorMapRefPtr rule;
-rl2ColorMapItemPtr color;
+	  rl2ColorMapItemPtr color;
 	  short mono = *(p_in + mono_band);
 	  double scaled =
 	      ((double) mono -
@@ -3838,7 +3838,7 @@ mono_uint16_pixel_handler (const unsigned short *p_in, unsigned char *p_out,
 	  /* applying a ColorMap */
 	  int found = 0;
 	  rl2ColorMapRefPtr rule;
-rl2ColorMapItemPtr color;
+	  rl2ColorMapItemPtr color;
 	  unsigned short mono = *(p_in + mono_band);
 	  double scaled =
 	      ((double) mono -
@@ -5570,8 +5570,9 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->bandSelection->
-						 redGamma) * 254 + 0.5);
+						 style->
+						 bandSelection->redGamma) *
+					    254 + 0.5);
 			}
 		  }
 		if (green_band < stats->nBands)
@@ -5604,8 +5605,9 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->bandSelection->
-						 greenGamma) * 254 + 0.5);
+						 style->
+						 bandSelection->greenGamma) *
+					    254 + 0.5);
 			}
 		  }
 		if (blue_band < stats->nBands)
@@ -5638,8 +5640,9 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->bandSelection->
-						 blueGamma) * 254 + 0.5);
+						 style->
+						 bandSelection->blueGamma) *
+					    254 + 0.5);
 			}
 		  }
 	    }
@@ -6035,8 +6038,9 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->bandSelection->
-						 grayGamma) * 254 + 0.5);
+						 style->
+						 bandSelection->grayGamma) *
+					    254 + 0.5);
 			}
 		  }
 	    }
@@ -6124,7 +6128,7 @@ destroy_mono_handling (rl2BandHandlingPtr mono)
 		      rule = n_rule;
 		  }
 	    }
-free(mono->colorMap);
+	  free (mono->colorMap);
       }
     free (mono);
 }
@@ -6214,11 +6218,11 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			    copy_uint16_raw_selected_pixels ((const unsigned
 							      short
 							      *)
-							     (rst->rasterBuffer),
+							     (rst->
+							      rasterBuffer),
 							     (const unsigned
-							      char
-							      *)
-							     (rst->maskBuffer),
+							      char *) (rst->
+								       maskBuffer),
 							     (unsigned char *)
 							     outbuf, width,
 							     height,
@@ -6267,8 +6271,8 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 		      switch (rst->sampleType)
 			{
 			case RL2_SAMPLE_INT8:
-			    copy_int8_raw_mono_pixels ((const char *) (rst->
-								       rasterBuffer),
+			    copy_int8_raw_mono_pixels ((const char
+							*) (rst->rasterBuffer),
 						       (const unsigned char
 							*) (rst->maskBuffer),
 						       (unsigned char *) outbuf,
@@ -6299,8 +6303,8 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 				destroy_mono_handling (mono_handling);
 			    return 1;
 			case RL2_SAMPLE_INT16:
-			    copy_int16_raw_mono_pixels ((const short *) (rst->
-									 rasterBuffer),
+			    copy_int16_raw_mono_pixels ((const short
+							 *) (rst->rasterBuffer),
 							(const unsigned char
 							 *) (rst->maskBuffer),
 							(unsigned char *)
@@ -6316,8 +6320,8 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			    return 1;
 			case RL2_SAMPLE_UINT16:
 			    copy_uint16_raw_mono_pixels ((const unsigned short
-							  *) (rst->
-							      rasterBuffer),
+							  *)
+							 (rst->rasterBuffer),
 							 (const unsigned char
 							  *) (rst->maskBuffer),
 							 (unsigned char *)
@@ -6333,8 +6337,8 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 				destroy_mono_handling (mono_handling);
 			    return 1;
 			case RL2_SAMPLE_INT32:
-			    copy_int32_raw_mono_pixels ((const int *) (rst->
-								       rasterBuffer),
+			    copy_int32_raw_mono_pixels ((const int
+							 *) (rst->rasterBuffer),
 							(const unsigned char
 							 *) (rst->maskBuffer),
 							(unsigned char *)
@@ -6350,8 +6354,8 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			    return 1;
 			case RL2_SAMPLE_UINT32:
 			    copy_uint32_raw_mono_pixels ((const unsigned int
-							  *) (rst->
-							      rasterBuffer),
+							  *)
+							 (rst->rasterBuffer),
 							 (const unsigned char
 							  *) (rst->maskBuffer),
 							 (unsigned char *)
@@ -6367,8 +6371,8 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 				destroy_mono_handling (mono_handling);
 			    return 1;
 			case RL2_SAMPLE_FLOAT:
-			    copy_float_raw_mono_pixels ((const float *) (rst->
-									 rasterBuffer),
+			    copy_float_raw_mono_pixels ((const float
+							 *) (rst->rasterBuffer),
 							(const unsigned char
 							 *) (rst->maskBuffer),
 							(unsigned char *)
@@ -6383,8 +6387,9 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 				destroy_mono_handling (mono_handling);
 			    return 1;
 			case RL2_SAMPLE_DOUBLE:
-			    copy_double_raw_mono_pixels ((const double *) (rst->
-									   rasterBuffer),
+			    copy_double_raw_mono_pixels ((const double
+							  *)
+							 (rst->rasterBuffer),
 							 (const unsigned char
 							  *) (rst->maskBuffer),
 							 (unsigned char *)

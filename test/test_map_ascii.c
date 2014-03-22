@@ -71,6 +71,7 @@ execute_check (sqlite3 * sqlite, const char *sql)
 	  if (sqlite3_column_int (stmt, 0) == 1)
 	      retcode = 1;
       }
+    sqlite3_finalize (stmt);
     if (retcode == 1)
 	return SQLITE_OK;
     return SQLITE_ERROR;
@@ -155,6 +156,25 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
       }
     sqlite3_finalize (stmt);
     return geom;
+}
+
+static int
+test_histogram (sqlite3 * sqlite, const char *coverage)
+{
+/* testing Band Histogram */
+    int ret = 0;
+    char *path = sqlite3_mprintf ("histogram_%s.png", coverage);
+    char *sql =
+	sqlite3_mprintf
+	("SELECT BlobToFile(RL2_GetBandStatistics_Histogram(statistics, 0), %Q) "
+	 "FROM raster_coverages WHERE Lower(coverage_name) = Lower(%Q)", path,
+	 coverage);
+    if (execute_check (sqlite, sql) == SQLITE_OK)
+	ret = 1;
+    sqlite3_free (sql);
+    //unlink (path);
+    sqlite3_free (path);
+    return ret;
 }
 
 static int
@@ -314,6 +334,14 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
       }
 
     sqlite3_free_table (results);
+
+/* Histogram */
+    if (test_histogram (sqlite, coverage) != 1)
+      {
+	  fprintf (stderr, "Unable to create an Histogram \"%s\"\n", coverage);
+	  *retcode += 21;
+	  return 0;
+      }
 
     return 1;
 }

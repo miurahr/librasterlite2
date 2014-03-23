@@ -371,7 +371,7 @@ extern "C"
 
  \sa rl2MemPtr
  */
-    typedef struct rl2MemPdf *rl2MemPdfPtr;
+    typedef rl2MemPdf *rl2MemPdfPtr;
 
 /**
  Releases (frees) dynamic memory allocated by RasterLite2

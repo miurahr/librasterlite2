@@ -819,6 +819,7 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
     png_bytep transp;
     int nTransp;
     png_color_16p transpValues;
+    int has_alpha = 0;
 
     if (blob == NULL || blob_size == 0)
 	return RL2_ERROR;
@@ -896,6 +897,7 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 		int i;
 		for (i = 0; i < nTransp; i++)
 		    *(alpha + i) = *(transp + i);
+		has_alpha = 1;
 	    }
       }
 /* creating the raster data */
@@ -905,7 +907,7 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 	goto error;
     p_data = data;
     if (color_type == PNG_COLOR_TYPE_GRAY_ALPHA
-	|| color_type == PNG_COLOR_TYPE_RGB_ALPHA)
+	|| color_type == PNG_COLOR_TYPE_RGB_ALPHA || has_alpha)
       {
 	  /* creating a transparency mask */
 	  mask_sz = width * height;
@@ -1007,7 +1009,17 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 	    {
 		png_bytep p_in = row_pointers[row];
 		for (col = 0; col < (int) width; col++)
-		    *p_data++ = *p_in++;
+		  {
+		      *p_data++ = *p_in;
+		      if (p_mask != NULL)
+			{
+			    if (alpha[*p_in] < 128)
+				*p_mask++ = 0;
+			    else
+				*p_mask++ = 1;
+			}
+		      p_in++;
+		  }
 	    }
 	  break;
       };

@@ -1175,6 +1175,17 @@ extern "C"
 					       unsigned char **image,
 					       int *image_sz);
 
+    RL2_PRIVATE int copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
+				     unsigned short width,
+				     unsigned short height,
+				     unsigned char sample_type,
+				     unsigned char num_bands, double x_res,
+				     double y_res, double minx, double maxy,
+				     double tile_minx, double tile_maxy,
+				     rl2PixelPtr no_data,
+				     rl2RasterStylePtr style,
+				     rl2RasterStatisticsPtr stats);
+
 #ifdef __cplusplus
 }
 #endif

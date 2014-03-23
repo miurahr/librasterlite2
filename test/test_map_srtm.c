@@ -48,6 +48,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "sqlite3.h"
 #include "spatialite.h"
+#include "spatialite/gaiaaux.h"
 
 #include "rasterlite2/rasterlite2.h"
 
@@ -75,6 +76,70 @@ execute_check (sqlite3 * sqlite, const char *sql)
     if (retcode == 1)
 	return SQLITE_OK;
     return SQLITE_ERROR;
+}
+
+static int
+get_max_tile_id (sqlite3 * sqlite, const char *coverage)
+{
+/* retriving the Max tile_id for a given Coverage */
+    char *sql;
+    char *table;
+    char *xtable;
+    sqlite3_stmt *stmt;
+    int ret;
+    int max = 0;
+
+    table = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql = sqlite3_mprintf ("SELECT Max(tile_id) FROM \"%s\"", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	      max = sqlite3_column_int (stmt, 0);
+      }
+    sqlite3_finalize (stmt);
+    return max;
+}
+
+static int
+do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id, int transparent)
+{
+/* attempting to export a visible Tile */
+    char *sql;
+    char *path;
+    int ret;
+
+    if (tile_id < 0)
+	tile_id = get_max_tile_id (sqlite, coverage);
+    path =
+	sqlite3_mprintf ("./%s_mono_tile_%d_%d.png", coverage, tile_id,
+			 transparent);
+    sql =
+	sqlite3_mprintf
+	("SELECT BlobToFile(RL2_GetTileImage(%Q, %d, '#e0ffe0', %d), %Q)",
+	 coverage, tile_id, transparent, path);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    unlink (path);
+    sqlite3_free (path);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "ERROR: Unable to export an Image from \"%s\" tile_id=%d\n",
+		   coverage, tile_id);
+	  return 0;
+      }
+    return 1;
 }
 
 static int
@@ -866,52 +931,179 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -20;
 	  return 0;
       }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "gray_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -21;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "gray_histogram.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #4 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -22;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "gray_normalize.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #5 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -23;
+	  return 0;
+      }
 
 /* testing GetMapImage - Categorize Color Map */
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "png"))
       {
-	  *retcode += 21;
+	  *retcode += 24;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "jpg"))
       {
-	  *retcode += 22;
+	  *retcode += 25;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "tif"))
       {
-	  *retcode += 23;
+	  *retcode += 26;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "pdf"))
       {
-	  *retcode += 24;
+	  *retcode += 27;
 	  return 0;
       }
 
 /* testing GetMapImage - Categorize Color Map */
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "png"))
       {
-	  *retcode += 25;
+	  *retcode += 28;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "jpg"))
       {
-	  *retcode += 26;
+	  *retcode += 29;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "tif"))
       {
-	  *retcode += 27;
+	  *retcode += 30;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "pdf"))
       {
-	  *retcode += 28;
+	  *retcode += 31;
+	  return 0;
+      }
+
+/* testing GetMapImage - Gray GammaValue */
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "png"))
+      {
+	  *retcode += 32;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "jpg"))
+      {
+	  *retcode += 33;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "tif"))
+      {
+	  *retcode += 34;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "pdf"))
+      {
+	  *retcode += 35;
+	  return 0;
+      }
+
+/* testing GetMapImage - Gray Histogram */
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "png"))
+      {
+	  *retcode += 36;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "jpg"))
+      {
+	  *retcode += 37;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "tif"))
+      {
+	  *retcode += 38;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "pdf"))
+      {
+	  *retcode += 39;
+	  return 0;
+      }
+
+/* testing GetMapImage - Gray Normalize */
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "png"))
+      {
+	  *retcode += 40;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "jpg"))
+      {
+	  *retcode += 41;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "tif"))
+      {
+	  *retcode += 42;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "pdf"))
+      {
+	  *retcode += 43;
 	  return 0;
       }
   skip:
     gaiaFreeGeomColl (geom);
+
+/* testing GetTileImage() */
+    if (!do_export_tile_image (sqlite, coverage, 1, 0))
+      {
+	  *retcode += -44;
+	  return 0;
+      }
+    if (!do_export_tile_image (sqlite, coverage, 1, 1))
+      {
+	  *retcode += -45;
+	  return 0;
+      }
+    if (!do_export_tile_image (sqlite, coverage, -1, 0))
+      {
+	  *retcode += -46;
+	  return 0;
+      }
+    if (!do_export_tile_image (sqlite, coverage, -1, 1))
+      {
+	  *retcode += -47;
+	  return 0;
+      }
 
     return 1;
 }

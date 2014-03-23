@@ -172,7 +172,7 @@ test_histogram (sqlite3 * sqlite, const char *coverage)
     if (execute_check (sqlite, sql) == SQLITE_OK)
 	ret = 1;
     sqlite3_free (sql);
-    //unlink (path);
+    unlink (path);
     sqlite3_free (path);
     return ret;
 }

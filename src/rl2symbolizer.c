@@ -611,19 +611,21 @@ parse_sld_se_categorize (xmlNodePtr node, rl2PrivRasterStylePtr style)
 						{
 						    style->categorize->baseRed =
 							red;
-						    style->categorize->
-							baseGreen = green;
-						    style->categorize->
-							baseBlue = blue;
+						    style->
+							categorize->baseGreen =
+							green;
+						    style->
+							categorize->baseBlue =
+							blue;
 						}
 					      else
 						{
-						    style->categorize->last->
-							red = red;
-						    style->categorize->last->
-							green = green;
-						    style->categorize->last->
-							blue = blue;
+						    style->categorize->
+							last->red = red;
+						    style->categorize->
+							last->green = green;
+						    style->categorize->
+							last->blue = blue;
 						}
 					  }
 					else
@@ -1168,6 +1170,14 @@ rl2_is_raster_style_mono_band_selected (rl2RasterStylePtr style, int *selected)
 		*selected = 1;
 		return RL2_OK;
 	    }
+	  if (stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NORMALIZE ||
+	      stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_HISTOGRAM ||
+	      stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+	    {
+		/* Contrast Enhancement */
+		*selected = 1;
+		return RL2_OK;
+	    }
       }
     if (stl->bandSelection == NULL)
 	*selected = 0;
@@ -1200,6 +1210,9 @@ rl2_get_raster_style_mono_band_selection (rl2RasterStylePtr style,
 		*gray_band = 0;
 		return RL2_OK;
 	    }
+	  /* Interpolate Color Map */
+	  *gray_band = 0;
+	  return RL2_OK;
       }
     if (stl->bandSelection == NULL)
 	return RL2_ERROR;
@@ -1221,6 +1234,17 @@ rl2_is_raster_style_triple_band_selected (rl2RasterStylePtr style,
     if (stl == NULL)
 	return RL2_ERROR;
     if (stl->bandSelection == NULL)
+      {
+	  if (stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NORMALIZE ||
+	      stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_HISTOGRAM ||
+	      stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+	    {
+		/* Contrast Enhancement */
+		*selected = 1;
+		return RL2_OK;
+	    }
+      }
+    if (stl->bandSelection == NULL)
 	*selected = 0;
     else if (stl->bandSelection->selectionType == RL2_BAND_SELECTION_TRIPLE)
 	*selected = 1;
@@ -1239,6 +1263,19 @@ rl2_get_raster_style_triple_band_selection (rl2RasterStylePtr style,
     rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
     if (stl == NULL)
 	return RL2_ERROR;
+    if (stl->bandSelection == NULL)
+      {
+	  if (stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NORMALIZE ||
+	      stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_HISTOGRAM ||
+	      stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_GAMMA)
+	    {
+		/* Contrast Enhancement */
+		*red_band = 0;
+		*green_band = 1;
+		*blue_band = 2;
+		return RL2_OK;
+	    }
+      }
     if (stl->bandSelection == NULL)
 	return RL2_ERROR;
     else if (stl->bandSelection->selectionType == RL2_BAND_SELECTION_TRIPLE)

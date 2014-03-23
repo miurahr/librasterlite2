@@ -1226,26 +1226,130 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  *retcode += -45;
 	  return 0;
       }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "rgb_histogram.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #4 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -46;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "rgb_normalize.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #5 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -47;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "rgb_normalize2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #6 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -48;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "rgb_histogram2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #7 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -50;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "rgb_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #8 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -51;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "gray_normalize2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #9 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -52;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "gray_histogram2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #10 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -53;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "gray_gamma2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #11 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -54;
+	  return 0;
+      }
 
 /* testing GetMapImage - IR false color */
     if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "png"))
       {
-	  *retcode += 46;
+	  *retcode += 55;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "jpg"))
       {
-	  *retcode += 47;
+	  *retcode += 56;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "tif"))
       {
-	  *retcode += 48;
+	  *retcode += 57;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color2", "pdf"))
       {
-	  *retcode += 49;
+	  *retcode += 58;
 	  return 0;
       }
 
@@ -1253,69 +1357,245 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
     if (!do_export_map_image
 	(sqlite, coverage, geom, "ir_false_color2_gamma", "png"))
       {
-	  *retcode += 50;
+	  *retcode += 59;
 	  return 0;
       }
     if (!do_export_map_image
 	(sqlite, coverage, geom, "ir_false_color2_gamma", "jpg"))
       {
-	  *retcode += 51;
+	  *retcode += 60;
 	  return 0;
       }
     if (!do_export_map_image
 	(sqlite, coverage, geom, "ir_false_color2_gamma", "tif"))
       {
-	  *retcode += 52;
+	  *retcode += 61;
 	  return 0;
       }
     if (!do_export_map_image
 	(sqlite, coverage, geom, "ir_false_color2_gamma", "pdf"))
       {
-	  *retcode += 53;
+	  *retcode += 62;
 	  return 0;
       }
 
 /* testing GetMapImage - IR gray */
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "png"))
       {
-	  *retcode += 54;
+	  *retcode += 63;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "jpg"))
       {
-	  *retcode += 55;
+	  *retcode += 64;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "tif"))
       {
-	  *retcode += 56;
+	  *retcode += 65;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "pdf"))
       {
-	  *retcode += 57;
+	  *retcode += 66;
 	  return 0;
       }
 
 /* testing GetMapImage - IR gray - GammaValue */
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "png"))
       {
-	  *retcode += 58;
+	  *retcode += 67;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "jpg"))
       {
-	  *retcode += 59;
+	  *retcode += 68;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "tif"))
       {
-	  *retcode += 60;
+	  *retcode += 69;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "pdf"))
       {
-	  *retcode += 61;
+	  *retcode += 70;
+	  return 0;
+      }
+
+/* testing GetMapImage - RGB Normalize */
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize", "png"))
+      {
+	  *retcode += 71;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize", "jpg"))
+      {
+	  *retcode += 72;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize", "tif"))
+      {
+	  *retcode += 73;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize", "pdf"))
+      {
+	  *retcode += 74;
+	  return 0;
+      }
+
+/* testing GetMapImage - RGB Histogram */
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram", "png"))
+      {
+	  *retcode += 75;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram", "jpg"))
+      {
+	  *retcode += 76;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram", "tif"))
+      {
+	  *retcode += 77;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram", "pdf"))
+      {
+	  *retcode += 78;
+	  return 0;
+      }
+
+/* testing GetMapImage - RGB Normalize */
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize2", "png"))
+      {
+	  *retcode += 79;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize2", "jpg"))
+      {
+	  *retcode += 80;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize2", "tif"))
+      {
+	  *retcode += 81;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_normalize2", "pdf"))
+      {
+	  *retcode += 82;
+	  return 0;
+      }
+
+/* testing GetMapImage - RGB Histogram */
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram2", "png"))
+      {
+	  *retcode += 83;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram2", "jpg"))
+      {
+	  *retcode += 84;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram2", "tif"))
+      {
+	  *retcode += 85;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_histogram2", "pdf"))
+      {
+	  *retcode += 86;
+	  return 0;
+      }
+
+/* testing GetMapImage - RGB GammaValue */
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_gamma", "png"))
+      {
+	  *retcode += 87;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_gamma", "jpg"))
+      {
+	  *retcode += 88;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_gamma", "tif"))
+      {
+	  *retcode += 89;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "rgb_gamma", "pdf"))
+      {
+	  *retcode += 90;
+	  return 0;
+      }
+
+/* testing GetMapImage - Gray Normalize */
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize2", "png"))
+      {
+	  *retcode += 91;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize2", "jpg"))
+      {
+	  *retcode += 92;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize2", "tif"))
+      {
+	  *retcode += 93;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize2", "pdf"))
+      {
+	  *retcode += 94;
+	  return 0;
+      }
+
+/* testing GetMapImage - GRAY Histogram */
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram2", "png"))
+      {
+	  *retcode += 95;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram2", "jpg"))
+      {
+	  *retcode += 96;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram2", "tif"))
+      {
+	  *retcode += 97;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram2", "pdf"))
+      {
+	  *retcode += 98;
+	  return 0;
+      }
+
+/* testing GetMapImage - GRAY GammaValue */
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma2", "png"))
+      {
+	  *retcode += 99;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma2", "jpg"))
+      {
+	  *retcode += 100;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma2", "tif"))
+      {
+	  *retcode += 101;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma2", "pdf"))
+      {
+	  *retcode += 102;
 	  return 0;
       }
   skip:

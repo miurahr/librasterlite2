@@ -184,7 +184,7 @@ fnct_IsValidRasterPalette (sqlite3_context * context, int argc,
 			   sqlite3_value ** argv)
 {
 /* SQL function:
-/ IsValidRasterPalette(BLOBencoded palette, text sample_type, text pixel_type, int num_bands)
+/ IsValidRasterPalette(BLOBencoded palette, text sample_type)
 /
 / will return 1 (TRUE, valid) or 0 (FALSE, invalid)
 / or -1 (INVALID ARGS)
@@ -194,21 +194,13 @@ fnct_IsValidRasterPalette (sqlite3_context * context, int argc,
     const unsigned char *blob;
     int blob_sz;
     const char *sample;
-    const char *pixel;
-    int bands;
     unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
-    unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
-    unsigned char num_bands = RL2_BANDS_UNKNOWN;
     int err = 0;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
 	err = 1;
     if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
 	err = 1;
     if (err)
 	sqlite3_result_int (context, -1);
@@ -217,8 +209,6 @@ fnct_IsValidRasterPalette (sqlite3_context * context, int argc,
 	  blob = sqlite3_value_blob (argv[0]);
 	  blob_sz = sqlite3_value_bytes (argv[0]);
 	  sample = (const char *) sqlite3_value_text (argv[1]);
-	  pixel = (const char *) sqlite3_value_text (argv[2]);
-	  bands = sqlite3_value_int (argv[3]);
 	  if (strcmp (sample, "1-BIT") == 0)
 	      sample_type = RL2_SAMPLE_1_BIT;
 	  if (strcmp (sample, "2-BIT") == 0)
@@ -241,30 +231,12 @@ fnct_IsValidRasterPalette (sqlite3_context * context, int argc,
 	      sample_type = RL2_SAMPLE_FLOAT;
 	  if (strcmp (sample, "DOUBLE") == 0)
 	      sample_type = RL2_SAMPLE_DOUBLE;
-	  if (strcmp (pixel, "MONOCHROME") == 0)
-	      pixel_type = RL2_PIXEL_MONOCHROME;
-	  if (strcmp (pixel, "GRAYSCALE") == 0)
-	      pixel_type = RL2_PIXEL_GRAYSCALE;
-	  if (strcmp (pixel, "PALETTE") == 0)
-	      pixel_type = RL2_PIXEL_PALETTE;
-	  if (strcmp (pixel, "RGB") == 0)
-	      pixel_type = RL2_PIXEL_RGB;
-	  if (strcmp (pixel, "MULTIBAND") == 0)
-	      pixel_type = RL2_PIXEL_MULTIBAND;
-	  if (strcmp (pixel, "DATAGRID") == 0)
-	      pixel_type = RL2_PIXEL_DATAGRID;
-	  if (bands > 0 && bands < 256)
-	      num_bands = bands;
-	  if (sample_type == RL2_SAMPLE_UNKNOWN
-	      || pixel_type == RL2_PIXEL_UNKNOWN
-	      || num_bands == RL2_BANDS_UNKNOWN)
+	  if (sample_type == RL2_SAMPLE_UNKNOWN)
 	    {
 		sqlite3_result_int (context, 0);
 		return;
 	    }
-	  ret =
-	      rl2_is_valid_dbms_palette (blob, blob_sz, sample_type, pixel_type,
-					 num_bands);
+	  ret = rl2_is_valid_dbms_palette (blob, blob_sz, sample_type);
 	  if (ret == RL2_OK)
 	      sqlite3_result_int (context, 1);
 	  else
@@ -453,6 +425,196 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
 }
 
 static void
+fnct_GetPaletteNumEntries (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPaletteNumEntries(BLOB pixel_obj)
+/
+/ will return the number of Color Entries
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PalettePtr plt = NULL;
+    rl2PrivPalettePtr palette;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    plt = rl2_deserialize_dbms_palette (blob, blob_sz);
+    if (plt == NULL)
+	goto error;
+    palette = (rl2PrivPalettePtr) plt;
+    sqlite3_result_int (context, palette->nEntries);
+    rl2_destroy_palette (plt);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (plt != NULL)
+	rl2_destroy_palette (plt);
+}
+
+static void
+fnct_GetPaletteColorEntry (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPaletteColorEntry(BLOB pixel_obj, INT index)
+/
+/ will return the corresponding Color entry
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PalettePtr plt = NULL;
+    rl2PrivPalettePtr palette;
+    rl2PrivPaletteEntryPtr entry;
+    int entry_id;
+    char color[16];
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    entry_id = sqlite3_value_int (argv[1]);
+    plt = rl2_deserialize_dbms_palette (blob, blob_sz);
+    if (plt == NULL)
+	goto error;
+    palette = (rl2PrivPalettePtr) plt;
+    if (entry_id >= 0 && entry_id < palette->nEntries)
+	;
+    else
+	goto error;
+    entry = palette->entries + entry_id;
+    sprintf (color, "#%02x%02x%02x", entry->red, entry->green, entry->blue);
+    sqlite3_result_text (context, color, strlen (color), SQLITE_TRANSIENT);
+    rl2_destroy_palette (plt);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (plt != NULL)
+	rl2_destroy_palette (plt);
+}
+
+static void
+fnct_SetPaletteColorEntry (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
+{
+/* SQL function:
+/ SetPaletteColorEntry(BLOB pixel_obj, INT index, TEXT color)
+/
+/ will return a new palette including the changed color
+/ or NULL on failure
+*/
+    const unsigned char *blob = NULL;
+    unsigned char *blb;
+    int blob_sz = 0;
+    rl2PalettePtr plt = NULL;
+    rl2PrivPalettePtr palette;
+    rl2PrivPaletteEntryPtr entry;
+    int entry_id;
+    const char *color;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	goto error;
+    if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    entry_id = sqlite3_value_int (argv[1]);
+    color = (const char *)sqlite3_value_text (argv[2]);
+/* parsing the background color */
+    if (rl2_parse_hexrgb (color, &red, &green, &blue) != RL2_OK)
+	goto error;
+    plt = rl2_deserialize_dbms_palette (blob, blob_sz);
+    if (plt == NULL)
+	goto error;
+    palette = (rl2PrivPalettePtr) plt;
+    if (entry_id >= 0 && entry_id < palette->nEntries)
+	;
+    else
+	goto error;
+    entry = palette->entries + entry_id;
+    entry->red = red;
+    entry->green = green;
+    entry->blue = blue;
+    rl2_serialize_dbms_palette (plt, &blb, &blob_sz);
+    sqlite3_result_blob (context, blb, blob_sz, free);
+    rl2_destroy_palette (plt);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (plt != NULL)
+	rl2_destroy_palette (plt);
+}
+
+static void
+fnct_PaletteEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ PaletteEquals(BLOB palette_obj1, BLOB palette_obj2)
+/
+/ 1 (TRUE) or 0 (FALSE)
+/ or -1 on invalid argument
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz = 0;
+    rl2PalettePtr plt1 = NULL;
+    rl2PalettePtr plt2 = NULL;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	goto error;
+    if (sqlite3_value_type (argv[1]) != SQLITE_BLOB)
+	goto error;
+
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    plt1 = rl2_deserialize_dbms_palette (blob, blob_sz);
+    if (plt1 == NULL)
+	goto error;
+    blob = sqlite3_value_blob (argv[1]);
+    blob_sz = sqlite3_value_bytes (argv[1]);
+    plt2 = rl2_deserialize_dbms_palette (blob, blob_sz);
+    if (plt2 == NULL)
+	goto error;
+    ret = rl2_compare_palettes (plt1, plt2);
+    if (ret == RL2_TRUE)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+    rl2_destroy_palette (plt1);
+    rl2_destroy_palette (plt2);
+    return;
+
+  error:
+    sqlite3_result_int (context, -1);
+    if (plt1 != NULL)
+	rl2_destroy_palette (plt1);
+    if (plt2 != NULL)
+	rl2_destroy_palette (plt2);
+}
+
+static void
 fnct_CreatePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -545,10 +707,11 @@ fnct_CreatePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
-fnct_GetPixelType (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_GetPixelSampleType (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
-/ GetPixelType(BLOB pixel_obj)
+/ GetPixelSampleType(BLOB pixel_obj)
 /
 / will return one of "1-BIT", "2-BIT", "4-BIT", "INT8", "UINT8", "INT16",
 /      "UINT16", "INT32", "UINT32", "FLOAT", "DOUBLE", "UNKNOWN" 
@@ -620,11 +783,10 @@ fnct_GetPixelType (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
-fnct_GetPixelSampleType (sqlite3_context * context, int argc,
-			 sqlite3_value ** argv)
+fnct_GetPixelType (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ GetPixelSampleType(BLOB pixel_obj)
+/ GetPixelType(BLOB pixel_obj)
 /
 / will return one of "MONOCHROME" "PALETTE", "GRAYSCALE", "RGB",
 /      "DATAGRID", "MULTIBAND", "UNKNOWN" 
@@ -930,7 +1092,7 @@ fnct_IsTransparentPixel (sqlite3_context * context, int argc,
 / IsTransparentPixel(BLOB pixel_obj)
 /
 / 1 (TRUE) or 0 (FALSE)
-/ or NULL on invalid argument
+/ or -1 on invalid argument
 */
     const unsigned char *blob = NULL;
     int blob_sz = 0;
@@ -955,7 +1117,7 @@ fnct_IsTransparentPixel (sqlite3_context * context, int argc,
     return;
 
   error:
-    sqlite3_result_null (context);
+    sqlite3_result_int (context, -1);
     if (pxl != NULL)
 	rl2_destroy_pixel (pxl);
 }
@@ -967,7 +1129,7 @@ fnct_IsOpaquePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / IsOpaquePixel(BLOB pixel_obj)
 /
 / 1 (TRUE) or 0 (FALSE)
-/ or NULL on invalid argument
+/ or -1 on invalid argument
 */
     const unsigned char *blob = NULL;
     int blob_sz = 0;
@@ -992,7 +1154,7 @@ fnct_IsOpaquePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
     return;
 
   error:
-    sqlite3_result_null (context);
+    sqlite3_result_int (context, -1);
     if (pxl != NULL)
 	rl2_destroy_pixel (pxl);
 }
@@ -1079,7 +1241,7 @@ fnct_PixelEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / PixelEquals(BLOB pixel_obj1, BLOB pixel_obj2)
 /
 / 1 (TRUE) or 0 (FALSE)
-/ or NULL on invalid argument
+/ or -1 on invalid argument
 */
     const unsigned char *blob = NULL;
     int blob_sz = 0;
@@ -1113,7 +1275,7 @@ fnct_PixelEquals (sqlite3_context * context, int argc, sqlite3_value ** argv)
     return;
 
   error:
-    sqlite3_result_null (context);
+    sqlite3_result_int (context, -1);
     if (pxl1 != NULL)
 	rl2_destroy_pixel (pxl1);
     if (pxl2 != NULL)
@@ -6285,9 +6447,9 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_IsValidPixel, 0, 0);
     sqlite3_create_function (db, "RL2_IsValidPixel", 3, SQLITE_ANY, 0,
 			     fnct_IsValidPixel, 0, 0);
-    sqlite3_create_function (db, "IsValidRasterPalette", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsValidRasterPalette", 2, SQLITE_ANY, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidRasterPalette", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsValidRasterPalette", 2, SQLITE_ANY, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
     sqlite3_create_function (db, "IsValidRasterStatistics", 2, SQLITE_ANY, 0,
 			     fnct_IsValidRasterStatistics, 0, 0);
@@ -6329,6 +6491,22 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_DropCoverage, 0, 0);
     sqlite3_create_function (db, "RL2_DropCoverage", 2, SQLITE_ANY, 0,
 			     fnct_DropCoverage, 0, 0);
+    sqlite3_create_function (db, "GetPaletteNumEntries", 1, SQLITE_ANY, 0,
+			     fnct_GetPaletteNumEntries, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPaletteNumEntries", 1, SQLITE_ANY, 0,
+			     fnct_GetPaletteNumEntries, 0, 0);
+    sqlite3_create_function (db, "GetPaletteColorEntry", 2, SQLITE_ANY, 0,
+			     fnct_GetPaletteColorEntry, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPaletteColorEntry", 2, SQLITE_ANY, 0,
+			     fnct_GetPaletteColorEntry, 0, 0);
+    sqlite3_create_function (db, "SetPaletteColorEntry", 3, SQLITE_ANY, 0,
+			     fnct_SetPaletteColorEntry, 0, 0);
+    sqlite3_create_function (db, "RL2_SetPaletteColorEntry", 3, SQLITE_ANY, 0,
+			     fnct_SetPaletteColorEntry, 0, 0);
+    sqlite3_create_function (db, "PaletteEquals", 2, SQLITE_ANY, 0,
+			     fnct_PaletteEquals, 0, 0);
+    sqlite3_create_function (db, "RL2_PaletteEquals", 2, SQLITE_ANY, 0,
+			     fnct_PaletteEquals, 0, 0);
     sqlite3_create_function (db, "CreatePixel", 3, SQLITE_ANY, 0,
 			     fnct_CreatePixel, 0, 0);
     sqlite3_create_function (db, "RL2_CreatePixel", 3, SQLITE_ANY, 0,

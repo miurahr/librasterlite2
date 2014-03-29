@@ -1,7 +1,7 @@
-GetPixelSampleType - GRAYSCALE
+GetPixelSampleType - 4-BIT
 :memory: #use in-memory database
-SELECT RL2_GetPixelSampleType(RL2_CreatePixel('UINT8', 'GRAYSCALE', 1));
+SELECT RL2_GetPixelSampleType(RL2_CreatePixel('4-BIT', 'PALETTE', 1));
 1 # rows (not including the header row)
 1 # columns
-RL2_GetPixelSampleType(RL2_CreatePixel('UINT8', 'GRAYSCALE', 1))
-GRAYSCALE
+RL2_GetPixelSampleType(RL2_CreatePixel('4-BIT', 'PALETTE', 1))
+4-BIT

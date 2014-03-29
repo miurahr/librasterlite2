@@ -1420,6 +1420,7 @@ main (int argc, char *argv[])
     rl2_destroy_ascii_grid_destination (ascii);
 
 /* closing the DB */
+    sqlite3_close (db_handle);
     spatialite_shutdown ();
     if (old_SPATIALITE_SECURITY_ENV)
       {

@@ -6437,8 +6437,7 @@ check_serialized_palette (const unsigned char *blob, int blob_size)
 
 RL2_DECLARE int
 rl2_is_valid_dbms_palette (const unsigned char *blob, int blob_size,
-			   unsigned char sample_type, unsigned char pixel_type,
-			   unsigned char num_bands)
+			   unsigned char sample_type)
 {
 /* testing a serialized Palette object for validity */
     const unsigned char *ptr;
@@ -6452,10 +6451,6 @@ rl2_is_valid_dbms_palette (const unsigned char *blob, int blob_size,
     nEntries = importU16 (ptr, endian, endian_arch);
     if (sample_type == RL2_SAMPLE_1_BIT || sample_type == RL2_SAMPLE_2_BIT
 	|| sample_type == RL2_SAMPLE_4_BIT || sample_type == RL2_SAMPLE_UINT8)
-	;
-    else
-	return RL2_ERROR;
-    if (pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
 	;
     else
 	return RL2_ERROR;

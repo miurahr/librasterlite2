@@ -1,7 +1,7 @@
-GetPixelSampleType - MULTIBAND
+GetPixelSampleType - INT8
 :memory: #use in-memory database
-SELECT RL2_GetPixelSampleType(RL2_CreatePixel('UINT8', 'MULTIBAND', 5));
+SELECT RL2_GetPixelSampleType(RL2_CreatePixel('INT8', 'DATAGRID', 1));
 1 # rows (not including the header row)
 1 # columns
-RL2_GetPixelSampleType(RL2_CreatePixel('UINT8', 'MULTIBAND', 5))
-MULTIBAND
+RL2_GetPixelSampleType(RL2_CreatePixel('INT8', 'DATAGRID', 1))
+INT8

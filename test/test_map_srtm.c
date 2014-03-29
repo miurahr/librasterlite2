@@ -1925,6 +1925,7 @@ main (int argc, char *argv[])
 	return ret;
 
 /* closing the DB */
+    sqlite3_close (db_handle);
     spatialite_shutdown ();
     if (old_SPATIALITE_SECURITY_ENV)
       {

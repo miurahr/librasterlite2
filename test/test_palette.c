@@ -41,6 +41,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 */
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+#include "sqlite3.h"
+#include "spatialite.h"
 
 #include "rasterlite2/rasterlite2.h"
 
@@ -158,6 +162,235 @@ create_rgb256_palette ()
     return palette;
 }
 
+static int
+test_sql_palette (unsigned char *blob, int blob_size, unsigned char *blob2,
+		  int blob_size2, int *retcode)
+{
+    int ret;
+    sqlite3 *db_handle;
+    const char *sql;
+    sqlite3_stmt *stmt;
+    unsigned char *blob3 = NULL;
+    int blob_size3;
+    void *cache = spatialite_alloc_connection ();
+
+/* opening and initializing the "memory" test DB */
+    ret = sqlite3_open_v2 (":memory:", &db_handle,
+			   SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "sqlite3_open_v2() error: %s\n",
+		   sqlite3_errmsg (db_handle));
+	  return 0;
+      }
+    spatialite_init_ex (db_handle, cache, 0);
+    rl2_init (db_handle, 0);
+
+    sql = "SELECT RL2_GetPaletteNumEntries(?), RL2_GetPaletteNumEntries(?), "
+	"RL2_GetPaletteColorEntry(?, 0), RL2_GetPaletteColorEntry(?, 0), "
+	"RL2_SetPaletteColorEntry(?, 123, '#c000ff'), RL2_PaletteEquals(?, ?), "
+	"RL2_PaletteEquals(?, ?)";
+    ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "ERROR: SQL palette stmt #1\n");
+	  *retcode -= 1;
+	  return 0;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob2, blob_size2, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 3, blob, blob_size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 4, blob2, blob_size2, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 5, blob, blob_size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 7, blob2, blob_size2, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 8, blob, blob_size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 9, blob, blob_size, SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) != SQLITE_INTEGER)
+		  {
+		      fprintf (stderr,
+			       "ERROR: invalid Palette NumEntries #1\n");
+		      *retcode -= 2;
+		      goto error;
+		  }
+		if (sqlite3_column_int (stmt, 0) != 256)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette NumEntries #1: %d\n",
+			       sqlite3_column_int (stmt, 0));
+		      *retcode -= 3;
+		      goto error;
+		  }
+		if (sqlite3_column_type (stmt, 1) != SQLITE_INTEGER)
+		  {
+		      fprintf (stderr,
+			       "ERROR: invalid Palette NumEntries #2\n");
+		      *retcode -= 4;
+		      goto error;
+		  }
+		if (sqlite3_column_int (stmt, 1) != 2)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette NumEntries #2: %d\n",
+			       sqlite3_column_int (stmt, 1));
+		      *retcode -= 5;
+		      goto error;
+		  }
+		if (sqlite3_column_type (stmt, 2) != SQLITE_TEXT)
+		  {
+		      fprintf (stderr,
+			       "ERROR: invalid Palette ColorEntry #1\n");
+		      *retcode -= 6;
+		      goto error;
+		  }
+		if (strcmp
+		    ("#000000",
+		     (const char *) sqlite3_column_text (stmt, 2)) != 0)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette ColorEntry #1: %s\n",
+			       sqlite3_column_text (stmt, 2));
+		      *retcode -= 7;
+		      goto error;
+		  }
+		if (sqlite3_column_type (stmt, 3) != SQLITE_TEXT)
+		  {
+		      fprintf (stderr,
+			       "ERROR: invalid Palette ColorEntry #2\n");
+		      *retcode -= 8;
+		      goto error;
+		  }
+		if (strcmp
+		    ("#ffffff",
+		     (const char *) sqlite3_column_text (stmt, 3)) != 0)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette ColorEntry #2: %s\n",
+			       sqlite3_column_text (stmt, 3));
+		      *retcode -= 9;
+		      goto error;
+		  }
+		if (sqlite3_column_type (stmt, 4) != SQLITE_BLOB)
+		  {
+		      fprintf (stderr, "ERROR: invalid Palette SetColor\n");
+		      *retcode -= 10;
+		      goto error;
+		  }
+		blob_size3 = sqlite3_column_bytes (stmt, 4);
+		blob3 = malloc (blob_size3);
+		memcpy (blob3, sqlite3_column_blob (stmt, 4), blob_size3);
+		if (sqlite3_column_type (stmt, 5) != SQLITE_INTEGER)
+		  {
+		      fprintf (stderr, "ERROR: invalid Palette Equals #1\n");
+		      *retcode -= 11;
+		      goto error;
+		  }
+		if (sqlite3_column_int (stmt, 5) != 0)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette Equals #1: %d\n",
+			       sqlite3_column_int (stmt, 5));
+		      *retcode -= 12;
+		      goto error;
+		  }
+		if (sqlite3_column_type (stmt, 6) != SQLITE_INTEGER)
+		  {
+		      fprintf (stderr, "ERROR: invalid Palette Equals #2\n");
+		      *retcode -= 13;
+		      goto error;
+		  }
+		if (sqlite3_column_int (stmt, 6) != 1)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette Equals #2: %d\n",
+			       sqlite3_column_int (stmt, 7));
+		      *retcode -= 14;
+		      goto error;
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "ERROR: SQL palette step #1\n");
+		*retcode -= 15;
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+    sql = "SELECT RL2_PaletteEquals(?, ?)";
+    ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "ERROR: SQL palette stmt #2\n");
+	  *retcode -= 16;
+	  return 0;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob3, blob_size3, SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) != SQLITE_INTEGER)
+		  {
+		      fprintf (stderr, "ERROR: invalid Palette Equals #3\n");
+		      *retcode -= 17;
+		      goto error;
+		  }
+		if (sqlite3_column_int (stmt, 0) != 0)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unexpected Palette Equals #3: %d\n",
+			       sqlite3_column_int (stmt, 7));
+		      *retcode -= 18;
+		      goto error;
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "ERROR: SQL palette step #2\n");
+		*retcode -= 19;
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+/* closing the DB */
+    sqlite3_close (db_handle);
+    spatialite_shutdown ();
+    free (blob);
+    free (blob2);
+    if (blob3 != NULL)
+	free (blob3);
+    return 1;
+
+  error:
+    sqlite3_finalize (stmt);
+    sqlite3_close (db_handle);
+    spatialite_shutdown ();
+    free (blob);
+    free (blob2);
+    if (blob3 != NULL)
+	free (blob3);
+    return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -171,10 +404,11 @@ main (int argc, char *argv[])
     unsigned char pixel_type;
     unsigned char *blob;
     int blob_size;
-
+    unsigned char *blob2;
+    int blob_size2;
+    int retcode;
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
-
     if (rl2_create_palette (-1) != NULL)
       {
 	  fprintf (stderr, "Unexpected valid palette - negative # entries\n");
@@ -188,7 +422,6 @@ main (int argc, char *argv[])
 	  return -2;
       }
     rl2_destroy_palette (palette);
-
     if (rl2_create_palette (257) != NULL)
       {
 	  fprintf (stderr, "Unexpected valid palette - 257 # entries\n");
@@ -249,7 +482,6 @@ main (int argc, char *argv[])
     rl2_free (r);
     rl2_free (g);
     rl2_free (b);
-
     if (rl2_set_palette_color (NULL, 0, 0, 0, 0) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL palette set color\n");
@@ -325,9 +557,7 @@ main (int argc, char *argv[])
       }
 
     rl2_destroy_palette (palette);
-
     rl2_destroy_palette (NULL);
-
     if (rl2_get_palette_entries (NULL, &num_entries) != RL2_ERROR)
       {
 	  fprintf (stderr, "ERROR: NULL palette # entries\n");
@@ -361,7 +591,6 @@ main (int argc, char *argv[])
 	  return -27;
       }
     rl2_destroy_palette (palette);
-
     palette = create_rgb16_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -383,7 +612,6 @@ main (int argc, char *argv[])
 	  return -30;
       }
     rl2_destroy_palette (palette);
-
     palette = create_rgb4_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -405,7 +633,6 @@ main (int argc, char *argv[])
 	  return -33;
       }
     rl2_destroy_palette (palette);
-
     palette = create_bicolor_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -427,7 +654,6 @@ main (int argc, char *argv[])
 	  return -36;
       }
     rl2_destroy_palette (palette);
-
     palette = create_gray256_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -450,7 +676,6 @@ main (int argc, char *argv[])
 	  return -39;
       }
     rl2_destroy_palette (palette);
-
     palette = create_gray16_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -472,7 +697,6 @@ main (int argc, char *argv[])
 	  return -42;
       }
     rl2_destroy_palette (palette);
-
     palette = create_gray4_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -494,7 +718,6 @@ main (int argc, char *argv[])
 	  return -45;
       }
     rl2_destroy_palette (palette);
-
     palette = create_monochrome_palette ();
     if (rl2_get_palette_type (palette, &sample_type, &pixel_type) != RL2_OK)
       {
@@ -556,8 +779,35 @@ main (int argc, char *argv[])
     if (rl2_clone_palette (NULL) != NULL)
       {
 	  fprintf (stderr, "ERROR: unexpected cloned NULL palette\n");
-	  return 56;
+	  return -56;
       }
 
+    palette = create_gray256_palette ();
+    if (palette == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to create a palette\n");
+	  return -57;
+      }
+    if (rl2_serialize_dbms_palette (palette, &blob, &blob_size) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unexpected NULL palette serialization\n");
+	  return -58;
+      }
+    rl2_destroy_palette (palette);
+    palette = create_monochrome_palette ();
+    if (palette == NULL)
+      {
+	  fprintf (stderr, "ERROR: unable to create a palette\n");
+	  return -59;
+      }
+    if (rl2_serialize_dbms_palette (palette, &blob2, &blob_size2) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unexpected NULL palette serialization\n");
+	  return -60;
+      }
+    rl2_destroy_palette (palette);
+    retcode = -61;
+    if (!test_sql_palette (blob, blob_size, blob2, blob_size2, &retcode))
+	return retcode;
     return 0;
 }

@@ -1,7 +1,7 @@
-GetPixelSampleType - Integer pixel
+GetPixelSampleType - FLOAT
 :memory: #use in-memory database
-SELECT RL2_GetPixelSampleType(1);
+SELECT RL2_GetPixelSampleType(RL2_CreatePixel('FLOAT', 'DATAGRID', 1));
 1 # rows (not including the header row)
 1 # columns
-RL2_GetPixelSampleType(1)
-(NULL)
+RL2_GetPixelSampleType(RL2_CreatePixel('FLOAT', 'DATAGRID', 1))
+FLOAT

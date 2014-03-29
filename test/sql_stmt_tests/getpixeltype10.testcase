@@ -1,7 +1,7 @@
-GetPixelType - DOUBLE
+GetPixelType - Double pixel
 :memory: #use in-memory database
-SELECT RL2_GetPixelType(RL2_CreatePixel('DOUBLE', 'DATAGRID', 1));
+SELECT RL2_GetPixelType(1.5);
 1 # rows (not including the header row)
 1 # columns
-RL2_GetPixelType(RL2_CreatePixel('DOUBLE', 'DATAGRID', 1))
-DOUBLE
+RL2_GetPixelType(1.5)
+(NULL)

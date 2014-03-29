@@ -4,4 +4,4 @@ SELECT RL2_PixelEquals(RL2_SetTransparentPixel(RL2_SetPixelValue(RL2_CreatePixel
 1 # rows (not including the header row)
 1 # columns
 RL2_PixelEquals(RL2_SetTransparentPixel(RL2_SetPixelValue(RL2_CreatePixel('UINT8', 'GRAYSCALE', 1), 0, 128)), NULL)
-(NULL)
+-1

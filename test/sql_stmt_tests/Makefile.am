@@ -216,6 +216,11 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getmonotileimage6.testcase \
 	getmonotileimage7.testcase \
 	getmonotileimage8.testcase \
+	getpalettenumentries1.testcase \
+	getpalettenumentries2.testcase \
+	getpalettecolorentry1.testcase \
+	getpalettecolorentry2.testcase \
+	getpalettecolorentry3.testcase \
 	getpixelnumbands1.testcase \
 	getpixelnumbands2.testcase \
 	getpixelnumbands3.testcase \
@@ -233,11 +238,6 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getpixeltype9.testcase \
 	getpixeltype10.testcase \
 	getpixeltype11.testcase \
-	getpixeltype12.testcase \
-	getpixeltype13.testcase \
-	getpixeltype14.testcase \
-	getpixeltype15.testcase \
-	getpixeltype16.testcase \
 	getpixelvalue1.testcase \
 	getpixelvalue2.testcase \
 	getpixelvalue3.testcase \
@@ -259,6 +259,11 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getpixelsampletype9.testcase \
 	getpixelsampletype10.testcase \
 	getpixelsampletype11.testcase \
+	getpixelsampletype12.testcase \
+	getpixelsampletype13.testcase \
+	getpixelsampletype14.testcase \
+	getpixelsampletype15.testcase \
+	getpixelsampletype16.testcase \
 	getrasterstats1.testcase \
 	getrasterstats2.testcase \
 	getrasterstats3.testcase \
@@ -305,14 +310,6 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	isvalidpalette8.testcase \
 	isvalidpalette9.testcase \
 	isvalidpalette10.testcase \
-	isvalidpalette11.testcase \
-	isvalidpalette12.testcase \
-	isvalidpalette13.testcase \
-	isvalidpalette14.testcase \
-	isvalidpalette15.testcase \
-	isvalidpalette16.testcase \
-	isvalidpalette17.testcase \
-	isvalidpalette18.testcase \
 	isvalidpixel1.testcase \
 	isvalidpixel2.testcase \
 	isvalidpixel3.testcase \
@@ -359,6 +356,9 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	isvalidtile3.testcase \
 	isvalidtile4.testcase \
 	setpixelopaque1.testcase \
+	paletteequals1.testcase \
+	paletteequals2.testcase \
+	paletteequals3.testcase \
 	pixelequals1.testcase \
 	pixelequals2.testcase \
 	pixelequals3.testcase \
@@ -383,6 +383,10 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	pyramidize14.testcase \
 	pyramidize15.testcase \
 	pyramidize16.testcase \
+	setpalettecolorentry1.testcase \
+	setpalettecolorentry2.testcase \
+	setpalettecolorentry3.testcase \
+	setpalettecolorentry4.testcase \
 	setpixelopaque2.testcase \
 	setpixeltransparent1.testcase \
 	setpixeltransparent2.testcase \

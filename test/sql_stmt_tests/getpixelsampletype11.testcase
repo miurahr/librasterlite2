@@ -1,7 +1,7 @@
-GetPixelSampleType - invalid BLOB pixel
+GetPixelSampleType - NULL pixel
 :memory: #use in-memory database
-SELECT RL2_GetPixelSampleType(zeroblob(100));
+SELECT RL2_GetPixelSampleType(NULL);
 1 # rows (not including the header row)
 1 # columns
-RL2_GetPixelSampleType(zeroblob(100))
+RL2_GetPixelSampleType(NULL)
 (NULL)

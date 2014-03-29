@@ -1288,6 +1288,31 @@ rl2_clone_palette (rl2PalettePtr in)
     return out;
 }
 
+RL2_DECLARE int
+rl2_compare_palettes (rl2PalettePtr palette_1, rl2PalettePtr palette_2)
+{
+/* comparing two Palette objects */
+    rl2PrivPalettePtr plt_1 = (rl2PrivPalettePtr) palette_1;
+    rl2PrivPalettePtr plt_2 = (rl2PrivPalettePtr) palette_2;
+    int i;
+    if (plt_1 == NULL || plt_2 == NULL)
+	return 0;
+    if (plt_1->nEntries != plt_2->nEntries)
+	return 0;
+    for (i = 0; i < plt_2->nEntries; i++)
+      {
+	  rl2PrivPaletteEntryPtr entry_1 = plt_1->entries + i;
+	  rl2PrivPaletteEntryPtr entry_2 = plt_2->entries + i;
+	  if (entry_1->red != entry_2->red)
+	      return 0;
+	  if (entry_1->green != entry_2->green)
+	      return 0;
+	  if (entry_1->blue != entry_2->blue)
+	      return 0;
+      }
+    return 1;
+}
+
 static int
 check_monochrome (int max, unsigned char *red, unsigned char *green,
 		  unsigned char *blue)

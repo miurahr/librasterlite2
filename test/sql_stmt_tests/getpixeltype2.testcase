@@ -1,7 +1,7 @@
-GetPixelType - 2-BIT
+GetPixelType - PALETTE
 :memory: #use in-memory database
-SELECT RL2_GetPixelType(RL2_CreatePixel('2-BIT', 'PALETTE', 1));
+SELECT RL2_GetPixelType(RL2_CreatePixel('UINT8', 'PALETTE', 1));
 1 # rows (not including the header row)
 1 # columns
-RL2_GetPixelType(RL2_CreatePixel('2-BIT', 'PALETTE', 1))
-2-BIT
+RL2_GetPixelType(RL2_CreatePixel('UINT8', 'PALETTE', 1))
+PALETTE

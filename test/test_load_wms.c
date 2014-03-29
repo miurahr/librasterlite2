@@ -404,6 +404,7 @@ main (int argc, char *argv[])
     gaiaFreeGeomColl (geom);
 
 /* closing the DB */
+    sqlite3_close (db_handle);
     spatialite_shutdown ();
     if (old_SPATIALITE_SECURITY_ENV)
       {

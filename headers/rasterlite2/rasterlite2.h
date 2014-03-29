@@ -2881,9 +2881,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_is_valid_dbms_palette (const unsigned char *blob, int blob_size,
-				   unsigned char sample_type,
-				   unsigned char pixel_type,
-				   unsigned char num_bands);
+				   unsigned char sample_type);
 
     RL2_DECLARE rl2PalettePtr
 	rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size);
@@ -2894,6 +2892,9 @@ extern "C"
     RL2_DECLARE int
 	rl2_update_dbms_palette (sqlite3 * handle, const char *coverage,
 				 rl2PalettePtr palette);
+
+    RL2_DECLARE int
+	rl2_compare_palettes (rl2PalettePtr palette_1, rl2PalettePtr palette_2);
 
     RL2_DECLARE int
 	rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr cvg,

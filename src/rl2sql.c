@@ -5150,7 +5150,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
 	out_pixel = RL2_PIXEL_MONOCHROME;
 
-    if (cvg->pixelType == RL2_PIXEL_DATAGRID && symbolizer == NULL)
+    if ((cvg->pixelType == RL2_PIXEL_DATAGRID || cvg->pixelType == RL2_PIXEL_MULTIBAND) && symbolizer == NULL)
       {
 	  /* creating a default RasterStyle */
 	  rl2PrivRasterStylePtr symb = malloc (sizeof (rl2PrivRasterStyle));

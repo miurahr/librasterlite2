@@ -1994,6 +1994,23 @@ extern "C"
 				   rl2PixelPtr no_data);
 
 /**
+ Computes the Raster Statistics from a Raster object
+
+ \param raster pointer to a valid Raster object
+ 
+ \return the pointer to newly created Raster Statistics Object: NULL on failure.
+ 
+ \sa rl2_destroy_raster_statistics, rl2_get_band_statistics
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster Statistics object.
+ */
+    RL2_DECLARE rl2RasterStatisticsPtr rl2_build_raster_statistics (rl2RasterPtr
+								    raster,
+								    rl2PixelPtr
+								    noData);
+
+/**
  Encodes a Raster Statistics Object into the corresponding BLOB serialized format
 
  \param stats pointer to the Raster Statistics Object.
@@ -2700,7 +2717,7 @@ extern "C"
  \note you are responsible to destroy (before or after) any allocated 
  Raster object.
  */
-    RL2_DECLARE rl2RasterPtr rl2_raster_from_png (unsigned char *png,
+    RL2_DECLARE rl2RasterPtr rl2_raster_from_png (const unsigned char *png,
 						  int png_size);
 
 /**
@@ -2734,7 +2751,7 @@ extern "C"
  Raster object.
  */
     RL2_DECLARE rl2RasterPtr
-	rl2_raster_from_jpeg (unsigned char *jpeg, int jpeg_size);
+	rl2_raster_from_jpeg (const unsigned char *jpeg, int jpeg_size);
 
 /**
  Exports a Raster object as an in-memory stored WEBP image (lossy compressed)

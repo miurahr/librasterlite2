@@ -196,6 +196,10 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	gettileimage4.testcase \
 	gettileimage5.testcase \
 	gettileimage6.testcase \
+	getbandhistogram1.testcase \
+	getbandhistogram2.testcase \
+	getbandhistogram3.testcase \
+	getbandhistogram4.testcase \
 	getbandtileimage1.testcase \
 	getbandtileimage2.testcase \
 	getbandtileimage3.testcase \

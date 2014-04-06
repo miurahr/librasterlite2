@@ -56,6 +56,7 @@
 #define ARG_MODE_LIST		8
 #define ARG_MODE_CATALOG	9
 #define ARG_MODE_MAP		10
+#define ARG_MODE_HISTOGRAM	11
 
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
@@ -71,19 +72,20 @@
 #define ARG_QUALITY		21
 #define ARG_TILE_WIDTH		22
 #define ARG_TILE_HEIGHT		23
-#define ARG_IMG_WIDTH		24
-#define ARG_IMG_HEIGHT		25
-#define ARG_SRID		26
-#define ARG_RESOLUTION		27
-#define ARG_X_RESOLUTION	28
-#define ARG_Y_RESOLUTION	29
-#define ARG_MINX		30
-#define ARG_MINY		31
-#define ARG_MAXX		32
-#define ARG_MAXY		33
-#define ARG_CX			34
-#define ARG_CY			35
-#define ARG_NO_DATA		36
+#define ARG_BAND_INDEX	24
+#define ARG_IMG_WIDTH		25
+#define ARG_IMG_HEIGHT		26
+#define ARG_SRID		27
+#define ARG_RESOLUTION		28
+#define ARG_X_RESOLUTION	29
+#define ARG_Y_RESOLUTION	30
+#define ARG_MINX		31
+#define ARG_MINY		32
+#define ARG_MAXX		33
+#define ARG_MAXY		34
+#define ARG_CX			35
+#define ARG_CY			36
+#define ARG_NO_DATA		37
 
 #define ARG_CACHE_SIZE		99
 
@@ -1797,6 +1799,96 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
     return 0;
 }
 
+static int
+exec_histogram (sqlite3 * handle, const char *coverage, const char *section,
+		unsigned char band_index, const char *dst_path)
+{
+/* Rasterlite-2 PNG Histogram */
+    char *sql;
+    int ret;
+    char *xsections;
+    char *xxsections;
+    sqlite3_stmt *stmt = NULL;
+
+    if (section != NULL)
+      {
+	  /* Histogram from Section-level Statistics */
+	  xsections = sqlite3_mprintf ("%s_sections", coverage);
+	  xxsections = gaiaDoubleQuotedSql (xsections);
+	  sqlite3_free (xsections);
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT RL2_GetBandStatistics_Histogram(statistics, ?) "
+	       "FROM \"%s\"", xxsections);
+	  free (xxsections);
+      }
+    else
+      {
+	  /* Histogram from Coverage-level Statistics */
+	  sql = sqlite3_mprintf
+	      ("SELECT RL2_GetBandStatistics_Histogram(statistics, ?) "
+	       "FROM raster_coverages "
+	       "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+      }
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT BandStatistics Histogram SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int64 (stmt, 1, band_index);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		FILE *out;
+		const unsigned char *blob = NULL;
+		int blob_sz;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      blob = sqlite3_column_blob (stmt, 0);
+		      blob_sz = sqlite3_column_bytes (stmt, 0);
+		  }
+		if (blob == NULL)
+		    goto error;
+/* exporting the PNG */
+		out = fopen (dst_path, "wb");
+		if (out == NULL)
+		  {
+		      fprintf (stderr, "ERROR: unable to create/open %s\n",
+			       dst_path);
+		      return 0;
+		  }
+		fwrite (blob, 1, blob_sz, out);
+		fclose (out);
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT BandStatistics Histogram; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    printf
+	("not existing or empty Rasterlite-2 datasource or invalid band index\n");
+    return 0;
+}
+
 static void
 spatialite_autocreate (sqlite3 * db)
 {
@@ -2681,6 +2773,49 @@ check_de_pyramidize_args (const char *db_path, const char *coverage,
 }
 
 static int
+check_histogram_args (const char *db_path, const char *coverage,
+		      const char *section, unsigned char band_index,
+		      const char *dst_path)
+{
+/* checking/printing HISTOGRAM args */
+    int err = 0;
+    printf ("\n\nrl2_tool; request is HISTOGRAM\n");
+    printf ("===========================================================\n");
+    if (db_path == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("    DB path: %s\n", db_path);
+    if (coverage == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("   Coverage: %s\n", coverage);
+    if (section == NULL)
+	printf ("             Histogram from Coverage-level Statistics\n");
+    else
+      {
+	  printf ("   Section: %s\n", section);
+	  printf ("              Histogram from Section-level Statistics\n");
+      }
+    printf (" Band Index: %d\n", band_index);
+    if (dst_path == NULL)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** no output Destination path was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("Destination: %s\n", dst_path);
+    printf ("===========================================================\n\n");
+    return err;
+}
+
+static int
 check_list_args (const char *db_path, const char *coverage, const char *section)
 {
 /* checking/printing LIST args */
@@ -3209,6 +3344,28 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "-db or --db-path      pathname  RasterLite2 DB path\n\n");
       }
+    if (mode == ARG_NONE || mode == ARG_MODE_HISTOGRAM)
+      {
+	  /* MODE = HISTOGRAM */
+	  fprintf (stderr, "\nmode: HISTOGRAM\n");
+	  fprintf (stderr, "will create a PNG showing a band Histogram\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-sec or --section     string    optional: Section's name\n");
+	  fprintf (stderr,
+		   "                                default is \"Coverage statistics\"\n");
+	  fprintf (stderr,
+		   "-bnd or --band-index  integer   a valid band index\n");
+	  fprintf (stderr,
+		   "                                default is band index 0\n");
+	  fprintf (stderr, "-dst or --dst-path    pathname  output PNG path\n");
+	  fprintf (stderr,
+		   "                                default is ./hist_cov_sec_idx.png\n");
+      }
     if (mode == ARG_NONE)
       {
 	  /* DB options */
@@ -3244,6 +3401,7 @@ main (int argc, char *argv[])
     unsigned char pixel = RL2_PIXEL_UNKNOWN;
     unsigned char compression = RL2_COMPRESSION_NONE;
     unsigned char num_bands = RL2_BANDS_UNKNOWN;
+    unsigned char band_index = 0;
     int quality = -1;
     unsigned short tile_width = 512;
     unsigned short tile_height = 512;
@@ -3270,6 +3428,7 @@ main (int argc, char *argv[])
     int mode = ARG_NONE;
     void *cache;
     void *cache_mem;
+    char *hist_path = NULL;
 
     if (argc >= 2)
       {
@@ -3294,6 +3453,8 @@ main (int argc, char *argv[])
 	      mode = ARG_MODE_MAP;
 	  if (strcasecmp (argv[1], "CATALOG") == 0)
 	      mode = ARG_MODE_CATALOG;
+	  if (strcasecmp (argv[1], "HISTOGRAM") == 0)
+	      mode = ARG_MODE_HISTOGRAM;
       }
 
     for (i = 2; i < argc; i++)
@@ -3399,6 +3560,9 @@ main (int argc, char *argv[])
 		      break;
 		  case ARG_TILE_HEIGHT:
 		      tile_height = atoi (argv[i]);
+		      break;
+		  case ARG_BAND_INDEX:
+		      band_index = atoi (argv[i]);
 		      break;
 		  case ARG_SRID:
 		      srid = atoi (argv[i]);
@@ -3536,6 +3700,12 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--tile-height") == 0)
 	    {
 		next_arg = ARG_TILE_HEIGHT;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-bnd") == 0
+	      || strcasecmp (argv[i], "--band-index") == 0)
+	    {
+		next_arg = ARG_BAND_INDEX;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-outw") == 0
@@ -3737,6 +3907,23 @@ main (int argc, char *argv[])
       case ARG_MODE_CATALOG:
 	  error = check_catalog_args (db_path);
 	  break;
+      case ARG_MODE_HISTOGRAM:
+	  if (dst_path == NULL)
+	    {
+		if (section == NULL)
+		    hist_path =
+			sqlite3_mprintf ("./hist_%s_%d.png", coverage,
+					 band_index);
+		else
+		    hist_path =
+			sqlite3_mprintf ("./hist_%s_%s_%d.png", coverage,
+					 section, band_index);
+		dst_path = hist_path;
+	    }
+	  error =
+	      check_histogram_args (db_path, coverage, section, band_index,
+				    dst_path);
+	  break;
       default:
 	  fprintf (stderr, "did you forget setting some request MODE ?\n");
 	  error = 1;
@@ -3849,6 +4036,10 @@ main (int argc, char *argv[])
       case ARG_MODE_MAP:
 	  ret = exec_map (handle, coverage, dst_path, width, height);
 	  break;
+      case ARG_MODE_HISTOGRAM:
+	  ret =
+	      exec_histogram (handle, coverage, section, band_index, dst_path);
+	  break;
       };
 
     if (ret)
@@ -3892,6 +4083,9 @@ main (int argc, char *argv[])
 		break;
 	    case ARG_MODE_CATALOG:
 		op_name = "CATALOG";
+		break;
+	    case ARG_MODE_HISTOGRAM:
+		op_name = "HISTOGRAM";
 		break;
 	    };
 	  printf ("\nOperation %s successfully completed\n", op_name);
@@ -3949,6 +4143,8 @@ main (int argc, char *argv[])
       }
 
   stop:
+    if (hist_path != NULL)
+	sqlite3_free (hist_path);
     sqlite3_close (handle);
     spatialite_cleanup_ex (cache);
     spatialite_shutdown ();

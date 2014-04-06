@@ -857,7 +857,7 @@ rl2_section_from_jpeg (const char *path)
 }
 
 RL2_DECLARE rl2RasterPtr
-rl2_raster_from_jpeg (unsigned char *jpeg, int jpeg_size)
+rl2_raster_from_jpeg (const unsigned char *jpeg, int jpeg_size)
 {
 /* attempting to create a raster from a JPEG image */
     rl2RasterPtr rst = NULL;

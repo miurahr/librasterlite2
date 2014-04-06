@@ -80,6 +80,29 @@ execute_check (sqlite3 * sqlite, const char *sql)
 }
 
 static int
+execute_check_blob (sqlite3 * sqlite, const char *sql)
+{
+/* executing an SQL statement returning a BLOB */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = 0;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return SQLITE_ERROR;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    if (retcode == 1)
+	return SQLITE_OK;
+    return SQLITE_ERROR;
+}
+
+static int
 get_max_tile_id (sqlite3 * sqlite, const char *coverage)
 {
 /* retriving the Max tile_id for a given Coverage */
@@ -196,6 +219,22 @@ do_export_mono_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id,
 		   "ERROR: Unable to export an Image from \"%s\" tile_id=%d\n",
 		   coverage, tile_id);
 	  return 0;
+      }
+/* testing GetBandHistogramFromImage() */
+    if (tile_id == 1)
+      {
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT RL2_GetBandHistogramFromImage(RL2_GetMonoBandTileImage(%Q, %d, %d, '#e0ffe0', %d), 'image/png', 0)",
+	       coverage, tile_id, mono_band, transparent);
+	  ret = execute_check_blob (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr,
+			 "ERROR: Unable to test RL2_GetBandHistogramFromImage()\n");
+		return 0;
+	    }
       }
     return 1;
 }

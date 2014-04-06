@@ -6259,24 +6259,16 @@ update_double_stats (unsigned short width, unsigned short height,
 }
 
 RL2_DECLARE rl2RasterStatisticsPtr
-rl2_get_raster_statistics (const unsigned char *blob_odd,
-			   int blob_odd_sz, const unsigned char *blob_even,
-			   int blob_even_sz, rl2PalettePtr palette,
-			   rl2PixelPtr noData)
+rl2_build_raster_statistics (rl2RasterPtr raster, rl2PixelPtr noData)
 {
 /* 
-/ decoding from internal RL2 binary format to Raster and 
-/ building the corresponding statistics object
+/ building a statistics object from a Raster object
 */
     rl2PrivRasterStatisticsPtr st;
     rl2RasterStatisticsPtr stats = NULL;
     rl2PrivRasterPtr rst;
-    rl2RasterPtr raster =
-	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
-			   blob_even_sz, palette);
     if (raster == NULL)
 	goto error;
-    palette = NULL;
     rst = (rl2PrivRasterPtr) raster;
 
     stats = rl2_create_raster_statistics (rst->sampleType, rst->nBands);
@@ -6330,7 +6322,35 @@ rl2_get_raster_statistics (const unsigned char *blob_odd,
 			       rst->maskBuffer, st, noData);
 	  break;
       };
+    return stats;
 
+  error:
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
+    return NULL;
+}
+
+RL2_DECLARE rl2RasterStatisticsPtr
+rl2_get_raster_statistics (const unsigned char *blob_odd,
+			   int blob_odd_sz, const unsigned char *blob_even,
+			   int blob_even_sz, rl2PalettePtr palette,
+			   rl2PixelPtr noData)
+{
+/* 
+/ decoding from internal RL2 binary format to Raster and 
+/ building the corresponding statistics object
+*/
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2RasterPtr raster =
+	rl2_raster_decode (RL2_SCALE_1, blob_odd, blob_odd_sz, blob_even,
+			   blob_even_sz, palette);
+    if (raster == NULL)
+	goto error;
+    palette = NULL;
+
+    stats = rl2_build_raster_statistics (raster, noData);
+    if (stats == NULL)
+	goto error;
     rl2_destroy_raster (raster);
     return stats;
 

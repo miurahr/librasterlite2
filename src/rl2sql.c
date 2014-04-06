@@ -539,7 +539,7 @@ fnct_SetPaletteColorEntry (sqlite3_context * context, int argc,
     blob = sqlite3_value_blob (argv[0]);
     blob_sz = sqlite3_value_bytes (argv[0]);
     entry_id = sqlite3_value_int (argv[1]);
-    color = (const char *)sqlite3_value_text (argv[2]);
+    color = (const char *) sqlite3_value_text (argv[2]);
 /* parsing the background color */
     if (rl2_parse_hexrgb (color, &red, &green, &blue) != RL2_OK)
 	goto error;
@@ -1789,6 +1789,83 @@ fnct_GetBandStatistics_Histogram (sqlite3_context * context, int argc,
 	      sqlite3_result_null (context);
       }
     rl2_destroy_raster_statistics (stats);
+}
+
+static void
+fnct_GetBandHistogramFromImage (sqlite3_context * context, int argc,
+				sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetBandHistogramFromImage(BLOBencoded statistics, TEXT mime_type, int band_index)
+/
+/ will return a PNG image representing the Histogram for the given Band
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int band_index;
+    const char *mime_type = "text/plain";
+    rl2RasterPtr raster = NULL;
+    rl2RasterStatisticsPtr stats = NULL;
+    rl2PrivRasterStatisticsPtr st;
+    unsigned char *image = NULL;
+    int image_size;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+    blob = sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    mime_type = (const char *) sqlite3_value_text (argv[1]);
+    band_index = sqlite3_value_int (argv[2]);
+/* validating the mime-type */
+    if (strcmp (mime_type, "image/png") == 0)
+	raster = rl2_raster_from_png (blob, blob_sz);
+    if (strcmp (mime_type, "image/jpeg") == 0)
+	raster = rl2_raster_from_jpeg (blob, blob_sz);
+    if (raster == NULL)
+	goto error;
+/* attempting to build Raster Statistics */
+    stats = rl2_build_raster_statistics (raster, NULL);
+    if (stats == NULL)
+	goto error;
+    rl2_destroy_raster (raster);
+    raster = NULL;
+/* attempting to build the Histogram */
+    st = (rl2PrivRasterStatisticsPtr) stats;
+    if (band_index < 0 || band_index >= st->nBands)
+	sqlite3_result_null (context);
+    else
+      {
+	  rl2PrivBandStatisticsPtr band = st->band_stats + band_index;
+	  if (get_raster_band_histogram (band, &image, &image_size) == RL2_OK)
+	      sqlite3_result_blob (context, image, image_size, free);
+	  else
+	      sqlite3_result_null (context);
+      }
+    rl2_destroy_raster_statistics (stats);
+    return;
+
+  error:
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
+    sqlite3_result_null (context);
 }
 
 static void
@@ -5150,7 +5227,8 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
 	out_pixel = RL2_PIXEL_MONOCHROME;
 
-    if ((cvg->pixelType == RL2_PIXEL_DATAGRID || cvg->pixelType == RL2_PIXEL_MULTIBAND) && symbolizer == NULL)
+    if ((cvg->pixelType == RL2_PIXEL_DATAGRID
+	 || cvg->pixelType == RL2_PIXEL_MULTIBAND) && symbolizer == NULL)
       {
 	  /* creating a default RasterStyle */
 	  rl2PrivRasterStylePtr symb = malloc (sizeof (rl2PrivRasterStyle));
@@ -6599,6 +6677,11 @@ register_rl2_sql_functions (void *p_db)
 			     0, fnct_GetBandStatistics_Histogram, 0, 0);
     sqlite3_create_function (db, "RL2_GetBandStatistics_Histogram", 2,
 			     SQLITE_ANY, 0, fnct_GetBandStatistics_Histogram, 0,
+			     0);
+    sqlite3_create_function (db, "GetBandHistogramFromImage", 3, SQLITE_ANY,
+			     0, fnct_GetBandHistogramFromImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandHistogramFromImage", 3,
+			     SQLITE_ANY, 0, fnct_GetBandHistogramFromImage, 0,
 			     0);
     sqlite3_create_function (db, "Pyramidize", 1, SQLITE_ANY, 0,
 			     fnct_Pyramidize, 0, 0);

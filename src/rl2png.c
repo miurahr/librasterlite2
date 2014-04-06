@@ -741,7 +741,7 @@ rl2_section_from_png (const char *path)
 }
 
 RL2_DECLARE rl2RasterPtr
-rl2_raster_from_png (unsigned char *blob, int blob_size)
+rl2_raster_from_png (const unsigned char *blob, int blob_size)
 {
 /* attempting to create a raster from a PNG image */
     rl2RasterPtr rst = NULL;

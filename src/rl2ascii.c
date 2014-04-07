@@ -58,7 +58,7 @@ static int
 parse_ncols (const char *str, unsigned short *width)
 {
 /* attempting to parse the NCOLS item */
-    if (strncmp (str, "ncols ", 6) == 0)
+    if (strncasecmp (str, "ncols ", 6) == 0)
       {
 	  *width = atoi (str + 6);
 	  return 1;
@@ -70,7 +70,7 @@ static int
 parse_nrows (const char *str, unsigned short *height)
 {
 /* attempting to parse the NROWS item */
-    if (strncmp (str, "nrows ", 6) == 0)
+    if (strncasecmp (str, "nrows ", 6) == 0)
       {
 	  *height = atoi (str + 6);
 	  return 1;
@@ -82,7 +82,7 @@ static int
 parse_xllcorner (const char *str, double *minx)
 {
 /* attempting to parse the XLLCORNER item */
-    if (strncmp (str, "xllcorner ", 10) == 0)
+    if (strncasecmp (str, "xllcorner ", 10) == 0)
       {
 	  *minx = atof (str + 10);
 	  return 1;
@@ -94,7 +94,7 @@ static int
 parse_yllcorner (const char *str, double *miny)
 {
 /* attempting to parse the YLLCORNER item */
-    if (strncmp (str, "yllcorner ", 10) == 0)
+    if (strncasecmp (str, "yllcorner ", 10) == 0)
       {
 	  *miny = atof (str + 10);
 	  return 1;
@@ -106,7 +106,7 @@ static int
 parse_xllcenter (const char *str, double *minx)
 {
 /* attempting to parse the XLLCENTER item */
-    if (strncmp (str, "xllcenter ", 10) == 0)
+    if (strncasecmp (str, "xllcenter ", 10) == 0)
       {
 	  *minx = atof (str + 10);
 	  return 1;
@@ -118,7 +118,7 @@ static int
 parse_yllcenter (const char *str, double *miny)
 {
 /* attempting to parse the YLLCENTER item */
-    if (strncmp (str, "yllcenter ", 10) == 0)
+    if (strncasecmp (str, "yllcenter ", 10) == 0)
       {
 	  *miny = atof (str + 10);
 	  return 1;
@@ -130,7 +130,7 @@ static int
 parse_cellsize (const char *str, double *xres)
 {
 /* attempting to parse the CELLSIZE item */
-    if (strncmp (str, "cellsize ", 9) == 0)
+    if (strncasecmp (str, "cellsize ", 9) == 0)
       {
 	  *xres = atof (str + 9);
 	  return 1;
@@ -142,7 +142,7 @@ static int
 parse_nodata (const char *str, double *no_data)
 {
 /* attempting to parse the NODATA_value item */
-    if (strncmp (str, "NODATA_value ", 13) == 0)
+    if (strncasecmp (str, "NODATA_value ", 13) == 0)
       {
 	  *no_data = atof (str + 13);
 	  return 1;
@@ -160,6 +160,12 @@ get_ascii_header (FILE * in, unsigned short *width, unsigned short *height,
     char *p_out = buf;
     int line_no = 0;
     int c;
+    int ok_ncols = 0;
+    int ok_nrows = 0;
+    int ok_xll = 0;
+    int ok_yll = 0;
+    int ok_cellsize = 0;
+    int ok_nodata = 0;
 
     while ((c = getc (in)) != EOF)
       {
@@ -168,39 +174,22 @@ get_ascii_header (FILE * in, unsigned short *width, unsigned short *height,
 	  if (c == '\n')
 	    {
 		*p_out = '\0';
-		switch (line_no)
-		  {
-		  case 0:
-		      if (!parse_ncols (buf, width))
-			  goto error;
-		      break;
-		  case 1:
-		      if (!parse_nrows (buf, height))
-			  goto error;
-		      break;
-		  case 2:
-		      if (!parse_xllcorner (buf, minx))
-			{
-			    if (!parse_xllcenter (buf, minx))
-				goto error;
-			}
-		      break;
-		  case 3:
-		      if (!parse_yllcorner (buf, miny))
-			{
-			    if (!parse_yllcenter (buf, miny))
-				goto error;
-			}
-		      break;
-		  case 4:
-		      if (!parse_cellsize (buf, xres))
-			  goto error;
-		      break;
-		  case 5:
-		      if (!parse_nodata (buf, no_data))
-			  goto error;
-		      break;
-		  };
+		if (parse_ncols (buf, width))
+		    ok_ncols++;
+		if (parse_nrows (buf, height))
+		    ok_nrows++;
+		if (parse_xllcorner (buf, minx))
+		    ok_xll++;
+		if (parse_xllcenter (buf, minx))
+		    ok_xll++;
+		if (parse_yllcorner (buf, miny))
+		    ok_yll++;
+		if (parse_yllcenter (buf, miny))
+		    ok_yll++;
+		if (parse_cellsize (buf, xres))
+		    ok_cellsize++;
+		if (parse_nodata (buf, no_data))
+		    ok_nodata++;
 		line_no++;
 		if (line_no == 6)
 		    break;
@@ -211,6 +200,11 @@ get_ascii_header (FILE * in, unsigned short *width, unsigned short *height,
 	      goto error;
 	  *p_out++ = c;
       }
+    if (ok_ncols == 1 && ok_nrows == 1 && ok_xll == 1 && ok_yll == 1
+	&& ok_cellsize == 1 && ok_nodata == 1)
+	;
+    else
+	goto error;
 
     *maxx = *minx + ((double) (*width) * *xres);
     *yres = *xres;

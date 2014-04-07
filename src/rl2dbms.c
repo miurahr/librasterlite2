@@ -3011,7 +3011,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 			    double minx, double miny, double maxx, double maxy,
 			    double x_res, double y_res, unsigned char **buffer,
 			    int *buf_size, rl2PalettePtr * palette,
-			    unsigned char *out_pixel, rl2PixelPtr bgcolor,
+			    unsigned char out_pixel, rl2PixelPtr bgcolor,
 			    rl2RasterStylePtr style,
 			    rl2RasterStatisticsPtr stats)
 {
@@ -3053,30 +3053,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	goto error;
     cvg_pixel_type = pixel_type;
 
-    if (bgcolor != NULL)
-      {
-	  /* using the externally define background color */
-	  no_data = bgcolor;
-	  if (pixel_type == RL2_PIXEL_MONOCHROME
-	      && *out_pixel == RL2_PIXEL_GRAYSCALE)
-	    {
-		/* Pyramid tiles MONOCHROME */
-		sample_type = RL2_SAMPLE_UINT8;
-		pixel_type = RL2_PIXEL_GRAYSCALE;
-		num_bands = 1;
-	    }
-	  else if (pixel_type == RL2_PIXEL_PALETTE
-		   && *out_pixel == RL2_PIXEL_RGB)
-	    {
-		/* Pyramid tiles PALETTE */
-		sample_type = RL2_SAMPLE_UINT8;
-		pixel_type = RL2_PIXEL_RGB;
-		num_bands = 3;
-	    }
-	  goto ok_no_data;
-      }
-
-    if (pixel_type == RL2_PIXEL_MONOCHROME && *out_pixel == RL2_PIXEL_GRAYSCALE)
+    if (pixel_type == RL2_PIXEL_MONOCHROME && out_pixel == RL2_PIXEL_GRAYSCALE)
       {
 	  /* Pyramid tiles MONOCHROME */
 	  rl2PixelPtr nd = NULL;
@@ -3099,7 +3076,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  pixel_type = RL2_PIXEL_GRAYSCALE;
 	  num_bands = 1;
       }
-    else if (pixel_type == RL2_PIXEL_PALETTE && *out_pixel == RL2_PIXEL_RGB)
+    else if (pixel_type == RL2_PIXEL_PALETTE && out_pixel == RL2_PIXEL_RGB)
       {
 	  /* Pyramid tiles PALETTE */
 	  rl2PixelPtr nd = NULL;
@@ -3183,13 +3160,13 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 
     if (style != NULL && stats != NULL)
       {
-	  if (*out_pixel == RL2_PIXEL_RGB)
+	  if (out_pixel == RL2_PIXEL_RGB)
 	    {
 		sample_type = RL2_SAMPLE_UINT8;
 		pixel_type = RL2_PIXEL_RGB;
 		num_bands = 3;
 	    }
-	  if (*out_pixel == RL2_PIXEL_GRAYSCALE)
+	  if (out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
 		sample_type = RL2_SAMPLE_UINT8;
 		pixel_type = RL2_PIXEL_GRAYSCALE;
@@ -3197,7 +3174,6 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	    }
       }
 
-  ok_no_data:
     switch (sample_type)
       {
       case RL2_SAMPLE_INT16:
@@ -3213,13 +3189,13 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  pix_sz = 8;
 	  break;
       };
-    if (*out_pixel == RL2_PIXEL_GRAYSCALE
+    if (out_pixel == RL2_PIXEL_GRAYSCALE
 	&& cvg_pixel_type == RL2_PIXEL_DATAGRID)
       {
 	  if (has_styled_rgb_colors (style))
 	    {
 		/* RGB RasterSymbolizer: promoting to RGB */
-		*out_pixel = RL2_PIXEL_RGB;
+		out_pixel = RL2_PIXEL_RGB;
 		sample_type = RL2_SAMPLE_UINT8;
 		pixel_type = RL2_PIXEL_RGB;
 		pix_sz = 1;
@@ -3298,8 +3274,14 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     if (pixel_type == RL2_PIXEL_PALETTE)
 	void_raw_buffer_palette (bufpix, width, height, no_data);
     else
-	void_raw_buffer (bufpix, width, height, sample_type, num_bands,
-			 no_data);
+      {
+	  if (bgcolor != NULL)
+	      void_raw_buffer (bufpix, width, height, sample_type, num_bands,
+			       bgcolor);
+	  else
+	      void_raw_buffer (bufpix, width, height, sample_type, num_bands,
+			       no_data);
+      }
     if (!load_dbms_tiles
 	(handle, stmt_tiles, stmt_data, bufpix, width, height, sample_type,
 	 num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level, scale, plt,
@@ -3338,7 +3320,7 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
     return get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
 				       maxx, maxy, x_res, y_res, buffer,
-				       buf_size, palette, &out_pixel, NULL,
+				       buf_size, palette, out_pixel, NULL,
 				       NULL, NULL);
 }
 
@@ -3826,12 +3808,48 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
 	  rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, bg_green);
 	  rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, bg_blue);
       }
+    if (no_data == NULL)
+      {
+	  unsigned char pixel = *out_pixel;
+	  if (pixel == RL2_PIXEL_GRAYSCALE && pixel_type == RL2_PIXEL_DATAGRID)
+	    {
+		if (has_styled_rgb_colors (style))
+		  {
+		      /* RGB RasterSymbolizer: promoting to RGB */
+		      pixel = RL2_PIXEL_RGB;
+		  }
+	    }
+	  if (pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		/* output Grayscale pixel */
+		no_data =
+		    rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
+		rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND,
+					    bg_red);
+	    }
+	  if (pixel == RL2_PIXEL_RGB)
+	    {
+		/* output RGB pixel */
+		no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+		rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, bg_red);
+		rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, bg_green);
+		rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, bg_blue);
+	    }
+      }
     ret =
 	get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
 				    maxx, maxy, x_res, y_res, buffer, buf_size,
-				    palette, out_pixel, no_data, style, stats);
+				    palette, *out_pixel, no_data, style, stats);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
+    if (*out_pixel == RL2_PIXEL_GRAYSCALE && pixel_type == RL2_PIXEL_DATAGRID)
+      {
+	  if (has_styled_rgb_colors (style))
+	    {
+		/* RGB RasterSymbolizer: promoting to RGB */
+		*out_pixel = RL2_PIXEL_RGB;
+	    }
+      }
     return ret;
 }
 

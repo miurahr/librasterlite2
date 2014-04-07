@@ -4851,14 +4851,13 @@ rescale_multiband_uint16 (unsigned short *buf_out, unsigned short tileWidth,
     unsigned short nd = 0;
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) no_data;
 
-
-    for (row = y; row < tic_y; row++)
+    for (row = 0; row < tic_y; row++)
       {
 	  unsigned short yy = row + y;
 	  unsigned short *p_out_base = buf_out + (yy * tileWidth * num_bands);
 	  if (yy >= tileHeight)
 	      break;
-	  for (col = x; col < tic_x; col++)
+	  for (col = 0; col < tic_x; col++)
 	    {
 		unsigned short xx = col + x;
 		unsigned short *p_out = p_out_base + (xx * num_bands);
@@ -4877,7 +4876,7 @@ rescale_multiband_uint16 (unsigned short *buf_out, unsigned short tileWidth,
 			}
 		      *(p_out + nb) =
 			  rescale_mb_pixel_uint16 (buf_in, tileWidth,
-						   tileHeight, row * 8, col * 8,
+						   tileHeight, col * 8, row * 8,
 						   nd, nb, num_bands);
 		  }
 	    }
@@ -4951,7 +4950,6 @@ upate_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 
     switch (sample_type)
       {
-      case RL2_SAMPLE_INT16:
       case RL2_SAMPLE_UINT16:
 	  pixel_sz = 2;
 	  break;

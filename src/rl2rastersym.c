@@ -1441,7 +1441,7 @@ copy_uint16_raw_mono_pixels (const unsigned short *buffer,
 	      ignore_no_data = 1;
 	  if (nbands != num_bands)
 	      ignore_no_data = 1;
-	  if (sample_type == RL2_SAMPLE_UINT8)
+	  if (sample_type == RL2_SAMPLE_UINT16)
 	      ;
 	  else
 	      ignore_no_data = 1;
@@ -2249,10 +2249,9 @@ copy_float_raw_mono_pixels (const float *buffer,
 		  {
 		      /* testing for NO-DATA values */
 		      int match = 0;
-		      const float *p_save = p_in;
 		      float sample = 0.0;
 		      rl2_get_pixel_sample_float (no_data, &sample);
-		      if (sample == *p_save++)
+		      if (sample == *p_in)
 			  match++;
 		      if (match != 1)
 			{

@@ -1577,20 +1577,28 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 
 static void
 void_int8_raw_buffer (char *buffer, unsigned short width, unsigned short height,
-		      unsigned char num_bands)
+		      rl2PixelPtr no_data)
 {
 /* preparing an empty/void INT8 raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
-    unsigned char b;
     char *p = buffer;
+    char nd_value = 0;
+    if (no_data != NULL)
+      {
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_INT8 && pxl->nBands == 1)
+	    {
+
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd_value = sample->int8;
+	    }
+      }
     for (y = 0; y < height; y++)
       {
 	  for (x = 0; x < width; x++)
-	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0;
-	    }
+	      *p++ = nd_value;
       }
 }
 
@@ -1609,7 +1617,7 @@ void_uint8_raw_buffer (unsigned char *buffer, unsigned short width,
     if (no_data != NULL)
       {
 	  pxl = (rl2PrivPixelPtr) no_data;
-	  if (pxl->nBands == num_bands)
+	  if (pxl->sampleType == RL2_SAMPLE_UINT8 && pxl->nBands == num_bands)
 	      has_nodata = 1;
       }
     if (!has_nodata)
@@ -1641,115 +1649,181 @@ void_uint8_raw_buffer (unsigned char *buffer, unsigned short width,
 
 static void
 void_int16_raw_buffer (short *buffer, unsigned short width,
-		       unsigned short height, unsigned char num_bands)
+		       unsigned short height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void INT16 raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
-    unsigned char b;
     short *p = buffer;
+    short nd_value = 0;
+    if (no_data != NULL)
+      {
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_INT16 && pxl->nBands == 1)
+	    {
+
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd_value = sample->int16;
+	    }
+      }
     for (y = 0; y < height; y++)
       {
 	  for (x = 0; x < width; x++)
-	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0;
-	    }
+	      *p++ = nd_value;
       }
 }
 
 static void
 void_uint16_raw_buffer (unsigned short *buffer, unsigned short width,
-			unsigned short height, unsigned char num_bands)
+			unsigned short height, unsigned char num_bands,
+			rl2PixelPtr no_data)
 {
 /* preparing an empty/void UINT16 raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
     unsigned char b;
     unsigned short *p = buffer;
-    for (y = 0; y < height; y++)
+    int has_nodata = 0;
+    if (no_data != NULL)
       {
-	  for (x = 0; x < width; x++)
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_UINT16 && pxl->nBands == num_bands)
+	      has_nodata = 1;
+      }
+    if (!has_nodata)
+      {
+	  for (y = 0; y < height; y++)
 	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0;
+		for (x = 0; x < width; x++)
+		  {
+		      for (b = 0; b < num_bands; b++)
+			  *p++ = 0;
+		  }
+	    }
+      }
+    else
+      {
+	  for (y = 0; y < height; y++)
+	    {
+		for (x = 0; x < width; x++)
+		  {
+		      for (b = 0; b < num_bands; b++)
+			{
+			    rl2PrivSamplePtr sample = pxl->Samples + b;
+			    *p++ = sample->uint16;
+			}
+		  }
 	    }
       }
 }
 
 static void
 void_int32_raw_buffer (int *buffer, unsigned short width, unsigned short height,
-		       unsigned char num_bands)
+		       rl2PixelPtr no_data)
 {
 /* preparing an empty/void INT32 raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
-    unsigned char b;
     int *p = buffer;
+    int nd_value = 0;
+    if (no_data != NULL)
+      {
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_INT32 && pxl->nBands == 1)
+	    {
+
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd_value = sample->int32;
+	    }
+      }
     for (y = 0; y < height; y++)
       {
 	  for (x = 0; x < width; x++)
-	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0;
-	    }
+	      *p++ = nd_value;
       }
 }
 
 static void
 void_uint32_raw_buffer (unsigned int *buffer, unsigned short width,
-			unsigned short height, unsigned char num_bands)
+			unsigned short height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void UINT32 raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
-    unsigned char b;
     unsigned int *p = buffer;
+    unsigned int nd_value = 0;
+    if (no_data != NULL)
+      {
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_UINT32 && pxl->nBands == 1)
+	    {
+
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd_value = sample->uint32;
+	    }
+      }
     for (y = 0; y < height; y++)
       {
 	  for (x = 0; x < width; x++)
-	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0;
-	    }
+	      *p++ = nd_value;
       }
 }
 
 static void
 void_float_raw_buffer (float *buffer, unsigned short width,
-		       unsigned short height, unsigned char num_bands)
+		       unsigned short height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void FLOAT raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
-    unsigned char b;
     float *p = buffer;
+    float nd_value = 0.0;
+    if (no_data != NULL)
+      {
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_FLOAT && pxl->nBands == 1)
+	    {
+
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd_value = sample->float32;
+	    }
+      }
     for (y = 0; y < height; y++)
       {
 	  for (x = 0; x < width; x++)
-	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0.0;
-	    }
+	      *p++ = nd_value;
       }
 }
 
 static void
 void_double_raw_buffer (double *buffer, unsigned short width,
-			unsigned short height, unsigned char num_bands)
+			unsigned short height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void DOUBLE raw buffer */
+    rl2PrivPixelPtr pxl = NULL;
     unsigned short x;
     unsigned short y;
-    unsigned char b;
     double *p = buffer;
+    double nd_value = 0.0;
+    if (no_data != NULL)
+      {
+	  pxl = (rl2PrivPixelPtr) no_data;
+	  if (pxl->sampleType == RL2_SAMPLE_DOUBLE && pxl->nBands == 1)
+	    {
+
+		rl2PrivSamplePtr sample = pxl->Samples + 0;
+		nd_value = sample->float64;
+	    }
+      }
     for (y = 0; y < height; y++)
       {
 	  for (x = 0; x < width; x++)
-	    {
-		for (b = 0; b < num_bands; b++)
-		    *p++ = 0.0;
-	    }
+	      *p++ = nd_value;
       }
 }
 
@@ -1762,27 +1836,27 @@ void_raw_buffer (unsigned char *buffer, unsigned short width,
     switch (sample_type)
       {
       case RL2_SAMPLE_INT8:
-	  void_int8_raw_buffer ((char *) buffer, width, height, num_bands);
+	  void_int8_raw_buffer ((char *) buffer, width, height, no_data);
 	  break;
       case RL2_SAMPLE_INT16:
-	  void_int16_raw_buffer ((short *) buffer, width, height, num_bands);
+	  void_int16_raw_buffer ((short *) buffer, width, height, no_data);
 	  break;
       case RL2_SAMPLE_UINT16:
 	  void_uint16_raw_buffer ((unsigned short *) buffer, width, height,
-				  num_bands);
+				  num_bands, no_data);
 	  break;
       case RL2_SAMPLE_INT32:
-	  void_int32_raw_buffer ((int *) buffer, width, height, num_bands);
+	  void_int32_raw_buffer ((int *) buffer, width, height, no_data);
 	  break;
       case RL2_SAMPLE_UINT32:
 	  void_uint32_raw_buffer ((unsigned int *) buffer, width, height,
-				  num_bands);
+				  no_data);
 	  break;
       case RL2_SAMPLE_FLOAT:
-	  void_float_raw_buffer ((float *) buffer, width, height, num_bands);
+	  void_float_raw_buffer ((float *) buffer, width, height, no_data);
 	  break;
       case RL2_SAMPLE_DOUBLE:
-	  void_double_raw_buffer ((double *) buffer, width, height, num_bands);
+	  void_double_raw_buffer ((double *) buffer, width, height, no_data);
 	  break;
       default:
 	  void_uint8_raw_buffer ((unsigned char *) buffer, width, height,
@@ -2963,6 +3037,8 @@ has_styled_rgb_colors (rl2RasterStylePtr style)
     rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
     if (stl == NULL)
 	return 0;
+    if (stl->shadedRelief && stl->brightnessOnly)
+	return 0;
     if (stl->categorize != NULL)
       {
 	  if (stl->categorize->dfltRed == stl->categorize->dfltGreen
@@ -3039,6 +3115,11 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     sqlite3_stmt *stmt_tiles = NULL;
     sqlite3_stmt *stmt_data = NULL;
     int ret;
+    int has_shaded_relief;
+    int brightness_only;
+    double relief_factor;
+    float *shaded_relief = NULL;
+    int shaded_relief_sz;
 
     if (cvg == NULL || handle == NULL)
 	goto error;
@@ -3211,6 +3292,59 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  goto error;
       }
 
+    if (style != NULL)
+      {
+	  /* testing for Shaded Relief */
+	  if (rl2_has_raster_style_shaded_relief (style, &has_shaded_relief) !=
+	      RL2_OK)
+	      goto error;
+	  if (has_shaded_relief)
+	    {
+		/* preparing a Shaded Relief mask */
+		if (rl2_get_raster_style_shaded_relief
+		    (style, &brightness_only, &relief_factor) != RL2_OK)
+		    goto error;
+		if (rl2_build_shaded_relief_mask
+		    (handle, cvg, relief_factor, width, height, minx, miny,
+		     maxx, maxy, x_res, y_res, &shaded_relief,
+		     &shaded_relief_sz) != RL2_OK)
+		    goto error;
+
+		if (brightness_only || !has_styled_rgb_colors (style))
+		  {
+		      /* returning a Grayscale ShadedRelief (BrightnessOnly) */
+		      unsigned short row;
+		      unsigned short col;
+		      float *p_in = shaded_relief;
+		      unsigned char *p_out = bufpix;
+		      if (bgcolor != NULL)
+			  void_raw_buffer (bufpix, width, height, sample_type,
+					   num_bands, bgcolor);
+		      else
+			  void_raw_buffer (bufpix, width, height, sample_type,
+					   num_bands, no_data);
+		      for (row = 0; row < height; row++)
+			{
+			    for (col = 0; col < width; col++)
+			      {
+				  float coeff = *p_in++;
+				  if (coeff < 0.0)
+				      p_out++;	/* transparent */
+				  else
+				      *p_out++ =
+					  (unsigned char) (255.0 * coeff);
+			      }
+			}
+		      free (shaded_relief);
+		      *buffer = bufpix;
+		      *buf_size = bufpix_size;
+		      if (kill_no_data != NULL)
+			  rl2_destroy_pixel (kill_no_data);
+		      return RL2_OK;
+		  }
+	    }
+      }
+
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = gaiaDoubleQuotedSql (xtiles);
@@ -3291,10 +3425,39 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	rl2_destroy_pixel (kill_no_data);
     sqlite3_finalize (stmt_tiles);
     sqlite3_finalize (stmt_data);
+    if (shaded_relief != NULL)
+      {
+	  /* applying the Shaded Relief */
+	  unsigned short row;
+	  unsigned short col;
+	  float *p_in = shaded_relief;
+	  unsigned char *p_out = bufpix;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		  {
+		      float coeff = *p_in++;
+		      if (coeff < 0.0)
+			  p_out += 3;	/* unaffected */
+		      else
+			{
+			    unsigned char r = *p_out;
+			    unsigned char g = *(p_out + 1);
+			    unsigned char b = *(p_out + 2);
+			    *p_out++ = (unsigned char) (r * coeff);
+			    *p_out++ = (unsigned char) (g * coeff);
+			    *p_out++ = (unsigned char) (b * coeff);
+			}
+		  }
+	    }
+
+      }
     *buffer = bufpix;
     *buf_size = bufpix_size;
     if (palette != NULL)
 	*palette = plt;
+    if (shaded_relief != NULL)
+	free (shaded_relief);
     return RL2_OK;
 
   error:
@@ -3306,6 +3469,8 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	free (bufpix);
     if (kill_no_data != NULL)
 	rl2_destroy_pixel (kill_no_data);
+    if (shaded_relief != NULL)
+	free (shaded_relief);
     return RL2_ERROR;
 }
 

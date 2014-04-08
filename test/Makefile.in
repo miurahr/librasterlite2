@@ -802,7 +802,8 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	raster_symbolizer_1.xml raster_symbolizer_2.xml \
 	raster_symbolizer_3.xml raster_symbolizer_4.xml \
 	raster_symbolizer_5.xml raster_symbolizer_6.xml \
-	srtm_categ.xml srtm_interp.xml ir_gray.xml \
+	srtm_categ.xml srtm_interp.xml srtm_brightness.xml \
+	srtm_relief_25.xml srtm_relief_75.xml ir_gray.xml \
 	ir_gray_gamma.xml ir_false_color1.xml \
 	ir_false_color2.xml ir_false_color1_gamma.xml \
 	ir_false_color2_gamma.xml rgb_histogram.xml \

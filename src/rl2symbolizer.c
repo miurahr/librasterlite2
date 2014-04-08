@@ -1028,7 +1028,7 @@ raster_style_from_sld_se_xml (char *name, char *title, char *abstract,
     style->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
     style->gammaValue = 1.0;
     style->shadedRelief = 0;
-    style->brightnessOnly = 1;
+    style->brightnessOnly = 0;
     style->reliefFactor = 55.0;
 
 /* parsing the XML document */
@@ -1156,6 +1156,12 @@ rl2_is_raster_style_mono_band_selected (rl2RasterStylePtr style, int *selected)
     rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
     if (stl == NULL)
 	return RL2_ERROR;
+    if (stl->shadedRelief)
+      {
+	  /* Shaded Relief */
+	  *selected = 1;
+	  return RL2_OK;
+      }
     if (stl->bandSelection == NULL)
       {
 	  if (stl->categorize != NULL)

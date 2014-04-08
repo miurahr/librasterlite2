@@ -970,114 +970,219 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -23;
 	  return 0;
       }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "srtm_relief_25.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #6 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -24;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "srtm_relief_75.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #7 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -25;
+	  return 0;
+      }
+    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			   "srtm_brightness.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #7 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -26;
+	  return 0;
+      }
 
 /* testing GetMapImage - Categorize Color Map */
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "png"))
       {
-	  *retcode += 24;
+	  *retcode += 27;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "jpg"))
       {
-	  *retcode += 25;
+	  *retcode += 28;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "tif"))
       {
-	  *retcode += 26;
+	  *retcode += 29;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_categ", "pdf"))
       {
-	  *retcode += 27;
+	  *retcode += 30;
 	  return 0;
       }
 
 /* testing GetMapImage - Categorize Color Map */
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "png"))
       {
-	  *retcode += 28;
+	  *retcode += 31;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "jpg"))
       {
-	  *retcode += 29;
+	  *retcode += 32;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "tif"))
       {
-	  *retcode += 30;
+	  *retcode += 33;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "srtm_interp", "pdf"))
       {
-	  *retcode += 31;
+	  *retcode += 34;
 	  return 0;
       }
 
 /* testing GetMapImage - Gray GammaValue */
     if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "png"))
       {
-	  *retcode += 32;
+	  *retcode += 35;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "jpg"))
       {
-	  *retcode += 33;
+	  *retcode += 36;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "tif"))
       {
-	  *retcode += 34;
+	  *retcode += 37;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_gamma", "pdf"))
       {
-	  *retcode += 35;
+	  *retcode += 38;
 	  return 0;
       }
 
 /* testing GetMapImage - Gray Histogram */
     if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "png"))
       {
-	  *retcode += 36;
+	  *retcode += 39;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "jpg"))
       {
-	  *retcode += 37;
+	  *retcode += 40;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "tif"))
       {
-	  *retcode += 38;
+	  *retcode += 41;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_histogram", "pdf"))
       {
-	  *retcode += 39;
+	  *retcode += 42;
 	  return 0;
       }
 
 /* testing GetMapImage - Gray Normalize */
     if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "png"))
       {
-	  *retcode += 40;
+	  *retcode += 43;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "jpg"))
       {
-	  *retcode += 41;
+	  *retcode += 44;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "tif"))
       {
-	  *retcode += 42;
+	  *retcode += 45;
 	  return 0;
       }
     if (!do_export_map_image (sqlite, coverage, geom, "gray_normalize", "pdf"))
       {
-	  *retcode += 43;
+	  *retcode += 46;
+	  return 0;
+      }
+
+/* testing GetMapImage - ShadedRelief ReliefFactor 25 */
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_25", "png"))
+      {
+	  *retcode += 47;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_25", "jpg"))
+      {
+	  *retcode += 48;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_25", "tif"))
+      {
+	  *retcode += 49;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_25", "pdf"))
+      {
+	  *retcode += 50;
+	  return 0;
+      }
+
+/* testing GetMapImage - ShadedRelief ReliefFactor 75 */
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_75", "png"))
+      {
+	  *retcode += 51;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_75", "jpg"))
+      {
+	  *retcode += 52;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_75", "tif"))
+      {
+	  *retcode += 53;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_relief_75", "pdf"))
+      {
+	  *retcode += 54;
+	  return 0;
+      }
+
+/* testing GetMapImage - ShadedRelief BrightnessOnly */
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_brightness", "png"))
+      {
+	  *retcode += 55;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_brightness", "jpg"))
+      {
+	  *retcode += 56;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_brightness", "tif"))
+      {
+	  *retcode += 57;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "srtm_brightness", "pdf"))
+      {
+	  *retcode += 58;
 	  return 0;
       }
   skip:
@@ -1086,22 +1191,22 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 /* testing GetTileImage() */
     if (!do_export_tile_image (sqlite, coverage, 1, 0))
       {
-	  *retcode += -44;
+	  *retcode += -59;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, 1, 1))
       {
-	  *retcode += -45;
+	  *retcode += -60;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, -1, 0))
       {
-	  *retcode += -46;
+	  *retcode += -61;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, -1, 1))
       {
-	  *retcode += -47;
+	  *retcode += -62;
 	  return 0;
       }
 

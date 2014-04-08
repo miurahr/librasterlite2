@@ -1186,6 +1186,17 @@ extern "C"
 				     rl2RasterStylePtr style,
 				     rl2RasterStatisticsPtr stats);
 
+    RL2_PRIVATE int rl2_build_shaded_relief_mask (sqlite3 * handle,
+						  rl2CoveragePtr cvg,
+						  double relief_factor,
+						  unsigned short width,
+						  unsigned short height,
+						  double minx, double miny,
+						  double maxx, double maxy,
+						  double x_res, double y_res,
+						  float **shaded_relief,
+						  int *shaded_relief_sz);
+
 #ifdef __cplusplus
 }
 #endif

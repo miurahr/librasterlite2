@@ -3762,3 +3762,628 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 
     return 0;
 }
+
+static void
+get_int8_ennuple (const char *rawbuf, unsigned short row, unsigned short col,
+		  unsigned short row_stride, rl2PixelPtr no_data,
+		  double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - INT8 */
+    const char *p_in;
+    char nd_val = 0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_INT8 || num_bands == 1)
+		    rl2_get_pixel_sample_int8 (no_data, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_uint8_ennuple (const unsigned char *rawbuf, unsigned short row,
+		   unsigned short col, unsigned short row_stride,
+		   rl2PixelPtr no_data, double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - UINT16 */
+    const unsigned char *p_in;
+    unsigned char nd_val = 0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_UINT8 || num_bands == 1)
+		    rl2_get_pixel_sample_uint8 (no_data, 0, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_int16_ennuple (const short *rawbuf, unsigned short row, unsigned short col,
+		   unsigned short row_stride, rl2PixelPtr no_data,
+		   double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - INT16 */
+    const short *p_in;
+    short nd_val = 0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_INT16 || num_bands == 1)
+		    rl2_get_pixel_sample_int16 (no_data, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_uint16_ennuple (const unsigned short *rawbuf, unsigned short row,
+		    unsigned short col, unsigned short row_stride,
+		    rl2PixelPtr no_data, double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - UINT16 */
+    const unsigned short *p_in;
+    unsigned short nd_val = 0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_UINT16 || num_bands == 1)
+		    rl2_get_pixel_sample_uint16 (no_data, 0, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_int32_ennuple (const int *rawbuf, unsigned short row, unsigned short col,
+		   unsigned short row_stride, rl2PixelPtr no_data,
+		   double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - INT32 */
+    const int *p_in;
+    int nd_val = 0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_INT32 || num_bands == 1)
+		    rl2_get_pixel_sample_int32 (no_data, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_uint32_ennuple (const unsigned int *rawbuf, unsigned short row,
+		    unsigned short col, unsigned short row_stride,
+		    rl2PixelPtr no_data, double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - UINT32 */
+    const unsigned int *p_in;
+    unsigned int nd_val = 0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_UINT32 || num_bands == 1)
+		    rl2_get_pixel_sample_uint32 (no_data, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_float_ennuple (const float *rawbuf, unsigned short row, unsigned short col,
+		   unsigned short row_stride, rl2PixelPtr no_data,
+		   double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - FLOAT */
+    const float *p_in;
+    float nd_val = 0.0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_FLOAT || num_bands == 1)
+		    rl2_get_pixel_sample_float (no_data, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static void
+get_double_ennuple (const double *rawbuf, unsigned short row,
+		    unsigned short col, unsigned short row_stride,
+		    rl2PixelPtr no_data, double ennuple[], int *has_no_data)
+{
+/* extracting a 3x3 "super-pixel" - DOUBLE */
+    const double *p_in;
+    double nd_val = 0.0;
+    int i;
+
+    if (no_data != NULL)
+      {
+	  /* retrieving the NO-DATA value */
+	  unsigned char sample_type;
+	  unsigned char pixel_type;
+	  unsigned char num_bands;
+	  if (rl2_get_pixel_type
+	      (no_data, &sample_type, &pixel_type, &num_bands) == RL2_OK)
+	    {
+		if (sample_type == RL2_SAMPLE_DOUBLE || num_bands == 1)
+		    rl2_get_pixel_sample_double (no_data, &nd_val);
+	    }
+      }
+    p_in = rawbuf + (row * row_stride) + col;
+    ennuple[0] = *p_in++;
+    ennuple[1] = *p_in++;
+    ennuple[2] = *p_in++;
+    p_in = rawbuf + ((row + 1) * row_stride) + col;
+    ennuple[3] = *p_in++;
+    ennuple[4] = *p_in++;
+    ennuple[5] = *p_in++;
+    p_in = rawbuf + ((row + 2) * row_stride) + col;
+    ennuple[6] = *p_in++;
+    ennuple[7] = *p_in++;
+    ennuple[8] = *p_in++;
+    *has_no_data = 0;
+    for (i = 0; i < 9; i++)
+      {
+	  /* checking for NoData values */
+	  if (ennuple[i] == nd_val)
+	      *has_no_data = 1;
+      }
+}
+
+static float
+compute_shaded_relief (double relief_factor, double altRadians,
+		       double azRadians, double ennuple[])
+{
+/* actual computation */
+    double x;
+    double y;
+    double z_factor = 1.0;
+    double scale_factor = 200.0 / (relief_factor / 55.0);
+    double aspect;
+    double slope;
+    double value;
+
+/* First Slope ... */
+    x = z_factor * ((ennuple[0] + ennuple[3] + ennuple[3] + ennuple[6]) -
+		    (ennuple[2] + ennuple[5] + ennuple[5] +
+		     ennuple[8])) / scale_factor;
+    y = z_factor * ((ennuple[6] + ennuple[7] + ennuple[7] + ennuple[8]) -
+		    (ennuple[0] + ennuple[1] + ennuple[1] +
+		     ennuple[2])) / scale_factor;
+    slope = M_PI / 2 - atan (sqrt (x * x + y * y));
+/* ... then aspect... */
+    aspect = atan2 (x, y);
+/* ... then the shade value */
+    value =
+	sin (altRadians) * sin (slope) +
+	cos (altRadians) * cos (slope) * cos (azRadians - M_PI / 2 - aspect);
+/* normalizing */
+    if (value < 0.0)
+	value = 0.0;
+    if (value > 1.0)
+	value = 1.0;
+    return value;
+}
+
+static float
+shaded_relief_value (double relief_factor, double altRadians, double azRadians,
+		     void *rawbuf, unsigned short row, unsigned short col,
+		     unsigned short row_stride, unsigned char sample_type,
+		     rl2PixelPtr no_data)
+{
+/* computing a ShadedRelief Pixel value */
+    double ennuple[9];
+    int has_no_data;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT8:
+	  get_int8_ennuple (rawbuf, row, col, row_stride, no_data,
+			    ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_UINT8:
+	  get_uint8_ennuple (rawbuf, row, col, row_stride, no_data,
+			     ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  get_int16_ennuple (rawbuf, row, col, row_stride, no_data,
+			     ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  get_uint16_ennuple (rawbuf, row, col, row_stride, no_data,
+			      ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  get_int32_ennuple (rawbuf, row, col, row_stride, no_data,
+			     ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  get_uint32_ennuple (rawbuf, row, col, row_stride, no_data,
+			      ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  get_float_ennuple (rawbuf, row, col, row_stride, no_data,
+			     ennuple, &has_no_data);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  get_double_ennuple (rawbuf, row + 1, col + 1, row_stride, no_data,
+			      ennuple, &has_no_data);
+	  break;
+      default:
+	  return -1.0;
+      };
+    if (has_no_data)
+	return -1.0;
+    return compute_shaded_relief (relief_factor, altRadians, azRadians,
+				  ennuple);
+}
+
+RL2_PRIVATE int
+rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
+			      double relief_factor, unsigned short width,
+			      unsigned short height, double minx, double miny,
+			      double maxx, double maxy, double x_res,
+			      double y_res, float **shaded_relief,
+			      int *shaded_relief_sz)
+{
+/* attempting to return a Shaded Relief mask from the DBMS Coverage */
+    rl2PixelPtr no_data = NULL;
+    const char *coverage;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    char *xtiles;
+    char *xxtiles;
+    char *xdata;
+    char *xxdata;
+    char *sql;
+    sqlite3_stmt *stmt_tiles = NULL;
+    sqlite3_stmt *stmt_data = NULL;
+    int ret;
+    void *rawbuf = NULL;
+    int rawbuf_size;
+    int pix_sz = 1;
+    float *sr_mask = NULL;
+    int sr_mask_size;
+    float *p_out;
+    unsigned short row;
+    unsigned short col;
+    unsigned short row_stride;
+    double degreesToRadians = M_PI / 180.0;
+    double altRadians = 45.0 * degreesToRadians;	/* altitude: 45.0 */
+    double azRadians = 315.0 * degreesToRadians;	/* azimuth: 315.0 */
+
+    if (cvg == NULL || handle == NULL)
+	goto error;
+    coverage = rl2_get_coverage_name (cvg);
+    if (coverage == NULL)
+	goto error;
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	goto error;
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    if (pixel_type != RL2_PIXEL_DATAGRID && num_bands != 1)
+	goto error;
+    no_data = rl2_get_coverage_no_data (cvg);
+    if (no_data == NULL)
+	goto error;
+
+/* preparing the "tiles" SQL query */
+    xtiles = sqlite3_mprintf ("%s_tiles", coverage);
+    xxtiles = gaiaDoubleQuotedSql (xtiles);
+    sql =
+	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+			 "FROM \"%s\" "
+			 "WHERE pyramid_level = ? AND ROWID IN ( "
+			 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+			 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles,
+			 xtiles);
+    sqlite3_free (xtiles);
+    free (xxtiles);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT shadedRelief tiles SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    if (scale == RL2_SCALE_1)
+      {
+	  /* preparing the data SQL query - both ODD and EVEN */
+	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
+	  xxdata = gaiaDoubleQuotedSql (xdata);
+	  sqlite3_free (xdata);
+	  sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
+				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
+	  free (xxdata);
+	  ret =
+	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		printf ("SELECT shadedRelief data(2) SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* preparing the data SQL query - only ODD */
+	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
+	  xxdata = gaiaDoubleQuotedSql (xdata);
+	  sqlite3_free (xdata);
+	  sql = sqlite3_mprintf ("SELECT tile_data_odd "
+				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
+	  free (xxdata);
+	  ret =
+	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		printf ("SELECT shadedRelief data(1) SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+
+/* preparing a raw pixels buffer */
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pix_sz = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pix_sz = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pix_sz = 8;
+	  break;
+      };
+    row_stride = width + 2;
+    rawbuf_size = (pix_sz * row_stride) * (height + 2);
+    rawbuf = malloc (rawbuf_size);
+    if (rawbuf == NULL)
+      {
+	  fprintf (stderr,
+		   "rl2_build_shaded_relief_mask: Insufficient Memory !!!\n");
+	  goto error;
+      }
+    void_raw_buffer (rawbuf, width + 2, height + 2, sample_type, 1, no_data);
+    if (!load_dbms_tiles
+	(handle, stmt_tiles, stmt_data, rawbuf, width + 2, height + 2,
+	 sample_type, 1, xx_res, yy_res, minx - xx_res, miny - yy_res,
+	 maxx + xx_res, maxy + yy_res, level, scale, NULL, no_data, NULL, NULL))
+	goto error;
+    sqlite3_finalize (stmt_tiles);
+    sqlite3_finalize (stmt_data);
+    stmt_tiles = NULL;
+    stmt_data = NULL;
+
+/* preparing the Shaded Relief mask */
+    sr_mask_size = sizeof (float) * width * height;
+    sr_mask = malloc (sr_mask_size);
+    if (sr_mask == NULL)
+      {
+	  fprintf (stderr,
+		   "rl2_build_shaded_relief_mask: Insufficient Memory !!!\n");
+	  goto error;
+      }
+    p_out = sr_mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	      *p_out++ =
+		  shaded_relief_value (relief_factor, altRadians, azRadians,
+				       rawbuf, row, col, row_stride,
+				       sample_type, no_data);
+      }
+
+    free (rawbuf);
+    *shaded_relief = sr_mask;
+    *shaded_relief_sz = sr_mask_size;
+    return RL2_OK;
+
+  error:
+    if (stmt_tiles != NULL)
+	sqlite3_finalize (stmt_tiles);
+    if (stmt_data != NULL)
+	sqlite3_finalize (stmt_data);
+    if (rawbuf != NULL)
+	free (rawbuf);
+    return RL2_ERROR;
+}

@@ -229,7 +229,7 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
       }
     if (strcmp (coverage, "dumb1") == 0)
       {
-	  if (intval != 1)
+	  if (intval != 0)
 	    {
 		fprintf (stderr, "Unexpected ShadedRelief BrightnessOnly %d\n",
 			 intval);

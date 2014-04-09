@@ -3081,6 +3081,36 @@ has_styled_rgb_colors (rl2RasterStylePtr style)
     return 0;
 }
 
+static double
+get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
+{
+/* return the appropriate Scale Factor for Shaded Relief
+/  when SRID is of the Long/Lat type
+/  this is strictly required because in this case
+/  X and Y are measured in degrees, but elevations 
+/  (Z) are measured in meters
+*/
+    double scale_factor = 1.0;
+    int ret;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    char *sql = sqlite3_mprintf ("SELECT s.srid FROM raster_coverages AS r "
+				 "JOIN spatial_ref_sys AS s ON (s.srid = r.srid AND "
+				 "s.proj4text LIKE '%%+proj=longlat%%') "
+				 "WHERE Lower(r.coverage_name) = Lower(%Q)",
+				 coverage);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return scale_factor;
+    for (i = 1; i <= rows; i++)
+	scale_factor = 11.1120;
+    fprintf (stderr, "%1.2f\n", scale_factor);
+    return scale_factor;
+}
+
 static int
 get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 			    unsigned short width, unsigned short height,
@@ -3301,12 +3331,14 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	  if (has_shaded_relief)
 	    {
 		/* preparing a Shaded Relief mask */
+		double scale_factor =
+		    get_shaded_relief_scale_factor (handle, coverage);
 		if (rl2_get_raster_style_shaded_relief
 		    (style, &brightness_only, &relief_factor) != RL2_OK)
 		    goto error;
 		if (rl2_build_shaded_relief_mask
-		    (handle, cvg, relief_factor, width, height, minx, miny,
-		     maxx, maxy, x_res, y_res, &shaded_relief,
+		    (handle, cvg, relief_factor, scale_factor, width, height,
+		     minx, miny, maxx, maxy, x_res, y_res, &shaded_relief,
 		     &shaded_relief_sz) != RL2_OK)
 		    goto error;
 

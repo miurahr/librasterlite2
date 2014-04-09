@@ -4132,14 +4132,17 @@ get_double_ennuple (const double *rawbuf, unsigned short row,
 }
 
 static float
-compute_shaded_relief (double relief_factor, double altRadians,
-		       double azRadians, double ennuple[])
+compute_shaded_relief (double relief_factor, double scale_factor,
+		       double altRadians, double azRadians, double ennuple[])
 {
 /* actual computation */
     double x;
     double y;
-    double z_factor = 1.0;
-    double scale_factor = 200.0 / (relief_factor / 55.0);
+    /*
+       double z_factor = 1.0 * 111120.0;
+       double scale_factor = 200.0 / (relief_factor / 55.0);
+     */
+    double z_factor = 0.0033333333 * (relief_factor / 55.0);
     double aspect;
     double slope;
     double value;
@@ -4167,8 +4170,9 @@ compute_shaded_relief (double relief_factor, double altRadians,
 }
 
 static float
-shaded_relief_value (double relief_factor, double altRadians, double azRadians,
-		     void *rawbuf, unsigned short row, unsigned short col,
+shaded_relief_value (double relief_factor, double scale_factor,
+		     double altRadians, double azRadians, void *rawbuf,
+		     unsigned short row, unsigned short col,
 		     unsigned short row_stride, unsigned char sample_type,
 		     rl2PixelPtr no_data)
 {
@@ -4214,17 +4218,17 @@ shaded_relief_value (double relief_factor, double altRadians, double azRadians,
       };
     if (has_no_data)
 	return -1.0;
-    return compute_shaded_relief (relief_factor, altRadians, azRadians,
-				  ennuple);
+    return compute_shaded_relief (relief_factor, scale_factor, altRadians,
+				  azRadians, ennuple);
 }
 
 RL2_PRIVATE int
 rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
-			      double relief_factor, unsigned short width,
-			      unsigned short height, double minx, double miny,
-			      double maxx, double maxy, double x_res,
-			      double y_res, float **shaded_relief,
-			      int *shaded_relief_sz)
+			      double relief_factor, double scale_factor,
+			      unsigned short width, unsigned short height,
+			      double minx, double miny, double maxx,
+			      double maxy, double x_res, double y_res,
+			      float **shaded_relief, int *shaded_relief_sz)
 {
 /* attempting to return a Shaded Relief mask from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
@@ -4384,8 +4388,8 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
       {
 	  for (col = 0; col < width; col++)
 	      *p_out++ =
-		  shaded_relief_value (relief_factor, altRadians, azRadians,
-				       rawbuf, row, col, row_stride,
+		  shaded_relief_value (relief_factor, scale_factor, altRadians,
+				       azRadians, rawbuf, row, col, row_stride,
 				       sample_type, no_data);
       }
 

@@ -469,7 +469,6 @@ extern "C"
     typedef struct rl2_band_handling
     {
 	unsigned char contrastEnhancement;
-	double gammaValue;
 	unsigned char look_up[256];
 	double minValue;
 	double maxValue;

@@ -2625,6 +2625,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 						 1.0 /
 						 style->bandSelection->
 						 redGamma) * 254 + 0.5);
+			    r->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->redContrast ==
 			       RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -2653,6 +2654,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				      sum += his[j];
 				  r->look_up[i] =
 				      (unsigned char) (254.0 * sum + 0.5);
+				  r->look_up[255] = 255;
 			      }
 			}
 		  }
@@ -2689,6 +2691,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 						 1.0 /
 						 style->bandSelection->
 						 greenGamma) * 254 + 0.5);
+			    g->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->greenContrast ==
 			       RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -2717,6 +2720,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				      sum += his[j];
 				  g->look_up[i] =
 				      (unsigned char) (254.0 * sum + 0.5);
+				  g->look_up[255] = 255;
 			      }
 			}
 		  }
@@ -2753,6 +2757,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 						 1.0 /
 						 style->bandSelection->
 						 blueGamma) * 254 + 0.5);
+			    b->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->blueContrast ==
 			       RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -2782,6 +2787,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				  b->look_up[i] =
 				      (unsigned char) (254.0 * sum + 0.5);
 			      }
+			    b->look_up[255] = 255;
 			}
 		  }
 	    }
@@ -2839,6 +2845,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 			       char) (pow ((double) i / 254.0,
 					   1.0 / style->gammaValue) * 254 +
 				      0.5);
+		      r->look_up[255] = 255;
 		  }
 		else if (style->contrastEnhancement ==
 			 RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -2867,6 +2874,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				sum += his[j];
 			    r->look_up[i] = (unsigned char) (254.0 * sum + 0.5);
 			}
+		      r->look_up[255] = 255;
 		  }
 	    }
       }
@@ -2923,6 +2931,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 			       char) (pow ((double) i / 254.0,
 					   1.0 / style->gammaValue) * 254 +
 				      0.5);
+		      g->look_up[255] = 255;
 		  }
 		else if (style->contrastEnhancement ==
 			 RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -2951,6 +2960,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				sum += his[j];
 			    g->look_up[i] = (unsigned char) (254.0 * sum + 0.5);
 			}
+		      g->look_up[255] = 255;
 		  }
 	    }
       }
@@ -3007,6 +3017,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 			       char) (pow ((double) i / 254.0,
 					   1.0 / style->gammaValue) * 254 +
 				      0.5);
+		      b->look_up[255] = 255;
 		  }
 		else if (style->contrastEnhancement ==
 			 RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -3035,6 +3046,7 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				sum += his[j];
 			    b->look_up[i] = (unsigned char) (254.0 * sum + 0.5);
 			}
+		      b->look_up[255] = 255;
 		  }
 	    }
       }
@@ -3269,6 +3281,7 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 						 1.0 /
 						 style->bandSelection->
 						 grayGamma) * 254 + 0.5);
+			    g->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->grayContrast ==
 			       RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -3298,6 +3311,7 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 				  g->look_up[i] =
 				      (unsigned char) (254.0 * sum + 0.5);
 			      }
+			    g->look_up[255] = 255;
 			}
 		  }
 	    }
@@ -3358,6 +3372,7 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 			       char) (pow ((double) i / 254.0,
 					   1.0 / style->gammaValue) * 254 +
 				      0.5);
+		      g->look_up[255] = 255;
 		  }
 		else if (style->contrastEnhancement ==
 			 RL2_CONTRAST_ENHANCEMENT_HISTOGRAM)
@@ -3386,6 +3401,7 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 				sum += his[j];
 			    g->look_up[i] = (unsigned char) (254.0 * sum + 0.5);
 			}
+		      g->look_up[255] = 255;
 		  }
 	    }
       }
@@ -4190,7 +4206,7 @@ shaded_relief_value (double relief_factor, double altRadians, double azRadians,
 			     ennuple, &has_no_data);
 	  break;
       case RL2_SAMPLE_DOUBLE:
-	  get_double_ennuple (rawbuf, row + 1, col + 1, row_stride, no_data,
+	  get_double_ennuple (rawbuf, row, col, row_stride, no_data,
 			      ennuple, &has_no_data);
 	  break;
       default:

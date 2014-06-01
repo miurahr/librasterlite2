@@ -3107,7 +3107,7 @@ get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
 	return scale_factor;
     for (i = 1; i <= rows; i++)
 	scale_factor = 11.1120;
-    fprintf (stderr, "%1.2f\n", scale_factor);
+    sqlite3_free_table (results);
     return scale_factor;
 }
 
@@ -4659,6 +4659,214 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
 	sqlite3_finalize (stmt);
     if (stl != NULL)
 	rl2_destroy_raster_style (stl);
+    return NULL;
+}
+
+static int
+test_named_layer (sqlite3 * handle, const char *groupName,
+		  const char *namedLayer)
+{
+/* testing a Named Layer for validity */
+    int ret;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    int ok = 0;
+/* testing if the Raster Coverage exists */
+    char *sql = sqlite3_mprintf ("SELECT coverage_name FROM raster_coverages "
+				 "WHERE Lower(coverage_name) = Lower(%Q)",
+				 namedLayer);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    for (i = 1; i <= rows; i++)
+	ok = 1;
+    sqlite3_free_table (results);
+    if (!ok)
+	return 0;
+
+    ok = 0;
+/* testing if the Raster Coverage belong to the Layer Group */
+    sql = sqlite3_mprintf ("SELECT coverage_name FROM SE_styled_group_refs "
+			   "WHERE Lower(group_name) = Lower(%Q) AND "
+			   "Lower(coverage_name) = Lower(%Q)", groupName,
+			   namedLayer);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    for (i = 1; i <= rows; i++)
+	ok = 1;
+    sqlite3_free_table (results);
+    return ok;
+}
+
+static int
+test_named_style (sqlite3 * handle, const char *namedLayer,
+		  const char *namedStyle)
+{
+/* testing a Named Style for validity */
+    int ret;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    int ok = 0;
+/* testing if the Layer Style exists */
+    char *sql =
+	sqlite3_mprintf ("SELECT style_name FROM SE_raster_styled_layers "
+			 "WHERE Lower(coverage_name) = Lower(%Q) AND "
+			 "Lower(style_name) = Lower(%Q)", namedLayer,
+			 namedStyle);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    for (i = 1; i <= rows; i++)
+	ok = 1;
+    sqlite3_free_table (results);
+    return ok;
+}
+
+RL2_DECLARE rl2GroupStylePtr
+rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
+				  const char *style)
+{
+/* attempting to load and parse a Layer Group style */
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    rl2GroupStylePtr stl = NULL;
+    char *name = NULL;
+    char *title = NULL;
+    char *abstract = NULL;
+    unsigned char *xml = NULL;
+    rl2PrivGroupStylePtr grp_stl;
+    rl2PrivChildStylePtr child;
+
+    sql = "SELECT style_name, XB_GetTitle(style), XB_GetAbstract(style), "
+	"XB_GetDocument(style) FROM SE_group_styles "
+	"WHERE Lower(group_name) = Lower(?) AND Lower(style_name) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, group, strlen (group), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, style, strlen (style), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		int len;
+		const char *str;
+		const unsigned char *ustr;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+		  {
+		      str = (const char *) sqlite3_column_text (stmt, 0);
+		      len = strlen (str);
+		      name = malloc (len + 1);
+		      strcpy (name, str);
+		  }
+		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+		  {
+		      str = (const char *) sqlite3_column_text (stmt, 1);
+		      len = strlen (str);
+		      title = malloc (len + 1);
+		      strcpy (title, str);
+		  }
+		if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
+		  {
+		      str = (const char *) sqlite3_column_text (stmt, 2);
+		      len = strlen (str);
+		      abstract = malloc (len + 1);
+		      strcpy (abstract, str);
+		  }
+		if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
+		  {
+		      ustr = sqlite3_column_text (stmt, 3);
+		      len = strlen ((const char *) ustr);
+		      xml = malloc (len + 1);
+		      strcpy ((char *) xml, (const char *) ustr);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+    if (name == NULL || xml == NULL)
+      {
+	  if (name != NULL)
+	      free (name);
+	  if (title != NULL)
+	      free (title);
+	  if (abstract != NULL)
+	      free (abstract);
+	  if (xml != NULL)
+	      free (xml);
+	  goto error;
+      }
+
+/* final validation */
+    stl = group_style_from_sld_xml (name, title, abstract, xml);
+    if (stl == NULL)
+	goto error;
+    grp_stl = (rl2PrivGroupStylePtr) stl;
+    child = grp_stl->first;
+    while (child != NULL)
+      {
+	  /* testing NamedLayers and NamedStyles */
+	  if (child->namedLayer != NULL)
+	    {
+		if (test_named_layer (handle, group, child->namedLayer))
+		    child->validLayer = 1;
+	    }
+	  if (child->validLayer == 1)
+	    {
+		if (child->namedStyle != NULL)
+		  {
+		      if (strcmp (child->namedStyle, "default") == 0)
+			  child->validStyle = 1;
+		      else if (test_named_style
+			       (handle, child->namedLayer, child->namedStyle))
+			  child->validStyle = 1;
+		  }
+		else
+		    child->validStyle = 1;
+	    }
+	  child = child->next;
+      }
+    grp_stl->valid = 1;
+    child = grp_stl->first;
+    while (child != NULL)
+      {
+	  if (child->validLayer == 0 || child->validStyle == 0)
+	      grp_stl->valid = 0;
+	  child = child->next;
+      }
+
+    return stl;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (stl != NULL)
+	rl2_destroy_group_style (stl);
     return NULL;
 }
 

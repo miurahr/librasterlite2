@@ -88,7 +88,8 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	rgb_normalize.xml gray_gamma.xml gray_histogram.xml \
 	gray_normalize.xml rgb_normalize2.xml \
 	rgb_histogram2.xml rgb_gamma.xml gray_normalize2.xml \
-	gray_histogram2.xml gray_gamma2.xml
+	gray_histogram2.xml gray_gamma2.xml group_style_1.xml \
+	group_style_2.xml
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

@@ -103,7 +103,7 @@ writeGif (GifFileType * gif, const GifByteType * buf, int len)
 static void
 print_gif_error (int ErrorCode)
 {
-    char *Err = NULL;
+    const char *Err = NULL;
 #ifdef GIFLIB_MAJOR
     Err = GifErrorString (ErrorCode);
 #endif

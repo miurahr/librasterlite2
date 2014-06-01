@@ -293,6 +293,19 @@ extern "C"
     typedef rl2RasterStyle *rl2RasterStylePtr;
 
 /**
+ Typedef for RL2 GroupStyle object (opaque, hidden)
+
+ \sa rl2GroupStylePtr
+ */
+    typedef struct rl2_group_style rl2GroupStyle;
+/**
+ Typedef for RL2 GroupStyle object pointer (opaque, hidden)
+
+ \sa rl2GroupStyle
+ */
+    typedef rl2GroupStyle *rl2GroupStylePtr;
+
+/**
  Typedef for RL2 TIFF Origin object (opaque, hidden)
 
  \sa rl2TiffOriginPtr
@@ -3571,6 +3584,37 @@ extern "C"
     RL2_DECLARE int rl2_get_raster_style_shaded_relief (rl2RasterStylePtr style,
 							int *brightness_only,
 							double *relief_factor);
+
+    RL2_DECLARE rl2GroupStylePtr
+	rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
+					  const char *style);
+
+    RL2_DECLARE void rl2_destroy_group_style (rl2GroupStylePtr style);
+
+    RL2_DECLARE const char *rl2_get_group_style_name (rl2GroupStylePtr style);
+
+    RL2_DECLARE const char *rl2_get_group_style_title (rl2GroupStylePtr style);
+
+    RL2_DECLARE const char *rl2_get_group_style_abstract (rl2GroupStylePtr
+							  style);
+
+    RL2_DECLARE int rl2_is_valid_group_style (rl2GroupStylePtr style,
+					      int *valid);
+
+    RL2_DECLARE int rl2_get_group_style_count (rl2GroupStylePtr style,
+					       int *count);
+
+    RL2_DECLARE const char *rl2_get_group_named_layer (rl2GroupStylePtr style,
+						       int index);
+
+    RL2_DECLARE const char *rl2_get_group_named_style (rl2GroupStylePtr style,
+						       int index);
+
+    RL2_DECLARE int rl2_is_valid_group_named_layer (rl2GroupStylePtr style,
+						    int index, int *valid);
+
+    RL2_DECLARE int rl2_is_valid_group_named_style (rl2GroupStylePtr style,
+						    int index, int *valid);
 
 #ifdef __cplusplus
 }

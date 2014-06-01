@@ -4310,3 +4310,92 @@ get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
 	return RL2_OK;
     return RL2_ERROR;
 }
+
+RL2_PRIVATE int
+set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
+		    const char *title, const char *abstract)
+{
+/* auxiliary function: updates the Coverage descriptive infos */
+    int ret;
+    const char *sql;
+    sqlite3_stmt *stmt;
+    int exists = 0;
+    int retval = 0;
+
+    /* checking if the Group already exists */
+    sql = "SELECT coverage_name FROM raster_coverages "
+	"WHERE coverage_name = Lower(?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SetCoverageInfos: \"%s\"\n",
+		   sqlite3_errmsg (sqlite));
+	  goto stop;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage_name, strlen (coverage_name),
+		       SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	      exists = 1;
+      }
+    sqlite3_finalize (stmt);
+
+    if (!exists)
+	return 0;
+    /* update Coverage */
+    sql =
+	"UPDATE raster_coverages SET title = ?, abstract = ? WHERE coverage_name = ?";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SetCoverageInfos: \"%s\"\n",
+		   sqlite3_errmsg (sqlite));
+	  goto stop;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, title, strlen (title), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, abstract, strlen (abstract), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 3, coverage_name, strlen (coverage_name),
+		       SQLITE_STATIC);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	retval = 1;
+    else
+	fprintf (stderr, "SetCoverageInfos() error: \"%s\"\n",
+		 sqlite3_errmsg (sqlite));
+    sqlite3_finalize (stmt);
+    return retval;
+  stop:
+    return 0;
+}
+
+RL2_PRIVATE int
+rl2_test_layer_group (sqlite3 * handle, const char *name)
+{
+/* testing for an eventual Layer Group */
+    int ret;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    int ok = 0;
+/* testing if Layer Group exists */
+    char *sql = sqlite3_mprintf ("SELECT group_name FROM SE_styled_groups "
+				 "WHERE Lower(group_name) = Lower(%Q)", name);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    for (i = 1; i <= rows; i++)
+	ok = 1;
+    sqlite3_free_table (results);
+    return ok;
+}

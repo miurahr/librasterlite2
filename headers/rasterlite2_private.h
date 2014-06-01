@@ -545,6 +545,27 @@ extern "C"
     } rl2PrivRasterStyle;
     typedef rl2PrivRasterStyle *rl2PrivRasterStylePtr;
 
+    typedef struct rl2_priv_child_style
+    {
+	char *namedLayer;
+	char *namedStyle;
+	int validLayer;
+	int validStyle;
+	struct rl2_priv_child_style *next;
+    } rl2PrivChildStyle;
+    typedef rl2PrivChildStyle *rl2PrivChildStylePtr;
+
+    typedef struct rl2_priv_group_style
+    {
+	char *name;
+	char *title;
+	char *abstract;
+	rl2PrivChildStylePtr first;
+	rl2PrivChildStylePtr last;
+	int valid;
+    } rl2PrivGroupStyle;
+    typedef rl2PrivGroupStyle *rl2PrivGroupStylePtr;
+
     typedef struct wms_retry_item
     {
 	int done;
@@ -1170,6 +1191,11 @@ extern "C"
 								unsigned char
 								*xml);
 
+    RL2_PRIVATE rl2GroupStylePtr group_style_from_sld_xml (char *name,
+							   char *title,
+							   char *abstract,
+							   unsigned char *xml);
+
     RL2_PRIVATE int get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
 					       unsigned char **image,
 					       int *image_sz);
@@ -1196,6 +1222,14 @@ extern "C"
 						  double x_res, double y_res,
 						  float **shaded_relief,
 						  int *shaded_relief_sz);
+
+    RL2_PRIVATE int set_coverage_infos (sqlite3 * handle,
+					const char *coverage_name,
+					const char *title,
+					const char *abstract);
+
+    RL2_PRIVATE int rl2_test_layer_group (sqlite3 * handle,
+					  const char *group_name);
 
 #ifdef __cplusplus
 }

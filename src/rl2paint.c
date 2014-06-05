@@ -1479,7 +1479,7 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
 }
 
 RL2_DECLARE int
-rl2_rgba_to_pdf (unsigned short width, unsigned short height,
+rl2_rgba_to_pdf (unsigned int width, unsigned int height,
 		 unsigned char *rgba, unsigned char **pdf, int *pdf_size)
 {
 /* attempting to create an RGB PDF map */

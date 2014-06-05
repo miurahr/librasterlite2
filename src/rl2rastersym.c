@@ -2623,9 +2623,8 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->redGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 redGamma) * 254 + 0.5);
 			    r->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->redContrast ==
@@ -2690,9 +2689,8 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->greenGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 greenGamma) * 254 + 0.5);
 			    g->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->greenContrast ==
@@ -2757,9 +2755,8 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->blueGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 blueGamma) * 254 + 0.5);
 			    b->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->blueContrast ==
@@ -3282,9 +3279,8 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->grayGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 grayGamma) * 254 + 0.5);
 			    g->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->grayContrast ==
@@ -3441,16 +3437,16 @@ destroy_mono_handling (rl2BandHandlingPtr mono)
 
 RL2_PRIVATE int
 copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
-		 unsigned short width,
-		 unsigned short height, unsigned char sample_type,
+		 unsigned int width,
+		 unsigned int height, unsigned char sample_type,
 		 unsigned char num_bands, double x_res, double y_res,
 		 double minx, double maxy, double tile_minx, double tile_maxy,
 		 rl2PixelPtr no_data, rl2RasterStylePtr style,
 		 rl2RasterStatisticsPtr stats)
 {
 /* copying raw pixels into the output buffer */
-    unsigned short tile_width;
-    unsigned short tile_height;
+    unsigned int tile_width;
+    unsigned int tile_height;
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
 
     if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
@@ -3526,11 +3522,11 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			    copy_uint16_raw_selected_pixels ((const unsigned
 							      short
 							      *)
-							     (rst->
-							      rasterBuffer),
+							     (rst->rasterBuffer),
 							     (const unsigned
-							      char *) (rst->
-								       maskBuffer),
+							      char
+							      *)
+							     (rst->maskBuffer),
 							     (unsigned char *)
 							     outbuf, width,
 							     height,
@@ -4229,7 +4225,7 @@ shaded_relief_value (double relief_factor, double scale_factor,
 RL2_PRIVATE int
 rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
 			      double relief_factor, double scale_factor,
-			      unsigned short width, unsigned short height,
+			      unsigned int width, unsigned int height,
 			      double minx, double miny, double maxx,
 			      double maxy, double x_res, double y_res,
 			      float **shaded_relief, int *shaded_relief_sz)

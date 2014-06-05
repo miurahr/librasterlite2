@@ -602,8 +602,8 @@ RL2_DECLARE int
 rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 			  unsigned char sample, unsigned char pixel,
 			  unsigned char num_bands, unsigned char compression,
-			  int quality, unsigned short tile_width,
-			  unsigned short tile_height, int srid, double x_res,
+			  int quality, unsigned int tile_width,
+			  unsigned int tile_height, int srid, double x_res,
 			  double y_res, rl2PixelPtr no_data,
 			  rl2PalettePtr palette)
 {
@@ -1576,13 +1576,13 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 }
 
 static void
-void_int8_raw_buffer (char *buffer, unsigned short width, unsigned short height,
+void_int8_raw_buffer (char *buffer, unsigned int width, unsigned int height,
 		      rl2PixelPtr no_data)
 {
 /* preparing an empty/void INT8 raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     char *p = buffer;
     char nd_value = 0;
     if (no_data != NULL)
@@ -1603,14 +1603,14 @@ void_int8_raw_buffer (char *buffer, unsigned short width, unsigned short height,
 }
 
 static void
-void_uint8_raw_buffer (unsigned char *buffer, unsigned short width,
-		       unsigned short height, unsigned char num_bands,
+void_uint8_raw_buffer (unsigned char *buffer, unsigned int width,
+		       unsigned int height, unsigned char num_bands,
 		       rl2PixelPtr no_data)
 {
 /* preparing an empty/void UINT8 raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     unsigned char b;
     unsigned char *p = buffer;
     int has_nodata = 0;
@@ -1648,13 +1648,13 @@ void_uint8_raw_buffer (unsigned char *buffer, unsigned short width,
 }
 
 static void
-void_int16_raw_buffer (short *buffer, unsigned short width,
-		       unsigned short height, rl2PixelPtr no_data)
+void_int16_raw_buffer (short *buffer, unsigned int width,
+		       unsigned int height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void INT16 raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     short *p = buffer;
     short nd_value = 0;
     if (no_data != NULL)
@@ -1675,14 +1675,14 @@ void_int16_raw_buffer (short *buffer, unsigned short width,
 }
 
 static void
-void_uint16_raw_buffer (unsigned short *buffer, unsigned short width,
-			unsigned short height, unsigned char num_bands,
+void_uint16_raw_buffer (unsigned short *buffer, unsigned int width,
+			unsigned int height, unsigned char num_bands,
 			rl2PixelPtr no_data)
 {
 /* preparing an empty/void UINT16 raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     unsigned char b;
     unsigned short *p = buffer;
     int has_nodata = 0;
@@ -1720,13 +1720,13 @@ void_uint16_raw_buffer (unsigned short *buffer, unsigned short width,
 }
 
 static void
-void_int32_raw_buffer (int *buffer, unsigned short width, unsigned short height,
+void_int32_raw_buffer (int *buffer, unsigned int width, unsigned int height,
 		       rl2PixelPtr no_data)
 {
 /* preparing an empty/void INT32 raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     int *p = buffer;
     int nd_value = 0;
     if (no_data != NULL)
@@ -1747,13 +1747,13 @@ void_int32_raw_buffer (int *buffer, unsigned short width, unsigned short height,
 }
 
 static void
-void_uint32_raw_buffer (unsigned int *buffer, unsigned short width,
-			unsigned short height, rl2PixelPtr no_data)
+void_uint32_raw_buffer (unsigned int *buffer, unsigned int width,
+			unsigned int height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void UINT32 raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     unsigned int *p = buffer;
     unsigned int nd_value = 0;
     if (no_data != NULL)
@@ -1774,13 +1774,13 @@ void_uint32_raw_buffer (unsigned int *buffer, unsigned short width,
 }
 
 static void
-void_float_raw_buffer (float *buffer, unsigned short width,
-		       unsigned short height, rl2PixelPtr no_data)
+void_float_raw_buffer (float *buffer, unsigned int width,
+		       unsigned int height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void FLOAT raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     float *p = buffer;
     float nd_value = 0.0;
     if (no_data != NULL)
@@ -1801,13 +1801,13 @@ void_float_raw_buffer (float *buffer, unsigned short width,
 }
 
 static void
-void_double_raw_buffer (double *buffer, unsigned short width,
-			unsigned short height, rl2PixelPtr no_data)
+void_double_raw_buffer (double *buffer, unsigned int width,
+			unsigned int height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void DOUBLE raw buffer */
     rl2PrivPixelPtr pxl = NULL;
-    unsigned short x;
-    unsigned short y;
+    unsigned int x;
+    unsigned int y;
     double *p = buffer;
     double nd_value = 0.0;
     if (no_data != NULL)
@@ -1828,8 +1828,8 @@ void_double_raw_buffer (double *buffer, unsigned short width,
 }
 
 RL2_PRIVATE void
-void_raw_buffer (unsigned char *buffer, unsigned short width,
-		 unsigned short height, unsigned char sample_type,
+void_raw_buffer (unsigned char *buffer, unsigned int width,
+		 unsigned int height, unsigned char sample_type,
 		 unsigned char num_bands, rl2PixelPtr no_data)
 {
 /* preparing an empty/void buffer */
@@ -1866,12 +1866,12 @@ void_raw_buffer (unsigned char *buffer, unsigned short width,
 }
 
 RL2_PRIVATE void
-void_raw_buffer_palette (unsigned char *buffer, unsigned short width,
-			 unsigned short height, rl2PixelPtr no_data)
+void_raw_buffer_palette (unsigned char *buffer, unsigned int width,
+			 unsigned int height, rl2PixelPtr no_data)
 {
 /* preparing an empty/void buffer (PALETTE) */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     unsigned char index = 0;
     unsigned char *p = buffer;
 
@@ -1914,8 +1914,8 @@ void_raw_buffer_palette (unsigned char *buffer, unsigned short width,
 static int
 load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 			sqlite3_stmt * stmt_data, unsigned char *outbuf,
-			unsigned short width,
-			unsigned short height, unsigned char sample_type,
+			unsigned int width,
+			unsigned int height, unsigned char sample_type,
 			unsigned char num_bands, double x_res, double y_res,
 			double minx, double maxy,
 			int scale, rl2PalettePtr palette, rl2PixelPtr no_data,
@@ -2044,10 +2044,10 @@ copy_triple_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned short *outbuf,
 				 rl2PixelPtr no_data)
 {
 /* copying raw pixels into the output buffer - UINT16 */
-    unsigned short tile_width;
-    unsigned short tile_height;
-    int x;
-    int y;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned int x;
+    unsigned int y;
     int out_x;
     int out_y;
     double geo_x;
@@ -2203,8 +2203,8 @@ is_nodata_u8 (rl2PrivPixelPtr no_data, const unsigned char *p_in)
 
 static int
 copy_triple_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
-			     unsigned short width,
-			     unsigned short height, unsigned char red_band,
+			     unsigned int width,
+			     unsigned int height, unsigned char red_band,
 			     unsigned char green_band,
 			     unsigned char blue_band, double x_res,
 			     double y_res, double minx, double maxy,
@@ -2212,10 +2212,10 @@ copy_triple_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			     rl2PixelPtr no_data)
 {
 /* copying raw pixels into the output buffer */
-    unsigned short tile_width;
-    unsigned short tile_height;
-    int x;
-    int y;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned int x;
+    unsigned int y;
     int out_x;
     int out_y;
     double geo_x;
@@ -2271,7 +2271,7 @@ copy_triple_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
       {
 	  geo_y -= y_res;
 	  out_y = (maxy - geo_y) / y_res;
-	  if (out_y < 0 || out_y >= height)
+	  if (out_y < 0 || (unsigned int) out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
 		if (p_msk != NULL)
@@ -2283,7 +2283,7 @@ copy_triple_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 	    {
 		geo_x += x_res;
 		out_x = (geo_x - minx) / x_res;
-		if (out_x < 0 || out_x >= width)
+		if (out_x < 0 || (unsigned int) out_x >= width)
 		  {
 		      p_in += num_bands;
 		      if (p_msk != NULL)
@@ -2457,17 +2457,17 @@ load_triple_band_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 
 static int
 copy_mono_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned char *outbuf,
-			       unsigned short width, unsigned short height,
+			       unsigned int width, unsigned int height,
 			       unsigned char mono_band, double x_res,
 			       double y_res, double minx, double maxy,
 			       double tile_minx, double tile_maxy,
 			       rl2PixelPtr no_data)
 {
 /* copying raw pixels into the output buffer - UINT16 */
-    unsigned short tile_width;
-    unsigned short tile_height;
-    int x;
-    int y;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned int x;
+    unsigned int y;
     int out_x;
     int out_y;
     double geo_x;
@@ -2509,11 +2509,11 @@ copy_mono_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned char *outbuf,
     p_msk = (unsigned char *) (rst->maskBuffer);
 
     geo_y = tile_maxy + y_res2;
-    for (y = 0; y < tile_height; y++)
+    for (y = 0; y < (unsigned int) tile_height; y++)
       {
 	  geo_y -= y_res;
 	  out_y = (maxy - geo_y) / y_res;
-	  if (out_y < 0 || out_y >= height)
+	  if (out_y < 0 || (unsigned int) out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
 		if (p_msk != NULL)
@@ -2521,11 +2521,11 @@ copy_mono_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned char *outbuf,
 		continue;
 	    }
 	  geo_x = tile_minx - x_res2;
-	  for (x = 0; x < tile_width; x++)
+	  for (x = 0; x < (unsigned int) tile_width; x++)
 	    {
 		geo_x += x_res;
 		out_x = (geo_x - minx) / x_res;
-		if (out_x < 0 || out_x >= width)
+		if (out_x < 0 || (unsigned int) out_x >= width)
 		  {
 		      p_in += num_bands;
 		      if (p_msk != NULL)
@@ -2584,16 +2584,16 @@ copy_mono_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned char *outbuf,
 
 static int
 copy_mono_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
-			   unsigned short width, unsigned short height,
+			   unsigned int width, unsigned int height,
 			   unsigned char mono_band, double x_res, double y_res,
 			   double minx, double maxy, double tile_minx,
 			   double tile_maxy, rl2PixelPtr no_data)
 {
 /* copying raw pixels into the output buffer */
-    unsigned short tile_width;
-    unsigned short tile_height;
-    int x;
-    int y;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned int x;
+    unsigned int y;
     int out_x;
     int out_y;
     double geo_x;
@@ -2645,7 +2645,7 @@ copy_mono_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
       {
 	  geo_y -= y_res;
 	  out_y = (maxy - geo_y) / y_res;
-	  if (out_y < 0 || out_y >= height)
+	  if (out_y < 0 || (unsigned int) out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
 		if (p_msk != NULL)
@@ -2653,11 +2653,11 @@ copy_mono_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 		continue;
 	    }
 	  geo_x = tile_minx - x_res2;
-	  for (x = 0; x < tile_width; x++)
+	  for (x = 0; x < (unsigned int) tile_width; x++)
 	    {
 		geo_x += x_res;
 		out_x = (geo_x - minx) / x_res;
-		if (out_x < 0 || out_x >= width)
+		if (out_x < 0 || (unsigned int) out_x >= width)
 		  {
 		      p_in += num_bands;
 		      if (p_msk != NULL)
@@ -2717,7 +2717,7 @@ copy_mono_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 static int
 load_mono_band_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 			   sqlite3_stmt * stmt_data, unsigned char *outbuf,
-			   unsigned short width, unsigned short height,
+			   unsigned int width, unsigned int height,
 			   unsigned char mono_band, double x_res, double y_res,
 			   double minx, double miny, double maxx, double maxy,
 			   int level, int scale, rl2PixelPtr no_data)
@@ -2813,8 +2813,8 @@ load_mono_band_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 RL2_PRIVATE int
 load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		 sqlite3_stmt * stmt_data, unsigned char *outbuf,
-		 unsigned short width,
-		 unsigned short height, unsigned char sample_type,
+		 unsigned int width,
+		 unsigned int height, unsigned char sample_type,
 		 unsigned char num_bands, double x_res, double y_res,
 		 double minx, double miny, double maxx, double maxy, int level,
 		 int scale, rl2PalettePtr palette, rl2PixelPtr no_data,
@@ -2841,7 +2841,7 @@ RL2_PRIVATE int
 load_dbms_tiles_section (sqlite3 * handle, sqlite3_int64 section_id,
 			 sqlite3_stmt * stmt_tiles, sqlite3_stmt * stmt_data,
 			 unsigned char *outbuf,
-			 unsigned short width, unsigned short height,
+			 unsigned int width, unsigned int height,
 			 unsigned char sample_type, unsigned char num_bands,
 			 double x_res, double y_res, double minx, double maxy,
 			 int scale, rl2PalettePtr palette, rl2PixelPtr no_data)
@@ -3508,7 +3508,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 
 RL2_DECLARE int
 rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-			 unsigned short width, unsigned short height,
+			 unsigned int width, unsigned int height,
 			 double minx, double miny, double maxx, double maxy,
 			 double x_res, double y_res, unsigned char **buffer,
 			 int *buf_size, rl2PalettePtr * palette,
@@ -3523,8 +3523,8 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 
 RL2_DECLARE int
 rl2_get_triple_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-				     unsigned short width,
-				     unsigned short height, double minx,
+				     unsigned int width,
+				     unsigned int height, double minx,
 				     double miny, double maxx, double maxy,
 				     double x_res, double y_res,
 				     unsigned char red_band,
@@ -3782,8 +3782,8 @@ get_mono_band_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 
 RL2_DECLARE int
 rl2_get_mono_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-				   unsigned short width,
-				   unsigned short height, double minx,
+				   unsigned int width,
+				   unsigned int height, double minx,
 				   double miny, double maxx, double maxy,
 				   double x_res, double y_res,
 				   unsigned char mono_band,
@@ -3799,7 +3799,7 @@ rl2_get_mono_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 
 RL2_DECLARE int
 rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
-				 unsigned short width, unsigned short height,
+				 unsigned int width, unsigned int height,
 				 double minx, double miny, double maxx,
 				 double maxy, double x_res, double y_res,
 				 unsigned char **buffer, int *buf_size,

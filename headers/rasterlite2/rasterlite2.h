@@ -1054,8 +1054,8 @@ extern "C"
 			     unsigned char pixel_type,
 			     unsigned char num_samples,
 			     unsigned char compression, int quality,
-			     unsigned short tile_width,
-			     unsigned short tile_height, rl2PixelPtr no_data);
+			     unsigned int tile_width,
+			     unsigned int tile_height, rl2PixelPtr no_data);
 
 /**
  Destroys a Coverage Object
@@ -1188,8 +1188,8 @@ extern "C"
  \sa rl2_create_coverage
  */
     RL2_DECLARE int rl2_get_coverage_tile_size (rl2CoveragePtr cvg,
-						unsigned short *tile_width,
-						unsigned short *tile_height);
+						unsigned int *tile_width,
+						unsigned int *tile_height);
 
 /**
  Retrieving the NO-DATA Pixel value from a Coverage Object
@@ -1258,8 +1258,8 @@ extern "C"
  */
     RL2_DECLARE rl2SectionPtr
 	rl2_create_section (const char *name, unsigned char compression,
-			    unsigned short tile_width,
-			    unsigned short tile_height, rl2RasterPtr rst);
+			    unsigned int tile_width,
+			    unsigned int tile_height, rl2RasterPtr rst);
 
 /**
  Allocates and initializes a new Section object from an external GIF image
@@ -1474,8 +1474,8 @@ extern "C"
  \sa rl2_create_section
  */
     RL2_DECLARE int rl2_get_section_tile_size (rl2SectionPtr scn,
-					       unsigned short *tile_width,
-					       unsigned short *tile_height);
+					       unsigned int *tile_width,
+					       unsigned int *tile_height);
 
 /**
  Return a reference to the Raster Object encapsulated within a Section Object
@@ -1511,7 +1511,7 @@ extern "C"
  
  \return the pointer to newly created Raster Object: NULL on failure.
  
- \sa rl2_destroy_raster, rl2_get_raster_width, rl2_get_raster_height,
+ \sa rl2_destroy_raster, rl2_get_raster_size,
 		rl2_get_raster_raster_type, rl2_get_raster_pixel_type,
 		rl2_get_raster_bands, rl2_get_raster_no_data, rl2_get_raster_srid,
 		rl2_get_raster_horizontal_resolution, rl2_get_raster_vertical_resolution,
@@ -1533,7 +1533,7 @@ extern "C"
  Raster object.
  */
     RL2_DECLARE rl2RasterPtr
-	rl2_create_raster (unsigned short width, unsigned short height,
+	rl2_create_raster (unsigned int width, unsigned int height,
 			   unsigned char sample_type, unsigned char pixel_type,
 			   unsigned char num_samples, unsigned char *bufpix,
 			   int bufpix_size, rl2PalettePtr palette,
@@ -1563,8 +1563,8 @@ extern "C"
  \sa rl2_create_raster
  */
     RL2_DECLARE int rl2_get_raster_size (rl2RasterPtr rst,
-					 unsigned short *width,
-					 unsigned short *height);
+					 unsigned int *width,
+					 unsigned int *height);
 
 /**
  Retrieving the Sample Type from a Raster Object
@@ -1820,12 +1820,12 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_create_raster, rl2_create_pixel, rl2_get_raster_width, 
-	rl2_get_raster_height, rl2_set_raster_pixel
+ \sa rl2_create_raster, rl2_create_pixel, rl2_get_raster_size,
+  rl2_set_raster_pixel
  */
     RL2_DECLARE int
 	rl2_get_raster_pixel (rl2RasterPtr rst, rl2PixelPtr pxl,
-			      unsigned short row, unsigned short col);
+			      unsigned int row, unsigned int col);
 
 /**
  Retrieves a Pixel from a Raster Object
@@ -1839,12 +1839,12 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_create_raster, rl2_create_pixel, rl2_get_raster_width, 
-	rl2_get_raster_height, rl2_get_raster_pixel
+ \sa rl2_create_raster, rl2_create_pixel, rl2_get_raster_size,
+  rl2_get_raster_pixel
  */
     RL2_DECLARE int
 	rl2_set_raster_pixel (rl2RasterPtr rst, rl2PixelPtr pxl,
-			      unsigned short row, unsigned short col);
+			      unsigned int row, unsigned int col);
 
 /**
  Encodes a Raster Object into the corresponding BLOB serialized format
@@ -1908,8 +1908,8 @@ extern "C"
  */
     RL2_DECLARE int
 	rl2_is_valid_dbms_raster_tile (unsigned short level,
-				       unsigned short tile_width,
-				       unsigned short tile_height,
+				       unsigned int tile_width,
+				       unsigned int tile_height,
 				       const unsigned char *blob_odd,
 				       int blob_odd_sz,
 				       const unsigned char *blob_even,
@@ -2831,7 +2831,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-				 unsigned short width, unsigned short height,
+				 unsigned int width, unsigned int height,
 				 double minx, double miny, double maxx,
 				 double maxy, double x_res, double y_res,
 				 unsigned char **buffer, int *buf_size,
@@ -2841,8 +2841,8 @@ extern "C"
     RL2_DECLARE int
 	rl2_get_triple_band_raw_raster_data (sqlite3 * handle,
 					     rl2CoveragePtr cvg,
-					     unsigned short width,
-					     unsigned short height,
+					     unsigned int width,
+					     unsigned int height,
 					     double minx, double miny,
 					     double maxx, double maxy,
 					     double x_res, double y_res,
@@ -2856,8 +2856,8 @@ extern "C"
     RL2_DECLARE int
 	rl2_get_mono_band_raw_raster_data (sqlite3 * handle,
 					   rl2CoveragePtr cvg,
-					   unsigned short width,
-					   unsigned short height,
+					   unsigned int width,
+					   unsigned int height,
 					   double minx, double miny,
 					   double maxx, double maxy,
 					   double x_res, double y_res,
@@ -2867,8 +2867,8 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
-					 unsigned short width,
-					 unsigned short height, double minx,
+					 unsigned int width,
+					 unsigned int height, double minx,
 					 double miny, double maxx, double maxy,
 					 double x_res, double y_res,
 					 unsigned char **buffer, int *buf_size,
@@ -2885,8 +2885,8 @@ extern "C"
 				  unsigned char sample, unsigned char pixel,
 				  unsigned char num_bands,
 				  unsigned char compression, int quality,
-				  unsigned short tile_width,
-				  unsigned short tile_height, int srid,
+				  unsigned int tile_width,
+				  unsigned int tile_height, int srid,
 				  double x_res, double y_res,
 				  rl2PixelPtr no_data, rl2PalettePtr palette);
 
@@ -2961,8 +2961,8 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_get_ascii_grid_origin_size (rl2AsciiGridOriginPtr ascii,
-					unsigned short *width,
-					unsigned short *height);
+					unsigned int *width,
+					unsigned int *height);
 
     RL2_DECLARE int
 	rl2_get_ascii_grid_origin_type (rl2AsciiGridOriginPtr ascii,
@@ -2996,8 +2996,8 @@ extern "C"
 
     RL2_DECLARE rl2AsciiGridDestinationPtr
 	rl2_create_ascii_grid_destination (const char *path,
-					   unsigned short width,
-					   unsigned short height,
+					   unsigned int width,
+					   unsigned int height,
 					   double resolution, double x,
 					   double y, int is_centered,
 					   double no_data, int decimal_digits,
@@ -3012,8 +3012,8 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_get_ascii_grid_destination_size (rl2AsciiGridDestinationPtr ascii,
-					     unsigned short *width,
-					     unsigned short *height);
+					     unsigned int *width,
+					     unsigned int *height);
 
     RL2_DECLARE int
 	rl2_get_ascii_grid_destination_type (rl2AsciiGridDestinationPtr ascii,
@@ -3034,7 +3034,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_write_ascii_grid_scanline (rl2AsciiGridDestinationPtr ascii,
-				       unsigned short *line_no);
+				       unsigned int *line_no);
 
     RL2_DECLARE rl2RasterPtr
 	rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr rst,
@@ -3058,11 +3058,10 @@ extern "C"
 				      rl2CoveragePtr coverage, double x_res,
 				      double y_res, double minx, double miny,
 				      double maxx, double maxy,
-				      unsigned short width,
-				      unsigned short height,
+				      unsigned int width,
+				      unsigned int height,
 				      unsigned char compression,
-				      unsigned short tile_sz,
-				      int with_worldfile);
+				      unsigned int tile_sz, int with_worldfile);
 
     RL2_DECLARE int
 	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle,
@@ -3071,20 +3070,20 @@ extern "C"
 					     double x_res, double y_res,
 					     double minx, double miny,
 					     double maxx, double maxy,
-					     unsigned short width,
-					     unsigned short height,
+					     unsigned int width,
+					     unsigned int height,
 					     unsigned char compression,
-					     unsigned short tile_sz);
+					     unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 				   rl2CoveragePtr coverage, double x_res,
 				   double y_res, double minx, double miny,
 				   double maxx, double maxy,
-				   unsigned short width,
-				   unsigned short height,
+				   unsigned int width,
+				   unsigned int height,
 				   unsigned char compression,
-				   unsigned short tile_sz);
+				   unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
@@ -3093,13 +3092,13 @@ extern "C"
 						  double x_res, double y_res,
 						  double minx, double miny,
 						  double maxx, double maxy,
-						  unsigned short width,
-						  unsigned short height,
+						  unsigned int width,
+						  unsigned int height,
 						  unsigned char red_band,
 						  unsigned char green_band,
 						  unsigned char blue_band,
 						  unsigned char compression,
-						  unsigned short tile_sz,
+						  unsigned int tile_sz,
 						  int with_worldfile);
 
     RL2_DECLARE int
@@ -3109,11 +3108,11 @@ extern "C"
 						double x_res, double y_res,
 						double minx, double miny,
 						double maxx, double maxy,
-						unsigned short width,
-						unsigned short height,
+						unsigned int width,
+						unsigned int height,
 						unsigned char mono_band,
 						unsigned char compression,
-						unsigned short tile_sz,
+						unsigned int tile_sz,
 						int with_worldfile);
 
     RL2_DECLARE int
@@ -3127,8 +3126,8 @@ extern "C"
 							 double miny,
 							 double maxx,
 							 double maxy,
-							 unsigned short width,
-							 unsigned short
+							 unsigned int width,
+							 unsigned int
 							 height,
 							 unsigned char
 							 red_band,
@@ -3138,8 +3137,7 @@ extern "C"
 							 blue_band,
 							 unsigned char
 							 compression,
-							 unsigned short
-							 tile_sz);
+							 unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
@@ -3152,14 +3150,14 @@ extern "C"
 						       double miny,
 						       double maxx,
 						       double maxy,
-						       unsigned short width,
-						       unsigned short
+						       unsigned int width,
+						       unsigned int
 						       height,
 						       unsigned char
 						       mono_band,
 						       unsigned char
 						       compression,
-						       unsigned short tile_sz);
+						       unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle,
@@ -3168,13 +3166,13 @@ extern "C"
 					       double x_res, double y_res,
 					       double minx, double miny,
 					       double maxx, double maxy,
-					       unsigned short width,
-					       unsigned short height,
+					       unsigned int width,
+					       unsigned int height,
 					       unsigned char red_band,
 					       unsigned char green_band,
 					       unsigned char blue_band,
 					       unsigned char compression,
-					       unsigned short tile_sz);
+					       unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle,
@@ -3183,18 +3181,18 @@ extern "C"
 					     double x_res, double y_res,
 					     double minx, double miny,
 					     double maxx, double maxy,
-					     unsigned short width,
-					     unsigned short height,
+					     unsigned int width,
+					     unsigned int height,
 					     unsigned char mono_band,
 					     unsigned char compression,
-					     unsigned short tile_sz);
+					     unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
 					 rl2CoveragePtr coverage, double res,
 					 double minx, double miny, double maxx,
-					 double maxy, unsigned short width,
-					 unsigned short height, int is_centered,
+					 double maxy, unsigned int width,
+					 unsigned int height, int is_centered,
 					 int decimal_digits);
 
     RL2_DECLARE int
@@ -3202,7 +3200,7 @@ extern "C"
 				   rl2CoveragePtr coverage, double x_res,
 				   double y_res, double minx, double miny,
 				   double maxx, double maxy,
-				   unsigned short width, unsigned short height,
+				   unsigned int width, unsigned int height,
 				   int quality, int with_worldfile);
 
     RL2_DECLARE int
@@ -3236,7 +3234,7 @@ extern "C"
  rl2_rgb_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_rgb_to_png (unsigned short width, unsigned short height,
+	rl2_rgb_to_png (unsigned int width, unsigned int height,
 			const unsigned char *rgb, unsigned char **png,
 			int *png_size);
 
@@ -3256,7 +3254,7 @@ extern "C"
  \sa rl2_rgb_to_png, rl2_rgb_to_jpeg, rl2_rgb_to_tiff, rl2_rgb_to_geotiff
  */
     RL2_DECLARE int
-	rl2_rgb_alpha_to_png (unsigned short width, unsigned short height,
+	rl2_rgb_alpha_to_png (unsigned int width, unsigned int height,
 			      const unsigned char *rgb,
 			      const unsigned char *alpha, unsigned char **png,
 			      int *png_size, double opacity);
@@ -3278,7 +3276,7 @@ extern "C"
  rl2_rgb_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_rgb_to_jpeg (unsigned short width, unsigned short height,
+	rl2_rgb_to_jpeg (unsigned int width, unsigned int height,
 			 const unsigned char *rgb, int quality,
 			 unsigned char **jpeg, int *jpeg_size);
 
@@ -3298,7 +3296,7 @@ extern "C"
  rl2_rgb_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_rgb_to_tiff (unsigned short width, unsigned short height,
+	rl2_rgb_to_tiff (unsigned int width, unsigned int height,
 			 const unsigned char *rgb, unsigned char **tiff,
 			 int *tiff_size);
 
@@ -3323,7 +3321,7 @@ extern "C"
  rl2_rgb_to_tiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_rgb_to_geotiff (unsigned short width, unsigned short height,
+	rl2_rgb_to_geotiff (unsigned int width, unsigned int height,
 			    sqlite3 * handle, double minx, double miny,
 			    double maxx, double maxy, int srid,
 			    const unsigned char *rgb, unsigned char **geotiff,
@@ -3345,7 +3343,7 @@ extern "C"
  rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_gray_to_png (unsigned short width, unsigned short height,
+	rl2_gray_to_png (unsigned int width, unsigned int height,
 			 const unsigned char *gray, unsigned char **png,
 			 int *png_size);
 
@@ -3366,7 +3364,7 @@ extern "C"
  rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_gray_alpha_to_png (unsigned short width, unsigned short height,
+	rl2_gray_alpha_to_png (unsigned int width, unsigned int height,
 			       const unsigned char *gray,
 			       const unsigned char *alpha, unsigned char **png,
 			       int *png_size, double opacity);
@@ -3388,7 +3386,7 @@ extern "C"
  rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_gray_to_jpeg (unsigned short width, unsigned short height,
+	rl2_gray_to_jpeg (unsigned int width, unsigned int height,
 			  const unsigned char *gray, int quality,
 			  unsigned char **jpeg, int *jpeg_size);
 
@@ -3408,7 +3406,7 @@ extern "C"
  rl2_gray_to_geotiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_gray_to_tiff (unsigned short width, unsigned short height,
+	rl2_gray_to_tiff (unsigned int width, unsigned int height,
 			  const unsigned char *gray, unsigned char **tiff,
 			  int *tiff_size);
 
@@ -3433,7 +3431,7 @@ extern "C"
  rl2_gray_to_tiff, rl2_rgba_to_pdf
  */
     RL2_DECLARE int
-	rl2_gray_to_geotiff (unsigned short width, unsigned short height,
+	rl2_gray_to_geotiff (unsigned int width, unsigned int height,
 			     sqlite3 * handle, double minx, double miny,
 			     double maxx, double maxy, int srid,
 			     const unsigned char *gray, unsigned char **geotiff,
@@ -3458,7 +3456,7 @@ extern "C"
  internal PDF writer.
  */
     RL2_DECLARE int
-	rl2_rgba_to_pdf (unsigned short width, unsigned short height,
+	rl2_rgba_to_pdf (unsigned int width, unsigned int height,
 			 unsigned char *rgba, unsigned char **pdf,
 			 int *pdf_size);
 

@@ -4194,8 +4194,8 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     int pixels_sz = 0;
     unsigned char *mask = NULL;
     int mask_size = 0;
-    int unused_width = 0;
-    int unused_height = 0;
+    unsigned int unused_width = 0;
+    unsigned int unused_height = 0;
 
     if (coverage == NULL || tiff == NULL)
 	return NULL;
@@ -4291,9 +4291,9 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	   * creating a Transparency Mask so to shadow any 
 	   * unused portion of the current tile 
 	   */
-	  int shadow_x = coverage->tileWidth - unused_width;
-	  int shadow_y = coverage->tileHeight - unused_height;
-	  int row;
+	  unsigned int shadow_x = coverage->tileWidth - unused_width;
+	  unsigned int shadow_y = coverage->tileHeight - unused_height;
+	  unsigned int row;
 	  mask_size = coverage->tileWidth * coverage->tileHeight;
 	  mask = malloc (mask_size);
 	  if (mask == NULL)
@@ -5635,10 +5635,10 @@ rl2_get_tiff_destination_strip_size (rl2TiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_rgb (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
-		      int row)
+		      unsigned int row)
 {
 /* writing a TIFF RGB scanline */
-    int x;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -5657,10 +5657,10 @@ tiff_write_strip_rgb (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 
 static int
 tiff_write_strip_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
-		       int row)
+		       unsigned int row)
 {
 /* writing a TIFF Grayscale scanline */
-    int x;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -5673,10 +5673,10 @@ tiff_write_strip_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 
 static int
 tiff_write_strip_palette (rl2PrivTiffDestinationPtr tiff,
-			  rl2PrivRasterPtr raster, int row)
+			  rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Palette scanline */
-    int x;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -5689,10 +5689,10 @@ tiff_write_strip_palette (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_monochrome (rl2PrivTiffDestinationPtr tiff,
-			     rl2PrivRasterPtr raster, int row)
+			     rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Monochrome */
-    int x;
+    unsigned int x;
     unsigned char byte;
     unsigned char pixel;
     int pos;
@@ -5757,10 +5757,10 @@ tiff_write_strip_monochrome (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_int8 (rl2PrivTiffDestinationPtr tiff,
-		       rl2PrivRasterPtr raster, int row)
+		       rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid Int8 scanline */
-    int x;
+    unsigned int x;
     char *p_in = (char *) (raster->rasterBuffer);
     char *p_out = (char *) (tiff->tiffBuffer);
 
@@ -5773,10 +5773,10 @@ tiff_write_strip_int8 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_uint8 (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row)
+			rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid UInt8 scanline */
-    int x;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -5789,10 +5789,10 @@ tiff_write_strip_uint8 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_int16 (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row)
+			rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid Int16 scanline */
-    int x;
+    unsigned int x;
     short *p_in = (short *) (raster->rasterBuffer);
     short *p_out = (short *) (tiff->tiffBuffer);
 
@@ -5805,10 +5805,10 @@ tiff_write_strip_int16 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_uint16 (rl2PrivTiffDestinationPtr tiff,
-			 rl2PrivRasterPtr raster, int row)
+			 rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid UInt16 scanline */
-    int x;
+    unsigned int x;
     unsigned short *p_in = (unsigned short *) (raster->rasterBuffer);
     unsigned short *p_out = (unsigned short *) (tiff->tiffBuffer);
 
@@ -5821,10 +5821,10 @@ tiff_write_strip_uint16 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_int32 (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row)
+			rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid Int32 scanline */
-    int x;
+    unsigned int x;
     int *p_in = (int *) (raster->rasterBuffer);
     int *p_out = (int *) (tiff->tiffBuffer);
 
@@ -5837,10 +5837,10 @@ tiff_write_strip_int32 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_uint32 (rl2PrivTiffDestinationPtr tiff,
-			 rl2PrivRasterPtr raster, int row)
+			 rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid UInt32 scanline */
-    int x;
+    unsigned int x;
     unsigned int *p_in = (unsigned int *) (raster->rasterBuffer);
     unsigned int *p_out = (unsigned int *) (tiff->tiffBuffer);
 
@@ -5853,10 +5853,10 @@ tiff_write_strip_uint32 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_float (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row)
+			rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid Float scanline */
-    int x;
+    unsigned int x;
     float *p_in = (float *) (raster->rasterBuffer);
     float *p_out = (float *) (tiff->tiffBuffer);
 
@@ -5869,10 +5869,10 @@ tiff_write_strip_float (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_strip_double (rl2PrivTiffDestinationPtr tiff,
-			 rl2PrivRasterPtr raster, int row)
+			 rl2PrivRasterPtr raster, unsigned int row)
 {
 /* writing a TIFF Grid Double scanline */
-    int x;
+    unsigned int x;
     double *p_in = (double *) (raster->rasterBuffer);
     double *p_out = (double *) (tiff->tiffBuffer);
 
@@ -6000,11 +6000,12 @@ rl2_write_tiff_scanline (rl2TiffDestinationPtr tiff, rl2RasterPtr raster,
 
 static int
 tiff_write_tile_multiband8 (rl2PrivTiffDestinationPtr tiff,
-			    rl2PrivRasterPtr raster, int row, int col)
+			    rl2PrivRasterPtr raster, unsigned int row,
+			    unsigned int col)
 {
 /* writing a TIFF MULTIBAND UINT8 tile - separate planes */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     int band;
 
     for (band = 0; band < raster->nBands; band++)
@@ -6029,11 +6030,12 @@ tiff_write_tile_multiband8 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_multiband16 (rl2PrivTiffDestinationPtr tiff,
-			     rl2PrivRasterPtr raster, int row, int col)
+			     rl2PrivRasterPtr raster, unsigned int row,
+			     unsigned int col)
 {
 /* writing a TIFF MULTIBAND UINT16 tile - separate planes */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     int band;
 
     for (band = 0; band < raster->nBands; band++)
@@ -6058,11 +6060,11 @@ tiff_write_tile_multiband16 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_rgb_u8 (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
-			int row, int col)
+			unsigned int row, unsigned int col)
 {
 /* writing a TIFF RGB tile - UINT8 */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -6084,11 +6086,11 @@ tiff_write_tile_rgb_u8 (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 
 static int
 tiff_write_tile_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
-		      int row, int col)
+		      unsigned int row, unsigned int col)
 {
 /* writing a TIFF Grayscale tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_msk = raster->maskBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
@@ -6121,11 +6123,12 @@ tiff_write_tile_gray (rl2PrivTiffDestinationPtr tiff, rl2PrivRasterPtr raster,
 
 static int
 tiff_write_tile_palette (rl2PrivTiffDestinationPtr tiff,
-			 rl2PrivRasterPtr raster, int row, int col)
+			 rl2PrivRasterPtr raster, unsigned int row,
+			 unsigned int col)
 {
 /* writing a TIFF Palette tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -6141,11 +6144,12 @@ tiff_write_tile_palette (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_monochrome (rl2PrivTiffDestinationPtr tiff,
-			    rl2PrivRasterPtr raster, int row, int col)
+			    rl2PrivRasterPtr raster, unsigned int row,
+			    unsigned int col)
 {
 /* writing a TIFF Monochrome tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned char byte;
     unsigned char pixel;
     int pos;
@@ -6212,11 +6216,12 @@ tiff_write_tile_monochrome (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_int8 (rl2PrivTiffDestinationPtr tiff,
-		      rl2PrivRasterPtr raster, int row, int col)
+		      rl2PrivRasterPtr raster, unsigned int row,
+		      unsigned int col)
 {
 /* writing a TIFF Grid Int8 tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     char *p_in = (char *) (raster->rasterBuffer);
     char *p_out = (char *) (tiff->tiffBuffer);
 
@@ -6232,11 +6237,12 @@ tiff_write_tile_int8 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_uint8 (rl2PrivTiffDestinationPtr tiff,
-		       rl2PrivRasterPtr raster, int row, int col)
+		       rl2PrivRasterPtr raster, unsigned int row,
+		       unsigned int col)
 {
 /* writing a TIFF Grid UInt8 tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned char *p_in = raster->rasterBuffer;
     unsigned char *p_out = tiff->tiffBuffer;
 
@@ -6252,11 +6258,12 @@ tiff_write_tile_uint8 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_int16 (rl2PrivTiffDestinationPtr tiff,
-		       rl2PrivRasterPtr raster, int row, int col)
+		       rl2PrivRasterPtr raster, unsigned int row,
+		       unsigned int col)
 {
 /* writing a TIFF Grid Int16 tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     short *p_in = (short *) (raster->rasterBuffer);
     short *p_out = (short *) (tiff->tiffBuffer);
 
@@ -6272,11 +6279,12 @@ tiff_write_tile_int16 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_uint16 (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row, int col)
+			rl2PrivRasterPtr raster, unsigned int row,
+			unsigned int col)
 {
 /* writing a TIFF Grid UInt16 tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned short *p_in = (unsigned short *) (raster->rasterBuffer);
     unsigned short *p_out = (unsigned short *) (tiff->tiffBuffer);
 
@@ -6292,11 +6300,12 @@ tiff_write_tile_uint16 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_int32 (rl2PrivTiffDestinationPtr tiff,
-		       rl2PrivRasterPtr raster, int row, int col)
+		       rl2PrivRasterPtr raster, unsigned int row,
+		       unsigned int col)
 {
 /* writing a TIFF Grid Int32 tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     int *p_in = (int *) (raster->rasterBuffer);
     int *p_out = (int *) (tiff->tiffBuffer);
 
@@ -6312,11 +6321,12 @@ tiff_write_tile_int32 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_uint32 (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row, int col)
+			rl2PrivRasterPtr raster, unsigned int row,
+			unsigned int col)
 {
 /* writing a TIFF Grid UInt32 tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     unsigned int *p_in = (unsigned int *) (raster->rasterBuffer);
     unsigned int *p_out = (unsigned int *) (tiff->tiffBuffer);
 
@@ -6332,11 +6342,12 @@ tiff_write_tile_uint32 (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_float (rl2PrivTiffDestinationPtr tiff,
-		       rl2PrivRasterPtr raster, int row, int col)
+		       rl2PrivRasterPtr raster, unsigned int row,
+		       unsigned int col)
 {
 /* writing a TIFF Grid Float tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     float *p_in = (float *) (raster->rasterBuffer);
     float *p_out = (float *) (tiff->tiffBuffer);
 
@@ -6352,11 +6363,12 @@ tiff_write_tile_float (rl2PrivTiffDestinationPtr tiff,
 
 static int
 tiff_write_tile_double (rl2PrivTiffDestinationPtr tiff,
-			rl2PrivRasterPtr raster, int row, int col)
+			rl2PrivRasterPtr raster, unsigned int row,
+			unsigned int col)
 {
 /* writing a TIFF Grid Double tile */
-    int y;
-    int x;
+    unsigned int y;
+    unsigned int x;
     double *p_in = (double *) (raster->rasterBuffer);
     double *p_out = (double *) (tiff->tiffBuffer);
 
@@ -6715,7 +6727,7 @@ rl2_raster_to_tiff_mono4 (rl2RasterPtr rst, unsigned char **tiff,
 
 RL2_PRIVATE int
 rl2_decode_tiff_mono4 (const unsigned char *tiff, int tiff_sz,
-		       unsigned short *xwidth, unsigned short *xheight,
+		       unsigned int *xwidth, unsigned int *xheight,
 		       unsigned char **pixels, int *pixels_sz)
 {
 /* attempting to decode a TIFF FAX4 block */
@@ -7333,7 +7345,7 @@ test_palette_tiff (unsigned short width, unsigned short height,
 }
 
 RL2_DECLARE int
-rl2_rgb_to_tiff (unsigned short width, unsigned short height,
+rl2_rgb_to_tiff (unsigned int width, unsigned int height,
 		 const unsigned char *rgb, unsigned char **tiff, int *tiff_size)
 {
 /* creating a TIFF in-memory image from an RGB buffer */
@@ -7360,7 +7372,7 @@ rl2_rgb_to_tiff (unsigned short width, unsigned short height,
 }
 
 RL2_DECLARE int
-rl2_rgb_to_geotiff (unsigned short width, unsigned short height,
+rl2_rgb_to_geotiff (unsigned int width, unsigned int height,
 		    sqlite3 * handle, double minx, double miny, double maxx,
 		    double maxy, int srid, const unsigned char *rgb,
 		    unsigned char **tiff, int *tiff_size)
@@ -7576,7 +7588,7 @@ output_gray_geotiff (const unsigned char *buffer,
 }
 
 RL2_DECLARE int
-rl2_gray_to_tiff (unsigned short width, unsigned short height,
+rl2_gray_to_tiff (unsigned int width, unsigned int height,
 		  const unsigned char *gray, unsigned char **tiff,
 		  int *tiff_size)
 {
@@ -7590,7 +7602,7 @@ rl2_gray_to_tiff (unsigned short width, unsigned short height,
 }
 
 RL2_DECLARE int
-rl2_gray_to_geotiff (unsigned short width, unsigned short height,
+rl2_gray_to_geotiff (unsigned int width, unsigned int height,
 		     sqlite3 * handle, double minx, double miny, double maxx,
 		     double maxy, int srid, const unsigned char *gray,
 		     unsigned char **tiff, int *tiff_size)

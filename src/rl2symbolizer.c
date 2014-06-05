@@ -611,19 +611,21 @@ parse_sld_se_categorize (xmlNodePtr node, rl2PrivRasterStylePtr style)
 						{
 						    style->categorize->baseRed =
 							red;
-						    style->categorize->
-							baseGreen = green;
-						    style->categorize->
-							baseBlue = blue;
+						    style->
+							categorize->baseGreen =
+							green;
+						    style->
+							categorize->baseBlue =
+							blue;
 						}
 					      else
 						{
-						    style->categorize->last->
-							red = red;
-						    style->categorize->last->
-							green = green;
-						    style->categorize->last->
-							blue = blue;
+						    style->categorize->
+							last->red = red;
+						    style->categorize->
+							last->green = green;
+						    style->categorize->
+							last->blue = blue;
 						}
 					  }
 					else
@@ -1600,9 +1602,12 @@ parse_sld_named_style (xmlNodePtr node, char **namedStyle)
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
 			      {
-				  int len = strlen (child->content);
+				  int len =
+				      (int)
+				      strlen ((const char *) (child->content));
 				  *namedStyle = malloc (len + 1);
-				  strcpy (*namedStyle, child->content);
+				  strcpy (*namedStyle,
+					  (const char *) (child->content));
 			      }
 			    child = child->next;
 			}
@@ -1630,9 +1635,12 @@ parse_sld_named_layer (xmlNodePtr node, char **namedLayer, char **namedStyle)
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
 			      {
-				  int len = strlen (child->content);
+				  int len =
+				      (int)
+				      strlen ((const char *) (child->content));
 				  *namedLayer = malloc (len + 1);
-				  strcpy (*namedLayer, child->content);
+				  strcpy (*namedLayer,
+					  (const char *) (child->content));
 				  ok = 1;
 			      }
 			    child = child->next;
@@ -1714,7 +1722,6 @@ group_style_from_sld_xml (char *name, char *title, char *abstract,
     rl2PrivGroupStylePtr style = NULL;
     xmlDocPtr xml_doc = NULL;
     xmlNodePtr root;
-    int loop = 1;
     xmlGenericErrorFunc silentError = (xmlGenericErrorFunc) dummySilentError;
 
     style = malloc (sizeof (rl2PrivGroupStyle));

@@ -367,8 +367,8 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
     const unsigned char *blob_even;
     int blob_even_sz;
     const char *coverage;
-    unsigned short tile_width;
-    unsigned short tile_height;
+    unsigned int tile_width;
+    unsigned int tile_height;
     unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
     unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
     unsigned char num_bands = RL2_BANDS_UNKNOWN;
@@ -2745,8 +2745,8 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     double y;
     double tilew;
     double tileh;
-    unsigned short tile_width;
-    unsigned short tile_height;
+    unsigned int tile_width;
+    unsigned int tile_height;
     WmsRetryListPtr retry_list = NULL;
     char *table;
     char *xtable;
@@ -2759,8 +2759,8 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     int first = 1;
     double ext_x;
     double ext_y;
-    int width;
-    int height;
+    unsigned int width;
+    unsigned int height;
     sqlite3_int64 section_id;
     rl2PixelPtr no_data = NULL;
     unsigned char sample_type;

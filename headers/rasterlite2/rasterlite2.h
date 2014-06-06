@@ -1550,13 +1550,13 @@ extern "C"
     RL2_DECLARE void rl2_destroy_raster (rl2RasterPtr rst);
 
 /**
- Retrieving the Width dimension from a Raster Object
+ Retrieving the Width/height dimensions from a Raster Object
 
  \param rst pointer to the Raster Object.
  \param width on completion the variable referenced by this
  pointer will contain the raster's Width.
  \param height on completion the variable referenced by this
- pointer will contain the raster's THeight.
+ pointer will contain the raster's Height.
  
  \return RL2_OK on success: RL2_ERROR on failure.
 

@@ -981,7 +981,7 @@ RL2_DECLARE int
 rl2_get_raster_size (rl2RasterPtr ptr, unsigned int *width,
 		     unsigned int *height)
 {
-/* return the Raster width */
+/* return the Raster width and height */
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
     if (rst == NULL)
 	return RL2_ERROR;

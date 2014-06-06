@@ -611,21 +611,19 @@ parse_sld_se_categorize (xmlNodePtr node, rl2PrivRasterStylePtr style)
 						{
 						    style->categorize->baseRed =
 							red;
-						    style->
-							categorize->baseGreen =
-							green;
-						    style->
-							categorize->baseBlue =
-							blue;
+						    style->categorize->
+							baseGreen = green;
+						    style->categorize->
+							baseBlue = blue;
 						}
 					      else
 						{
-						    style->categorize->
-							last->red = red;
-						    style->categorize->
-							last->green = green;
-						    style->categorize->
-							last->blue = blue;
+						    style->categorize->last->
+							red = red;
+						    style->categorize->last->
+							green = green;
+						    style->categorize->last->
+							blue = blue;
 						}
 					  }
 					else

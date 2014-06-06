@@ -741,7 +741,7 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 }
 
 static int
-gg_endian_arch ()
+rl2cr_endian_arch ()
 {
 /* checking if target CPU is a little-endian one */
     union cvt
@@ -767,7 +767,7 @@ adjust_for_endianness (unsigned char *rgbaArray, int width, int height)
     unsigned char alpha;
     unsigned char *p_in = rgbaArray;
     unsigned char *p_out = rgbaArray;
-    int little_endian = gg_endian_arch ();
+    int little_endian = rl2cr_endian_arch ();
 
     for (y = 0; y < height; y++)
       {
@@ -1391,7 +1391,7 @@ rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context)
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *rgb;
-    int little_endian = gg_endian_arch ();
+    int little_endian = rl2cr_endian_arch ();
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)
@@ -1445,7 +1445,7 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *alpha;
-    int little_endian = gg_endian_arch ();
+    int little_endian = rl2cr_endian_arch ();
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)

@@ -564,7 +564,7 @@ rl2_section_from_gif (const char *path)
 }
 
 RL2_DECLARE rl2RasterPtr
-rl2_raster_from_gif (unsigned char *gif, int gif_size)
+rl2_raster_from_gif (const unsigned char *gif, int gif_size)
 {
 /* attempting to create a raster from a GIF image */
     rl2RasterPtr rst = NULL;

@@ -1527,7 +1527,7 @@ extern "C"
 		rl2_raster_band_to_uint16, rl2_raster_bands_to_RGB, rl2_raster_to_gif,
 		rl2_raster_to_png, rl2_raster_to_jpeg, rl2_raster_to_lossless_webp,
 		rl2_raster_to_lossy_webp, rl2_raster_from_gif, rl2_raster_from_png, 
-		rl2_raster_from_jpeg, rl2_raster_from_webp 
+		rl2_raster_from_jpeg, rl2_raster_from_webp, rl2_raster_from_tiff
  
  \note you are responsible to destroy (before or after) any allocated 
  Raster object.
@@ -2698,7 +2698,7 @@ extern "C"
  \note you are responsible to destroy (before or after) any allocated 
  Raster object.
  */
-    RL2_DECLARE rl2RasterPtr rl2_raster_from_gif (unsigned char *gif,
+    RL2_DECLARE rl2RasterPtr rl2_raster_from_gif (const unsigned char *gif,
 						  int gif_size);
 
 /**
@@ -2814,7 +2814,25 @@ extern "C"
  Raster object.
  */
     RL2_DECLARE rl2RasterPtr
-	rl2_raster_from_webp (unsigned char *webp, int webp_size);
+	rl2_raster_from_webp (const unsigned char *webp, int webp_size);
+
+/**
+ Allocates and initializes a new Raster object from an in-memory stored TIFF image
+
+ \param webp pointer to the memory block storing the input TIFF image.
+ \param webp_size size (in bytes) of the WEBP image.
+ 
+ \return the pointer to newly created Raster Object: NULL on failure.
+ 
+ \sa rl2_destroy_raster, rl2_create_raster
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster object. Not all TIFF images are supported, but only the ones
+ actually corresponding to a visible image (RGB, Grayscale, Palette
+ and Monochrome).
+ */
+    RL2_DECLARE rl2RasterPtr
+	rl2_raster_from_tiff (const unsigned char *tiff, int tiff_size);
 
     RL2_DECLARE rl2PalettePtr rl2_get_raster_palette (rl2RasterPtr raster);
 

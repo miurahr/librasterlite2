@@ -7617,3 +7617,110 @@ rl2_gray_to_geotiff (unsigned int width, unsigned int height,
 	return RL2_ERROR;
     return RL2_OK;
 }
+
+RL2_DECLARE rl2RasterPtr
+rl2_raster_from_tiff (const unsigned char *blob, int blob_size)
+{
+/* attempting to create a raster from a TIFF image */
+    rl2RasterPtr rst = NULL;
+    struct memfile clientdata;
+    uint32 width = 0;
+    uint32 height = 0;
+    TIFF *in = (TIFF *) 0;
+    unsigned int x;
+    unsigned int y;
+    uint32 *rgba;
+    unsigned char *rgb;
+    unsigned char *mask;
+    int rgb_size;
+    int mask_size;
+    uint32 *p_in;
+    unsigned char *p_rgb;
+    unsigned char *p_mask;
+    int valid_mask = 0;
+
+/* suppressing TIFF warnings */
+    TIFFSetWarningHandler (NULL);
+
+/* reading from memory */
+    clientdata.buffer = (unsigned char *) blob;
+    clientdata.malloc_block = 1024;
+    clientdata.size = blob_size;
+    clientdata.eof = blob_size;
+    clientdata.current = 0;
+    in = TIFFClientOpen ("tiff", "r", &clientdata, memory_readproc,
+			 memory_writeproc, memory_seekproc, closeproc,
+			 memory_sizeproc, mapproc, unmapproc);
+    if (in == NULL)
+	return NULL;
+
+/* retrieving the TIFF dimensions */
+    TIFFGetField (in, TIFFTAG_IMAGELENGTH, &height);
+    TIFFGetField (in, TIFFTAG_IMAGEWIDTH, &width);
+
+/* allocating the RGBA buffer */
+    rgba = malloc (sizeof (uint32) * width * height);
+    if (rgba == NULL)
+	goto error;
+
+/* attempting to decode the TIFF */
+    if (!TIFFReadRGBAImage (in, width, height, rgba, 1))
+	goto error;
+    TIFFClose (in);
+
+/* rearranging the RGBA buffer */
+    rgb_size = width * height * 3;
+    mask_size = width * height;
+    rgb = malloc (rgb_size);
+    mask = malloc (mask_size);
+    if (rgb == NULL || mask == NULL)
+	goto error;
+    p_in = rgba;
+    p_rgb = rgb;
+    p_mask = mask;
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		/* copying pixels */
+		*p_rgb++ = TIFFGetR (*p_in);
+		*p_rgb++ = TIFFGetG (*p_in);
+		*p_rgb++ = TIFFGetB (*p_in);
+		if (TIFFGetA (*p_in) < 128)
+		  {
+		      *p_mask++ = 0;
+		      valid_mask = 1;
+		  }
+		else
+		    *p_mask++ = 1;
+		p_in++;
+	    }
+      }
+    if (!valid_mask)
+      {
+	  free (mask);
+	  mask = NULL;
+	  mask_size = 0;
+      }
+    free (rgba);
+    rgba = NULL;
+
+/* creating the raster */
+    rst =
+	rl2_create_raster (width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+			   rgb, rgb_size, NULL, mask, mask_size, NULL);
+    if (rst == NULL)
+	goto error;
+    return rst;
+
+  error:
+    if (in != (TIFF *) 0)
+	TIFFClose (in);
+    if (rgba != NULL)
+	free (rgba);
+    if (rgb != NULL)
+	free (rgb);
+    if (mask != NULL)
+	free (mask);
+    return NULL;
+}

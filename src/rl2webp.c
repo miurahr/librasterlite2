@@ -383,7 +383,7 @@ rl2_section_from_webp (const char *path)
 }
 
 RL2_DECLARE rl2RasterPtr
-rl2_raster_from_webp (unsigned char *webp, int webp_size)
+rl2_raster_from_webp (const unsigned char *webp, int webp_size)
 {
 /* attempting to create a raster from a WebP image */
     rl2RasterPtr rst = NULL;

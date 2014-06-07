@@ -1174,36 +1174,6 @@ svg_apply_style (rl2PrivSvgShapePtr shape, rl2PrivSvgStylePtr style)
 	    }
       }
 
-/* initializing an Undefined Style */
-    style->visibility = 1;
-    style->opacity = 1.0;
-    style->fill = 1;
-    style->no_fill = 0;
-    style->fill_url = NULL;
-    style->fill_pointer = NULL;
-    style->fill_rule = -1;
-    style->fill_red = 0.0;
-    style->fill_green = 0.0;
-    style->fill_blue = 0.0;
-    style->fill_opacity = 1.0;
-    style->stroke = -1;
-    style->no_stroke = 0;
-    style->stroke_url = NULL;
-    style->stroke_pointer = NULL;
-    style->stroke_width = -1.0;
-    style->stroke_linecap = -1;
-    style->stroke_linejoin = -1;
-    style->stroke_miterlimit = -1.0;
-    style->stroke_dashitems = 0;
-    style->stroke_dasharray = NULL;
-    style->stroke_dashoffset = 0.0;
-    style->stroke_red = -1.0;
-    style->stroke_green = -1.0;
-    style->stroke_blue = -1.0;
-    style->stroke_opacity = -1.0;
-    style->clip_url = NULL;
-    style->clip_pointer = NULL;
-
     ref = chain.first;
     while (ref)
       {
@@ -1512,7 +1482,8 @@ svg_render_item (cairo_t * cairo, rl2PrivSvgDocumentPtr svg_doc,
     rl2PrivSvgGroupPtr group;
     rl2PrivSvgShapePtr shape;
     rl2PrivSvgStyle style;
-
+    
+    svg_init_style(&style);
     while (item)
       {
 	  /* looping on Items */
@@ -1537,12 +1508,6 @@ svg_render_item (cairo_t * cairo, rl2PrivSvgDocumentPtr svg_doc,
 			    svg_draw_shape (cairo, shape, &style);
 			    cairo_reset_clip (cairo);
 			}
-		      if (style.fill_url != NULL)
-			  free (style.fill_url);
-		      if (style.stroke_url != NULL)
-			  free (style.stroke_url);
-		      if (style.clip_url != NULL)
-			  free (style.clip_url);
 		  }
 	    }
 	  if (item->type == RL2_SVG_ITEM_GROUP && item->pointer != NULL)
@@ -1555,6 +1520,7 @@ svg_render_item (cairo_t * cairo, rl2PrivSvgDocumentPtr svg_doc,
 	    }
 	  item = item->next;
       }
+      svg_style_cleanup(&style);
 }
 
 static void
@@ -1595,6 +1561,7 @@ svg_find_href (rl2PrivSvgDocumentPtr svg_doc, rl2PrivSvgItemPtr item,
 	    }
 	  item = item->next;
       }
+      *pointer = NULL;
 }
 
 static void

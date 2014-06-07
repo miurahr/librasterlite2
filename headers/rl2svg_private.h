@@ -665,6 +665,10 @@ extern "C"
 				    const char *id, const char *xlink_href,
 				    double cx, double cy, double fx, double fy,
 				    double r, int units);
+				    
+	RL2_PRIVATE void svg_init_style(rl2PrivSvgStylePtr style);
+	
+	RL2_PRIVATE void svg_style_cleanup(rl2PrivSvgStylePtr style);
 
 
 #ifdef __cplusplus

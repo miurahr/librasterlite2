@@ -1211,7 +1211,7 @@ rl2_graph_stroke_path (rl2GraphicsContextPtr context, int preserve)
 	cairo = ctx->cairo;
 
     set_current_pen (ctx);
-    if (preserve)
+    if (preserve == RL2_PRESERVE_PATH)
 	cairo_stroke_preserve (cairo);
     else
 	cairo_stroke (cairo);
@@ -1232,7 +1232,7 @@ rl2_graph_fill_path (rl2GraphicsContextPtr context, int preserve)
 	cairo = ctx->cairo;
 
     set_current_brush (ctx);
-    if (preserve)
+    if (preserve == RL2_PRESERVE_PATH)
 	cairo_fill_preserve (cairo);
     else
 	cairo_fill (cairo);

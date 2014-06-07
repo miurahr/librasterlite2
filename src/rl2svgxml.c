@@ -1190,7 +1190,7 @@ svg_parse_stop_color (const char *color, double *red, double *green,
     else
       {
 	  svg_from_named_color (buf, color);
-	  if (*color != '\0')
+	  if (*buf != '\0')
 	      p_color = buf;
       }
     if (p_color == NULL)

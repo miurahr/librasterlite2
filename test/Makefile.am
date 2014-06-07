@@ -20,7 +20,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_orbetello test_raster_symbolizer \
 	test_svg
 
-AM_CPPFLAGS = -I@srcdir@/../headers
+AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
 	@LIBWEBP_LIBS@ @LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ \
 	@LIBCURL_LIBS@ @LIBXML2_LIBS@ $(GCOV_FLAGS)

@@ -155,14 +155,7 @@ svg_free_shape (rl2PrivSvgShapePtr p)
 	      free (p->data);
 	  break;
       };
-    if (p->style.stroke_dasharray != NULL)
-	free (p->style.stroke_dasharray);
-    if (p->style.fill_url != NULL)
-	free (p->style.fill_url);
-    if (p->style.stroke_url != NULL)
-	free (p->style.stroke_url);
-    if (p->style.clip_url != NULL)
-	free (p->style.clip_url);
+      svg_style_cleanup(&(p->style));
     free (p);
 }
 
@@ -181,14 +174,7 @@ svg_free_use (rl2PrivSvgUsePtr p)
 	  svg_free_transform (pt);
 	  pt = ptn;
       }
-    if (p->style.stroke_dasharray != NULL)
-	free (p->style.stroke_dasharray);
-    if (p->style.fill_url != NULL)
-	free (p->style.fill_url);
-    if (p->style.stroke_url != NULL)
-	free (p->style.stroke_url);
-    if (p->style.clip_url != NULL)
-	free (p->style.clip_url);
+      svg_style_cleanup(&(p->style));
     free (p);
 }
 
@@ -202,6 +188,8 @@ svg_free_item (rl2PrivSvgItemPtr p)
 	svg_free_shape ((rl2PrivSvgShapePtr) (p->pointer));
     if (p->type == RL2_SVG_ITEM_CLIP)
 	svg_free_clip ((rl2PrivSvgClipPtr) (p->pointer));
+    if (p->type == RL2_SVG_ITEM_USE)
+	svg_free_use ((rl2PrivSvgUsePtr) (p->pointer));
     free (p);
 }
 
@@ -247,14 +235,7 @@ svg_free_group (rl2PrivSvgGroupPtr p)
 	  svg_free_transform (pt);
 	  pt = ptn;
       }
-    if (p->style.stroke_dasharray != NULL)
-	free (p->style.stroke_dasharray);
-    if (p->style.fill_url != NULL)
-	free (p->style.fill_url);
-    if (p->style.stroke_url != NULL)
-	free (p->style.stroke_url);
-    if (p->style.clip_url != NULL)
-	free (p->style.clip_url);
+      svg_style_cleanup(&(p->style));
     free (p);
 }
 
@@ -325,6 +306,52 @@ svg_free_document (rl2PrivSvgDocument * p)
 	  pg = pgn;
       }
     free (p);
+}
+				    
+RL2_PRIVATE void svg_init_style(rl2PrivSvgStylePtr style)
+{
+/* initializing a void style */
+    style->visibility = -1;
+    style->opacity = 1.0;
+    style->fill = -1;
+    style->no_fill = -1;
+    style->fill_rule = -1;
+    style->fill_url = NULL;
+    style->fill_pointer = NULL;
+    style->fill_red = -1.0;
+    style->fill_green = -1.0;
+    style->fill_blue = -1.0;
+    style->fill_opacity = -1.0;
+    style->stroke = -1;
+    style->no_stroke = -1;
+    style->stroke_width = -1.0;
+    style->stroke_linecap = -1;
+    style->stroke_linejoin = -1;
+    style->stroke_miterlimit = -1.0;
+    style->stroke_dashitems = 0;
+    style->stroke_dasharray = NULL;
+    style->stroke_dashoffset = 0.0;
+    style->stroke_url = NULL;
+    style->stroke_pointer = NULL;
+    style->stroke_red = -1.0;
+    style->stroke_green = -1.0;
+    style->stroke_blue = -1.0;
+    style->stroke_opacity = -1.0;
+    style->clip_url = NULL;
+    style->clip_pointer = NULL;
+}
+	
+RL2_PRIVATE void svg_style_cleanup(rl2PrivSvgStylePtr style)
+{
+/* style cleanup */
+    if (style->stroke_dasharray != NULL)
+	free (style->stroke_dasharray);
+    if (style->fill_url != NULL)
+	free (style->fill_url);
+    if (style->stroke_url != NULL)
+	free (style->stroke_url);
+    if (style->clip_url != NULL)
+	free (style->clip_url);
 }
 
 RL2_PRIVATE rl2PrivSvgMatrixPtr
@@ -862,34 +889,7 @@ svg_alloc_shape (int type, void *data, rl2PrivSvgGroupPtr parent)
     p->type = type;
     p->data = data;
     p->parent = parent;
-    p->style.visibility = -1;
-    p->style.opacity = 1.0;
-    p->style.fill = -1;
-    p->style.no_fill = -1;
-    p->style.fill_rule = -1;
-    p->style.fill_url = NULL;
-    p->style.fill_pointer = NULL;
-    p->style.fill_red = -1.0;
-    p->style.fill_green = -1.0;
-    p->style.fill_blue = -1.0;
-    p->style.fill_opacity = -1.0;
-    p->style.stroke = -1;
-    p->style.no_stroke = -1;
-    p->style.stroke_width = -1.0;
-    p->style.stroke_linecap = -1;
-    p->style.stroke_linejoin = -1;
-    p->style.stroke_miterlimit = -1.0;
-    p->style.stroke_dashitems = 0;
-    p->style.stroke_dasharray = NULL;
-    p->style.stroke_dashoffset = 0.0;
-    p->style.stroke_url = NULL;
-    p->style.stroke_pointer = NULL;
-    p->style.stroke_red = -1.0;
-    p->style.stroke_green = -1.0;
-    p->style.stroke_blue = -1.0;
-    p->style.stroke_opacity = -1.0;
-    p->style.clip_url = NULL;
-    p->style.clip_pointer = NULL;
+    svg_init_style(&(p->style));
     p->first_trans = NULL;
     p->last_trans = NULL;
     p->is_defs = 0;
@@ -1140,34 +1140,7 @@ svg_alloc_use (void *parent, const char *xlink_href, double x, double y,
     p->width = width;
     p->height = height;
     p->parent = parent;
-    p->style.visibility = -1;
-    p->style.opacity = 1.0;
-    p->style.fill = -1;
-    p->style.no_fill = -1;
-    p->style.fill_rule = -1;
-    p->style.fill_url = NULL;
-    p->style.fill_pointer = NULL;
-    p->style.fill_red = -1.0;
-    p->style.fill_green = -1.0;
-    p->style.fill_blue = -1.0;
-    p->style.fill_opacity = -1.0;
-    p->style.stroke = -1;
-    p->style.no_stroke = -1;
-    p->style.stroke_width = -1.0;
-    p->style.stroke_linecap = -1;
-    p->style.stroke_linejoin = -1;
-    p->style.stroke_miterlimit = -1.0;
-    p->style.stroke_dashitems = 0;
-    p->style.stroke_dasharray = NULL;
-    p->style.stroke_dashoffset = 0.0;
-    p->style.stroke_url = NULL;
-    p->style.stroke_pointer = NULL;
-    p->style.stroke_red = -1.0;
-    p->style.stroke_green = -1.0;
-    p->style.stroke_blue = -1.0;
-    p->style.stroke_opacity = -1.0;
-    p->style.clip_url = NULL;
-    p->style.clip_pointer = NULL;
+    svg_init_style(&(p->style));
     p->first_trans = NULL;
     p->last_trans = NULL;
     p->next = NULL;
@@ -1263,34 +1236,7 @@ svg_alloc_group (void)
 /* allocating and initializing an empty SVG Group <g> */
     rl2PrivSvgGroupPtr p = malloc (sizeof (rl2PrivSvgGroup));
     p->id = NULL;
-    p->style.visibility = -1;
-    p->style.opacity = 1.0;
-    p->style.fill = -1;
-    p->style.no_fill = -1;
-    p->style.fill_rule = -1;
-    p->style.fill_url = NULL;
-    p->style.fill_pointer = NULL;
-    p->style.fill_red = -1.0;
-    p->style.fill_green = -1.0;
-    p->style.fill_blue = -1.0;
-    p->style.fill_opacity = -1.0;
-    p->style.stroke = -1;
-    p->style.no_stroke = -1;
-    p->style.stroke_width = -1.0;
-    p->style.stroke_linecap = -1;
-    p->style.stroke_linejoin = -1;
-    p->style.stroke_miterlimit = -1.0;
-    p->style.stroke_dashitems = 0;
-    p->style.stroke_dasharray = NULL;
-    p->style.stroke_dashoffset = 0.0;
-    p->style.stroke_url = NULL;
-    p->style.stroke_pointer = NULL;
-    p->style.stroke_red = -1.0;
-    p->style.stroke_green = -1.0;
-    p->style.stroke_blue = -1.0;
-    p->style.stroke_opacity = -1.0;
-    p->style.clip_url = NULL;
-    p->style.clip_pointer = NULL;
+    svg_init_style(&(p->style));
     p->parent = NULL;
     p->first = NULL;
     p->last = NULL;

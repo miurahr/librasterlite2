@@ -1482,8 +1482,8 @@ svg_render_item (cairo_t * cairo, rl2PrivSvgDocumentPtr svg_doc,
     rl2PrivSvgGroupPtr group;
     rl2PrivSvgShapePtr shape;
     rl2PrivSvgStyle style;
-    
-    svg_init_style(&style);
+
+    svg_init_style (&style);
     while (item)
       {
 	  /* looping on Items */
@@ -1520,7 +1520,7 @@ svg_render_item (cairo_t * cairo, rl2PrivSvgDocumentPtr svg_doc,
 	    }
 	  item = item->next;
       }
-      svg_style_cleanup(&style);
+    svg_style_cleanup (&style);
 }
 
 static void
@@ -1561,7 +1561,7 @@ svg_find_href (rl2PrivSvgDocumentPtr svg_doc, rl2PrivSvgItemPtr item,
 	    }
 	  item = item->next;
       }
-      *pointer = NULL;
+    *pointer = NULL;
 }
 
 static void

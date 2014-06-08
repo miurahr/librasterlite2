@@ -155,7 +155,7 @@ svg_free_shape (rl2PrivSvgShapePtr p)
 	      free (p->data);
 	  break;
       };
-      svg_style_cleanup(&(p->style));
+    svg_style_cleanup (&(p->style));
     free (p);
 }
 
@@ -174,7 +174,7 @@ svg_free_use (rl2PrivSvgUsePtr p)
 	  svg_free_transform (pt);
 	  pt = ptn;
       }
-      svg_style_cleanup(&(p->style));
+    svg_style_cleanup (&(p->style));
     free (p);
 }
 
@@ -235,7 +235,7 @@ svg_free_group (rl2PrivSvgGroupPtr p)
 	  svg_free_transform (pt);
 	  pt = ptn;
       }
-      svg_style_cleanup(&(p->style));
+    svg_style_cleanup (&(p->style));
     free (p);
 }
 
@@ -307,8 +307,9 @@ svg_free_document (rl2PrivSvgDocument * p)
       }
     free (p);
 }
-				    
-RL2_PRIVATE void svg_init_style(rl2PrivSvgStylePtr style)
+
+RL2_PRIVATE void
+svg_init_style (rl2PrivSvgStylePtr style)
 {
 /* initializing a void style */
     style->visibility = -1;
@@ -340,8 +341,9 @@ RL2_PRIVATE void svg_init_style(rl2PrivSvgStylePtr style)
     style->clip_url = NULL;
     style->clip_pointer = NULL;
 }
-	
-RL2_PRIVATE void svg_style_cleanup(rl2PrivSvgStylePtr style)
+
+RL2_PRIVATE void
+svg_style_cleanup (rl2PrivSvgStylePtr style)
 {
 /* style cleanup */
     if (style->stroke_dasharray != NULL)
@@ -889,7 +891,7 @@ svg_alloc_shape (int type, void *data, rl2PrivSvgGroupPtr parent)
     p->type = type;
     p->data = data;
     p->parent = parent;
-    svg_init_style(&(p->style));
+    svg_init_style (&(p->style));
     p->first_trans = NULL;
     p->last_trans = NULL;
     p->is_defs = 0;
@@ -1140,7 +1142,7 @@ svg_alloc_use (void *parent, const char *xlink_href, double x, double y,
     p->width = width;
     p->height = height;
     p->parent = parent;
-    svg_init_style(&(p->style));
+    svg_init_style (&(p->style));
     p->first_trans = NULL;
     p->last_trans = NULL;
     p->next = NULL;
@@ -1236,7 +1238,7 @@ svg_alloc_group (void)
 /* allocating and initializing an empty SVG Group <g> */
     rl2PrivSvgGroupPtr p = malloc (sizeof (rl2PrivSvgGroup));
     p->id = NULL;
-    svg_init_style(&(p->style));
+    svg_init_style (&(p->style));
     p->parent = NULL;
     p->first = NULL;
     p->last = NULL;

@@ -1731,8 +1731,8 @@ rl2_is_tiff_worldfile_origin (rl2TiffOriginPtr tiff, int *tiff_worldfile)
 }
 
 RL2_DECLARE int
-rl2_get_tiff_origin_size (rl2TiffOriginPtr tiff, unsigned short *width,
-			  unsigned short *height)
+rl2_get_tiff_origin_size (rl2TiffOriginPtr tiff, unsigned int *width,
+			  unsigned int *height)
 {
 /* retrieving Width and Height from a TIFF origin */
     rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
@@ -4128,8 +4128,8 @@ rl2_is_tiled_tiff_origin (rl2TiffOriginPtr tiff, int *is_tiled)
 
 RL2_DECLARE int
 rl2_get_tiff_origin_tile_size (rl2TiffOriginPtr tiff,
-			       unsigned short *tile_width,
-			       unsigned short *tile_height)
+			       unsigned int *tile_width,
+			       unsigned int *tile_height)
 {
 /* attempting to return the Tile dimensions */
     rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
@@ -4143,8 +4143,7 @@ rl2_get_tiff_origin_tile_size (rl2TiffOriginPtr tiff,
 }
 
 RL2_DECLARE int
-rl2_get_tiff_origin_strip_size (rl2TiffOriginPtr tiff,
-				unsigned short *strip_size)
+rl2_get_tiff_origin_strip_size (rl2TiffOriginPtr tiff, unsigned int *strip_size)
 {
 /* attempting to return the Strip dimension */
     rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
@@ -4972,11 +4971,11 @@ set_tiff_destination (rl2PrivTiffDestinationPtr destination,
 }
 
 RL2_DECLARE rl2TiffDestinationPtr
-rl2_create_tiff_destination (const char *path, unsigned short width,
-			     unsigned short height, unsigned char sample_type,
+rl2_create_tiff_destination (const char *path, unsigned int width,
+			     unsigned int height, unsigned char sample_type,
 			     unsigned char pixel_type, unsigned char num_bands,
 			     rl2PalettePtr plt, unsigned char tiff_compression,
-			     int tiled, int tile_size)
+			     int tiled, unsigned int tile_size)
 {
 /* attempting to create a file-based TIFF destination (no georeferencing) */
     rl2PrivTiffDestinationPtr destination = NULL;
@@ -5102,12 +5101,12 @@ destination_set_tfw_path (const char *path,
 
 RL2_DECLARE rl2TiffDestinationPtr
 rl2_create_geotiff_destination (const char *path, sqlite3 * handle,
-				unsigned short width, unsigned short height,
+				unsigned int width, unsigned int height,
 				unsigned char sample_type,
 				unsigned char pixel_type,
 				unsigned char num_bands, rl2PalettePtr plt,
 				unsigned char tiff_compression, int tiled,
-				int tile_size, int srid, double minX,
+				unsigned int tile_size, int srid, double minX,
 				double minY, double maxX, double maxY,
 				double hResolution, double vResolution,
 				int with_worldfile)
@@ -5218,17 +5217,17 @@ rl2_create_geotiff_destination (const char *path, sqlite3 * handle,
 }
 
 RL2_DECLARE rl2TiffDestinationPtr
-rl2_create_tiff_worldfile_destination (const char *path, unsigned short width,
-				       unsigned short height,
+rl2_create_tiff_worldfile_destination (const char *path, unsigned int width,
+				       unsigned int height,
 				       unsigned char sample_type,
 				       unsigned char pixel_type,
 				       unsigned char num_bands,
 				       rl2PalettePtr plt,
 				       unsigned char tiff_compression,
-				       int tiled, int tile_size, int srid,
-				       double minX, double minY, double maxX,
-				       double maxY, double hResolution,
-				       double vResolution)
+				       int tiled, unsigned int tile_size,
+				       int srid, double minX, double minY,
+				       double maxX, double maxY,
+				       double hResolution, double vResolution)
 {
 /* attempting to create a file-based TIFF destination (with worldfile) */
     rl2TiffDestinationPtr destination =
@@ -5303,7 +5302,7 @@ rl2_is_tiff_worldfile_destination (rl2TiffDestinationPtr tiff,
 
 RL2_DECLARE int
 rl2_get_tiff_destination_size (rl2TiffDestinationPtr tiff,
-			       unsigned short *width, unsigned short *height)
+			       unsigned int *width, unsigned int *height)
 {
 /* retrieving Width and Height from a TIFF destination */
     rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
@@ -5605,8 +5604,8 @@ rl2_is_tiled_tiff_destination (rl2TiffDestinationPtr tiff, int *is_tiled)
 
 RL2_DECLARE int
 rl2_get_tiff_destination_tile_size (rl2TiffDestinationPtr tiff,
-				    unsigned short *tile_width,
-				    unsigned short *tile_height)
+				    unsigned int *tile_width,
+				    unsigned int *tile_height)
 {
 /* attempting to return the Tile dimensions */
     rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;
@@ -5621,7 +5620,7 @@ rl2_get_tiff_destination_tile_size (rl2TiffDestinationPtr tiff,
 
 RL2_DECLARE int
 rl2_get_tiff_destination_strip_size (rl2TiffDestinationPtr tiff,
-				     unsigned short *strip_size)
+				     unsigned int *strip_size)
 {
 /* attempting to return the Strip dimension */
     rl2PrivTiffDestinationPtr destination = (rl2PrivTiffDestinationPtr) tiff;

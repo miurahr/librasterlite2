@@ -891,10 +891,10 @@ do_import_file (sqlite3 * handle, const char *src_path,
     rl2PalettePtr aux_palette = NULL;
     rl2RasterStatisticsPtr section_stats = NULL;
     rl2PixelPtr no_data = NULL;
-    int row;
-    int col;
-    unsigned short width;
-    unsigned short height;
+    unsigned int row;
+    unsigned int col;
+    unsigned int width;
+    unsigned int height;
     unsigned char *blob_odd = NULL;
     unsigned char *blob_even = NULL;
     int blob_odd_sz;

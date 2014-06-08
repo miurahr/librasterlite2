@@ -50,6 +50,35 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2svg.h"
 
 static int
+test_svg_null()
+{
+/* testing NULL / invalid */
+    double width;
+    double height;
+    if (rl2_create_svg (NULL, 100) != NULL)
+    {
+		fprintf(stderr, "Unexpected success: Create SVG from NULL\n");
+		return 0;
+	}
+    if (rl2_create_svg ((unsigned char *)"abcdefghijkhlmnoprqst", 15) != NULL)
+    {
+		fprintf(stderr, "Unexpected success: Create SVG from invalid XML\n");
+		return 0;
+	}
+    if (rl2_get_svg_size (NULL, &width, &height) == RL2_OK)
+    {
+		fprintf(stderr, "Unexpected success: SVG size from NULL\n");
+		return 0;
+	}
+    if (rl2_raster_from_svg (NULL, 100.0) != NULL)
+    {
+		fprintf(stderr, "Unexpected success: raster from NULL SVG\n");
+		return 0;
+	}
+	return 1;
+}
+
+static int
 test_svg (const char *path, int size, double w, double h)
 {
 /* rendering an SVG sample */
@@ -244,8 +273,10 @@ main (int argc, char *argv[])
 	       445.6460, 158.541990))
 	      return -24;
       }
-      
-      xmlCleanupParser ();
+	  if (!test_svg_null())
+	      return -25;
+
+    xmlCleanupParser ();
 
     return 0;
 }

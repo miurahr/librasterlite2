@@ -53,9 +53,15 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
 
+#ifdef __ANDROID__	/* Android specific */
+#include <cairo.h>
+#include <cairo-svg.h>
+#include <cairo-pdf.h>
+#else	/* any other standard platform (Win, Linux, Mac) */
 #include <cairo/cairo.h>
 #include <cairo/cairo-svg.h>
 #include <cairo/cairo-pdf.h>
+#endif	/* end Android conditionals */
 
 #define RL2_SURFACE_IMG 2671
 #define RL2_SURFACE_SVG 1267

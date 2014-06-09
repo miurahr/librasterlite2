@@ -46,7 +46,11 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
+#ifdef __ANDROID__	/* Android specific */
+#include <cairo.h>
+#else	/* any other standard platform (Win, Linux, Mac) */
 #include <cairo/cairo.h>
+#endif	/* end Android conditionals */
 
 #include "config.h"
 

@@ -566,6 +566,24 @@ extern "C"
     } rl2PrivGroupStyle;
     typedef rl2PrivGroupStyle *rl2PrivGroupStylePtr;
 
+    typedef struct rl2_priv_group_renderer_layer
+    {
+	int layer_type;
+	char *layer_name;
+	rl2CoveragePtr coverage;
+	char *style_name;
+	rl2PrivRasterStylePtr raster_symbolizer;
+	rl2PrivRasterStatisticsPtr raster_stats;
+    } rl2PrivGroupRendererLayer;
+    typedef rl2PrivGroupRendererLayer *rl2PrivGroupRendererLayerPtr;
+
+    typedef struct rl2_priv_group_renderer
+    {
+	int count;
+	rl2PrivGroupRendererLayerPtr layers;
+    } rl2PrivGroupRenderer;
+    typedef rl2PrivGroupRenderer *rl2PrivGroupRendererPtr;
+
     typedef struct wms_retry_item
     {
 	int done;
@@ -868,9 +886,10 @@ extern "C"
 					sqlite3_stmt * stmt_data,
 					rl2RasterStatisticsPtr section_stats);
 
-    RL2_PRIVATE int do_insert_levels (sqlite3 * handle,
-				      unsigned char sample_type, double res_x,
-				      double res_y, sqlite3_stmt * stmt_levl);
+    RL2_PRIVATE int do_insert_levels (sqlite3 * handle, double base_res_x,
+				      double base_res_y, double factor,
+				      unsigned char sample_type,
+				      sqlite3_stmt * stmt_levl);
 
     RL2_PRIVATE int do_insert_stats (sqlite3 * handle,
 				     rl2RasterStatisticsPtr section_stats,
@@ -1230,6 +1249,13 @@ extern "C"
 
     RL2_PRIVATE int rl2_test_layer_group (sqlite3 * handle,
 					  const char *group_name);
+
+    RL2_PRIVATE int rl2_rgba_raster_data (sqlite3 * handle,
+					  const char *coverage_name, void *ctx,
+					  int level, double minx, double miny,
+					  double maxx, double maxy,
+					  rl2PalettePtr palette,
+					  rl2PixelPtr no_data);
 
 #ifdef __cplusplus
 }

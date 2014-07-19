@@ -91,7 +91,7 @@ test_mem_tiff (const char *name)
 	free (p_blob);
     if (in != NULL)
 	fclose (in);
-    fprintf (stderr, msg);
+    fprintf (stderr, "%s", msg);
     sqlite3_free (msg);
     return -100;
 }

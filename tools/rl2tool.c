@@ -52,11 +52,12 @@
 #define ARG_MODE_EXPORT		4
 #define ARG_MODE_DELETE		5
 #define ARG_MODE_PYRAMIDIZE	6
-#define ARG_MODE_DE_PYRAMIDIZE	7
-#define ARG_MODE_LIST		8
-#define ARG_MODE_CATALOG	9
-#define ARG_MODE_MAP		10
-#define ARG_MODE_HISTOGRAM	11
+#define ARG_MODE_PYRMONO	7
+#define ARG_MODE_DE_PYRAMIDIZE	8
+#define ARG_MODE_LIST		9
+#define ARG_MODE_CATALOG	10
+#define ARG_MODE_MAP		11
+#define ARG_MODE_HISTOGRAM	12
 
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
@@ -86,6 +87,7 @@
 #define ARG_CX			35
 #define ARG_CY			36
 #define ARG_NO_DATA		37
+#define ARG_VIRT_LEVELS	38
 
 #define ARG_CACHE_SIZE		99
 
@@ -561,6 +563,17 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
 	ret =
 	    rl2_build_section_pyramid (handle, coverage, section,
 				       force_pyramid);
+    if (ret == RL2_OK)
+	return 1;
+    return 0;
+}
+
+static int
+exec_pyramidize_monolithic (sqlite3 * handle, const char *coverage,
+			    int virt_levels)
+{
+/* building Pyramid levels (Monolithic) */
+    int ret = rl2_build_monolithic_pyramid (handle, coverage, virt_levels);
     if (ret == RL2_OK)
 	return 1;
     return 0;
@@ -1936,6 +1949,14 @@ spatialite_autocreate (sqlite3 * db)
 	  sqlite3_free (err_msg);
 	  return;
       }
+    strcpy (sql, "SELECT CreateStylingTables()");
+    ret = sqlite3_exec (db, sql, NULL, NULL, &err_msg);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CreateStylingTables() error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  return;
+      }
 }
 
 static void
@@ -2743,6 +2764,36 @@ check_pyramidize_args (const char *db_path, const char *coverage,
 }
 
 static int
+check_pyramidize_monolithic_args (const char *db_path, const char *coverage,
+				  int virt_levels)
+{
+/* checking/printing PYRAMIDIZE-MONOLITHIC args */
+    int err = 0;
+    printf ("\n\nrl2_tool; request is PYRAMIDIZE-MONOLITHIC\n");
+    printf ("===========================================================\n");
+    if (db_path == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("DB path: %s\n", db_path);
+    if (coverage == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("Coverage: %s\n", coverage);
+    if (virt_levels == 1 || virt_levels == 2 || virt_levels == 3)
+	printf ("Pyramid Virtual Levels: %d\n", virt_levels);
+    else
+	printf ("Pyramid Virtual Levels: default\n");
+    printf ("===========================================================\n\n");
+    return err;
+}
+
+static int
 check_de_pyramidize_args (const char *db_path, const char *coverage,
 			  const char *section)
 {
@@ -3285,6 +3336,22 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "-f or --force                   optional: rebuilds from scratch\n\n");
       }
+    if (mode == ARG_NONE || mode == ARG_MODE_PYRMONO)
+      {
+	  /* MODE = PYRAMIDIZE MONOLITHIC */
+	  fprintf (stderr, "\nmode: PYRAMIDIZE-MONOLITHIC\n");
+	  fprintf (stderr,
+		   "will (re)build all Pyramid levels (Monolithic) supporting a Coverage\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr,
+		   "-lev or --virt-levels number    number of virt-levels\n");
+	  fprintf (stderr,
+		   "                                could be one of: 1, 2 or 3\n");
+      }
     if (mode == ARG_NONE || mode == ARG_MODE_DE_PYRAMIDIZE)
       {
 	  /* MODE = DE-PYRAMIDIZE */
@@ -3416,6 +3483,7 @@ main (int argc, char *argv[])
     unsigned short width = 0;
     unsigned short height = 0;
     int srid = -2;
+    int virt_levels = 0;
     const char *no_data_str = NULL;
     rl2PixelPtr no_data = NULL;
     int worldfile = 0;
@@ -3445,6 +3513,8 @@ main (int argc, char *argv[])
 	      mode = ARG_MODE_DELETE;
 	  if (strcasecmp (argv[1], "PYRAMIDIZE") == 0)
 	      mode = ARG_MODE_PYRAMIDIZE;
+	  if (strcasecmp (argv[1], "PYRAMIDIZE-MONOLITHIC") == 0)
+	      mode = ARG_MODE_PYRMONO;
 	  if (strcasecmp (argv[1], "DE-PYRAMIDIZE") == 0)
 	      mode = ARG_MODE_DE_PYRAMIDIZE;
 	  if (strcasecmp (argv[1], "LIST") == 0)
@@ -3595,6 +3665,9 @@ main (int argc, char *argv[])
 		  case ARG_CY:
 		      cy = atof (argv[i]);
 		      break;
+		  case ARG_VIRT_LEVELS:
+		      virt_levels = atoi (argv[i]);
+		      break;
 		  case ARG_NO_DATA:
 		      no_data_str = argv[i];
 		      break;
@@ -3658,6 +3731,12 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--section") == 0)
 	    {
 		next_arg = ARG_SECTION;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-lev") == 0
+	      || strcasecmp (argv[i], "--virt-levels") == 0)
+	    {
+		next_arg = ARG_VIRT_LEVELS;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-smp") == 0
@@ -3895,6 +3974,10 @@ main (int argc, char *argv[])
 	  error =
 	      check_pyramidize_args (db_path, coverage, section, force_pyramid);
 	  break;
+      case ARG_MODE_PYRMONO:
+	  error =
+	      check_pyramidize_monolithic_args (db_path, coverage, virt_levels);
+	  break;
       case ARG_MODE_DE_PYRAMIDIZE:
 	  error = check_de_pyramidize_args (db_path, coverage, section);
 	  break;
@@ -4024,6 +4107,9 @@ main (int argc, char *argv[])
       case ARG_MODE_PYRAMIDIZE:
 	  ret = exec_pyramidize (handle, coverage, section, force_pyramid);
 	  break;
+      case ARG_MODE_PYRMONO:
+	  ret = exec_pyramidize_monolithic (handle, coverage, virt_levels);
+	  break;
       case ARG_MODE_DE_PYRAMIDIZE:
 	  ret = exec_de_pyramidize (handle, coverage, section);
 	  break;
@@ -4071,6 +4157,9 @@ main (int argc, char *argv[])
 		break;
 	    case ARG_MODE_PYRAMIDIZE:
 		op_name = "PYRAMIDIZE";
+		break;
+	    case ARG_MODE_PYRMONO:
+		op_name = "PYRAMIDIZE-MONOLITHIC";
 		break;
 	    case ARG_MODE_DE_PYRAMIDIZE:
 		op_name = "DE-PYRAMIDIZE";

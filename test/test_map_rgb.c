@@ -180,8 +180,8 @@ get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 }
 
 static int
-do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		   int scale)
+do_export_geotiff (sqlite3 * sqlite, const char *coverage, const char *type,
+		   gaiaGeomCollPtr geom, int scale)
 {
 /* exporting a GeoTiff */
     char *sql;
@@ -196,7 +196,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     int blob_size;
     int retcode = 0;
 
-    path = sqlite3_mprintf ("./%s_gt_%d.tif", coverage, scale);
+    path = sqlite3_mprintf ("./%s_%s_gt_%d.tif", coverage, type, scale);
 
     if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
 	return 0;
@@ -389,8 +389,8 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 }
 
 static int
-test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
-	       int tile_sz, int *retcode)
+test_coverage (sqlite3 * sqlite, unsigned char pixel,
+	       unsigned char compression, int tile_sz, int *retcode)
 {
 /* testing some DBMS Coverage */
     int ret;
@@ -688,22 +688,22 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -6;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 1))
+    if (!do_export_geotiff (sqlite, coverage, "norm", geom, 1))
       {
 	  *retcode += -7;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 2))
+    if (!do_export_geotiff (sqlite, coverage, "norm", geom, 2))
       {
 	  *retcode += -8;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 4))
+    if (!do_export_geotiff (sqlite, coverage, "norm", geom, 4))
       {
 	  *retcode += -9;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 8))
+    if (!do_export_geotiff (sqlite, coverage, "norm", geom, 8))
       {
 	  *retcode += -10;
 	  return 0;
@@ -787,12 +787,59 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
 
+    if (strcmp (coverage, "rgb_jpeg_512") == 0)
+      {
+	  /* testing a Monolithic Pyramid */
+	  geom = get_center_point (sqlite, coverage);
+	  sql =
+	      sqlite3_mprintf ("SELECT RL2_PyramidizeMonolithic(%Q, 1, 1)",
+			       coverage);
+	  ret = execute_check (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "PyramidizeMonolithic \"%s\" error: %s\n",
+			 coverage, err_msg);
+		sqlite3_free (err_msg);
+		*retcode += -26;
+		return 0;
+	    }
+
+	  /* export tests */
+	  if (geom == NULL)
+	    {
+		*retcode += -27;
+		return 0;
+	    }
+	  if (!do_export_geotiff (sqlite, coverage, "mono", geom, 1))
+	    {
+		*retcode += -28;
+		return 0;
+	    }
+	  if (!do_export_geotiff (sqlite, coverage, "mono", geom, 2))
+	    {
+		*retcode += -29;
+		return 0;
+	    }
+	  if (!do_export_geotiff (sqlite, coverage, "mono", geom, 4))
+	    {
+		*retcode += -30;
+		return 0;
+	    }
+	  if (!do_export_geotiff (sqlite, coverage, "mono", geom, 8))
+	    {
+		*retcode += -31;
+		return 0;
+	    }
+	  gaiaFreeGeomColl (geom);
+      }
+
     return 1;
 }
 
 static int
-drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
-	       int tile_sz, int *retcode)
+drop_coverage (sqlite3 * sqlite, unsigned char pixel,
+	       unsigned char compression, int tile_sz, int *retcode)
 {
 /* dropping some DBMS Coverage */
     int ret;

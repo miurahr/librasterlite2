@@ -441,6 +441,8 @@ rl2_create_coverage (const char *name, unsigned char sample_type,
     cvg->tileWidth = tile_width;
     cvg->tileHeight = tile_height;
     cvg->Srid = RL2_GEOREFERENCING_NONE;
+    cvg->hResolution = 1.0;
+    cvg->vResolution = 1.0;
     cvg->noData = pxl_no_data;
     return (rl2CoveragePtr) cvg;
 }
@@ -607,6 +609,19 @@ rl2_get_coverage_srid (rl2CoveragePtr ptr, int *srid)
     if (cvg == NULL)
 	return RL2_ERROR;
     *srid = cvg->Srid;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_coverage_resolution (rl2CoveragePtr ptr, double *hResolution,
+			     double *vResolution)
+{
+/* return the Coverage SRID */
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
+    if (cvg == NULL)
+	return RL2_ERROR;
+    *hResolution = cvg->hResolution;
+    *vResolution = cvg->vResolution;
     return RL2_OK;
 }
 
@@ -951,6 +966,23 @@ rl2_destroy_raster (rl2RasterPtr ptr)
     if (rst->noData != NULL)
 	rl2_destroy_pixel ((rl2PixelPtr) (rst->noData));
     free (rst);
+}
+
+RL2_DECLARE int
+rl2_set_raster_no_data (rl2RasterPtr ptr, rl2PixelPtr no_data)
+{
+/* explicitly sets the Raster NoData pixel */
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
+    rl2PrivPixelPtr pxl_no_data = (rl2PrivPixelPtr) no_data;
+    if (rst == NULL)
+	return RL2_ERROR;
+    if (!check_raster_no_data
+	(pxl_no_data, rst->sampleType, rst->pixelType, rst->nBands))
+	return RL2_ERROR;
+    if (rst->noData != NULL)
+	rl2_destroy_pixel ((rl2PixelPtr) (rst->noData));
+    rst->noData = pxl_no_data;
+    return RL2_OK;
 }
 
 RL2_DECLARE rl2PixelPtr

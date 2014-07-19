@@ -507,11 +507,14 @@ do_insert_wms_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 }
 
 RL2_PRIVATE int
-do_insert_levels (sqlite3 * handle, unsigned char sample_type, double res_x,
-		  double res_y, sqlite3_stmt * stmt_levl)
+do_insert_levels (sqlite3 * handle, double base_res_x, double base_res_y,
+		  double factor, unsigned char sample_type,
+		  sqlite3_stmt * stmt_levl)
 {
 /* INSERTing the base-levels */
     int ret;
+    double res_x = base_res_x * factor;
+    double res_y = base_res_y * factor;
     sqlite3_reset (stmt_levl);
     sqlite3_clear_bindings (stmt_levl);
     sqlite3_bind_double (stmt_levl, 1, res_x);
@@ -802,7 +805,12 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
     unsigned char *blob_even;
     int blob_even_sz;
     rl2RasterPtr raster = NULL;
+    double base_res_x;
+    double base_res_y;
 
+    if (rl2_get_coverage_resolution (ptr->coverage, &base_res_x, &base_res_y) !=
+	RL2_OK)
+	goto error;
     if (*first)
       {
 	  /* INSERTing the section */
@@ -818,7 +826,7 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
 	      goto error;
 	  /* INSERTing the base-levels */
 	  if (!do_insert_levels
-	      (ptr->sqlite, RL2_SAMPLE_UNKNOWN, ptr->horz_res, ptr->vert_res,
+	      (ptr->sqlite, base_res_x, base_res_y, 1.0, RL2_SAMPLE_UNKNOWN,
 	       ptr->stmt_levl))
 	      goto error;
       }
@@ -4308,6 +4316,7 @@ get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
 	(raster, NULL, 1.0, NULL, width, height, RL2_SAMPLE_UINT8,
 	 RL2_PIXEL_GRAYSCALE, image, image_sz) == RL2_OK)
 	return RL2_OK;
+    free (raster);
     return RL2_ERROR;
 }
 

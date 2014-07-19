@@ -709,7 +709,7 @@ do_export_mono_band_tiff_tfw (sqlite3 * sqlite, const char *coverage,
 static int
 do_export_map_image (sqlite3 * sqlite, const char *coverage,
 		     gaiaGeomCollPtr geom, const char *style,
-		     const char *suffix)
+		     const char *suffix, int monolithic)
 {
 /* exporting a Map Image (full rendered) */
     char *sql;
@@ -730,7 +730,9 @@ do_export_map_image (sqlite3 * sqlite, const char *coverage,
     if (strcmp (suffix, "pdf") == 0)
 	format = "application/x-pdf";
 
-    path = sqlite3_mprintf ("./%s_map_%s.%s", coverage, style, suffix);
+    path =
+	sqlite3_mprintf ("./%s_%s_map_%s.%s", coverage,
+			 monolithic ? "mono" : "sect", style, suffix);
 
     sql =
 	"SELECT BlobToFile(RL2_GetMapImage(?, ST_Buffer(?, 100), ?, ?, ?, ?, ?, ?), ?)";
@@ -1229,22 +1231,26 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
       }
 
 /* testing GetMapImage - IR false color */
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color1", "png"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color1", "png", 0))
       {
 	  *retcode += 46;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color1", "jpg"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color1", "jpg", 0))
       {
 	  *retcode += 47;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color1", "tif"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color1", "tif", 0))
       {
 	  *retcode += 48;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_false_color1", "pdf"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_false_color1", "pdf", 0))
       {
 	  *retcode += 49;
 	  return 0;
@@ -1252,69 +1258,73 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 
 /* testing GetMapImage - IR false color - GammaValue */
     if (!do_export_map_image
-	(sqlite, coverage, geom, "ir_false_color1_gamma", "png"))
+	(sqlite, coverage, geom, "ir_false_color1_gamma", "png", 0))
       {
 	  *retcode += 50;
 	  return 0;
       }
     if (!do_export_map_image
-	(sqlite, coverage, geom, "ir_false_color1_gamma", "jpg"))
+	(sqlite, coverage, geom, "ir_false_color1_gamma", "jpg", 0))
       {
 	  *retcode += 51;
 	  return 0;
       }
     if (!do_export_map_image
-	(sqlite, coverage, geom, "ir_false_color1_gamma", "tif"))
+	(sqlite, coverage, geom, "ir_false_color1_gamma", "tif", 0))
       {
 	  *retcode += 52;
 	  return 0;
       }
     if (!do_export_map_image
-	(sqlite, coverage, geom, "ir_false_color1_gamma", "pdf"))
+	(sqlite, coverage, geom, "ir_false_color1_gamma", "pdf", 0))
       {
 	  *retcode += 53;
 	  return 0;
       }
 
 /* testing GetMapImage - IR gray */
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "png"))
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "png", 0))
       {
 	  *retcode += 54;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "jpg"))
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "jpg", 0))
       {
 	  *retcode += 55;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "tif"))
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "tif", 0))
       {
 	  *retcode += 56;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "pdf"))
+    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray", "pdf", 0))
       {
 	  *retcode += 57;
 	  return 0;
       }
 
 /* testing GetMapImage - IR gray - GammaValue */
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "png"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_gray_gamma", "png", 0))
       {
 	  *retcode += 58;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "jpg"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_gray_gamma", "jpg", 0))
       {
 	  *retcode += 59;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "tif"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_gray_gamma", "tif", 0))
       {
 	  *retcode += 60;
 	  return 0;
       }
-    if (!do_export_map_image (sqlite, coverage, geom, "ir_gray_gamma", "pdf"))
+    if (!do_export_map_image
+	(sqlite, coverage, geom, "ir_gray_gamma", "pdf", 0))
       {
 	  *retcode += 61;
 	  return 0;
@@ -1364,6 +1374,55 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
       {
 	  *retcode += -69;
 	  return 0;
+      }
+
+    if (compression == RL2_COMPRESSION_NONE && tile_sz == TILE_1024)
+      {
+	  /* testing a Monolithic Pyramid */
+	  geom = get_center_point (sqlite, coverage);
+	  if (geom == NULL)
+	    {
+		*retcode += -70;
+		return 0;
+	    }
+	  sql =
+	      sqlite3_mprintf ("SELECT RL2_PyramidizeMonolithic(%Q, 1, 1)",
+			       coverage);
+	  ret = execute_check (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "PyramidizeMonolithic \"%s\" error: %s\n",
+			 coverage, err_msg);
+		sqlite3_free (err_msg);
+		*retcode += -71;
+		return 0;
+	    }
+	  if (!do_export_map_image
+	      (sqlite, coverage, geom, "ir_false_color1", "jpg", 1))
+	    {
+		*retcode += 71;
+		return 0;
+	    }
+	  if (!do_export_map_image
+	      (sqlite, coverage, geom, "ir_false_color1_gamma", "jpg", 1))
+	    {
+		*retcode += 72;
+		return 0;
+	    }
+	  if (!do_export_map_image
+	      (sqlite, coverage, geom, "ir_gray", "jpg", 1))
+	    {
+		*retcode += 73;
+		return 0;
+	    }
+	  if (!do_export_map_image
+	      (sqlite, coverage, geom, "ir_gray_gamma", "jpg", 1))
+	    {
+		*retcode += 74;
+		return 0;
+	    }
+	  gaiaFreeGeomColl (geom);
       }
 
     return 1;

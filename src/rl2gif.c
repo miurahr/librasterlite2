@@ -461,7 +461,11 @@ rl2_data_to_gif (const unsigned char *pixels, rl2PalettePtr plt,
       }
 
 /* closing the GIF */
+#if GIFLIB_MAJOR >= 5 && GIFLIB_MINOR >= 1
+    if (EGifCloseFile (GifFile, NULL) == GIF_ERROR)
+#else
     if (EGifCloseFile (GifFile) == GIF_ERROR)
+#endif
       {
 #ifdef GIFLIB_MAJOR
 	  print_gif_error (ErrorCode);
@@ -482,7 +486,11 @@ rl2_data_to_gif (const unsigned char *pixels, rl2PalettePtr plt,
     return RL2_OK;
   error:
     if (GifFile != NULL)
+#if GIFLIB_MAJOR >= 5 && GIFLIB_MINOR >= 1
+	EGifCloseFile (GifFile, NULL);
+#else
 	EGifCloseFile (GifFile);
+#endif
     if (ScanLine != NULL)
 	free (ScanLine);
     if (ColorMap != NULL)
@@ -773,7 +781,11 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned int *xwidth,
     while (RecordType != TERMINATE_RECORD_TYPE);
 
 /* closing the GIF */
+#if GIFLIB_MAJOR >= 5 && GIFLIB_MINOR >= 1
+    if (DGifCloseFile (GifFile, NULL) == GIF_ERROR)
+#else
     if (DGifCloseFile (GifFile) == GIF_ERROR)
+#endif
       {
 #ifdef GIFLIB_MAJOR
 	  print_gif_error (GifFile->Error);
@@ -802,7 +814,11 @@ rl2_decode_gif (const unsigned char *gif, int gif_size, unsigned int *xwidth,
       }
   error:
     if (GifFile != NULL)
+#if GIFLIB_MAJOR >= 5 && GIFLIB_MINOR >= 1
+	DGifCloseFile (GifFile, NULL);
+#else
 	DGifCloseFile (GifFile);
+#endif
     if (rl_palette != NULL)
 	rl2_destroy_palette (rl_palette);
     if (data != NULL)

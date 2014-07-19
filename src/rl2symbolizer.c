@@ -611,21 +611,19 @@ parse_sld_se_categorize (xmlNodePtr node, rl2PrivRasterStylePtr style)
 						{
 						    style->categorize->baseRed =
 							red;
-						    style->
-							categorize->baseGreen =
-							green;
-						    style->
-							categorize->baseBlue =
-							blue;
+						    style->categorize->
+							baseGreen = green;
+						    style->categorize->
+							baseBlue = blue;
 						}
 					      else
 						{
-						    style->categorize->
-							last->red = red;
-						    style->categorize->
-							last->green = green;
-						    style->categorize->
-							last->blue = blue;
+						    style->categorize->last->
+							red = red;
+						    style->categorize->last->
+							green = green;
+						    style->categorize->last->
+							blue = blue;
 						}
 					  }
 					else
@@ -1999,4 +1997,246 @@ rl2_is_valid_group_named_style (rl2GroupStylePtr style, int index, int *valid)
 	  child = child->next;
       }
     return RL2_OK;
+}
+
+static rl2PrivGroupRendererPtr
+rl2_alloc_group_renderer (int count)
+{
+/* creating a GroupRenderer object */
+    int i;
+    rl2PrivGroupRendererPtr ptr = NULL;
+    if (count <= 0)
+	return NULL;
+    ptr = malloc (sizeof (rl2PrivGroupRenderer));
+    if (ptr == NULL)
+	return NULL;
+    ptr->count = count;
+    ptr->layers = malloc (sizeof (rl2PrivGroupRendererLayer) * count);
+    if (ptr->layers == NULL)
+      {
+	  free (ptr);
+	  return NULL;
+      }
+    for (i = 0; i < count; i++)
+      {
+	  rl2PrivGroupRendererLayerPtr lyr = ptr->layers + i;
+	  lyr->layer_type = 0;
+	  lyr->layer_name = NULL;
+	  lyr->coverage = NULL;
+	  lyr->style_name = NULL;
+	  lyr->raster_symbolizer = NULL;
+	  lyr->raster_stats = NULL;
+      }
+    return ptr;
+}
+
+static int
+rl2_group_renderer_set_raster (rl2PrivGroupRendererPtr group, int index,
+			       const char *layer_name, rl2CoveragePtr coverage,
+			       const char *style_name,
+			       rl2RasterStylePtr symbolizer,
+			       rl2RasterStatisticsPtr stats)
+{
+/* setting up one of the Layers within the Group */
+    int len;
+    rl2PrivGroupRendererLayerPtr lyr;
+    rl2PrivGroupRendererPtr ptr = (rl2PrivGroupRendererPtr) group;
+    if (ptr == NULL)
+	return RL2_ERROR;
+
+    if (index >= 0 && index < ptr->count)
+	;
+    else
+	return RL2_ERROR;
+
+    lyr = ptr->layers + index;
+    lyr->layer_type = RL2_GROUP_RENDERER_RASTER_LAYER;
+    if (lyr->layer_name != NULL)
+	free (lyr->layer_name);
+    if (layer_name == NULL)
+	lyr->layer_name = NULL;
+    else
+      {
+	  len = strlen (layer_name);
+	  lyr->layer_name = malloc (len + 1);
+	  strcpy (lyr->layer_name, layer_name);
+      }
+    if (lyr->coverage != NULL)
+	rl2_destroy_coverage (lyr->coverage);
+    lyr->coverage = (rl2CoveragePtr) coverage;
+    if (lyr->style_name != NULL)
+	free (lyr->style_name);
+    if (style_name == NULL)
+	lyr->style_name = NULL;
+    else
+      {
+	  len = strlen (style_name);
+	  lyr->style_name = malloc (len + 1);
+	  strcpy (lyr->style_name, style_name);
+      }
+    if (lyr->raster_symbolizer != NULL)
+	rl2_destroy_raster_style ((rl2RasterStylePtr) (lyr->raster_symbolizer));
+    lyr->raster_symbolizer = (rl2PrivRasterStylePtr) symbolizer;
+    if (lyr->raster_stats != NULL)
+	rl2_destroy_raster_statistics ((rl2RasterStatisticsPtr)
+				       (lyr->raster_stats));
+    lyr->raster_stats = (rl2PrivRasterStatisticsPtr) stats;
+    return RL2_OK;
+
+}
+
+static int
+rl2_is_valid_group_renderer (rl2PrivGroupRendererPtr ptr, int *valid)
+{
+/* testing a GroupRenderer for validity */
+    int i;
+    int error = 0;
+    if (ptr == NULL)
+	return RL2_ERROR;
+
+    for (i = 0; i < ptr->count; i++)
+      {
+	  rl2PrivGroupRendererLayerPtr lyr = ptr->layers + i;
+	  rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) lyr->coverage;
+	  if (lyr->layer_type != RL2_GROUP_RENDERER_RASTER_LAYER)
+	      error = 1;
+	  if (lyr->layer_name == NULL)
+	      error = 1;
+	  if (lyr->coverage == NULL)
+	      error = 1;
+	  else
+	    {
+		if ((cvg->pixelType == RL2_PIXEL_DATAGRID
+		     || cvg->pixelType == RL2_PIXEL_MULTIBAND)
+		    && lyr->raster_symbolizer == NULL)
+		    error = 1;
+	    }
+	  if (lyr->style_name == NULL)
+	      error = 1;
+	  if (lyr->raster_stats == NULL)
+	      error = 1;
+      }
+    if (error)
+	*valid = 0;
+    else
+	*valid = 1;
+    return RL2_OK;
+}
+
+RL2_DECLARE rl2GroupRendererPtr
+rl2_create_group_renderer (sqlite3 * sqlite, rl2GroupStylePtr group_style)
+{
+/* creating a GroupRenderer object */
+    rl2PrivGroupRendererPtr group = NULL;
+    int valid;
+    int count;
+    int i;
+
+    if (rl2_is_valid_group_style (group_style, &valid) != RL2_OK)
+	goto error;
+    if (!valid)
+	goto error;
+    if (rl2_get_group_style_count (group_style, &count) != RL2_OK)
+	goto error;
+    group = rl2_alloc_group_renderer (count);
+    if (group == NULL)
+	goto error;
+    for (i = 0; i < count; i++)
+      {
+	  /* testing individual layers/styles */
+	  rl2RasterStylePtr symbolizer = NULL;
+	  rl2RasterStatisticsPtr stats = NULL;
+	  const char *layer_name = rl2_get_group_named_layer (group_style, i);
+	  const char *layer_style = rl2_get_group_named_style (group_style, i);
+	  rl2CoveragePtr coverage =
+	      rl2_create_coverage_from_dbms (sqlite, layer_name);
+	  rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+	  if (rl2_is_valid_group_named_layer (group_style, 0, &valid) == RL2_OK)
+	    {
+		if (valid)
+		  {
+		      /* validating the style */
+		      if (layer_style == NULL)
+			  layer_style = "default";
+		      if (strcasecmp (layer_style, "default") == 0)
+			  ;
+		      else
+			{
+			    /* attempting to get a RasterSymbolizer style */
+			    symbolizer =
+				rl2_create_raster_style_from_dbms (sqlite,
+								   layer_name,
+								   layer_style);
+			    stats =
+				rl2_create_raster_statistics_from_dbms (sqlite,
+									layer_name);
+			}
+		  }
+		if ((cvg->pixelType == RL2_PIXEL_DATAGRID
+		     || cvg->pixelType == RL2_PIXEL_MULTIBAND)
+		    && symbolizer == NULL)
+		  {
+		      /* creating a default RasterStyle */
+		      rl2PrivRasterStylePtr symb =
+			  malloc (sizeof (rl2PrivRasterStyle));
+		      symbolizer = (rl2RasterStylePtr) symb;
+		      symb->name = malloc (8);
+		      strcpy (symb->name, "default");
+		      symb->title = NULL;
+		      symb->abstract = NULL;
+		      symb->opacity = 1.0;
+		      symb->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
+		      symb->bandSelection =
+			  malloc (sizeof (rl2PrivBandSelection));
+		      symb->bandSelection->selectionType =
+			  RL2_BAND_SELECTION_MONO;
+		      symb->bandSelection->grayBand = 0;
+		      symb->bandSelection->grayContrast =
+			  RL2_CONTRAST_ENHANCEMENT_NONE;
+		      symb->categorize = NULL;
+		      symb->interpolate = NULL;
+		      symb->shadedRelief = 0;
+		  }
+	    }
+	  rl2_group_renderer_set_raster (group, i, layer_name, coverage,
+					 layer_style, symbolizer, stats);
+      }
+    if (rl2_is_valid_group_renderer (group, &valid) != RL2_OK)
+	goto error;
+    if (!valid)
+	goto error;
+    return (rl2GroupRendererPtr) group;
+
+  error:
+    if (group != NULL)
+	rl2_destroy_group_renderer ((rl2GroupRendererPtr) group);
+    return NULL;
+}
+
+RL2_DECLARE void
+rl2_destroy_group_renderer (rl2GroupRendererPtr group)
+{
+/* memory cleanup - destroying a GroupRenderer object */
+    int i;
+    rl2PrivGroupRendererPtr ptr = (rl2PrivGroupRendererPtr) group;
+    if (ptr == NULL)
+	return;
+    for (i = 0; i < ptr->count; i++)
+      {
+	  rl2PrivGroupRendererLayerPtr lyr = ptr->layers + i;
+	  if (lyr->layer_name != NULL)
+	      free (lyr->layer_name);
+	  if (lyr->coverage != NULL)
+	      rl2_destroy_coverage (lyr->coverage);
+	  if (lyr->style_name != NULL)
+	      free (lyr->style_name);
+	  if (lyr->raster_symbolizer != NULL)
+	      rl2_destroy_raster_style ((rl2RasterStylePtr)
+					(lyr->raster_symbolizer));
+	  if (lyr->raster_stats != NULL)
+	      rl2_destroy_raster_statistics ((rl2RasterStatisticsPtr)
+					     (lyr->raster_stats));
+      }
+    free (ptr->layers);
+    free (ptr);
 }

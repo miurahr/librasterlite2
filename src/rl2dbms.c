@@ -69,8 +69,8 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned char sample, unsigned char pixel,
 			      unsigned char num_bands,
 			      unsigned char compression, int quality,
-			      unsigned short tile_width,
-			      unsigned short tile_height, int srid,
+			      unsigned int tile_width,
+			      unsigned int tile_height, int srid,
 			      double x_res, double y_res, unsigned char *blob,
 			      int blob_sz, unsigned char *blob_no_data,
 			      int blob_no_data_sz)
@@ -944,12 +944,12 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 }
 
 static void
-prime_void_tile_int8 (void *pixels, unsigned short width, unsigned short height,
+prime_void_tile_int8 (void *pixels, unsigned int width, unsigned int height,
 		      rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - INT8 */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     char *p = pixels;
     char val = 0;
 
@@ -976,13 +976,13 @@ prime_void_tile_int8 (void *pixels, unsigned short width, unsigned short height,
 }
 
 static void
-prime_void_tile_uint8 (void *pixels, unsigned short width,
-		       unsigned short height, unsigned char num_bands,
+prime_void_tile_uint8 (void *pixels, unsigned int width,
+		       unsigned int height, unsigned char num_bands,
 		       rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - UINT8 */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     int band;
     unsigned char *p = pixels;
     unsigned char val = 0;
@@ -1018,12 +1018,12 @@ prime_void_tile_uint8 (void *pixels, unsigned short width,
 }
 
 static void
-prime_void_tile_int16 (void *pixels, unsigned short width,
-		       unsigned short height, rl2PixelPtr no_data)
+prime_void_tile_int16 (void *pixels, unsigned int width,
+		       unsigned int height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - INT16 */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     short *p = pixels;
     short val = 0;
 
@@ -1050,13 +1050,13 @@ prime_void_tile_int16 (void *pixels, unsigned short width,
 }
 
 static void
-prime_void_tile_uint16 (void *pixels, unsigned short width,
-			unsigned short height, unsigned char num_bands,
+prime_void_tile_uint16 (void *pixels, unsigned int width,
+			unsigned int height, unsigned char num_bands,
 			rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - UINT16 */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     int band;
     unsigned short *p = pixels;
     unsigned short val = 0;
@@ -1092,12 +1092,12 @@ prime_void_tile_uint16 (void *pixels, unsigned short width,
 }
 
 static void
-prime_void_tile_int32 (void *pixels, unsigned short width,
-		       unsigned short height, rl2PixelPtr no_data)
+prime_void_tile_int32 (void *pixels, unsigned int width,
+		       unsigned int height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - INT32 */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     int *p = pixels;
     int val = 0;
 
@@ -1124,12 +1124,12 @@ prime_void_tile_int32 (void *pixels, unsigned short width,
 }
 
 static void
-prime_void_tile_uint32 (void *pixels, unsigned short width,
-			unsigned short height, rl2PixelPtr no_data)
+prime_void_tile_uint32 (void *pixels, unsigned int width,
+			unsigned int height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - UINT32 */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     unsigned int *p = pixels;
     unsigned int val = 0;
 
@@ -1156,12 +1156,12 @@ prime_void_tile_uint32 (void *pixels, unsigned short width,
 }
 
 static void
-prime_void_tile_float (void *pixels, unsigned short width,
-		       unsigned short height, rl2PixelPtr no_data)
+prime_void_tile_float (void *pixels, unsigned int width,
+		       unsigned int height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - Float */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     float *p = pixels;
     float val = 0.0;
 
@@ -1188,12 +1188,12 @@ prime_void_tile_float (void *pixels, unsigned short width,
 }
 
 static void
-prime_void_tile_double (void *pixels, unsigned short width,
-			unsigned short height, rl2PixelPtr no_data)
+prime_void_tile_double (void *pixels, unsigned int width,
+			unsigned int height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer - Double */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     double *p = pixels;
     double val = 0.0;
 
@@ -1220,7 +1220,7 @@ prime_void_tile_double (void *pixels, unsigned short width,
 }
 
 RL2_DECLARE void
-rl2_prime_void_tile (void *pixels, unsigned short width, unsigned short height,
+rl2_prime_void_tile (void *pixels, unsigned int width, unsigned int height,
 		     unsigned char sample_type, unsigned char num_bands,
 		     rl2PixelPtr no_data)
 {
@@ -1258,12 +1258,12 @@ rl2_prime_void_tile (void *pixels, unsigned short width, unsigned short height,
 }
 
 RL2_DECLARE void
-rl2_prime_void_tile_palette (void *pixels, unsigned short width,
-			     unsigned short height, rl2PixelPtr no_data)
+rl2_prime_void_tile_palette (void *pixels, unsigned int width,
+			     unsigned int height, rl2PixelPtr no_data)
 {
 /* priming a void tile buffer (PALETTE) */
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     unsigned char index = 0;
     unsigned char *p = pixels;
 
@@ -2035,7 +2035,7 @@ is_nodata_u16 (rl2PrivPixelPtr no_data, const unsigned short *p_in)
 
 static int
 copy_triple_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned short *outbuf,
-				 unsigned short width, unsigned short height,
+				 unsigned int width, unsigned int height,
 				 unsigned char red_band,
 				 unsigned char green_band,
 				 unsigned char blue_band, double x_res,
@@ -2095,7 +2095,7 @@ copy_triple_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned short *outbuf,
       {
 	  geo_y -= y_res;
 	  out_y = (maxy - geo_y) / y_res;
-	  if (out_y < 0 || out_y >= height)
+	  if (out_y < 0 || (unsigned int) out_y >= height)
 	    {
 		p_in += tile_width * num_bands;
 		if (p_msk != NULL)
@@ -2107,7 +2107,7 @@ copy_triple_band_raw_pixels_u16 (rl2RasterPtr raster, unsigned short *outbuf,
 	    {
 		geo_x += x_res;
 		out_x = (geo_x - minx) / x_res;
-		if (out_x < 0 || out_x >= width)
+		if (out_x < 0 || (unsigned int) out_x >= width)
 		  {
 		      p_in += num_bands;
 		      if (p_msk != NULL)
@@ -2359,7 +2359,7 @@ copy_triple_band_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 static int
 load_triple_band_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 			     sqlite3_stmt * stmt_data, unsigned char *outbuf,
-			     unsigned short width, unsigned short height,
+			     unsigned int width, unsigned int height,
 			     unsigned char red_band, unsigned char green_band,
 			     unsigned char blue_band, double x_res,
 			     double y_res, double minx, double miny,
@@ -3113,7 +3113,7 @@ get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
 
 static int
 get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
-			    unsigned short width, unsigned short height,
+			    unsigned int width, unsigned int height,
 			    double minx, double miny, double maxx, double maxy,
 			    double x_res, double y_res, unsigned char **buffer,
 			    int *buf_size, rl2PalettePtr * palette,
@@ -3345,8 +3345,8 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 		if (brightness_only || !has_styled_rgb_colors (style))
 		  {
 		      /* returning a Grayscale ShadedRelief (BrightnessOnly) */
-		      unsigned short row;
-		      unsigned short col;
+		      unsigned int row;
+		      unsigned int col;
 		      float *p_in = shaded_relief;
 		      unsigned char *p_out = bufpix;
 		      if (bgcolor != NULL)
@@ -3460,8 +3460,8 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     if (shaded_relief != NULL)
       {
 	  /* applying the Shaded Relief */
-	  unsigned short row;
-	  unsigned short col;
+	  unsigned int row;
+	  unsigned int col;
 	  float *p_in = shaded_relief;
 	  unsigned char *p_out = bufpix;
 	  for (row = 0; row < height; row++)
@@ -3482,7 +3482,6 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 			}
 		  }
 	    }
-
       }
     *buffer = bufpix;
     *buf_size = bufpix_size;
@@ -3656,8 +3655,8 @@ rl2_get_triple_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 
 static int
 get_mono_band_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
-				      unsigned short width,
-				      unsigned short height, double minx,
+				      unsigned int width,
+				      unsigned int height, double minx,
 				      double miny, double maxx, double maxy,
 				      double x_res, double y_res,
 				      unsigned char **buffer, int *buf_size,
@@ -3816,6 +3815,7 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
+    rl2RasterStylePtr xstyle = style;
 
     if (cvg == NULL || handle == NULL)
 	return RL2_ERROR;
@@ -4033,10 +4033,13 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
 		rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, bg_blue);
 	    }
       }
+    if (pixel_type == RL2_PIXEL_MONOCHROME)
+	xstyle = NULL;
     ret =
 	get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
 				    maxx, maxy, x_res, y_res, buffer, buf_size,
-				    palette, *out_pixel, no_data, style, stats);
+				    palette, *out_pixel, no_data, xstyle,
+				    stats);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
     if (*out_pixel == RL2_PIXEL_GRAYSCALE && pixel_type == RL2_PIXEL_DATAGRID)
@@ -4047,6 +4050,89 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
 		*out_pixel = RL2_PIXEL_RGB;
 	    }
       }
+    if (pixel_type == RL2_PIXEL_MONOCHROME)
+      {
+	  unsigned char red;
+	  unsigned char green;
+	  unsigned char blue;
+	  int ok = 0;
+	  if (style != NULL)
+	    {
+		rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
+		if (stl->categorize != NULL)
+		  {
+		      rl2PrivColorMapPointPtr color = stl->categorize->first;
+		      while (color != NULL)
+			{
+			    if (color->value == 1.0)
+			      {
+				  ok = 1;
+				  red = color->red;
+				  green = color->green;
+				  blue = color->blue;
+				  break;
+			      }
+			    color = color->next;
+			}
+		  }
+	    }
+	  if (*out_pixel != RL2_PIXEL_MONOCHROME)
+	    {
+		int i;
+		unsigned char *p = *buffer;
+		for (i = 0; i < *buf_size; i++)
+		  {
+		      if (*p > 224)
+			  *p = 255;
+		      p++;
+		  }
+		if (ok == 1)
+		    ok = 2;
+	    }
+	  if (ok == 1)
+	    {
+		/* creating a Palette 0/1 */
+		rl2PalettePtr plt = rl2_create_palette (2);
+		rl2_set_palette_color (plt, 0, 255, 255, 255);
+		rl2_set_palette_color (plt, 1, red, green, blue);
+		*palette = plt;
+		*out_pixel = RL2_PIXEL_PALETTE;
+	    }
+	  if (ok == 2)
+	    {
+		/* creating a Palette 0/255 */
+		int i;
+		double dr = 255.0 - red;
+		double dg = 255.0 - green;
+		double db = 255.0 - blue;
+		rl2PalettePtr plt = rl2_create_palette (256);
+		for (i = 0; i < 256; i++)
+		  {
+		      double scale = 255.0 / (double) i;
+		      double r = (double) red + (dr / scale);
+		      double g = (double) green + (dg / scale);
+		      double b = (double) blue + (db / scale);
+		      if (r < 0.0)
+			  r = 0.0;
+		      if (r > 255.0)
+			  r = 255.0;
+		      if (g < 0.0)
+			  g = 0.0;
+		      if (g > 255.0)
+			  g = 255.0;
+		      if (b < 0.0)
+			  b = 0.0;
+		      if (b > 255.0)
+			  b = 255.0;
+		      rl2_set_palette_color (plt, i, (unsigned char) r,
+					     (unsigned char) g,
+					     (unsigned char) b);
+		  }
+		*palette = plt;
+		*out_pixel = RL2_PIXEL_PALETTE;
+	    }
+      }
+
     return ret;
 }
 

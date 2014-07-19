@@ -960,6 +960,7 @@ read_from_ascii (rl2PrivAsciiOriginPtr origin, unsigned short width,
 	(origin, width, height, sample_type, startRow, startCol, bufPixels))
 	goto error;
 
+    rl2_destroy_pixel (no_data);
     *pixels = bufPixels;
     *pixels_sz = bufPixelsSz;
     return RL2_OK;

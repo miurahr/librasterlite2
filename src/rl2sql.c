@@ -77,6 +77,57 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define ERR_FRMT64 "ERROR: unable to decode Tile ID=%lld\n"
 #endif
 
+struct aux_renderer
+{
+/* helper struct for passing arguments to aux_render_image */
+    sqlite3 *sqlite;
+    int width;
+    int height;
+    int base_width;
+    int base_height;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    int srid;
+    double xx_res;
+    double yy_res;
+    int transparent;
+    double opacity;
+    int quality;
+    unsigned char format_id;
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+    rl2CoveragePtr coverage;
+    rl2RasterStylePtr symbolizer;
+    rl2RasterStatisticsPtr stats;
+    unsigned char *outbuf;
+    rl2PalettePtr palette;
+    unsigned char out_pixel;
+};
+
+struct aux_group_renderer
+{
+/* helper struct for passing arguments to aux_group_renderer */
+    sqlite3_context *context;
+    const char *group_name;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    int width;
+    int height;
+    const char *style;
+    unsigned char format_id;
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+    int transparent;
+    int quality;
+    int reaspect;
+};
+
 static void
 fnct_rl2_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
@@ -2599,6 +2650,79 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_PyramidizeMonolithic (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
+{
+/* SQL function:
+/ PyramidizeMonolithic(text coverage)
+/ PyramidizeMonolithic(text coverage, int virt_levels)
+/ PyramidizeMonolithic(text coverage, int virt_levels, int transaction)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    int virt_levels = 0;
+    int transaction = 1;
+    sqlite3 *sqlite;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+/* attempting to (re)build Pyramid levels */
+    sqlite = sqlite3_context_db_handle (context);
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    if (argc > 1)
+	virt_levels = sqlite3_value_int (argv[1]);
+    if (argc > 2)
+	transaction = sqlite3_value_int (argv[2]);
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    ret = rl2_build_monolithic_pyramid (sqlite, cvg_name, virt_levels);
+    if (ret != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  if (transaction)
+	    {
+		/* invalidating the pending transaction */
+		sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	    }
+	  return;
+      }
+    if (transaction)
+      {
+	  /* committing the still pending transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
+}
+
+static void
 fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -5051,6 +5175,567 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     sqlite3_result_int (context, errcode);
 }
 
+static int
+aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
+		  int *ximage_size)
+{
+/* rendering a raster image */
+    unsigned char *image = NULL;
+    int image_size;
+    unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
+    unsigned char *rgba = NULL;
+    unsigned char *gray = NULL;
+    rl2GraphicsBitmapPtr base_img = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    double rescale_x = (double) aux->width / (double) aux->base_width;
+    double rescale_y = (double) aux->height / (double) aux->base_height;
+
+    if (aux->out_pixel == RL2_PIXEL_PALETTE && aux->palette == NULL)
+	goto error;
+
+    if (aux->base_width == aux->width && aux->base_height == aux->height)
+      {
+	  if (aux->out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		/* converting from Monochrome to Grayscale */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_payload_from_monochrome_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   aux->format_id, aux->quality, &image, &image_size,
+			   aux->opacity))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_payload_from_monochrome_opaque
+			  (aux->base_width, aux->base_height, aux->sqlite,
+			   aux->minx, aux->miny, aux->maxx, aux->maxy,
+			   aux->srid, aux->outbuf, aux->format_id, aux->quality,
+			   &image, &image_size))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  else if (aux->out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		/* Palette */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_payload_from_palette_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   aux->palette, aux->format_id, aux->quality, &image,
+			   &image_size, aux->bg_red, aux->bg_green,
+			   aux->bg_blue, aux->opacity))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_payload_from_palette_opaque
+			  (aux->base_width, aux->base_height, aux->sqlite,
+			   aux->minx, aux->miny, aux->maxx, aux->maxy,
+			   aux->srid, aux->outbuf, aux->palette, aux->format_id,
+			   aux->quality, &image, &image_size))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  else if (aux->out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		/* Grayscale */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_payload_from_grayscale_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   aux->format_id, aux->quality, &image, &image_size,
+			   aux->bg_red, aux->opacity))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_payload_from_grayscale_opaque
+			  (aux->base_width, aux->base_height, aux->sqlite,
+			   aux->minx, aux->miny, aux->maxx, aux->maxy,
+			   aux->srid, aux->outbuf, aux->format_id, aux->quality,
+			   &image, &image_size))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  else
+	    {
+		/* RGB */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_payload_from_rgb_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   aux->format_id, aux->quality, &image, &image_size,
+			   aux->bg_red, aux->bg_green, aux->bg_blue,
+			   aux->opacity))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_payload_from_rgb_opaque
+			  (aux->base_width, aux->base_height, aux->sqlite,
+			   aux->minx, aux->miny, aux->maxx, aux->maxy,
+			   aux->srid, aux->outbuf, aux->format_id, aux->quality,
+			   &image, &image_size))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  *ximage = image;
+	  *ximage_size = image_size;
+      }
+    else
+      {
+	  /* rescaling */
+	  ctx = rl2_graph_create_context (aux->width, aux->height);
+	  if (ctx == NULL)
+	      goto error;
+	  rgba = malloc (aux->base_width * aux->base_height * 4);
+	  if (aux->out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		/* Monochrome - upsampled */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_rgba_from_monochrome_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   rgba))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_rgba_from_monochrome_opaque
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   rgba))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  else if (aux->out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		/* Monochrome - upsampled */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_rgba_from_palette_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   aux->palette, rgba, aux->bg_red, aux->bg_green,
+			   aux->bg_blue))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_rgba_from_palette_opaque
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   aux->palette, rgba))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  else if (aux->out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		/* Grayscale */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_rgba_from_grayscale_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf, rgba,
+			   aux->bg_red))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_rgba_from_grayscale_opaque
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   rgba))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  else
+	    {
+		/* RGB */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (!get_rgba_from_rgb_transparent
+			  (aux->base_width, aux->base_height, aux->outbuf, rgba,
+			   aux->bg_red, aux->bg_green, aux->bg_blue))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		else
+		  {
+		      if (!get_rgba_from_rgb_opaque
+			  (aux->base_width, aux->base_height, aux->outbuf,
+			   rgba))
+			{
+			    aux->outbuf = NULL;
+			    goto error;
+			}
+		  }
+		aux->outbuf = NULL;
+	    }
+	  base_img =
+	      rl2_graph_create_bitmap (rgba, aux->base_width, aux->base_height);
+	  if (base_img == NULL)
+	      goto error;
+	  rgba = NULL;
+	  rl2_graph_draw_rescaled_bitmap (ctx, base_img, rescale_x, rescale_y,
+					  0, 0);
+	  rl2_graph_destroy_bitmap (base_img);
+	  rgb = rl2_graph_get_context_rgb_array (ctx);
+	  alpha = NULL;
+	  if (aux->transparent)
+	      alpha = rl2_graph_get_context_alpha_array (ctx);
+	  rl2_graph_destroy_context (ctx);
+	  if (rgb == NULL)
+	      goto error;
+	  if (aux->out_pixel == RL2_PIXEL_GRAYSCALE
+	      || aux->out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		/* Grayscale or Monochrome upsampled */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (alpha == NULL)
+			  goto error;
+		      if (!get_payload_from_gray_rgba_transparent
+			  (aux->width, aux->height, rgb, alpha, aux->format_id,
+			   aux->quality, &image, &image_size, aux->opacity))
+			{
+			    rgb = NULL;
+			    alpha = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		      alpha = NULL;
+		  }
+		else
+		  {
+		      if (alpha != NULL)
+			  free (alpha);
+		      alpha = NULL;
+		      if (!get_payload_from_gray_rgba_opaque
+			  (aux->width, aux->height, aux->sqlite, aux->minx,
+			   aux->miny, aux->maxx, aux->maxy, aux->srid, rgb,
+			   aux->format_id, aux->quality, &image, &image_size))
+			{
+			    rgb = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		  }
+	    }
+	  else
+	    {
+		/* RGB */
+		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+		  {
+		      if (alpha == NULL)
+			  goto error;
+		      if (!get_payload_from_rgb_rgba_transparent
+			  (aux->width, aux->height, rgb, alpha, aux->format_id,
+			   aux->quality, &image, &image_size, aux->opacity))
+			{
+			    rgb = NULL;
+			    alpha = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		      alpha = NULL;
+		  }
+		else
+		  {
+		      if (alpha != NULL)
+			  free (alpha);
+		      alpha = NULL;
+		      if (!get_payload_from_rgb_rgba_opaque
+			  (aux->width, aux->height, aux->sqlite, aux->minx,
+			   aux->miny, aux->maxx, aux->maxy, aux->srid, rgb,
+			   aux->format_id, aux->quality, &image, &image_size))
+			{
+			    rgb = NULL;
+			    goto error;
+			}
+		      rgb = NULL;
+		  }
+	    }
+	  *ximage = image;
+	  *ximage_size = image_size;
+      }
+    return 1;
+
+  error:
+    if (aux->outbuf != NULL)
+	free (aux->outbuf);
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    if (rgba != NULL)
+	free (rgba);
+    if (gray != NULL)
+	free (gray);
+    return 0;
+}
+
+static void
+aux_group_renderer (struct aux_group_renderer *auxgrp)
+{
+/* Group Renderer - attempting to render a complex layered image */
+    double x_res;
+    double y_res;
+    double ext_x;
+    double ext_y;
+    int level_id;
+    int scale;
+    int xscale;
+    double xx_res;
+    double yy_res;
+    int base_width;
+    int base_height;
+    double aspect_org;
+    double aspect_dst;
+    double confidence;
+    int srid;
+    int i;
+    double opacity;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *image = NULL;
+    int image_size;
+    int was_monochrome;
+    unsigned char out_pixel = RL2_PIXEL_UNKNOWN;
+    rl2GroupStylePtr group_style = NULL;
+    rl2GroupRendererPtr group = NULL;
+    rl2PrivGroupRendererPtr grp;
+    struct aux_renderer aux;
+    rl2PalettePtr palette = NULL;
+    rl2PrivRasterStylePtr symbolizer = NULL;
+    sqlite3 *sqlite = sqlite3_context_db_handle (auxgrp->context);
+
+    ext_x = auxgrp->maxx - auxgrp->minx;
+    ext_y = auxgrp->maxy - auxgrp->miny;
+    x_res = ext_x / (double) (auxgrp->width);
+    y_res = ext_y / (double) (auxgrp->height);
+
+/* attempting to validate the Group Style */
+    group_style =
+	rl2_create_group_style_from_dbms (sqlite, auxgrp->group_name,
+					  auxgrp->style);
+    if (group_style == NULL)
+	goto error;
+
+    group = rl2_create_group_renderer (sqlite, group_style);
+    if (group == NULL)
+	goto error;
+
+    grp = (rl2PrivGroupRendererPtr) group;
+    for (i = 0; i < grp->count; i++)
+      {
+	  /* rendering all rasters on the same canvass */
+	  rl2PrivCoveragePtr cvg;
+	  rl2PrivGroupRendererLayerPtr lyr = grp->layers + i;
+	  if (lyr->layer_type != RL2_GROUP_RENDERER_RASTER_LAYER)
+	      continue;
+	  cvg = (rl2PrivCoveragePtr) (lyr->coverage);
+
+	  if (lyr->raster_symbolizer != NULL)
+	    {
+		/* applying a RasterSymbolizer */
+		int yes_no;
+		if (rl2_is_raster_style_triple_band_selected
+		    ((rl2RasterStylePtr) (lyr->raster_symbolizer),
+		     &yes_no) == RL2_OK)
+		  {
+		      if ((cvg->sampleType == RL2_SAMPLE_UINT8
+			   || cvg->sampleType == RL2_SAMPLE_UINT16)
+			  && (cvg->pixelType == RL2_PIXEL_RGB
+			      || cvg->pixelType == RL2_PIXEL_MULTIBAND)
+			  && yes_no)
+			  out_pixel = RL2_PIXEL_RGB;
+		  }
+		if (rl2_is_raster_style_mono_band_selected
+		    ((rl2RasterStylePtr) (lyr->raster_symbolizer),
+		     &yes_no) == RL2_OK)
+		  {
+		      if ((cvg->sampleType == RL2_SAMPLE_UINT8
+			   || cvg->sampleType == RL2_SAMPLE_UINT16)
+			  && (cvg->pixelType == RL2_PIXEL_RGB
+			      || cvg->pixelType == RL2_PIXEL_MULTIBAND
+			      || cvg->pixelType == RL2_PIXEL_GRAYSCALE)
+			  && yes_no)
+			  out_pixel = RL2_PIXEL_GRAYSCALE;
+		      if ((cvg->sampleType == RL2_SAMPLE_INT8
+			   || cvg->sampleType == RL2_SAMPLE_UINT8
+			   || cvg->sampleType == RL2_SAMPLE_INT16
+			   || cvg->sampleType == RL2_SAMPLE_UINT16
+			   || cvg->sampleType == RL2_SAMPLE_INT32
+			   || cvg->sampleType == RL2_SAMPLE_UINT32
+			   || cvg->sampleType == RL2_SAMPLE_FLOAT
+			   || cvg->sampleType == RL2_SAMPLE_DOUBLE)
+			  && cvg->pixelType == RL2_PIXEL_DATAGRID && yes_no)
+			  out_pixel = RL2_PIXEL_GRAYSCALE;
+		  }
+		if (rl2_get_raster_style_opacity
+		    ((rl2RasterStylePtr) (lyr->raster_symbolizer),
+		     &opacity) != RL2_OK)
+		    opacity = 1.0;
+		if (opacity > 1.0)
+		    opacity = 1.0;
+		if (opacity < 0.0)
+		    opacity = 0.0;
+		if (opacity < 1.0)
+		    auxgrp->transparent = 1;
+	    }
+	  if (out_pixel == RL2_PIXEL_UNKNOWN)
+	    {
+		fprintf (stderr, "*** Unsupported Pixel !!!!\n");
+		goto error;
+	    }
+
+	  /* retrieving the optimal resolution level */
+	  if (!find_best_resolution_level
+	      (sqlite, auxgrp->group_name, x_res, y_res, &level_id, &scale,
+	       &xscale, &xx_res, &yy_res))
+	      goto error;
+	  base_width = (int) (ext_x / xx_res);
+	  base_height = (int) (ext_y / yy_res);
+	  if ((base_width <= 0 && base_width >= USHRT_MAX)
+	      || (base_height <= 0 && base_height >= USHRT_MAX))
+	      goto error;
+	  aspect_org = (double) base_width / (double) base_height;
+	  aspect_dst = (double) auxgrp->width / (double) auxgrp->height;
+	  confidence = aspect_org / 100.0;
+	  if (aspect_dst >= (aspect_org - confidence)
+	      || aspect_dst <= (aspect_org + confidence))
+	      ;
+	  else if (aspect_org != aspect_dst && !(auxgrp->reaspect))
+	      goto error;
+
+	  symbolizer = lyr->raster_symbolizer;
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		if (level_id != 0 && scale != 1)
+		  {
+		      out_pixel = RL2_PIXEL_GRAYSCALE;
+		      was_monochrome = 1;
+		  }
+	    }
+	  if (out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		if (level_id != 0 && scale != 1)
+		    out_pixel = RL2_PIXEL_RGB;
+	    }
+	  if (rl2_get_coverage_srid (lyr->coverage, &srid) != RL2_OK)
+	      srid = -1;
+	  if (rl2_get_raw_raster_data_bgcolor
+	      (sqlite, lyr->coverage, base_width, base_height, auxgrp->minx,
+	       auxgrp->miny, auxgrp->maxx, auxgrp->maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, auxgrp->bg_red,
+	       auxgrp->bg_green, auxgrp->bg_blue,
+	       (rl2RasterStylePtr) symbolizer,
+	       (rl2RasterStatisticsPtr) (lyr->raster_stats)) != RL2_OK)
+	      goto error;
+	  if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	      symbolizer = NULL;
+
+/* preparing the aux struct for passing rendering arguments */
+	  aux.sqlite = sqlite;
+	  aux.width = auxgrp->width;
+	  aux.height = auxgrp->height;
+	  aux.base_width = base_width;
+	  aux.base_height = base_height;
+	  aux.minx = auxgrp->minx;
+	  aux.miny = auxgrp->miny;
+	  aux.maxx = auxgrp->maxx;
+	  aux.maxy = auxgrp->maxy;
+	  aux.srid = srid;
+	  aux.xx_res = xx_res;
+	  aux.yy_res = yy_res;
+	  aux.transparent = auxgrp->transparent;
+	  aux.opacity = opacity;
+	  aux.quality = auxgrp->quality;
+	  aux.format_id = auxgrp->format_id;
+	  aux.bg_red = auxgrp->bg_red;
+	  aux.bg_green = auxgrp->bg_green;
+	  aux.bg_blue = auxgrp->bg_blue;
+	  aux.coverage = lyr->coverage;
+	  aux.symbolizer = (rl2RasterStylePtr) symbolizer;
+	  aux.stats = (rl2RasterStatisticsPtr) (lyr->raster_stats);
+	  aux.outbuf = outbuf;
+	  aux.palette = palette;
+	  aux.out_pixel = out_pixel;
+	  if (!aux_render_image (&aux, &image, &image_size))
+	      goto error;
+	  sqlite3_result_blob (auxgrp->context, image, image_size, free);
+	  if (palette != NULL)
+	      rl2_destroy_palette (palette);
+	  palette = NULL;
+      }
+
+    rl2_destroy_group_style (group_style);
+    rl2_destroy_group_renderer (group);
+    return;
+
+  error:
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (group_style != NULL)
+	rl2_destroy_group_style (group_style);
+    if (group != NULL)
+	rl2_destroy_group_renderer (group);
+    sqlite3_result_null (auxgrp->context);
+}
+
 static void
 fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
@@ -5112,28 +5797,21 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     double yy_res;
     double aspect_org;
     double aspect_dst;
-    double rescale_x;
-    double rescale_y;
     int ok_style;
     int ok_format;
     unsigned char *outbuf = NULL;
     int outbuf_size;
     unsigned char *image = NULL;
     int image_size;
-    unsigned char *rgb = NULL;
-    unsigned char *alpha = NULL;
     rl2PalettePtr palette = NULL;
     double confidence;
     unsigned char format_id = RL2_OUTPUT_FORMAT_UNKNOWN;
     unsigned char out_pixel = RL2_PIXEL_UNKNOWN;
-    unsigned char *rgba = NULL;
-    unsigned char *gray = NULL;
-    rl2GraphicsBitmapPtr base_img = NULL;
-    rl2GraphicsContextPtr ctx = NULL;
     rl2RasterStylePtr symbolizer = NULL;
-    int layerGroup = 0;
     rl2RasterStatisticsPtr stats = NULL;
     double opacity = 1.0;
+    struct aux_renderer aux;
+    int was_monochrome;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -5187,27 +5865,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	goto error;
     if (height < 64 || height > 5000)
 	goto error;
-/* testing for a Layer Group */
-    layerGroup = rl2_test_layer_group (sqlite, cvg_name);
-    fprintf (stderr, "layerGroup=%d\n", layerGroup);
-/* validating the style */
-    ok_style = 0;
-    if (strcasecmp (style, "default") == 0)
-	ok_style = 1;
-    else
-      {
-	  /* attempting to get a RasterSymbolizer style */
-	  symbolizer =
-	      rl2_create_raster_style_from_dbms (sqlite, cvg_name, style);
-	  if (symbolizer == NULL)
-	      goto error;
-	  stats = rl2_create_raster_statistics_from_dbms (sqlite, cvg_name);
-	  if (stats == NULL)
-	      goto error;
-	  ok_style = 1;
-      }
-    if (!ok_style)
-	goto error;
 /* validating the format */
     ok_format = 0;
     if (strcmp (format, "image/png") == 0)
@@ -5235,7 +5892,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 /* parsing the background color */
     if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
 	goto error;
-
 /* checking the Geometry */
     geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
     if (geom == NULL)
@@ -5248,9 +5904,51 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     ext_y = maxy - miny;
     if (ext_x <= 0.0 || ext_y <= 0.0)
 	goto error;
+    gaiaFreeGeomColl (geom);
+    if (rl2_test_layer_group (sqlite, cvg_name))
+      {
+	  /* switching the whole task to the Group renderer */
+	  struct aux_group_renderer aux;
+	  aux.context = context;
+	  aux.group_name = cvg_name;
+	  aux.minx = minx;
+	  aux.maxx = maxx;
+	  aux.miny = miny;
+	  aux.maxy = maxy;
+	  aux.width = width;
+	  aux.height = height;
+	  aux.style = style;
+	  aux.format_id = format_id;
+	  aux.bg_red = bg_red;
+	  aux.bg_green = bg_green;
+	  aux.bg_blue = bg_blue;
+	  aux.transparent = transparent;
+	  aux.quality = quality;
+	  aux.reaspect = reaspect;
+	  aux_group_renderer (&aux);
+	  return;
+      }
+
     x_res = ext_x / (double) width;
     y_res = ext_y / (double) height;
-    gaiaFreeGeomColl (geom);
+/* validating the style */
+    ok_style = 0;
+    if (strcasecmp (style, "default") == 0)
+	ok_style = 1;
+    else
+      {
+	  /* attempting to get a RasterSymbolizer style */
+	  symbolizer =
+	      rl2_create_raster_style_from_dbms (sqlite, cvg_name, style);
+	  if (symbolizer == NULL)
+	      goto error;
+	  stats = rl2_create_raster_statistics_from_dbms (sqlite, cvg_name);
+	  if (stats == NULL)
+	      goto error;
+	  ok_style = 1;
+      }
+    if (!ok_style)
+	goto error;
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -5365,325 +6063,63 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	;
     else if (aspect_org != aspect_dst && !reaspect)
 	goto error;
-    rescale_x = (double) width / (double) base_width;
-    rescale_y = (double) height / (double) base_height;
 
+    was_monochrome = 0;
     if (out_pixel == RL2_PIXEL_MONOCHROME)
       {
 	  if (level_id != 0 && scale != 1)
-	      out_pixel = RL2_PIXEL_GRAYSCALE;
+	    {
+		out_pixel = RL2_PIXEL_GRAYSCALE;
+		was_monochrome = 1;
+	    }
       }
     if (out_pixel == RL2_PIXEL_PALETTE)
       {
 	  if (level_id != 0 && scale != 1)
 	      out_pixel = RL2_PIXEL_RGB;
       }
-
     if (rl2_get_raw_raster_data_bgcolor
-	(sqlite, coverage, base_width, base_height, minx, miny, maxx, maxy,
-	 xx_res, yy_res, &outbuf, &outbuf_size, &palette, &out_pixel, bg_red,
-	 bg_green, bg_blue, symbolizer, stats) != RL2_OK)
+	(sqlite, coverage, base_width, base_height,
+	 minx, miny, maxx, maxy, xx_res, yy_res,
+	 &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	 bg_blue, symbolizer, stats) != RL2_OK)
 	goto error;
-    if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
-	goto error;
-    if (base_width == width && base_height == height)
+    if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
       {
-	  if (out_pixel == RL2_PIXEL_MONOCHROME)
-	    {
-		/* converting from Monochrome to Grayscale */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_payload_from_monochrome_transparent
-			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size, opacity))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_payload_from_monochrome_opaque
-			  (base_width, base_height, sqlite, minx, miny, maxx,
-			   maxy, srid, outbuf, format_id, quality, &image,
-			   &image_size))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  else if (out_pixel == RL2_PIXEL_PALETTE)
-	    {
-		/* Palette */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_payload_from_palette_transparent
-			  (base_width, base_height, outbuf, palette, format_id,
-			   quality, &image, &image_size, bg_red, bg_green,
-			   bg_blue, opacity))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_payload_from_palette_opaque
-			  (base_width, base_height, sqlite, minx, miny, maxx,
-			   maxy, srid, outbuf, palette, format_id, quality,
-			   &image, &image_size))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  else if (out_pixel == RL2_PIXEL_GRAYSCALE)
-	    {
-		/* Grayscale */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_payload_from_grayscale_transparent
-			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size, bg_red, opacity))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_payload_from_grayscale_opaque
-			  (base_width, base_height, sqlite, minx, miny, maxx,
-			   maxy, srid, outbuf, format_id, quality, &image,
-			   &image_size))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  else
-	    {
-		/* RGB */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_payload_from_rgb_transparent
-			  (base_width, base_height, outbuf, format_id, quality,
-			   &image, &image_size, bg_red, bg_green, bg_blue,
-			   opacity))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_payload_from_rgb_opaque
-			  (base_width, base_height, sqlite, minx, miny, maxx,
-			   maxy, srid, outbuf, format_id, quality, &image,
-			   &image_size))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  sqlite3_result_blob (context, image, image_size, free);
-      }
-    else
-      {
-	  /* rescaling */
-	  ctx = rl2_graph_create_context (width, height);
-	  if (ctx == NULL)
-	      goto error;
-	  rgba = malloc (base_width * base_height * 4);
-	  if (out_pixel == RL2_PIXEL_MONOCHROME)
-	    {
-		/* Monochrome - upsampled */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_rgba_from_monochrome_transparent
-			  (base_width, base_height, outbuf, rgba))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_rgba_from_monochrome_opaque
-			  (base_width, base_height, outbuf, rgba))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  else if (out_pixel == RL2_PIXEL_PALETTE)
-	    {
-		/* Monochrome - upsampled */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_rgba_from_palette_transparent
-			  (base_width, base_height, outbuf, palette, rgba,
-			   bg_red, bg_green, bg_blue))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_rgba_from_palette_opaque
-			  (base_width, base_height, outbuf, palette, rgba))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  else if (out_pixel == RL2_PIXEL_GRAYSCALE)
-	    {
-		/* Grayscale */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_rgba_from_grayscale_transparent
-			  (base_width, base_height, outbuf, rgba, bg_red))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_rgba_from_grayscale_opaque
-			  (base_width, base_height, outbuf, rgba))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  else
-	    {
-		/* RGB */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (!get_rgba_from_rgb_transparent
-			  (base_width, base_height, outbuf, rgba, bg_red,
-			   bg_green, bg_blue))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		else
-		  {
-		      if (!get_rgba_from_rgb_opaque
-			  (base_width, base_height, outbuf, rgba))
-			{
-			    outbuf = NULL;
-			    goto error;
-			}
-		  }
-		outbuf = NULL;
-	    }
-	  base_img = rl2_graph_create_bitmap (rgba, base_width, base_height);
-	  if (base_img == NULL)
-	      goto error;
-	  rgba = NULL;
-	  rl2_graph_draw_rescaled_bitmap (ctx, base_img, rescale_x, rescale_y,
-					  0, 0);
-	  rl2_graph_destroy_bitmap (base_img);
-	  rgb = rl2_graph_get_context_rgb_array (ctx);
-	  alpha = NULL;
-	  if (transparent)
-	      alpha = rl2_graph_get_context_alpha_array (ctx);
-	  rl2_graph_destroy_context (ctx);
-	  if (rgb == NULL)
-	      goto error;
-	  if (out_pixel == RL2_PIXEL_GRAYSCALE
-	      || out_pixel == RL2_PIXEL_MONOCHROME)
-	    {
-		/* Grayscale or Monochrome upsampled */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (alpha == NULL)
-			  goto error;
-		      if (!get_payload_from_gray_rgba_transparent
-			  (width, height, rgb, alpha, format_id, quality,
-			   &image, &image_size, opacity))
-			{
-			    rgb = NULL;
-			    alpha = NULL;
-			    goto error;
-			}
-		      rgb = NULL;
-		      alpha = NULL;
-		  }
-		else
-		  {
-		      if (alpha != NULL)
-			  free (alpha);
-		      alpha = NULL;
-		      if (!get_payload_from_gray_rgba_opaque
-			  (width, height, sqlite, minx, miny, maxx, maxy, srid,
-			   rgb, format_id, quality, &image, &image_size))
-			{
-			    rgb = NULL;
-			    goto error;
-			}
-		      rgb = NULL;
-		  }
-	    }
-	  else
-	    {
-		/* RGB */
-		if (transparent && format_id == RL2_OUTPUT_FORMAT_PNG)
-		  {
-		      if (alpha == NULL)
-			  goto error;
-		      if (!get_payload_from_rgb_rgba_transparent
-			  (width, height, rgb, alpha, format_id, quality,
-			   &image, &image_size, opacity))
-			{
-			    rgb = NULL;
-			    alpha = NULL;
-			    goto error;
-			}
-		      rgb = NULL;
-		      alpha = NULL;
-		  }
-		else
-		  {
-		      if (alpha != NULL)
-			  free (alpha);
-		      alpha = NULL;
-		      if (!get_payload_from_rgb_rgba_opaque
-			  (width, height, sqlite, minx, miny, maxx, maxy, srid,
-			   rgb, format_id, quality, &image, &image_size))
-			{
-			    rgb = NULL;
-			    goto error;
-			}
-		      rgb = NULL;
-		  }
-	    }
-	  sqlite3_result_blob (context, image, image_size, free);
+	  rl2_destroy_raster_style (symbolizer);
+	  symbolizer = NULL;
       }
 
+/* preparing the aux struct for passing rendering arguments */
+    aux.sqlite = sqlite;
+    aux.width = width;
+    aux.height = height;
+    aux.base_width = base_width;
+    aux.base_height = base_height;
+    aux.minx = minx;
+    aux.miny = miny;
+    aux.maxx = maxx;
+    aux.maxy = maxy;
+    aux.srid = srid;
+    aux.xx_res = xx_res;
+    aux.yy_res = yy_res;
+    aux.transparent = transparent;
+    aux.opacity = opacity;
+    aux.quality = quality;
+    aux.format_id = format_id;
+    aux.bg_red = bg_red;
+    aux.bg_green = bg_green;
+    aux.bg_blue = bg_blue;
+    aux.coverage = coverage;
+    aux.symbolizer = symbolizer;
+    aux.stats = stats;
+    aux.outbuf = outbuf;
+    aux.palette = palette;
+    aux.out_pixel = out_pixel;
+    if (!aux_render_image (&aux, &image, &image_size))
+	goto error;
+    sqlite3_result_blob (context, image, image_size, free);
     rl2_destroy_coverage (coverage);
-    if (outbuf != NULL)
-	free (outbuf);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
     if (symbolizer != NULL)
@@ -5695,16 +6131,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
   error:
     if (coverage != NULL)
 	rl2_destroy_coverage (coverage);
-    if (outbuf != NULL)
-	free (outbuf);
-    if (rgb != NULL)
-	free (rgb);
-    if (alpha != NULL)
-	free (alpha);
-    if (rgba != NULL)
-	free (rgba);
-    if (gray != NULL)
-	free (gray);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
     if (symbolizer != NULL)
@@ -6747,6 +7173,18 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_Pyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_Pyramidize", 4, SQLITE_ANY, 0,
 			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "PyramidizeMonolithic", 1, SQLITE_ANY, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 1, SQLITE_ANY, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "PyramidizeMonolithic", 2, SQLITE_ANY, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 2, SQLITE_ANY, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "PyramidizeMonolithic", 3, SQLITE_ANY, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 3, SQLITE_ANY, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
     sqlite3_create_function (db, "DePyramidize", 1, SQLITE_ANY, 0,
 			     fnct_DePyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_DePyramidize", 1, SQLITE_ANY, 0,

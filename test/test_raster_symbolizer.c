@@ -52,6 +52,22 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rasterlite2.h"
 
 static int
+test_group_renderer (sqlite3 * sqlite, rl2GroupStylePtr style, int ind,
+		     int *retcode)
+{
+/* testing GroupRendered */
+    rl2GroupRendererPtr renderer = rl2_create_group_renderer (sqlite, style);
+    if (renderer != NULL)
+      {
+	  rl2_destroy_group_renderer (renderer);
+	  fprintf (stderr, "Unexpected Valid GroupRenderer #%d\n", ind);
+	  *retcode += 39;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
 test_group_style (sqlite3 * db_handle, int *retcode)
 {
 /* loading and testing Group Styles */
@@ -234,6 +250,8 @@ test_group_style (sqlite3 * db_handle, int *retcode)
 	  *retcode += 21;
 	  return 0;
       }
+    if (!test_group_renderer (db_handle, style, 1, retcode))
+	return 0;
     rl2_destroy_group_style (style);
 
 /* testing Group Style #2 */
@@ -355,6 +373,8 @@ test_group_style (sqlite3 * db_handle, int *retcode)
 	  *retcode += 39;
 	  return 0;
       }
+    if (!test_group_renderer (db_handle, style, 2, retcode))
+	return 0;
     rl2_destroy_group_style (style);
 
 /* testing NULL Group Style */

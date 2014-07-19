@@ -214,6 +214,11 @@ extern "C"
 /** RasterLite2 constant: contrast enhancement GAMMA-VALUE */
 #define RL2_CONTRAST_ENHANCEMENT_GAMMA		0x93
 
+/** ResterLite2 constant: GroupRenderer - RasterLayer */
+#define RL2_GROUP_RENDERER_RASTER_LAYER	0xba
+/** ResterLite2 constant: GroupRenderer - VectorLayer */
+#define RL2_GROUP_RENDERER_VECTOR_LAYER	0xbb
+
 /**
  Typedef for RL2 Pixel object (opaque, hidden)
 
@@ -304,6 +309,19 @@ extern "C"
  \sa rl2GroupStyle
  */
     typedef rl2GroupStyle *rl2GroupStylePtr;
+
+/**
+ Typedef for RL2 GroupRender object (opaque, hidden)
+
+ \sa rl2GroupRendererPtr
+ */
+    typedef struct rl2_group_renderer rl2GroupRenderer;
+/**
+ Typedef for RL2 GroupRenderer object pointer (opaque, hidden)
+
+ \sa rl2GroupRenderer
+ */
+    typedef rl2GroupRenderer *rl2GroupRendererPtr;
 
 /**
  Typedef for RL2 TIFF Origin object (opaque, hidden)
@@ -1044,7 +1062,7 @@ extern "C"
 		rl2_is_coverage_uncompressed, rl2_is_coverage_compression_lossless, 
 		rl2_is_coverage_compression_lossy, rl2_get_coverage_tile_size,
 		rl2_get_coverage_no_data, rl2_create_coverage_pixel, 
-		rl2_get_coverage_srid
+		rl2_get_coverage_srid, rl2_get_coverage_resolution
  
  \note you are responsible to destroy (before or after) any allocated 
  Coverage object.
@@ -1226,9 +1244,26 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_create_coverage
+ \sa rl2_create_coverage, rl2_get_coverage_resolution
  */
     RL2_DECLARE int rl2_get_coverage_srid (rl2CoveragePtr cvg, int *srid);
+
+/**
+ Retrieving the base resolution from a Coverage Object
+
+ \param cvg pointer to the Coverage Object.
+ \param hResolution on completion the variable referenced by this
+ pointer will contain the coverage's horizontal resolution.
+ \param vResolution on completion the variable referenced by this
+ pointer will contain the coverage's vertical resolution.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_coverage, rl2_get_coverage_srid
+ */
+    RL2_DECLARE int rl2_get_coverage_resolution (rl2CoveragePtr cvg,
+						 double *hResolution,
+						 double *vResolution);
 
 /**
  Allocates and initializes a new Section object
@@ -1577,7 +1612,7 @@ extern "C"
  \param num_bands on completion the variable referenced by this
  pointer will contain the Number of Bands.
  
- \return  RL2_OK on success: RL2_ERROR on failure.
+ \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_create_raster
  */
@@ -1587,6 +1622,19 @@ extern "C"
 					 unsigned char *num_bands);
 
 /**
+ Explicitly sets the NO-DATA Pixel value for a Raster Object
+
+ \param rst pointer to the Raster Object.
+ \param no_data pointer to a Pixel Object
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_raster, rl2_get_raster_no_data
+ */
+    RL2_DECLARE int rl2_set_raster_no_data (rl2RasterPtr rst,
+					    rl2PixelPtr no_data);
+
+/**
  Retrieving the NO-DATA Pixel value from a Raster Object
 
  \param rst pointer to the Raster Object.
@@ -1594,7 +1642,7 @@ extern "C"
  \return pointer to the Pixel Object representing NO-DATA value; 
   NULL if any error is encountered or if the Raster has no NO-DATA value.
 
- \sa rl2_create_raster
+ \sa rl2_create_raster, rl2_set_raster_no_data
  */
     RL2_DECLARE rl2PixelPtr rl2_get_raster_no_data (rl2RasterPtr rst);
 
@@ -3226,6 +3274,10 @@ extern "C"
 				   const char *section, int forced_rebuild);
 
     RL2_DECLARE int
+	rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
+				      int virtual_levels);
+
+    RL2_DECLARE int
 	rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
 					int forced_rebuild);
 
@@ -3631,6 +3683,12 @@ extern "C"
 
     RL2_DECLARE int rl2_is_valid_group_named_style (rl2GroupStylePtr style,
 						    int index, int *valid);
+
+    RL2_DECLARE rl2GroupRendererPtr rl2_create_group_renderer (sqlite3 * sqlite,
+							       rl2GroupStylePtr
+							       style);
+
+    RL2_DECLARE void rl2_destroy_group_renderer (rl2GroupRendererPtr group);
 
 #ifdef __cplusplus
 }

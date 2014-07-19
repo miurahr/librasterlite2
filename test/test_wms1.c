@@ -369,7 +369,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 	  return -41;
       }
     str = get_wms_gml_mime_type (catalog);
-    if (strcmp (str, "text/gml") != 0)
+    if (strcmp (str, "application/vnd.ogc.gml") != 0)
       {
 	  fprintf (stderr, "GetWmsGmlMimeType: unexpected result \"%s\"\n",
 		   str);
@@ -502,6 +502,420 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
       {
 	  fprintf (stderr, "GetWmsFormat: unexpected result \"%s\"\n", str);
 	  return -61;
+      }
+
+/* destroying the WMS-Catalog */
+    destroy_wms_catalog (catalog);
+
+    return 0;
+}
+
+static int
+test_GetCapabilities_arizona (rl2WmsCachePtr cache)
+{
+/* testing GetCapabilities and friends [USGS Arizona] */
+    rl2WmsCatalogPtr catalog;
+    rl2WmsLayerPtr layer;
+    rl2WmsLayerPtr child;
+    char *err_msg = NULL;
+    const char *url;
+    int count;
+    const char *str;
+    int int_res;
+    double dbl_res;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+
+/* WMS GetCapabilities (valid) */
+    url =
+	"http://mrdata.usgs.gov/services/az?request=getcapabilities&service=WMS&version=1.1.1";
+    catalog = create_wms_catalog (cache, url, NULL, &err_msg);
+    if (catalog == NULL)
+      {
+	  fprintf (stderr, "Unable to create a WMS Catalog\n");
+	  return -102;
+      }
+
+/* testing Layer */ ;
+    count = get_wms_catalog_count (catalog);
+    if (count != 1)
+      {
+	  fprintf (stderr, "CatalogCount: unexpected result %d\n", count);
+	  return -103;
+      }
+    layer = get_wms_catalog_layer (catalog, 0);
+    if (layer == NULL)
+      {
+	  fprintf (stderr, "GetWmsCatalogLayer: unexpected NULL\n");
+	  return -104;
+      }
+    str = get_wms_layer_name (layer);
+    if (strcmp (str, "Arizona_Geology") != 0)
+      {
+	  fprintf (stderr, "GetWmsLayerName: unexpected result \"%s\"\n", str);
+	  return -105;
+      }
+    str = get_wms_layer_title (layer);
+    if (strcmp (str, "Arizona_Geology") != 0)
+      {
+	  fprintf (stderr, "GetWmsLayerTitle: unexpected result \"%s\"\n", str);
+	  return -106;
+      }
+    str = get_wms_layer_abstract (layer);
+    if (strcmp (str, "Arizona_Geology") != 0)
+      {
+	  fprintf (stderr, "GetWmsLayerAbstract: unexpected result \"%s\"\n",
+		   str);
+	  return -107;
+      }
+    int_res = is_wms_layer_opaque (layer);
+    if (int_res == 0)
+      {
+	  fprintf (stderr, "IsWmsLayerOpaque: unexpected result %d\n", int_res);
+	  return -108;
+      }
+    int_res = is_wms_layer_queryable (layer);
+    if (int_res == 0)
+      {
+	  fprintf (stderr, "IsWmsLayerQueryable: unexpected result %d\n",
+		   int_res);
+	  return -109;
+      }
+    dbl_res = get_wms_layer_min_scale_denominator (layer);
+    if (dbl_res != DBL_MAX)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerMinScaleDenominator: unexpected result %1.6f\n",
+		   dbl_res);
+	  return -110;
+      }
+    dbl_res = get_wms_layer_max_scale_denominator (layer);
+    if (dbl_res != DBL_MAX)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerMaxScaleDenominator: unexpected result %1.6f\n",
+		   dbl_res);
+	  return -111;
+      }
+    if (get_wms_layer_geo_bbox (layer, &minx, &miny, &maxx, &maxy) != 1)
+      {
+	  fprintf (stderr, "GetWmsLayerGeoBBox: unexpected result FALSE\n");
+	  return -112;
+      }
+    count = get_wms_layer_crs_count (layer);
+    if (count != 6)
+      {
+	  fprintf (stderr, "GetWmsLayerCrsCount: unexpected result %d\n",
+		   count);
+	  return -114;
+      }
+    str = get_wms_layer_crs (layer, 0);
+    if (strcmp (str, "EPSG:4267") != 0)
+      {
+	  fprintf (stderr, "GetWmsLayerCRS: unexpected result \"%s\"\n", str);
+	  return -115;
+      }
+    if (get_wms_layer_bbox (layer, "EPSG:3003", &minx, &miny, &maxx, &maxy) ==
+	1)
+      {
+	  fprintf (stderr, "GetWmsLayerBBox: unexpected result TRUE\n");
+	  return -116;
+      }
+    count = get_wms_layer_style_count (layer);
+    if (count != 0)
+      {
+	  fprintf (stderr, "GetWmsLayerStyleCount: unexpected result %d\n",
+		   count);
+	  return -118;
+      }
+    str = get_wms_layer_style_name (layer, 0);
+    if (str != NULL)
+      {
+	  fprintf (stderr, "GetWmsLayerStyleName: unexpected result \"%s\"\n",
+		   str);
+	  return -119;
+      }
+    str = get_wms_layer_style_title (layer, 0);
+    if (str != NULL)
+      {
+	  fprintf (stderr, "GetWmsLayerStyleTitle: unexpected result \"%s\"\n",
+		   str);
+	  return -120;
+      }
+    str = get_wms_layer_style_abstract (layer, 0);
+    if (str != NULL)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerStyleAbstract: unexpected result \"%s\"\n", str);
+	  return -121;
+      }
+    int_res = wms_layer_has_children (layer);
+    if (int_res != 1)
+      {
+	  fprintf (stderr, "WmsLayerHasChildren: unexpected result %d\n",
+		   int_res);
+	  return -122;
+      }
+
+/* testing Child Layer */
+    count = get_wms_layer_children_count (layer);
+    if (count != 4)
+      {
+	  fprintf (stderr, "GetWmsLayerChildrenCount: unexpected result %d\n",
+		   count);
+	  return -123;
+      }
+    child = get_wms_child_layer (layer, 0);
+    if (child == NULL)
+      {
+	  fprintf (stderr, "GetWmsChildLayer: unexpected NULL\n");
+	  return -124;
+      }
+    str = get_wms_layer_name (child);
+    if (strcmp (str, "Arizona_Lithology") != 0)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerTitle (Child): unexpected result \"%s\"\n", str);
+	  return -125;
+      }
+    int_res = is_wms_layer_opaque (child);
+    if (int_res != -1)
+      {
+	  fprintf (stderr, "IsWmsLayerOpaque (Child): unexpected result %d\n",
+		   int_res);
+	  return -126;
+      }
+    int_res = is_wms_layer_queryable (child);
+    if (int_res == 0)
+      {
+	  fprintf (stderr,
+		   "IsWmsLayerQueryable (Child): unexpected result %d\n",
+		   int_res);
+	  return -127;
+      }
+    if (get_wms_layer_geo_bbox (child, &minx, &miny, &maxx, &maxy) != 1)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerGeoBBox (Child): unexpected result FALSE\n");
+	  return -128;
+      }
+    count = get_wms_layer_crs_count (child);
+    if (count != 6)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerCrsCount (Child): unexpected result %d\n",
+		   count);
+	  return -130;
+      }
+    str = get_wms_layer_crs (child, 3);
+    if (strcmp (str, "EPSG:3857") != 0)
+      {
+	  fprintf (stderr, "GetWmsLayerCRS (Child): unexpected result \"%s\"\n",
+		   str);
+	  return -131;
+      }
+    count = get_wms_layer_style_count (child);
+    if (count != 1)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerStyleCount (Child): unexpected result %d\n",
+		   count);
+	  return -132;
+      }
+    str = get_wms_layer_style_name (child, 0);
+    if (strcmp (str, "default") != 0)
+      {
+	  fprintf (stderr,
+		   "GetWmsLayerStyleName (Child): unexpected result \"%s\"\n",
+		   str);
+	  return -133;
+      }
+
+/* testing Service */
+    str = get_wms_version (catalog);
+    if (strcmp (str, "1.1.1") != 0)
+      {
+	  fprintf (stderr, "GetWmsVersion: unexpected result \"%s\"\n", str);
+	  return -134;
+      }
+    str = get_wms_name (catalog);
+    if (strcmp (str, "OGC:WMS") != 0)
+      {
+	  fprintf (stderr, "GetWmsName: unexpected result \"%s\"\n", str);
+	  return -135;
+      }
+    str = get_wms_title (catalog);
+    if (strcmp (str, "Arizona_Geology") != 0)
+      {
+	  fprintf (stderr, "GetWmsTitle: unexpected result \"%s\"\n", str);
+	  return -136;
+      }
+    str = get_wms_abstract (catalog);
+    if (str != NULL)
+      {
+	  fprintf (stderr, "GetWmsAbstract: unexpected result \"%s\"\n", str);
+	  return -137;
+      }
+    str = get_wms_url_GetMap_get (catalog);
+    if (strcmp (str, "http://mrdata.usgs.gov/services/az?") != 0)
+      {
+	  fprintf (stderr, "GetWmsGetMapGet: unexpected result \"%s\"\n", str);
+	  return -138;
+      }
+    str = get_wms_url_GetMap_post (catalog);
+    if (strcmp (str, "http://mrdata.usgs.gov/services/az?") != 0)
+      {
+	  fprintf (stderr, "GetWmsGetMapPost: unexpected result \"%s\"\n", str);
+	  return -139;
+      }
+    str = get_wms_url_GetFeatureInfo_get (catalog);
+    if (strcmp (str, "http://mrdata.usgs.gov/services/az?") != 0)
+      {
+	  fprintf (stderr,
+		   "GetWmsGetFeatureInfoGet: unexpected result \"%s\"\n", str);
+	  return -140;
+      }
+    str = get_wms_url_GetFeatureInfo_post (catalog);
+    if (strcmp (str, "http://mrdata.usgs.gov/services/az?") != 0)
+      {
+	  fprintf (stderr,
+		   "GetWmsGetFeatureInfoPost: unexpected result \"%s\"\n", str);
+	  return -141;
+      }
+    str = get_wms_gml_mime_type (catalog);
+    if (strcmp (str, "application/vnd.ogc.gml") != 0)
+      {
+	  fprintf (stderr, "GetWmsGmlMimeType: unexpected result \"%s\"\n",
+		   str);
+	  return -142;
+      }
+    str = get_wms_xml_mime_type (catalog);
+    if (str != NULL)
+      {
+	  fprintf (stderr, "GetWmsXmlMimeType: unexpected result \"%s\"\n",
+		   str);
+	  return -143;
+      }
+    str = get_wms_contact_person (catalog);
+    if (strcmp (str, "Peter N. Schweitzer") != 0)
+      {
+	  fprintf (stderr, "GetContactPerson: unexpected result \"%s\"\n", str);
+	  return -144;
+      }
+    str = get_wms_contact_organization (catalog);
+    if (strcmp (str, "U.S. Geological Survey Mineral Resources Program") != 0)
+      {
+	  fprintf (stderr, "GetContactOrganization: unexpected result \"%s\"\n",
+		   str);
+	  return -145;
+      }
+    str = get_wms_contact_position (catalog);
+    if (strcmp (str, "Geologist") != 0)
+      {
+	  fprintf (stderr, "GetContactPosition: unexpected result \"%s\"\n",
+		   str);
+	  return -146;
+      }
+    str = get_wms_contact_postal_address (catalog);
+    if (strcmp (str, "Mail Stop 954 USGS National Center") != 0)
+      {
+	  fprintf (stderr,
+		   "GetContactPostalAddress: unexpected result \"%s\"\n", str);
+	  return -147;
+      }
+    str = get_wms_contact_city (catalog);
+    if (strcmp (str, "Reston") != 0)
+      {
+	  fprintf (stderr, "GetContactCity: unexpected result \"%s\"\n", str);
+	  return -148;
+      }
+    str = get_wms_contact_state_province (catalog);
+    if (strcmp (str, "VA") != 0)
+      {
+	  fprintf (stderr,
+		   "GetContactStateProvince: unexpected result \"%s\"\n", str);
+	  return -149;
+      }
+    str = get_wms_contact_post_code (catalog);
+    if (strcmp (str, "20192") != 0)
+      {
+	  fprintf (stderr, "GetContactPostCode: unexpected result \"%s\"\n",
+		   str);
+	  return -150;
+      }
+    str = get_wms_contact_country (catalog);
+    if (strcmp (str, "USA") != 0)
+      {
+	  fprintf (stderr, "GetContactCountry: unexpected result \"%s\"\n",
+		   str);
+	  return -151;
+      }
+    str = get_wms_contact_voice_telephone (catalog);
+    if (strcmp (str, "703-648-6533") != 0)
+      {
+	  fprintf (stderr,
+		   "GetContactVoiceTelephone: unexpected result \"%s\"\n", str);
+	  return -152;
+      }
+    str = get_wms_contact_fax_telephone (catalog);
+    if (strcmp (str, "703-648-6252") != 0)
+      {
+	  fprintf (stderr, "GetContactFaxTelephone: unexpected result \"%s\"\n",
+		   str);
+	  return -153;
+      }
+    str = get_wms_contact_email_address (catalog);
+    if (strcmp (str, "pschweitzer@usgs.gov") != 0)
+      {
+	  fprintf (stderr, "GetContactEMailAddress: unexpected result \"%s\"\n",
+		   str);
+	  return -154;
+      }
+    str = get_wms_fees (catalog);
+    if (strcmp (str, "none") != 0)
+      {
+	  fprintf (stderr, "GetFees: unexpected result \"%s\"\n", str);
+	  return -155;
+      }
+    str = get_wms_access_constraints (catalog);
+    if (strcmp (str, "none") != 0)
+      {
+	  fprintf (stderr, "GetAccessConstraints: unexpected result \"%s\"\n",
+		   str);
+	  return -156;
+      }
+    int_res = get_wms_layer_limit (catalog);
+    if (int_res != -1)
+      {
+	  fprintf (stderr, "GetLayerLimit: unexpected result %d\n", int_res);
+	  return -157;
+      }
+    int_res = get_wms_max_width (catalog);
+    if (int_res != -1)
+      {
+	  fprintf (stderr, "GetMaxWidth: unexpected result %d\n", int_res);
+	  return -158;
+      }
+    int_res = get_wms_max_height (catalog);
+    if (int_res != -1)
+      {
+	  fprintf (stderr, "GetMaxHeight: unexpected result %d\n", int_res);
+	  return -159;
+      }
+    int_res = get_wms_format_count (catalog, 0);
+    if (int_res != 9)
+      {
+	  fprintf (stderr, "GetWmsFormatCount: unexpected result %d\n",
+		   int_res);
+	  return -160;
+      }
+    str = get_wms_format (catalog, 2, 0);
+    if (strcmp (str, "image/gif") != 0)
+      {
+	  fprintf (stderr, "GetWmsFormat: unexpected result \"%s\"\n", str);
+	  return -161;
       }
 
 /* destroying the WMS-Catalog */
@@ -1217,7 +1631,12 @@ main (int argc, char *argv[])
 	  return -1;
       }
 
-/* GetCapabilities - basic */
+/* GetCapabilities - basic USGS Arizona */
+    ret = test_GetCapabilities_arizona (cache);
+    if (ret != 0)
+	return ret;
+
+/* GetCapabilities - basic Regione Emilia Romagna */
     ret = test_GetCapabilities_rer (cache);
     if (ret != 0)
 	return ret;
@@ -1378,7 +1797,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
     dblval = get_wms_total_download_size (cache);
-    if (dblval != 49983.00)
+    if (dblval != 50030.00)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n",
 		   dblval);

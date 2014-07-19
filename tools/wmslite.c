@@ -156,10 +156,9 @@ struct wms_layer
     unsigned char num_bands;
     int jpeg;
     int png;
+    int child_layer;
     struct wms_style *first_style;
     struct wms_style *last_style;
-    struct wms_layer *first_child;
-    struct wms_layer *last_child;
     struct wms_layer *next;
 };
 
@@ -212,11 +211,8 @@ struct wms_list
 /* a struct wrapping a list of WMS layers */
     struct wms_layer *first_layer;
     struct wms_layer *last_layer;
-/* temporary structs to build the actual list */
     struct wms_group *first_group;
     struct wms_group *last_group;
-    struct wms_layer *first_child;
-    struct wms_layer *last_child;
 };
 
 struct wms_argument
@@ -397,10 +393,9 @@ alloc_wms_layer (const char *layer, const char *title, const char *abstract,
 	  lyr->png = 1;
 	  lyr->jpeg = 1;
       }
+    lyr->child_layer = 0;
     lyr->first_style = NULL;
     lyr->last_style = NULL;
-    lyr->first_child = NULL;
-    lyr->last_child = NULL;
     lyr->next = NULL;
     return lyr;
 }
@@ -411,8 +406,6 @@ destroy_wms_layer (struct wms_layer *lyr)
 /* memory cleanup - freeing a WMS layer item */
     struct wms_style *style;
     struct wms_style *style_n;
-    struct wms_layer *child;
-    struct wms_layer *child_n;
     if (lyr == NULL)
 	return;
     if (lyr->layer_name != NULL)
@@ -427,13 +420,6 @@ destroy_wms_layer (struct wms_layer *lyr)
 	  style_n = style->next;
 	  destroy_wms_style (style);
 	  style = style_n;
-      }
-    child = lyr->first_child;
-    while (child != NULL)
-      {
-	  child_n = child->next;
-	  destroy_wms_layer (child);
-	  child = child_n;
       }
     free (lyr);
 }
@@ -523,8 +509,6 @@ alloc_wms_list ()
     list->last_layer = NULL;
     list->first_group = NULL;
     list->last_group = NULL;
-    list->first_child = NULL;
-    list->last_child = NULL;
     return list;
 }
 
@@ -552,13 +536,6 @@ destroy_wms_list (struct wms_list *list)
 	  destroy_wms_group (pg);
 	  pg = pgn;
       }
-    pl = list->first_child;
-    while (pl != NULL)
-      {
-	  pln = pl->next;
-	  destroy_wms_layer (pl);
-	  pl = pln;
-      }
     free (list);
 }
 
@@ -572,22 +549,6 @@ add_style_to_wms_layer (struct wms_list *list, const char *coverage_name,
     if (list == NULL)
 	return;
     lyr = list->first_layer;
-    while (lyr != NULL)
-      {
-	  if (strcmp (lyr->layer_name, coverage_name) == 0)
-	    {
-		struct wms_style *style =
-		    alloc_wms_style (name, title, abstract);
-		if (lyr->first_style == NULL)
-		    lyr->first_style = style;
-		if (lyr->last_style != NULL)
-		    lyr->last_style->next = style;
-		lyr->last_style = style;
-		return;
-	    }
-	  lyr = lyr->next;
-      }
-    lyr = list->first_child;
     while (lyr != NULL)
       {
 	  if (strcmp (lyr->layer_name, coverage_name) == 0)
@@ -2032,7 +1993,7 @@ get_current_timestamp ()
 	  month = "Nov";
 	  break;
       case 11:
-	  month = "Jan";
+	  month = "Dec";
 	  break;
       };
     dummy =
@@ -2310,6 +2271,12 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len)
 	  if (lyr->valid == 0)
 	    {
 		/* skipping any invalid Layer */
+		lyr = lyr->next;
+		continue;
+	    }
+	  if (lyr->child_layer == 1)
+	    {
+		/* skipping any child layer */
 		lyr = lyr->next;
 		continue;
 	    }
@@ -2693,7 +2660,6 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     stmt = args->stmt_get_map;
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
-    fprintf (stderr, "layer<%s>\n", args->layer);
     sqlite3_bind_text (stmt, 1, args->layer, strlen (args->layer),
 		       SQLITE_STATIC);
     sqlite3_bind_double (stmt, 2, args->minx);
@@ -2904,7 +2870,6 @@ win32_http_request (void *data)
     if (args->request_type == WMS_GET_MAP)
       {
 	  /* preparing the WMS GetMap payload */
-	  fprintf (stderr, "GetMap\n");
 	  args->db_handle = req->conn->handle;
 	  args->stmt_get_map = req->conn->stmt_get_map;
 	  log_get_map_1 (req->log, timestamp, http_status, method, url, args);
@@ -3401,15 +3366,6 @@ compute_geographic_extents (sqlite3 * handle, struct wms_list *list)
 	  lyr = lyr->next;
       }
 
-/* children layers */
-    lyr = list->first_child;
-    while (lyr != NULL)
-      {
-	  if (!get_geographic_extent (handle, lyr))
-	      lyr->valid = 0;
-	  lyr = lyr->next;
-      }
-
     grp = list->first_group;
     while (grp != NULL)
       {
@@ -3719,20 +3675,6 @@ load_layer (sqlite3 * handle, sqlite3_stmt * stmt)
     return lyr;
 }
 
-static int
-is_child_layer (struct wms_list *list, struct wms_layer *lyr)
-{
-/* testing for children layers */
-    struct wms_layer *l = list->first_child;
-    while (l != NULL)
-      {
-	  if (strcmp (l->layer_name, lyr->layer_name) == 0)
-	      return 1;
-	  l = l->next;
-      }
-    return 0;
-}
-
 static struct wms_list *
 get_raster_coverages (sqlite3 * handle)
 {
@@ -3742,14 +3684,12 @@ get_raster_coverages (sqlite3 * handle)
     sqlite3_stmt *stmt;
     const char *sql;
 
-/* loading all child layers */
+/* loading all layers */
     sql = "SELECT coverage_name, title, abstract, sample_type, "
 	"pixel_type, num_bands, srid, extent_minx, extent_miny, extent_maxx, extent_maxy "
 	"FROM raster_coverages "
 	"WHERE extent_minx IS NOT NULL AND extent_miny IS NOT NULL "
-	"AND extent_maxx IS NOT NULL AND extent_maxy IS NOT NULL "
-	"AND coverage_name IN (SELECT DISTINCT coverage_name "
-	"FROM SE_styled_group_refs)";
+	"AND extent_maxx IS NOT NULL AND extent_maxy IS NOT NULL";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return NULL;
@@ -3765,42 +3705,6 @@ get_raster_coverages (sqlite3 * handle)
 		struct wms_layer *lyr = load_layer (handle, stmt);
 		if (lyr != NULL)
 		  {
-		      if (list->first_child == NULL)
-			  list->first_child = lyr;
-		      if (list->last_child != NULL)
-			  list->last_child->next = lyr;
-		      list->last_child = lyr;
-		  }
-	    }
-      }
-    sqlite3_finalize (stmt);
-
-/* loading first-level layers */
-    sql = "SELECT coverage_name, title, abstract, sample_type, "
-	"pixel_type, num_bands, srid, extent_minx, extent_miny, extent_maxx, extent_maxy "
-	"FROM raster_coverages "
-	"WHERE extent_minx IS NOT NULL AND extent_miny IS NOT NULL "
-	"AND extent_maxx IS NOT NULL AND extent_maxy IS NOT NULL";
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    if (ret != SQLITE_OK)
-	goto error;
-    while (1)
-      {
-	  /* scrolling the result set rows */
-	  ret = sqlite3_step (stmt);
-	  if (ret == SQLITE_DONE)
-	      break;		/* end of result set */
-	  if (ret == SQLITE_ROW)
-	    {
-		struct wms_layer *lyr = load_layer (handle, stmt);
-		if (lyr != NULL)
-		  {
-		      if (is_child_layer (list, lyr))
-			{
-			    /* discarding any child layer */
-			    destroy_wms_layer (lyr);
-			    continue;
-			}
 		      if (list->first_layer == NULL)
 			  list->first_layer = lyr;
 		      if (list->last_layer != NULL)
@@ -3852,12 +3756,13 @@ get_raster_coverages (sqlite3 * handle)
 		    list->last_group->next = grp;
 		list->last_group = grp;
 	      group_found:
-		lyr = list->first_child;
+		lyr = list->first_layer;
 		while (lyr != NULL)
 		  {
 		      if (strcmp (lyr->layer_name, coverage_name) == 0)
 			{
 			    /* child layer match */
+			    lyr->child_layer = 1;
 			    ref = alloc_wms_layer_ref (lyr);
 			    break;
 			}
@@ -3876,6 +3781,7 @@ get_raster_coverages (sqlite3 * handle)
     sqlite3_finalize (stmt);
     if (list->first_layer == NULL && list->first_group == NULL)
 	goto error;
+
     return list;
 
   error:
@@ -4146,6 +4052,7 @@ main (int argc, char *argv[])
 		   db_path);
 	  goto stop;
       }
+
     get_raster_styles (handle, list);
     get_group_styles (handle, list);
     glob.list = list;

@@ -820,6 +820,24 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
     if (!test_statistics (sqlite, coverage, retcode))
 	return 0;
 
+    if (compression == RL2_COMPRESSION_DEFLATE)
+      {
+	  /* testing a Monolithic Pyramid */
+	  sql =
+	      sqlite3_mprintf ("SELECT RL2_PyramidizeMonolithic(%Q, 1, 1)",
+			       coverage);
+	  ret = execute_check (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "PyramidizeMonolithic \"%s\" error: %s\n",
+			 coverage, err_msg);
+		sqlite3_free (err_msg);
+		*retcode += -11;
+		return 0;
+	    }
+      }
+
     return 1;
 }
 
@@ -1243,11 +1261,11 @@ main (int argc, char *argv[])
 	return ret;
     ret = -250;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -270;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
     ret = -300;
     if (!test_coverage
@@ -1259,20 +1277,19 @@ main (int argc, char *argv[])
 	return ret;
     ret = -350;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -370;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -400;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -420;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
     ret = -450;
     if (!test_coverage
@@ -1310,11 +1327,11 @@ main (int argc, char *argv[])
 	return ret;
     ret = -260;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -280;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
     ret = -310;
     if (!drop_coverage
@@ -1326,20 +1343,19 @@ main (int argc, char *argv[])
 	return ret;
     ret = -360;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -380;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
 	return ret;
     ret = -410;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
 	return ret;
     ret = -430;
     if (!drop_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
     ret = -460;
     if (!drop_coverage

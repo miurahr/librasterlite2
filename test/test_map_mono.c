@@ -181,8 +181,8 @@ get_base_resolution (sqlite3 * sqlite, const char *coverage, double *x_res,
 }
 
 static int
-do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		   int scale, const char *compression)
+do_export_geotiff (sqlite3 * sqlite, const char *coverage, const char *type,
+		   gaiaGeomCollPtr geom, int scale, const char *compression)
 {
 /* exporting a GeoTiff + Worldfile */
     char *sql;
@@ -197,7 +197,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     int blob_size;
     int retcode = 0;
 
-    path = sqlite3_mprintf ("./%s_gt_%d.tif", coverage, scale);
+    path = sqlite3_mprintf ("./%s_%s_gt_%d.tif", coverage, type, scale);
 
     if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
 	return 0;
@@ -232,7 +232,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     if (!retcode)
 	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
     sqlite3_free (path);
-    path = sqlite3_mprintf ("./%s_gt_%d.tfw", coverage, scale);
+    path = sqlite3_mprintf ("./%s_%s_gt_%d.tfw", coverage, type, scale);
     unlink (path);
     sqlite3_free (path);
     return retcode;
@@ -450,8 +450,8 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 }
 
 static int
-test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
-	       int tile_sz, int *retcode)
+test_coverage (sqlite3 * sqlite, unsigned char pixel,
+	       unsigned char compression, int tile_sz, int *retcode)
 {
 /* testing some DBMS Coverage */
     int ret;
@@ -676,23 +676,27 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -6;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 1, compression_name))
+    if (!do_export_geotiff
+	(sqlite, coverage, "norm", geom, 1, compression_name))
       {
 	  *retcode += -7;
 	  return 0;
       }
 
-    if (!do_export_geotiff (sqlite, coverage, geom, 2, alt_compression_name))
+    if (!do_export_geotiff
+	(sqlite, coverage, "norm", geom, 2, alt_compression_name))
       {
 	  *retcode += -8;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 4, alt_compression_name))
+    if (!do_export_geotiff
+	(sqlite, coverage, "norm", geom, 4, alt_compression_name))
       {
 	  *retcode += -9;
 	  return 0;
       }
-    if (!do_export_geotiff (sqlite, coverage, geom, 8, alt_compression_name))
+    if (!do_export_geotiff
+	(sqlite, coverage, "norm", geom, 8, alt_compression_name))
       {
 	  *retcode += -10;
 	  return 0;
@@ -795,12 +799,64 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
 
+    if (strcmp (coverage, "mono_fax4_256") == 0
+	|| strcmp (coverage, "plt1_png_512") == 0)
+      {
+	  /* testing a Monolithic Pyramid */
+	  geom = get_center_point (sqlite, coverage);
+	  sql =
+	      sqlite3_mprintf ("SELECT RL2_PyramidizeMonolithic(%Q, 1, 1)",
+			       coverage);
+	  ret = execute_check (sqlite, sql);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "PyramidizeMonolithic \"%s\" error: %s\n",
+			 coverage, err_msg);
+		sqlite3_free (err_msg);
+		*retcode += -30;
+		return 0;
+	    }
+
+	  /* export tests */
+	  if (geom == NULL)
+	    {
+		*retcode += -31;
+		return 0;
+	    }
+	  if (!do_export_geotiff
+	      (sqlite, coverage, "mono", geom, 1, compression_name))
+	    {
+		*retcode += -32;
+		return 0;
+	    }
+	  if (!do_export_geotiff
+	      (sqlite, coverage, "mono", geom, 2, alt_compression_name))
+	    {
+		*retcode += -33;
+		return 0;
+	    }
+	  if (!do_export_geotiff
+	      (sqlite, coverage, "mono", geom, 4, alt_compression_name))
+	    {
+		*retcode += -34;
+		return 0;
+	    }
+	  if (!do_export_geotiff
+	      (sqlite, coverage, "mono", geom, 8, alt_compression_name))
+	    {
+		*retcode += -35;
+		return 0;
+	    }
+	  gaiaFreeGeomColl (geom);
+      }
+
     return 1;
 }
 
 static int
-drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
-	       int tile_sz, int *retcode)
+drop_coverage (sqlite3 * sqlite, unsigned char pixel,
+	       unsigned char compression, int tile_sz, int *retcode)
 {
 /* dropping some DBMS Coverage */
     int ret;

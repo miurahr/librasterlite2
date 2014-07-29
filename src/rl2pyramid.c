@@ -1418,8 +1418,7 @@ update_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 			  sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
 			  SectionPyramid * pyr, unsigned int tileWidth,
 			  unsigned int tileHeight, int id_level,
-			  rl2PixelPtr no_data, unsigned char sample_type,
-			  unsigned char compression)
+			  rl2PixelPtr no_data, unsigned char sample_type)
 {
 /* creating and inserting Pyramid tiles */
     unsigned char *buf_out = NULL;
@@ -1566,8 +1565,8 @@ update_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		goto error;
 	    }
 	  if (rl2_raster_encode
-	      (raster_out, compression, &blob_odd, &blob_odd_sz, &blob_even,
-	       &blob_even_sz, 100, 1) != RL2_OK)
+	      (raster_out, RL2_COMPRESSION_DEFLATE, &blob_odd, &blob_odd_sz,
+	       &blob_even, &blob_even_sz, 100, 1) != RL2_OK)
 	    {
 		fprintf (stderr, "ERROR: unable to encode a Pyramid tile\n");
 		goto error;
@@ -1806,8 +1805,7 @@ update_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 			       unsigned int tileWidth,
 			       unsigned int tileHeight, int id_level,
 			       rl2PixelPtr no_data, unsigned char sample_type,
-			       unsigned char num_bands,
-			       unsigned char compression)
+			       unsigned char num_bands)
 {
 /* creating and inserting Pyramid tiles */
     unsigned char *buf_out = NULL;
@@ -1946,8 +1944,8 @@ update_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		goto error;
 	    }
 	  if (rl2_raster_encode
-	      (raster_out, compression, &blob_odd, &blob_odd_sz, &blob_even,
-	       &blob_even_sz, 100, 1) != RL2_OK)
+	      (raster_out, RL2_COMPRESSION_DEFLATE, &blob_odd, &blob_odd_sz,
+	       &blob_even, &blob_even_sz, 100, 1) != RL2_OK)
 	    {
 		fprintf (stderr, "ERROR: unable to encode a Pyramid tile\n");
 		goto error;
@@ -2850,10 +2848,10 @@ copy_multiband_rescaled (rl2RasterPtr raster_out, rl2RasterPtr raster_in,
 		switch (rst_in->sampleType)
 		  {
 		  case RL2_SAMPLE_UINT8:
-		      p_in_u8 += rst_in->width;
+		      p_in_u8 += rst_in->width * rst_in->nBands;
 		      break;
 		  case RL2_SAMPLE_UINT16:
-		      p_in_u16 += rst_in->width;
+		      p_in_u16 += rst_in->width * rst_in->nBands;
 		      break;
 		  };
 		p_msk_in += rst_in->width;
@@ -2864,18 +2862,15 @@ copy_multiband_rescaled (rl2RasterPtr raster_out, rl2RasterPtr raster_in,
 		dx = base_x + x;
 		if (dx < 0 || dx >= (int) (rst_out->width))
 		  {
-		      for (ib = 0; ib < rst_in->nBands; ib++)
+		      switch (rst_in->sampleType)
 			{
-			    switch (rst_in->sampleType)
-			      {
-			      case RL2_SAMPLE_UINT8:
-				  p_in_u8++;
-				  break;
-			      case RL2_SAMPLE_UINT16:
-				  p_in_u16++;
-				  break;
-			      };
-			}
+			case RL2_SAMPLE_UINT8:
+			    p_in_u8 += rst_in->nBands;
+			    break;
+			case RL2_SAMPLE_UINT16:
+			    p_in_u16 += rst_in->nBands;
+			    break;
+			};
 		      p_msk_in++;
 		      continue;
 		  }
@@ -2883,28 +2878,29 @@ copy_multiband_rescaled (rl2RasterPtr raster_out, rl2RasterPtr raster_in,
 		  {
 		  case RL2_SAMPLE_UINT8:
 		      p_out_u8 = (unsigned char *) (rst_out->rasterBuffer);
-		      p_out_u8 += (dy * rst_out->width * rst_out->nBands) + dx;
+		      p_out_u8 +=
+			  (dy * rst_out->width * rst_out->nBands) +
+			  (dx * rst_out->nBands);
 		      break;
 		  case RL2_SAMPLE_UINT16:
 		      p_out_u16 = (unsigned short *) (rst_out->rasterBuffer);
-		      p_out_u16 += (dy * rst_out->width * rst_out->nBands) + dx;
+		      p_out_u16 +=
+			  (dy * rst_out->width * rst_out->nBands) +
+			  (dx * rst_out->nBands);
 		      break;
 		  };
 		p_msk_out = rst_out->maskBuffer + (dy * rst_out->width) + dx;
 		if (*p_msk_in++ == 0)
 		  {
-		      for (ib = 0; ib < rst_out->nBands; ib++)
+		      switch (rst_in->sampleType)
 			{
-			    switch (rst_in->sampleType)
-			      {
-			      case RL2_SAMPLE_UINT8:
-				  p_in_u8++;
-				  break;
-			      case RL2_SAMPLE_UINT16:
-				  p_in_u16++;
-				  break;
-			      };
-			}
+			case RL2_SAMPLE_UINT8:
+			    p_in_u8 += rst_out->nBands;
+			    break;
+			case RL2_SAMPLE_UINT16:
+			    p_in_u16 += rst_out->nBands;
+			    break;
+			};
 		  }
 		else
 		  {
@@ -2913,10 +2909,10 @@ copy_multiband_rescaled (rl2RasterPtr raster_out, rl2RasterPtr raster_in,
 			    switch (rst_out->sampleType)
 			      {
 			      case RL2_SAMPLE_UINT8:
-				  *p_out_u8 = *p_in_u8;
+				  *p_out_u8++ = *p_in_u8++;
 				  break;
 			      case RL2_SAMPLE_UINT16:
-				  *p_out_u16 = *p_in_u16;
+				  *p_out_u16++ = *p_in_u16++;
 				  break;
 			      };
 			}
@@ -2955,9 +2951,10 @@ static void
 rescale_multiband_u8 (unsigned int tileWidth, unsigned int tileHeight,
 		      unsigned char num_bands, unsigned int out_width,
 		      unsigned int out_height, unsigned int factor,
-		      unsigned char *buf_in, unsigned char *buf_out,
-		      unsigned char *mask, unsigned int x, unsigned int y,
-		      unsigned int ox, unsigned int oy, rl2PixelPtr no_data)
+		      unsigned char *buf_in, const unsigned char *mask_in,
+		      unsigned char *buf_out, unsigned char *mask,
+		      unsigned int x, unsigned int y, unsigned int ox,
+		      unsigned int oy, rl2PixelPtr no_data)
 {
 /* rescaling a MultiBand (monolithic)- UINT8 */
     unsigned int row;
@@ -2991,6 +2988,17 @@ rescale_multiband_u8 (unsigned int tileWidth, unsigned int tileHeight,
 		if (xx >= tileWidth)
 		    break;
 		p_in = p_in_base + (xx * num_bands);
+		if (mask_in != NULL)
+		  {
+		      /* checking the transparency mask */
+		      const unsigned char *p_msk_in =
+			  mask_in + (yy * tileWidth) + xx;
+		      if (*p_msk_in == 0)
+			{
+			    nodata++;
+			    continue;
+			}
+		  }
 		if (is_mb_nodata_u8 (p_in, num_bands, no_data))
 		    nodata++;
 		else
@@ -3042,9 +3050,10 @@ static void
 rescale_multiband_u16 (unsigned int tileWidth, unsigned int tileHeight,
 		       unsigned char num_bands, unsigned int out_width,
 		       unsigned int out_height, unsigned int factor,
-		       unsigned short *buf_in, unsigned short *buf_out,
-		       unsigned char *mask, unsigned int x, unsigned int y,
-		       unsigned int ox, unsigned int oy, rl2PixelPtr no_data)
+		       unsigned short *buf_in, const unsigned char *mask_in,
+		       unsigned short *buf_out, unsigned char *mask,
+		       unsigned int x, unsigned int y, unsigned int ox,
+		       unsigned int oy, rl2PixelPtr no_data)
 {
 /* rescaling a MultiBand (monolithic)- UINT16 */
     unsigned int row;
@@ -3077,6 +3086,17 @@ rescale_multiband_u16 (unsigned int tileWidth, unsigned int tileHeight,
 		unsigned int xx = x + col;
 		if (xx >= tileWidth)
 		    break;
+		if (mask_in != NULL)
+		  {
+		      /* checking the transparency mask */
+		      const unsigned char *p_msk_in =
+			  mask_in + (yy * tileWidth) + xx;
+		      if (*p_msk_in == 0)
+			{
+			    nodata++;
+			    continue;
+			}
+		  }
 		p_in = p_in_base + (xx * num_bands);
 		if (is_mb_nodata_u16 (p_in, num_bands, no_data))
 		    nodata++;
@@ -3170,6 +3190,7 @@ mb_prime_nodata_u16 (unsigned short *buf, unsigned int width,
 static rl2RasterPtr
 create_rescaled_multiband_raster (unsigned int factor, unsigned int tileWidth,
 				  unsigned int tileHeight, const void *buf_in,
+				  const char *mask_in,
 				  unsigned char sample_type,
 				  unsigned char num_bands, rl2PixelPtr no_data)
 {
@@ -3222,14 +3243,14 @@ create_rescaled_multiband_raster (unsigned int factor, unsigned int tileWidth,
 		  case RL2_SAMPLE_UINT8:
 		      rescale_multiband_u8 (tileWidth, tileHeight, num_bands,
 					    out_width, out_height, factor,
-					    (unsigned char *) buf_in,
+					    (unsigned char *) buf_in, mask_in,
 					    (unsigned char *) buf, mask, x, y,
 					    ox, oy, no_data);
 		      break;
 		  case RL2_SAMPLE_UINT16:
 		      rescale_multiband_u16 (tileWidth, tileHeight, num_bands,
 					     out_width, out_height, factor,
-					     (unsigned short *) buf_in,
+					     (unsigned short *) buf_in, mask_in,
 					     (unsigned short *) buf, mask, x, y,
 					     ox, oy, no_data);
 		      break;
@@ -3465,19 +3486,19 @@ copy_datagrid_rescaled (rl2RasterPtr raster_out, rl2RasterPtr raster_in,
 			    *p_out_8++ = *p_in_8++;
 			    break;
 			case RL2_SAMPLE_UINT8:
-			    *p_out_u8 = *p_in_u8;
+			    *p_out_u8 = *p_in_u8++;
 			    break;
 			case RL2_SAMPLE_INT16:
-			    *p_out_16 = *p_in_16;
+			    *p_out_16 = *p_in_16++;
 			    break;
 			case RL2_SAMPLE_UINT16:
-			    *p_out_u16 = *p_in_u16;
+			    *p_out_u16 = *p_in_u16++;
 			    break;
 			case RL2_SAMPLE_INT32:
-			    *p_out_32 = *p_in_32;
+			    *p_out_32 = *p_in_32++;
 			    break;
 			case RL2_SAMPLE_UINT32:
-			    *p_out_u32 = *p_in_u32;
+			    *p_out_u32 = *p_in_u32++;
 			    break;
 			case RL2_SAMPLE_FLOAT:
 			    *p_out_flt = *p_in_flt++;
@@ -3924,12 +3945,12 @@ create_rescaled_datagrid_raster (unsigned int factor, unsigned int tileWidth,
     unsigned int out_height = tileHeight / factor;
     char no_data_8 = 0;
     unsigned char no_data_u8 = 0;
-    char no_data_16 = 0;
-    unsigned char no_data_u16 = 0;
-    char no_data_32 = 0;
-    unsigned char no_data_u32 = 0;
-    char no_data_flt = 0;
-    unsigned char no_data_dbl = 0;
+    short no_data_16 = 0;
+    unsigned short no_data_u16 = 0;
+    int no_data_32 = 0;
+    unsigned int no_data_u32 = 0;
+    float no_data_flt = 0.0;
+    double no_data_dbl = 0.0;
 
 /* retrieving NO-DATA */
     pxl = (rl2PrivPixelPtr) no_data;
@@ -4141,6 +4162,7 @@ rescale_monolithic_multiband (int id_level,
 		    create_rescaled_multiband_raster (factor, tileWidth,
 						      tileHeight,
 						      rst_in->rasterBuffer,
+						      rst_in->maskBuffer,
 						      sample_type, num_bands,
 						      no_data);
 		rl2_destroy_raster (raster_in);
@@ -4511,29 +4533,9 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		      double tminy = sqlite3_column_double (stmt, 4);
 		      double tmaxx = sqlite3_column_double (stmt, 5);
 		      double tmaxy = sqlite3_column_double (stmt, 6);
-		      if (id_level == 0)
-			{
-			    if (sample_type == RL2_SAMPLE_1_BIT
-				|| sample_type == RL2_SAMPLE_2_BIT
-				|| sample_type == RL2_SAMPLE_4_BIT)
-			      {
-				  new_res_x = res_x * 2.0;
-				  new_res_y = res_y * 2.0;
-				  scale = 2;
-			      }
-			    else
-			      {
-				  new_res_x = res_x * 8.0;
-				  new_res_y = res_y * 8.0;
-				  scale = 8;
-			      }
-			}
-		      else
-			{
-			    new_res_x = res_x * 8.0;
-			    new_res_y = res_y * 8.0;
-			    scale = 8;
-			}
+		      new_res_x = res_x * 8.0;
+		      new_res_y = res_y * 8.0;
+		      scale = 8;
 		      if (first)
 			{
 			    pyr =
@@ -4595,7 +4597,7 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		/* DataGrid Pyramid */
 		if (!update_sect_pyramid_grid
 		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-		     tileHeight, id_level, no_data, sample_type, compression))
+		     tileHeight, id_level, no_data, sample_type))
 		    goto error;
 	    }
 	  else if (pixel_type == RL2_PIXEL_MULTIBAND)
@@ -4603,8 +4605,7 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		/* MultiBand Pyramid */
 		if (!update_sect_pyramid_multiband
 		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-		     tileHeight, id_level, no_data, sample_type, num_samples,
-		     compression))
+		     tileHeight, id_level, no_data, sample_type, num_samples))
 		    goto error;
 	    }
 	  else
@@ -4629,7 +4630,7 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		/* DataGrid Pyramid */
 		if (!update_sect_pyramid_grid
 		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-		     tileHeight, id_level, no_data, sample_type, compression))
+		     tileHeight, id_level, no_data, sample_type))
 		    goto error;
 	    }
 	  else if (pixel_type == RL2_PIXEL_MULTIBAND)
@@ -4637,8 +4638,7 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		/* MultiBand Pyramid */
 		if (!update_sect_pyramid_multiband
 		    (handle, stmt_rd, stmt_tils, stmt_data, pyr, tileWidth,
-		     tileHeight, id_level, no_data, sample_type, num_samples,
-		     compression))
+		     tileHeight, id_level, no_data, sample_type, num_samples))
 		    goto error;
 	    }
 	  else
@@ -5634,8 +5634,9 @@ do_build_palette_section_pyramid (sqlite3 * handle, const char *coverage,
 			    goto error;
 			}
 		      if (rl2_raster_encode
-			  (raster, RL2_COMPRESSION_PNG, &blob_odd, &blob_odd_sz,
-			   &blob_even, &blob_even_sz, 100, 1) != RL2_OK)
+			  (raster, RL2_COMPRESSION_JPEG, &blob_odd,
+			   &blob_odd_sz, &blob_even, &blob_even_sz, 100,
+			   1) != RL2_OK)
 			{
 			    fprintf (stderr,
 				     "ERROR: unable to encode a Pyramid tile\n");
@@ -6073,10 +6074,9 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 	      && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
 	     || (sample_type == RL2_SAMPLE_2_BIT
 		 && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
-	     || (sample_type == RL2_SAMPLE_4_BIT
-		 && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1))
+	     || (sample_type == RL2_SAMPLE_4_BIT))
       {
-	  /* palette: output colorspace is RGB */
+	  /* palette 1,2,4: output colorspace is RGB */
 	  out_sample_type = RL2_SAMPLE_UINT8;
 	  out_pixel_type = RL2_PIXEL_RGB;
 	  out_num_bands = 3;
@@ -6085,14 +6085,34 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 	  factor = 2;
 	  resize_factor = 2;
       }
+    else if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_PALETTE
+	     && num_bands == 1)
+      {
+	  /* palette 8: RGB JPEG pyramid level */
+	  out_sample_type = RL2_SAMPLE_UINT8;
+	  out_pixel_type = RL2_PIXEL_RGB;
+	  out_num_bands = 3;
+	  out_compression = RL2_COMPRESSION_JPEG;
+	  out_quality = 80;
+      }
     else
       {
 	  /* unaltered output colorspace */
 	  out_sample_type = sample_type;
 	  out_pixel_type = pixel_type;
 	  out_num_bands = num_bands;
-	  out_compression = compression;
-	  out_quality = quality;
+	  if (sample_type == RL2_SAMPLE_UINT8
+	      && ((pixel_type == RL2_PIXEL_RGB && num_bands == 3)
+		  || (pixel_type == RL2_PIXEL_GRAYSCALE && num_bands == 1)))
+	    {
+		out_compression = RL2_COMPRESSION_JPEG;
+		out_quality = quality;
+	    }
+	  else
+	    {
+		out_compression = RL2_COMPRESSION_DEFLATE;
+		out_quality = 100;
+	    }
 	  /* setting the requested virt_levels */
 	  switch (virt_levels)
 	    {

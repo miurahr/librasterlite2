@@ -4488,10 +4488,12 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned int tile_width,
 		    return RL2_OK;
 	    }
 	  if (sample_type == xsample_type && pixel_type == RL2_PIXEL_DATAGRID
-	      && num_bands == xnum_bands && xcompression == RL2_COMPRESSION_DEFLATE)
+	      && num_bands == xnum_bands
+	      && xcompression == RL2_COMPRESSION_DEFLATE)
 	      return RL2_OK;
 	  if (sample_type == xsample_type && pixel_type == RL2_PIXEL_MULTIBAND
-	      && num_bands == xnum_bands && xcompression == RL2_COMPRESSION_DEFLATE)
+	      && num_bands == xnum_bands
+	      && xcompression == RL2_COMPRESSION_DEFLATE)
 	      return RL2_OK;
       }
     return RL2_ERROR;

@@ -6055,6 +6055,16 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if ((base_width <= 0 && base_width >= USHRT_MAX)
 	|| (base_height <= 0 && base_height >= USHRT_MAX))
 	goto error;
+    if (base_width > 8192 || base_height > 8192)
+      {
+	  /* warning: this usually implies missing Pyramid support */
+	  fprintf (stderr,
+		   "ERROR: a really huge image (%u x %u) has been requested;\n"
+		   "this is usually caused by a missing multi-resolution Pyramid.\n"
+		   "Please build a Pyramid supporting '%s'\n\n", base_width,
+		   base_height, cvg_name);
+	  goto error;
+      }
     aspect_org = (double) base_width / (double) base_height;
     aspect_dst = (double) width / (double) height;
     confidence = aspect_org / 100.0;

@@ -927,6 +927,7 @@ log_get_map_1 (struct server_log_item *log, char *timestamp, int status,
 	       char *method, char *url, struct wms_args *args)
 {
 /* logging a GetMap event (take #1) */
+    int len;
     if (log == NULL)
 	return;
     log->timestamp = timestamp;
@@ -943,7 +944,14 @@ log_get_map_1 (struct server_log_item *log, char *timestamp, int status,
     log->wms_bbox_maxy = args->maxy;
     log->wms_width = args->width;
     log->wms_height = args->height;
-    log->wms_style = args->style;
+    if (args->style == NULL)
+	log->wms_style = NULL;
+    else
+      {
+	  len = strlen (args->style);
+	  log->wms_style = malloc (len + 1);
+	  strcpy (log->wms_style, args->style);
+      }
     log->wms_format = args->format;
     log->wms_transparent = args->transparent;
     log->has_bgcolor = args->has_bgcolor;
@@ -1036,7 +1044,7 @@ flush_log (sqlite3 * handle, sqlite3_stmt * stmt, struct server_log *log)
 				   SQLITE_STATIC);
 		break;
 	    case WMS_GET_MAP:
-		sqlite3_bind_text (stmt, 6, "GetMap", 8, SQLITE_STATIC);
+		sqlite3_bind_text (stmt, 8, "GetMap", 8, SQLITE_STATIC);
 		break;
 	    default:
 		sqlite3_bind_null (stmt, 8);
@@ -1092,7 +1100,7 @@ flush_log (sqlite3 * handle, sqlite3_stmt * stmt, struct server_log *log)
 					 SQLITE_TRANSIENT);
 		      break;
 		  case RL2_OUTPUT_FORMAT_PDF:
-		      sqlite3_bind_text (stmt, 19, "image/pdf", 9,
+		      sqlite3_bind_text (stmt, 19, "application/x-pdf", 9,
 					 SQLITE_TRANSIENT);
 		      break;
 		  default:
@@ -1343,6 +1351,10 @@ parse_format (const char *format)
 	return RL2_OUTPUT_FORMAT_PNG;
     if (strcasecmp (format, "image/jpeg") == 0)
 	return RL2_OUTPUT_FORMAT_JPEG;
+    if (strcasecmp (format, "image/tiff") == 0)
+	return RL2_OUTPUT_FORMAT_TIFF;
+    if (strcasecmp (format, "application/x-pdf") == 0)
+	return RL2_OUTPUT_FORMAT_PDF;
     return WMS_UNKNOWN;
 }
 
@@ -2670,11 +2682,17 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     sqlite3_bind_int (stmt, 7, args->height);
     sqlite3_bind_text (stmt, 8, args->style, strlen (args->style),
 		       SQLITE_STATIC);
-    if (args->format == RL2_OUTPUT_FORMAT_PNG)
-	sqlite3_bind_text (stmt, 9, "image/png", strlen ("image/png"),
+    if (args->format == RL2_OUTPUT_FORMAT_TIFF)
+	sqlite3_bind_text (stmt, 9, "image/tiff", strlen ("image/tiff"),
+			   SQLITE_TRANSIENT);
+    else if (args->format == RL2_OUTPUT_FORMAT_PDF)
+	sqlite3_bind_text (stmt, 9, "application/x-pdf",
+			   strlen ("application/x-pdf"), SQLITE_TRANSIENT);
+    else if (args->format == RL2_OUTPUT_FORMAT_JPEG)
+	sqlite3_bind_text (stmt, 9, "image/jpeg", strlen ("image/jpeg"),
 			   SQLITE_TRANSIENT);
     else
-	sqlite3_bind_text (stmt, 9, "image/jpeg", strlen ("image/jpeg"),
+	sqlite3_bind_text (stmt, 9, "image/png", strlen ("image/png"),
 			   SQLITE_TRANSIENT);
     if (args->has_bgcolor)
 	sprintf (bgcolor, "#%02x%02x%02x", args->red, args->green, args->blue);
@@ -2682,10 +2700,10 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
 	strcpy (bgcolor, "#ffffff");
     sqlite3_bind_text (stmt, 10, bgcolor, strlen (bgcolor), SQLITE_TRANSIENT);
     sqlite3_bind_int (stmt, 11, args->transparent);
-    if (args->format == RL2_OUTPUT_FORMAT_PNG)
-	sqlite3_bind_int (stmt, 12, 100);
-    else
+    if (args->format == RL2_OUTPUT_FORMAT_JPEG)
 	sqlite3_bind_int (stmt, 12, 80);
+    else
+	sqlite3_bind_int (stmt, 12, 100);
     while (1)
       {
 	  ret = sqlite3_step (stmt);
@@ -2710,6 +2728,12 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
 		      if (args->format == RL2_OUTPUT_FORMAT_PNG)
 			  gaiaAppendToOutBuffer (&http_response,
 						 "Content-Type: image/png\r\n");
+		      if (args->format == RL2_OUTPUT_FORMAT_TIFF)
+			  gaiaAppendToOutBuffer (&http_response,
+						 "Content-Type: image/tiff\r\n");
+		      if (args->format == RL2_OUTPUT_FORMAT_PDF)
+			  gaiaAppendToOutBuffer (&http_response,
+						 "Content-Type: application/x-pdf\r\n");
 		      dummy =
 			  sqlite3_mprintf ("Content-Length: %d\r\n",
 					   payload_size);
@@ -2762,6 +2786,11 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	rl2_gray_to_png (args->width, args->height, black, &payload,
 			 &payload_size);
+    if (args->format == RL2_OUTPUT_FORMAT_TIFF)
+	rl2_gray_to_tiff (args->width, args->height, black, &payload,
+			  &payload_size);
+    if (args->format == RL2_OUTPUT_FORMAT_PDF)
+	rl2_gray_pdf (args->width, args->height, &payload, &payload_size);
     free (black);
     /* preparing the HTTP response */
     gaiaOutBufferInitialize (&http_response);
@@ -2773,6 +2802,11 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
 	gaiaAppendToOutBuffer (&http_response, "Content-Type: image/jpeg\r\n");
     if (args->format == RL2_OUTPUT_FORMAT_PNG)
 	gaiaAppendToOutBuffer (&http_response, "Content-Type: image/png\r\n");
+    if (args->format == RL2_OUTPUT_FORMAT_TIFF)
+	gaiaAppendToOutBuffer (&http_response, "Content-Type: image/tiff\r\n");
+    if (args->format == RL2_OUTPUT_FORMAT_TIFF)
+	gaiaAppendToOutBuffer (&http_response,
+			       "Content-Type: application/x-pdf\r\n");
     dummy = sqlite3_mprintf ("Content-Length: %d\r\n", payload_size);
     gaiaAppendToOutBuffer (&http_response, dummy);
     sqlite3_free (dummy);
@@ -3949,7 +3983,7 @@ main (int argc, char *argv[])
     int port_no = 8080;
     int cache_size = 0;
     void *cache;
-    struct wms_list *list;
+    struct wms_list *list = NULL;
     struct connections_pool *pool;
     struct server_log *log;
     char *cached_capabilities = NULL;
@@ -4130,6 +4164,8 @@ main (int argc, char *argv[])
 
   stop:
     destroy_wms_list (list);
+    list = NULL;
+    glob.list = NULL;
     clean_shutdown ();
     return 0;
 }

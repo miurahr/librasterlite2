@@ -1580,6 +1580,95 @@ rl2_rgba_to_pdf (unsigned int width, unsigned int height,
     return RL2_ERROR;
 }
 
+RL2_DECLARE int
+rl2_gray_pdf (unsigned int width, unsigned int height, unsigned char **pdf,
+	      int *pdf_size)
+{
+/* attempting to create an all-Gray PDF */
+    rl2MemPdfPtr mem = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    int dpi;
+    double w_150 = (double) width / 150.0;
+    double h_150 = (double) height / 150.0;
+    double w_300 = (double) width / 300.0;
+    double h_300 = (double) height / 300.0;
+    double w_600 = (double) width / 600.0;
+    double h_600 = (double) height / 600.0;
+    double page_width;
+    double page_height;
+
+    if (w_150 <= 6.3 && h_150 <= 9.7)
+      {
+	  /* A4 portrait - 150 DPI */
+	  page_width = 8.3;
+	  page_height = 11.7;
+	  dpi = 150;
+      }
+    else if (w_150 <= 9.7 && h_150 < 6.3)
+      {
+	  /* A4 landscape - 150 DPI */
+	  page_width = 11.7;
+	  page_height = 8.3;;
+	  dpi = 150;
+      }
+    else if (w_300 <= 6.3 && h_300 <= 9.7)
+      {
+	  /* A4 portrait - 300 DPI */
+	  page_width = 8.3;
+	  page_height = 11.7;;
+	  dpi = 300;
+      }
+    else if (w_300 <= 9.7 && h_300 < 6.3)
+      {
+	  /* A4 landscape - 300 DPI */
+	  page_width = 11.7;
+	  page_height = 8.3;;
+	  dpi = 300;
+      }
+    else if (w_600 <= 6.3 && h_600 <= 9.7)
+      {
+	  /* A4 portrait - 600 DPI */
+	  page_width = 8.3;
+	  page_height = 11.7;;
+	  dpi = 600;
+      }
+    else
+      {
+	  /* A4 landscape - 600 DPI */
+	  page_width = 11.7;
+	  page_height = 8.3;;
+	  dpi = 600;
+      }
+
+    mem = rl2_create_mem_pdf_target ();
+    if (mem == NULL)
+	goto error;
+
+    ctx =
+	rl2_graph_create_mem_pdf_context (mem, dpi, page_width, page_height,
+					  1.0, 1.0);
+    if (ctx == NULL)
+	goto error;
+    rl2_graph_set_pen (ctx, 255, 0, 0, 255, 2.0, RL2_PENSTYLE_SOLID);
+    rl2_graph_set_brush (ctx, 128, 128, 128, 255);
+    rl2_graph_draw_rounded_rectangle (ctx, 0, 0, width, height, width / 10.0);
+
+    rl2_graph_destroy_context (ctx);
+/* retrieving the PDF memory block */
+    if (rl2_get_mem_pdf_buffer (mem, pdf, pdf_size) != RL2_OK)
+	goto error;
+    rl2_destroy_mem_pdf_target (mem);
+
+    return RL2_OK;
+
+  error:
+    if (ctx != NULL)
+	rl2_graph_destroy_context (ctx);
+    if (mem != NULL)
+	rl2_destroy_mem_pdf_target (mem);
+    return RL2_ERROR;
+}
+
 RL2_DECLARE rl2MemPdfPtr
 rl2_create_mem_pdf_target (void)
 {

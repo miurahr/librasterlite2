@@ -3520,7 +3520,7 @@ extern "C"
  \return RL2_OK on success: RL2_ERROR on failure.
  
  \sa rl2_rgb_to_png, rl2_rgb_alpha_to_png, rl2_rgb_to_jpeg, 
- rl2_rgb_to_tiff, rl2_rgb_to_geotiff
+ rl2_rgb_to_tiff, rl2_rgb_to_geotiff, rl2_gray_to_pdf
  
  \note ownership of the rgba buffer will be definitely acquired by the 
  internal PDF writer.
@@ -3529,6 +3529,23 @@ extern "C"
 	rl2_rgba_to_pdf (unsigned int width, unsigned int height,
 			 unsigned char *rgba, unsigned char **pdf,
 			 int *pdf_size);
+
+/**
+ Exports an all-Gray PDF document
+
+ \param width the PDF image width.
+ \param height the PDF image height.
+ \param pdf on completion will point to the memory block storing the created PDF document.
+ \param pdf_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the PDF document.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rl2_rgba_to_pdf
+ */
+    RL2_DECLARE int
+	rl2_gray_pdf (unsigned int width, unsigned int height,
+		      unsigned char **pdf, int *pdf_size);
 
     RL2_DECLARE int
 	rl2_parse_hexrgb (const char *hex, unsigned char *red,

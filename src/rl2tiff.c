@@ -7628,6 +7628,7 @@ rl2_raster_from_tiff (const unsigned char *blob, int blob_size)
     TIFF *in = (TIFF *) 0;
     unsigned int x;
     unsigned int y;
+    unsigned int row;
     uint32 *rgba;
     unsigned char *rgb;
     unsigned char *mask;
@@ -7675,10 +7676,12 @@ rl2_raster_from_tiff (const unsigned char *blob, int blob_size)
     if (rgb == NULL || mask == NULL)
 	goto error;
     p_in = rgba;
-    p_rgb = rgb;
-    p_mask = mask;
+    row = height - 1;
     for (y = 0; y < height; y++)
       {
+	  /* the TIFF RGBA buffer is bottom-up !!! */
+	  p_rgb = rgb + (row * width * 3);
+	  p_mask = mask + (row * width);
 	  for (x = 0; x < width; x++)
 	    {
 		/* copying pixels */
@@ -7694,6 +7697,7 @@ rl2_raster_from_tiff (const unsigned char *blob, int blob_size)
 		    *p_mask++ = 1;
 		p_in++;
 	    }
+	  row--;
       }
     if (!valid_mask)
       {

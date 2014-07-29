@@ -340,6 +340,8 @@ wmsAllocCachedItem (const char *url, const unsigned char *item, int size,
 	ptr->ImageFormat = WMS_FORMAT_PNG;
     if (strcmp (image_format, "image/jpeg") == 0)
 	ptr->ImageFormat = WMS_FORMAT_JPEG;
+    if (strcmp (image_format, "image/tiff") == 0)
+	ptr->ImageFormat = WMS_FORMAT_TIFF;
     ptr->Prev = NULL;
     ptr->Next = NULL;
     return ptr;
@@ -6962,6 +6964,10 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 		    raster =
 			rl2_raster_from_jpeg (cachedItem->Item,
 					      cachedItem->Size);
+		if (cachedItem->ImageFormat == WMS_FORMAT_TIFF)
+		    raster =
+			rl2_raster_from_tiff (cachedItem->Item,
+					      cachedItem->Size);
 		goto image_ready;
 	    }
       }
@@ -7058,6 +7064,9 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 	  if (strcmp (image_format, "image/jpeg") == 0)
 	      raster =
 		  rl2_raster_from_jpeg (bodyBuf.Buffer, bodyBuf.WriteOffset);
+	  if (strcmp (image_format, "image/tiff") == 0)
+	      raster =
+		  rl2_raster_from_tiff (bodyBuf.Buffer, bodyBuf.WriteOffset);
 
 	  if (raster != NULL)
 	    {
@@ -7163,6 +7172,10 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 		    raster =
 			rl2_raster_from_jpeg (cachedItem->Item,
 					      cachedItem->Size);
+		if (cachedItem->ImageFormat == WMS_FORMAT_TIFF)
+		    raster =
+			rl2_raster_from_tiff (cachedItem->Item,
+					      cachedItem->Size);
 		goto image_ready;
 	    }
       }
@@ -7256,6 +7269,9 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 	  if (strcmp (image_format, "image/jpeg") == 0)
 	      raster =
 		  rl2_raster_from_jpeg (bodyBuf.Buffer, bodyBuf.WriteOffset);
+	  if (strcmp (image_format, "image/tiff") == 0)
+	      raster =
+		  rl2_raster_from_tiff (bodyBuf.Buffer, bodyBuf.WriteOffset);
 
 	  if (raster != NULL)
 	    {

@@ -3190,7 +3190,7 @@ mb_prime_nodata_u16 (unsigned short *buf, unsigned int width,
 static rl2RasterPtr
 create_rescaled_multiband_raster (unsigned int factor, unsigned int tileWidth,
 				  unsigned int tileHeight, const void *buf_in,
-				  const char *mask_in,
+				  const unsigned char *mask_in,
 				  unsigned char sample_type,
 				  unsigned char num_bands, rl2PixelPtr no_data)
 {

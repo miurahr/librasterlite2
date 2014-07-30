@@ -3081,8 +3081,8 @@ has_styled_rgb_colors (rl2RasterStylePtr style)
     return 0;
 }
 
-static double
-get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
+RL2_PRIVATE double
+rl2_get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
 {
 /* return the appropriate Scale Factor for Shaded Relief
 /  when SRID is of the Long/Lat type
@@ -3332,7 +3332,7 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 	    {
 		/* preparing a Shaded Relief mask */
 		double scale_factor =
-		    get_shaded_relief_scale_factor (handle, coverage);
+		    rl2_get_shaded_relief_scale_factor (handle, coverage);
 		if (rl2_get_raster_style_shaded_relief
 		    (style, &brightness_only, &relief_factor) != RL2_OK)
 		    goto error;

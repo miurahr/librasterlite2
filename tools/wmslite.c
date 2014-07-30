@@ -66,13 +66,14 @@
 #define WMS_INVALID_DIMENSION	102
 #define WMS_INVALID_BBOX	103
 #define WMS_INVALID_LAYER	104
-#define WMS_INVALID_BGCOLOR	105
-#define WMS_INVALID_STYLE	106
-#define WMS_INVALID_FORMAT	107
-#define WMS_INVALID_TRANSPARENT	108
-#define WMS_NOT_EXISTING_LAYER	109
-#define WMS_LAYER_OUT_OF_BBOX	110
-#define WMS_MISMATCHING_SRID	111
+#define WMS_INVALID_GROUP	105
+#define WMS_INVALID_BGCOLOR	106
+#define WMS_INVALID_STYLE	107
+#define WMS_INVALID_FORMAT	108
+#define WMS_INVALID_TRANSPARENT	109
+#define WMS_NOT_EXISTING_LAYER	110
+#define WMS_LAYER_OUT_OF_BBOX	111
+#define WMS_MISMATCHING_SRID	112
 
 #define WMS_VERSION_UNKNOWN	0
 #define WMS_VERSION_100		100
@@ -1572,9 +1573,11 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 	      double maxx, double maxy, const char **layer_name)
 {
 /* checking a required layer for validity */
+    struct wms_group *grp;
     struct wms_layer *lyr = list->first_layer;
     while (lyr != NULL)
       {
+	  /* searching a genuine Layer */
 	  if (strcmp (lyr->layer_name, layer) == 0)
 	    {
 		if (lyr->srid != srid)
@@ -1609,6 +1612,47 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 		return 0;
 	    }
 	  lyr = lyr->next;
+      }
+    grp = list->first_group;
+    while (grp != NULL)
+      {
+	  /* fallback case: searching a Group of Layers */
+	  if (strcmp (grp->group_name, layer) == 0)
+	    {
+		if (grp->valid == 0)
+		    return WMS_INVALID_GROUP;
+		if (grp->srid != srid)
+		    return WMS_MISMATCHING_SRID;
+		if (wms_version == WMS_VERSION_130 && grp->is_geographic)
+		    *swap_xy = 1;
+		else
+		    *swap_xy = 0;
+		if (*swap_xy)
+		  {
+		      if (grp->minx > maxy)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (grp->maxx < miny)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (grp->miny > maxx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (grp->maxy < minx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		  }
+		else
+		  {
+		      if (grp->minx > maxx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (grp->maxx < minx)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (grp->miny > maxy)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		      if (grp->maxy < miny)
+			  return WMS_LAYER_OUT_OF_BBOX;
+		  }
+		*layer_name = grp->group_name;
+		return 0;
+	    }
+	  grp = grp->next;
       }
     return WMS_NOT_EXISTING_LAYER;
 }
@@ -1792,7 +1836,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		ret =
 		    exists_layer (list, layer, srid, wms_version, &swap_xy,
 				  minx, miny, maxx, maxy, &layer_name);
-		if (ret == WMS_NOT_EXISTING_LAYER
+		if (ret == WMS_NOT_EXISTING_LAYER || ret == WMS_INVALID_GROUP
 		    || ret == WMS_LAYER_OUT_OF_BBOX
 		    || ret == WMS_MISMATCHING_SRID)
 		  {
@@ -2070,6 +2114,7 @@ build_wms_exception (struct wms_args *args, gaiaOutBufferPtr xml_response)
 				       "Invalid BBOX parameter.\r\n");
 		break;
 	    case WMS_NOT_EXISTING_LAYER:
+	    case WMS_INVALID_GROUP:
 	    case WMS_INVALID_LAYER:
 		gaiaAppendToOutBuffer (&xml_text,
 				       "<ServiceException code=\"LayerNotDefined\">\r\n");

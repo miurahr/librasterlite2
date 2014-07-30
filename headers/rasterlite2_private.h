@@ -721,6 +721,57 @@ extern "C"
     } rl2PrivMemPdf;
     typedef rl2PrivMemPdf *rl2PrivMemPdfPtr;
 
+    struct aux_renderer
+    {
+	/* helper struct for passing arguments to aux_render_image */
+	sqlite3 *sqlite;
+	int width;
+	int height;
+	int base_width;
+	int base_height;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
+	int srid;
+	double xx_res;
+	double yy_res;
+	int transparent;
+	double opacity;
+	int quality;
+	unsigned char format_id;
+	unsigned char bg_red;
+	unsigned char bg_green;
+	unsigned char bg_blue;
+	rl2CoveragePtr coverage;
+	rl2RasterStylePtr symbolizer;
+	rl2RasterStatisticsPtr stats;
+	unsigned char *outbuf;
+	rl2PalettePtr palette;
+	unsigned char out_pixel;
+    };
+
+    struct aux_group_renderer
+    {
+	/* helper struct for passing arguments to aux_group_renderer */
+	sqlite3_context *context;
+	const char *group_name;
+	double minx;
+	double maxx;
+	double miny;
+	double maxy;
+	int width;
+	int height;
+	const char *style;
+	unsigned char format_id;
+	unsigned char bg_red;
+	unsigned char bg_green;
+	unsigned char bg_blue;
+	int transparent;
+	int quality;
+	int reaspect;
+    };
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);
@@ -1256,6 +1307,16 @@ extern "C"
 					  double maxx, double maxy,
 					  rl2PalettePtr palette,
 					  rl2PixelPtr no_data);
+
+    RL2_PRIVATE int rl2_aux_render_image (struct aux_renderer *aux,
+					  unsigned char **ximage,
+					  int *ximage_size);
+
+    RL2_PRIVATE void rl2_aux_group_renderer (struct aux_group_renderer *auxgrp);
+
+    RL2_PRIVATE double rl2_get_shaded_relief_scale_factor (sqlite3 * handle,
+							   const char
+							   *coverage);
 
 #ifdef __cplusplus
 }

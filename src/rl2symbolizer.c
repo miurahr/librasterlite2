@@ -611,19 +611,21 @@ parse_sld_se_categorize (xmlNodePtr node, rl2PrivRasterStylePtr style)
 						{
 						    style->categorize->baseRed =
 							red;
-						    style->categorize->
-							baseGreen = green;
-						    style->categorize->
-							baseBlue = blue;
+						    style->
+							categorize->baseGreen =
+							green;
+						    style->
+							categorize->baseBlue =
+							blue;
 						}
 					      else
 						{
-						    style->categorize->last->
-							red = red;
-						    style->categorize->last->
-							green = green;
-						    style->categorize->last->
-							blue = blue;
+						    style->categorize->
+							last->red = red;
+						    style->categorize->
+							last->green = green;
+						    style->categorize->
+							last->blue = blue;
 						}
 					  }
 					else
@@ -2167,10 +2169,10 @@ rl2_create_group_renderer (sqlite3 * sqlite, rl2GroupStylePtr group_style)
 				rl2_create_raster_style_from_dbms (sqlite,
 								   layer_name,
 								   layer_style);
-			    stats =
-				rl2_create_raster_statistics_from_dbms (sqlite,
-									layer_name);
 			}
+		      stats =
+			  rl2_create_raster_statistics_from_dbms (sqlite,
+								  layer_name);
 		  }
 		if ((cvg->pixelType == RL2_PIXEL_DATAGRID
 		     || cvg->pixelType == RL2_PIXEL_MULTIBAND)

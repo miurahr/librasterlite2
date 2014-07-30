@@ -2623,9 +2623,8 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->redGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 redGamma) * 254 + 0.5);
 			    r->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->redContrast ==
@@ -2690,9 +2689,8 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->greenGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 greenGamma) * 254 + 0.5);
 			    g->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->greenContrast ==
@@ -2757,9 +2755,8 @@ build_triple_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->blueGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 blueGamma) * 254 + 0.5);
 			    b->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->blueContrast ==
@@ -3282,9 +3279,8 @@ build_mono_band_handling (rl2PrivRasterStylePtr style,
 				    (unsigned
 				     char) (pow ((double) i / 254.0,
 						 1.0 /
-						 style->
-						 bandSelection->grayGamma) *
-					    254 + 0.5);
+						 style->bandSelection->
+						 grayGamma) * 254 + 0.5);
 			    g->look_up[255] = 255;
 			}
 		      else if (style->bandSelection->grayContrast ==
@@ -3526,11 +3522,11 @@ copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			    copy_uint16_raw_selected_pixels ((const unsigned
 							      short
 							      *)
-							     (rst->
-							      rasterBuffer),
+							     (rst->rasterBuffer),
 							     (const unsigned
-							      char *) (rst->
-								       maskBuffer),
+							      char
+							      *)
+							     (rst->maskBuffer),
 							     (unsigned char *)
 							     outbuf, width,
 							     height,
@@ -4142,10 +4138,6 @@ compute_shaded_relief (double relief_factor, double scale_factor,
 /* actual computation */
     double x;
     double y;
-    /*
-       double z_factor = 1.0 * 111120.0;
-       double scale_factor = 200.0 / (relief_factor / 55.0);
-     */
     double z_factor = 0.0033333333 * (relief_factor / 55.0);
     double aspect;
     double slope;

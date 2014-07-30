@@ -104,6 +104,8 @@
 
 #endif
 
+int debug_mode = 0;
+
 struct glob_var
 {
 /* global objects */
@@ -1970,6 +1972,8 @@ parse_http_request (const char *http_hdr, char **method, char **url)
 	  if (!add_wms_argument (args, token))
 	      goto error;
       }
+    if (debug_mode)
+	printf ("%s\n", *url);
     return args;
 
   error:
@@ -4010,6 +4014,8 @@ do_help ()
 	     "-p or --ip-port       number    IP port number [default: 8080]\n\n");
     fprintf (stderr,
 	     "-cs or --cache-size    num      DB cache size (how many pages)\n");
+    fprintf (stderr,
+	     "-dbg or --debug                 verbose debugginh mode\n");
 }
 
 int
@@ -4092,6 +4098,12 @@ main (int argc, char *argv[])
 	      || strcmp (argv[i], "-cs") == 0)
 	    {
 		next_arg = ARG_CACHE_SIZE;
+		continue;
+	    }
+	  if (strcasecmp (argv[i], "--debug") == 0
+	      || strcmp (argv[i], "-dbg") == 0)
+	    {
+		debug_mode = 1;
 		continue;
 	    }
 	  fprintf (stderr, "unknown argument: %s\n", argv[i]);

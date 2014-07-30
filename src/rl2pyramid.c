@@ -2226,6 +2226,7 @@ rescale_monolithic_rgba (int id_level,
     int valid_mask = 0;
     unsigned char *p_in;
     unsigned char *p_out;
+    unsigned char *p_msk;
 
 /* creating a graphics context */
     ctx = rl2_graph_create_context (tileWidth, tileHeight);
@@ -2284,13 +2285,24 @@ rescale_monolithic_rgba (int id_level,
       {
 	  /* Grayscale */
 	  p_in = rgb;
+	  p_msk = alpha;
 	  p_out = buffer;
 	  for (y = 0; y < tileHeight; y++)
 	    {
 		for (x = 0; x < tileWidth; x++)
 		  {
-		      *p_out++ = *p_in++;
-		      p_in += 2;
+		      if (*p_msk++ < 128)
+			{
+			    /* skipping a transparent pixel */
+			    p_in += 3;
+			    p_out += 3;
+			}
+		      else
+			{
+			    /* copying an opaque pixel */
+			    *p_out++ = *p_in++;
+			    p_in += 2;
+			}
 		  }
 	    }
       }
@@ -2298,14 +2310,25 @@ rescale_monolithic_rgba (int id_level,
       {
 	  /* RGB */
 	  p_in = rgb;
+	  p_msk = alpha;
 	  p_out = buffer;
 	  for (y = 0; y < tileHeight; y++)
 	    {
 		for (x = 0; x < tileWidth; x++)
 		  {
-		      *p_out++ = *p_in++;
-		      *p_out++ = *p_in++;
-		      *p_out++ = *p_in++;
+		      if (*p_msk++ < 128)
+			{
+			    /* skipping a transparent pixel */
+			    p_in += 3;
+			    p_out += 3;
+			}
+		      else
+			{
+			    /* copying an opaque pixel */
+			    *p_out++ = *p_in++;
+			    *p_out++ = *p_in++;
+			    *p_out++ = *p_in++;
+			}
 		  }
 	    }
       }

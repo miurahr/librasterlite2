@@ -2102,18 +2102,70 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
       {
 	  /* compressing as LZMA */
 	  lzma_options_lzma opt_lzma2;
+	  lzma_options_delta opt_delta;
 	  lzma_ret ret;
-	  lzma_filter filters[2];
+	  lzma_filter filters[3];
 	  size_t out_pos = 0;
 	  size_t lzmaLen = size_odd - 1;
 	  unsigned char *lzma_buf = malloc (lzmaLen);
 	  if (lzma_buf == NULL)
 	      goto error;
+	  opt_delta.type = LZMA_DELTA_TYPE_BYTE;
+	  switch (raster->pixelType)
+	    {
+	    case RL2_PIXEL_RGB:
+		switch (raster->sampleType)
+		  {
+		  case RL2_SAMPLE_UINT16:
+		      opt_delta.dist = 6;
+		      break;
+		  default:
+		      opt_delta.dist = 3;
+		      break;
+		  };
+		break;
+	    case RL2_PIXEL_MULTIBAND:
+		switch (raster->sampleType)
+		  {
+		  case RL2_SAMPLE_UINT16:
+		      opt_delta.dist = raster->nBands * 2;
+		      break;
+		  default:
+		      opt_delta.dist = raster->nBands;
+		      break;
+		  };
+		break;
+	    case RL2_PIXEL_DATAGRID:
+		switch (raster->sampleType)
+		  {
+		  case RL2_SAMPLE_INT16:
+		  case RL2_SAMPLE_UINT16:
+		      opt_delta.dist = 2;
+		      break;
+		  case RL2_SAMPLE_INT32:
+		  case RL2_SAMPLE_UINT32:
+		  case RL2_SAMPLE_FLOAT:
+		      opt_delta.dist = 4;
+		      break;
+		  case RL2_SAMPLE_DOUBLE:
+		      opt_delta.dist = 8;
+		      break;
+		  default:
+		      opt_delta.dist = 1;
+		      break;
+		  };
+		break;
+	    default:
+		opt_delta.dist = 1;
+		break;
+	    };
 	  lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
-	  filters[0].id = LZMA_FILTER_LZMA2;
-	  filters[0].options = &opt_lzma2;
-	  filters[1].id = LZMA_VLI_UNKNOWN;
-	  filters[1].options = NULL;
+	  filters[0].id = LZMA_FILTER_DELTA;
+	  filters[0].options = &opt_delta;
+	  filters[1].id = LZMA_FILTER_LZMA2;
+	  filters[1].options = &opt_lzma2;
+	  filters[2].id = LZMA_VLI_UNKNOWN;
+	  filters[2].options = NULL;
 	  ret =
 	      lzma_raw_buffer_encode (filters, NULL,
 				      (const uint8_t *) pixels_odd, size_odd,
@@ -2373,18 +2425,71 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    {
 		/* compressing as LZMA */
 		lzma_options_lzma opt_lzma2;
+		lzma_options_delta opt_delta;
 		lzma_ret ret;
-		lzma_filter filters[2];
+		lzma_filter filters[3];
 		size_t out_pos = 0;
 		size_t lzmaLen = size_even - 1;
 		unsigned char *lzma_buf = malloc (lzmaLen);
 		if (lzma_buf == NULL)
 		    goto error;
 		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
-		filters[0].id = LZMA_FILTER_LZMA2;
-		filters[0].options = &opt_lzma2;
-		filters[1].id = LZMA_VLI_UNKNOWN;
-		filters[1].options = NULL;
+		opt_delta.type = LZMA_DELTA_TYPE_BYTE;
+		switch (raster->pixelType)
+		  {
+		  case RL2_PIXEL_RGB:
+		      switch (raster->sampleType)
+			{
+			case RL2_SAMPLE_UINT16:
+			    opt_delta.dist = 6;
+			    break;
+			default:
+			    opt_delta.dist = 3;
+			    break;
+			};
+		      break;
+		  case RL2_PIXEL_MULTIBAND:
+		      switch (raster->sampleType)
+			{
+			case RL2_SAMPLE_UINT16:
+			    opt_delta.dist = raster->nBands * 2;
+			    break;
+			default:
+			    opt_delta.dist = raster->nBands;
+			    break;
+			};
+		      break;
+		  case RL2_PIXEL_DATAGRID:
+		      switch (raster->sampleType)
+			{
+			case RL2_SAMPLE_INT16:
+			case RL2_SAMPLE_UINT16:
+			    opt_delta.dist = 2;
+			    break;
+			case RL2_SAMPLE_INT32:
+			case RL2_SAMPLE_UINT32:
+			case RL2_SAMPLE_FLOAT:
+			    opt_delta.dist = 4;
+			    break;
+			case RL2_SAMPLE_DOUBLE:
+			    opt_delta.dist = 8;
+			    break;
+			default:
+			    opt_delta.dist = 1;
+			    break;
+			};
+		      break;
+		  default:
+		      opt_delta.dist = 1;
+		      break;
+		  };
+		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
+		filters[0].id = LZMA_FILTER_DELTA;
+		filters[0].options = &opt_delta;
+		filters[1].id = LZMA_FILTER_LZMA2;
+		filters[1].options = &opt_lzma2;
+		filters[2].id = LZMA_VLI_UNKNOWN;
+		filters[2].options = NULL;
 		ret =
 		    lzma_raw_buffer_encode (filters, NULL,
 					    (const uint8_t *) pixels_even,
@@ -4644,7 +4749,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
       {
 	  /* decompressing from LZMA - ODD Block */
 	  lzma_options_lzma opt_lzma2;
-	  lzma_filter filters[2];
+	  lzma_options_delta opt_delta;
+	  lzma_filter filters[3];
 	  size_t in_pos = 0;
 	  size_t out_pos = 0;
 	  size_t refLen = compressed_odd;
@@ -4652,10 +4758,62 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	  if (odd_data == NULL)
 	      goto error;
 	  lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
-	  filters[0].id = LZMA_FILTER_LZMA2;
-	  filters[0].options = &opt_lzma2;
-	  filters[1].id = LZMA_VLI_UNKNOWN;
-	  filters[1].options = NULL;
+	  opt_delta.type = LZMA_DELTA_TYPE_BYTE;
+	  switch (pixel_type)
+	    {
+	    case RL2_PIXEL_RGB:
+		switch (sample_type)
+		  {
+		  case RL2_SAMPLE_UINT16:
+		      opt_delta.dist = 6;
+		      break;
+		  default:
+		      opt_delta.dist = 3;
+		      break;
+		  };
+		break;
+	    case RL2_PIXEL_MULTIBAND:
+		switch (sample_type)
+		  {
+		  case RL2_SAMPLE_UINT16:
+		      opt_delta.dist = num_bands * 2;
+		      break;
+		  default:
+		      opt_delta.dist = num_bands;
+		      break;
+		  };
+		break;
+	    case RL2_PIXEL_DATAGRID:
+		switch (sample_type)
+		  {
+		  case RL2_SAMPLE_INT16:
+		  case RL2_SAMPLE_UINT16:
+		      opt_delta.dist = 2;
+		      break;
+		  case RL2_SAMPLE_INT32:
+		  case RL2_SAMPLE_UINT32:
+		  case RL2_SAMPLE_FLOAT:
+		      opt_delta.dist = 4;
+		      break;
+		  case RL2_SAMPLE_DOUBLE:
+		      opt_delta.dist = 8;
+		      break;
+		  default:
+		      opt_delta.dist = 1;
+		      break;
+		  };
+		break;
+	    default:
+		opt_delta.dist = 1;
+		break;
+	    };
+	  lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
+	  filters[0].id = LZMA_FILTER_DELTA;
+	  filters[0].options = &opt_delta;
+	  filters[1].id = LZMA_FILTER_LZMA2;
+	  filters[1].options = &opt_lzma2;
+	  filters[2].id = LZMA_VLI_UNKNOWN;
+	  filters[2].options = NULL;
 	  if (lzma_raw_buffer_decode
 	      (filters, NULL, pixels_odd, &in_pos, refLen, odd_data, &out_pos,
 	       uncompressed_odd) != LZMA_OK)
@@ -4665,7 +4823,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    {
 		/* decompressing from LZMA - EVEN Block */
 		lzma_options_lzma opt_lzma2;
-		lzma_filter filters[2];
+		lzma_options_delta opt_delta;
+		lzma_filter filters[3];
 		size_t in_pos = 0;
 		size_t out_pos = 0;
 		size_t refLen = compressed_even;
@@ -4673,10 +4832,62 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		if (even_data == NULL)
 		    goto error;
 		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
-		filters[0].id = LZMA_FILTER_LZMA2;
-		filters[0].options = &opt_lzma2;
-		filters[1].id = LZMA_VLI_UNKNOWN;
-		filters[1].options = NULL;
+		opt_delta.type = LZMA_DELTA_TYPE_BYTE;
+		switch (pixel_type)
+		  {
+		  case RL2_PIXEL_RGB:
+		      switch (sample_type)
+			{
+			case RL2_SAMPLE_UINT16:
+			    opt_delta.dist = 6;
+			    break;
+			default:
+			    opt_delta.dist = 3;
+			    break;
+			};
+		      break;
+		  case RL2_PIXEL_MULTIBAND:
+		      switch (sample_type)
+			{
+			case RL2_SAMPLE_UINT16:
+			    opt_delta.dist = num_bands * 2;
+			    break;
+			default:
+			    opt_delta.dist = num_bands;
+			    break;
+			};
+		      break;
+		  case RL2_PIXEL_DATAGRID:
+		      switch (sample_type)
+			{
+			case RL2_SAMPLE_INT16:
+			case RL2_SAMPLE_UINT16:
+			    opt_delta.dist = 2;
+			    break;
+			case RL2_SAMPLE_INT32:
+			case RL2_SAMPLE_UINT32:
+			case RL2_SAMPLE_FLOAT:
+			    opt_delta.dist = 4;
+			    break;
+			case RL2_SAMPLE_DOUBLE:
+			    opt_delta.dist = 8;
+			    break;
+			default:
+			    opt_delta.dist = 1;
+			    break;
+			};
+		      break;
+		  default:
+		      opt_delta.dist = 1;
+		      break;
+		  };
+		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
+		filters[0].id = LZMA_FILTER_DELTA;
+		filters[0].options = &opt_delta;
+		filters[1].id = LZMA_FILTER_LZMA2;
+		filters[1].options = &opt_lzma2;
+		filters[2].id = LZMA_VLI_UNKNOWN;
+		filters[2].options = NULL;
 		if (lzma_raw_buffer_decode
 		    (filters, NULL, pixels_even, &in_pos, refLen, even_data,
 		     &out_pos, uncompressed_even) != LZMA_OK)

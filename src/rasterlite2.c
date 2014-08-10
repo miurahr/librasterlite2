@@ -444,6 +444,12 @@ rl2_create_coverage (const char *name, unsigned char sample_type,
     cvg->hResolution = 1.0;
     cvg->vResolution = 1.0;
     cvg->noData = pxl_no_data;
+/* applying the default policies */
+    cvg->strictResolution = 0;
+    cvg->mixedResolutions = 0;
+    cvg->sectionPaths = 0;
+    cvg->sectionMD5 = 0;
+    cvg->sectionSummary = 0;
     return (rl2CoveragePtr) cvg;
 }
 
@@ -459,6 +465,50 @@ rl2_destroy_coverage (rl2CoveragePtr ptr)
     if (cvg->noData != NULL)
 	rl2_destroy_pixel ((rl2PixelPtr) (cvg->noData));
     free (cvg);
+}
+
+RL2_DECLARE int
+rl2_set_coverage_policies (rl2CoveragePtr ptr, int strict_resolution,
+			   int mixed_resolutions, int section_paths,
+			   int section_md5, int section_summary)
+{
+/* setting the Coverage's Policies */
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
+    if (cvg == NULL)
+	return RL2_ERROR;
+    if (strict_resolution)
+	strict_resolution = 1;
+    cvg->strictResolution = strict_resolution;
+    if (mixed_resolutions)
+	mixed_resolutions = 1;
+    cvg->mixedResolutions = mixed_resolutions;
+    if (section_paths)
+	section_paths = 1;
+    cvg->sectionPaths = section_paths;
+    if (section_md5)
+	section_md5 = 1;
+    cvg->sectionMD5 = section_md5;
+    if (section_summary)
+	section_summary = 1;
+    cvg->sectionSummary = section_summary;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_coverage_policies (rl2CoveragePtr ptr, int *strict_resolution,
+			   int *mixed_resolutions, int *section_paths,
+			   int *section_md5, int *section_summary)
+{
+/* retrieving the Coverage's Policies */
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
+    if (cvg == NULL)
+	return RL2_ERROR;
+    *strict_resolution = cvg->strictResolution;
+    *mixed_resolutions = cvg->mixedResolutions;
+    *section_paths = cvg->sectionPaths;
+    *section_md5 = cvg->sectionMD5;
+    *section_summary = cvg->sectionSummary;
+    return RL2_OK;
 }
 
 RL2_DECLARE int

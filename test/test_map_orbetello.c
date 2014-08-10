@@ -986,9 +986,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
       }
 
 /* re-building the Pyramid Levels */
-    sql =
-	sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", coverage,
-			 "orbetello1");
+    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, 1, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1013,9 +1011,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
       }
 
 /* building yet again the Pyramid Levels */
-    sql =
-	sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", coverage,
-			 "orbetello1");
+    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, 1, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)

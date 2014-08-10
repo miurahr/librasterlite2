@@ -29,6 +29,7 @@
 #include <string.h>
 #include <float.h>
 #include <limits.h>
+#include <time.h>
 
 #include <sys/types.h>
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -50,14 +51,15 @@
 #define ARG_MODE_DROP		2
 #define ARG_MODE_IMPORT		3
 #define ARG_MODE_EXPORT		4
-#define ARG_MODE_DELETE		5
-#define ARG_MODE_PYRAMIDIZE	6
-#define ARG_MODE_PYRMONO	7
-#define ARG_MODE_DE_PYRAMIDIZE	8
-#define ARG_MODE_LIST		9
-#define ARG_MODE_CATALOG	10
-#define ARG_MODE_MAP		11
-#define ARG_MODE_HISTOGRAM	12
+#define ARG_MODE_SECT_EXPORT	5
+#define ARG_MODE_DELETE		6
+#define ARG_MODE_PYRAMIDIZE	7
+#define ARG_MODE_PYRMONO	8
+#define ARG_MODE_DE_PYRAMIDIZE	9
+#define ARG_MODE_LIST		10
+#define ARG_MODE_CATALOG	12
+#define ARG_MODE_MAP		13
+#define ARG_MODE_HISTOGRAM	14
 
 #define ARG_DB_PATH		10
 #define ARG_SRC_PATH		11
@@ -66,28 +68,34 @@
 #define ARG_FILE_EXT		14
 #define ARG_COVERAGE		15
 #define ARG_SECTION		16
-#define ARG_SAMPLE		17
-#define ARG_PIXEL		18
-#define ARG_NUM_BANDS		19
-#define ARG_COMPRESSION		20
-#define ARG_QUALITY		21
-#define ARG_TILE_WIDTH		22
-#define ARG_TILE_HEIGHT		23
-#define ARG_BAND_INDEX	24
-#define ARG_IMG_WIDTH		25
-#define ARG_IMG_HEIGHT		26
-#define ARG_SRID		27
-#define ARG_RESOLUTION		28
-#define ARG_X_RESOLUTION	29
-#define ARG_Y_RESOLUTION	30
-#define ARG_MINX		31
-#define ARG_MINY		32
-#define ARG_MAXX		33
-#define ARG_MAXY		34
-#define ARG_CX			35
-#define ARG_CY			36
-#define ARG_NO_DATA		37
-#define ARG_VIRT_LEVELS	38
+#define ARG_SECTION_ID	17
+#define ARG_SAMPLE		18
+#define ARG_PIXEL		19
+#define ARG_NUM_BANDS		20
+#define ARG_COMPRESSION		21
+#define ARG_QUALITY		22
+#define ARG_TILE_WIDTH		23
+#define ARG_TILE_HEIGHT		24
+#define ARG_BAND_INDEX	25
+#define ARG_IMG_WIDTH		26
+#define ARG_IMG_HEIGHT		27
+#define ARG_SRID		28
+#define ARG_RESOLUTION		29
+#define ARG_X_RESOLUTION	30
+#define ARG_Y_RESOLUTION	31
+#define ARG_MINX		32
+#define ARG_MINY		33
+#define ARG_MAXX		34
+#define ARG_MAXY		35
+#define ARG_CX			36
+#define ARG_CY			37
+#define ARG_NO_DATA		38
+#define ARG_VIRT_LEVELS	39
+#define ARG_STRICT_RES	40
+#define ARG_MIXED_RES	41
+#define ARG_PATHS		42
+#define ARG_MD5			43
+#define ARG_SUMMARY		44
 
 #define ARG_CACHE_SIZE		99
 
@@ -362,7 +370,8 @@ exec_create (sqlite3 * handle, const char *coverage,
 	     unsigned char sample, unsigned char pixel, unsigned char num_bands,
 	     unsigned char compression, int quality, unsigned short tile_width,
 	     unsigned short tile_height, int srid, double x_res, double y_res,
-	     rl2PixelPtr no_data)
+	     rl2PixelPtr no_data, int strict_resolution, int mixed_resolutions,
+	     int section_paths, int section_md5, int section_summary)
 {
 /* performing CREATE */
     rl2PalettePtr palette = NULL;
@@ -387,7 +396,8 @@ exec_create (sqlite3 * handle, const char *coverage,
     if (rl2_create_dbms_coverage
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
 	 tile_width, tile_height, srid, x_res, y_res, no_data,
-	 palette) != RL2_OK)
+	 palette, strict_resolution, mixed_resolutions, section_paths,
+	 section_md5, section_summary) != RL2_OK)
 	return 0;
 
     printf ("\rRaster Coverage \"%s\" successfully created\n", coverage);
@@ -400,9 +410,17 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
 	     int worldfile, int force_srid, int pyramidize)
 {
 /* performing IMPORT */
+    time_t start;
+    time_t now;
+    time_t diff;
+    int days;
+    int hours;
+    int mins;
+    int secs;
     int ret;
     rl2CoveragePtr cvg = NULL;
 
+    time (&start);
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
       {
@@ -413,14 +431,31 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
     if (src_path != NULL)
 	ret =
 	    rl2_load_raster_into_dbms (handle, src_path, cvg, worldfile,
-				       force_srid, pyramidize);
+				       force_srid, pyramidize, 1);
     else
 	ret =
 	    rl2_load_mrasters_into_dbms (handle, dir_path, file_ext, cvg,
-					 worldfile, force_srid, pyramidize);
+					 worldfile, force_srid, pyramidize, 1);
     rl2_destroy_coverage (cvg);
+
     if (ret == RL2_OK)
-	return 1;
+      {
+	  time (&now);
+	  diff = now - start;
+	  days = diff / 86400;
+	  hours = (diff - (days * 86400)) / 3600;
+	  mins = (diff - (days * 86400) - (hours / 3600)) / 60;
+	  secs = diff - (mins * 60);
+	  if (days > 0)
+	      printf (">> Total time: %d days %d hours %d mins %02d secs\n",
+		      days, hours, mins, secs);
+	  else if (hours > 0)
+	      printf (">> Total time: %d hours %d mins %02d secs\n", hours,
+		      mins, secs);
+	  else
+	      printf (">> Total time: %d mins %02d secs\n", mins, secs);
+	  return 1;
+      }
     return 0;
 }
 
@@ -453,7 +488,7 @@ is_jpeg_image (const char *path)
 static int
 exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 	     double x_res, double y_res, double minx, double miny, double maxx,
-	     double maxy, unsigned short width, unsigned short height)
+	     double maxy, unsigned int width, unsigned int height)
 {
 /* performing EXPORT */
     rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
@@ -498,6 +533,118 @@ exec_export (sqlite3 * handle, const char *dst_path, const char *coverage,
 }
 
 static int
+exec_section_export (sqlite3 * handle, const char *dst_path,
+		     const char *coverage, const char *section,
+		     int ok_section_id, sqlite3_int64 section_id, double x_res,
+		     double y_res, double minx, double miny, double maxx,
+		     double maxy, unsigned int width, unsigned int height,
+		     int full_section)
+{
+/* performing EXPORT */
+    rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    if (cvg == NULL)
+	return 0;
+
+    if (!ok_section_id)
+      {
+	  /* attempting to resolve the Section Name into a SectionID */
+	  int duplicate = 0;
+	  if (rl2_get_dbms_section_id
+	      (handle, coverage, section, &section_id, &duplicate) != RL2_OK)
+	    {
+		if (duplicate)
+		    fprintf (stderr,
+			     "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+			     section, coverage);
+		else
+		    fprintf (stderr,
+			     "Section \"%s\" does not exists in Coverage \"%s\"\n",
+			     section, coverage);
+		goto error;
+	    }
+      }
+
+    if (full_section)
+      {
+	  char *dumb1;
+	  char *dumb2;
+	  double cx;
+	  double cy;
+	  if (rl2_resolve_full_section_from_dbms
+	      (handle, coverage, section_id, x_res, y_res, &minx, &miny, &maxx,
+	       &maxy, &width, &height) != RL2_OK)
+	    {
+		fprintf (stderr, "*** Unable to resolve Full Section Extent\n");
+		goto error;
+	    }
+	  printf ("        Image Size: %u x %u\n", width, height);
+	  dumb1 = formatLong (minx);
+	  dumb2 = formatLat (miny);
+	  printf (" Lower-Left Corner: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatLong (maxx);
+	  dumb2 = formatLat (maxy);
+	  printf ("Upper-Right Corner: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  cx = minx + ((maxx - minx) / 2.0);
+	  cy = miny + ((maxy - miny) / 2.0);
+	  dumb1 = formatLong (cx);
+	  dumb2 = formatLat (cy);
+	  printf ("            Center: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  fprintf (stderr,
+		   "===========================================================\n\n");
+      }
+
+    if (is_ascii_grid (dst_path))
+      {
+	  /* export an ASCII Grid */
+	  /*
+	     if (rl2_export_ascii_grid_from_dbms
+	     (handle, dst_path, cvg, x_res, minx, miny, maxx, maxy, width,
+	     height, 0, 4) != RL2_OK)
+	     goto error;
+	   */
+	  fprintf (stderr, "NO ASCII GRID SUPPORTED\n");
+      }
+    else if (is_jpeg_image (dst_path))
+      {
+	  /* export a JPEG Image (with possible WorldFile) */
+	  /*
+	     int srid;
+	     int with_worldfile = 0;
+	     if (rl2_get_coverage_srid (cvg, &srid) == RL2_OK)
+	     {
+	     if (srid > 0)
+	     with_worldfile = 1;
+	     }
+	     if (rl2_export_jpeg_from_dbms
+	     (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
+	     width, height, 85, with_worldfile) != RL2_OK)
+	     goto error;
+	   */
+	  fprintf (stderr, "NO JPEG SUPPORTED\n");
+      }
+    else
+      {
+	  /* export a GeoTIFF */
+	  if (rl2_export_section_geotiff_from_dbms
+	      (handle, dst_path, cvg, section_id, x_res, y_res, minx, miny,
+	       maxx, maxy, width, height, RL2_COMPRESSION_NONE, 256,
+	       0) != RL2_OK)
+	      goto error;
+      }
+    rl2_destroy_coverage (cvg);
+    return 1;
+  error:
+    rl2_destroy_coverage (cvg);
+    return 0;
+}
+
+static int
 exec_drop (sqlite3 * handle, const char *coverage)
 {
 /* performing DROP */
@@ -520,23 +667,33 @@ exec_drop (sqlite3 * handle, const char *coverage)
 }
 
 static int
-exec_delete (sqlite3 * handle, const char *coverage, const char *section)
+exec_delete (sqlite3 * handle, const char *coverage, const char *section,
+	     int ok_section_id, sqlite3_int64 section_id)
 {
 /* deleting a Raster Section */
     rl2CoveragePtr cvg = NULL;
-    sqlite3_int64 section_id;
 
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
 	goto error;
 
-    if (rl2_get_dbms_section_id (handle, coverage, section, &section_id) !=
-	RL2_OK)
+    if (!ok_section_id)
       {
-	  fprintf (stderr,
-		   "Section \"%s\" does not exists in Coverage \"%s\"\n",
-		   section, coverage);
-	  goto error;
+	  /* attempting to resolve the Section Name into a SectionID */
+	  int duplicate = 0;
+	  if (rl2_get_dbms_section_id
+	      (handle, coverage, section, &section_id, &duplicate) != RL2_OK)
+	    {
+		if (duplicate)
+		    fprintf (stderr,
+			     "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+			     section, coverage);
+		else
+		    fprintf (stderr,
+			     "Section \"%s\" does not exists in Coverage \"%s\"\n",
+			     section, coverage);
+		goto error;
+	    }
       }
 
     if (rl2_delete_dbms_section (handle, coverage, section_id) != RL2_OK)
@@ -553,16 +710,37 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section)
 
 static int
 exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
-		 int force_pyramid)
+		 int ok_section_id, sqlite3_int64 section_id, int force_pyramid)
 {
 /* building Pyramid levels */
     int ret;
-    if (section == NULL)
+    if (section == NULL && !ok_section_id)
 	ret = rl2_build_all_section_pyramids (handle, coverage, force_pyramid);
     else
-	ret =
-	    rl2_build_section_pyramid (handle, coverage, section,
-				       force_pyramid);
+      {
+	  if (!ok_section_id)
+	    {
+		/* attempting to resolve the Section Name into a SectionID */
+		int duplicate = 0;
+		if (rl2_get_dbms_section_id
+		    (handle, coverage, section, &section_id,
+		     &duplicate) != RL2_OK)
+		  {
+		      if (duplicate)
+			  fprintf (stderr,
+				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   section, coverage);
+		      else
+			  fprintf (stderr,
+				   "Section \"%s\" does not exists in Coverage \"%s\"\n",
+				   section, coverage);
+		      return 0;
+		  }
+	    }
+	  ret =
+	      rl2_build_section_pyramid (handle, coverage, section_id,
+					 force_pyramid);
+      }
     if (ret == RL2_OK)
 	return 1;
     return 0;
@@ -580,14 +758,36 @@ exec_pyramidize_monolithic (sqlite3 * handle, const char *coverage,
 }
 
 static int
-exec_de_pyramidize (sqlite3 * handle, const char *coverage, const char *section)
+exec_de_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
+		    int ok_section_id, sqlite3_int64 section_id)
 {
 /* deleting Pyramid levels */
     int ret;
-    if (section == NULL)
+    if (section == NULL && !ok_section_id)
 	ret = rl2_delete_all_pyramids (handle, coverage);
     else
-	ret = rl2_delete_section_pyramid (handle, coverage, section);
+      {
+	  if (!ok_section_id)
+	    {
+		/* attempting to resolve the Section Name into a SectionID */
+		int duplicate = 0;
+		if (rl2_get_dbms_section_id
+		    (handle, coverage, section, &section_id,
+		     &duplicate) != RL2_OK)
+		  {
+		      if (duplicate)
+			  fprintf (stderr,
+				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   section, coverage);
+		      else
+			  fprintf (stderr,
+				   "Section \"%s\" does not exists in Coverage \"%s\"\n",
+				   section, coverage);
+		      return 0;
+		  }
+	    }
+	  ret = rl2_delete_section_pyramid (handle, coverage, section_id);
+      }
     if (ret == RL2_OK)
 	return 1;
     return 0;
@@ -1262,7 +1462,8 @@ exec_catalog (sqlite3 * handle)
 }
 
 static int
-exec_list (sqlite3 * handle, const char *coverage, const char *section)
+exec_list (sqlite3 * handle, const char *coverage, const char *section,
+	   int ok_section_id, sqlite3_int64 section_id)
 {
 /* Rasterlite-2 datasource Sections list */
     char *sql;
@@ -1280,7 +1481,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
     int last_id;
     int first;
 
-    if (section == NULL)
+    if (section == NULL && !ok_section_id)
       {
 	  /* all sections */
 	  xsections = sqlite3_mprintf ("%s_sections", coverage);
@@ -1310,6 +1511,26 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
     else
       {
 	  /* single section */
+	  char sctn[1024];
+	  if (!ok_section_id)
+	    {
+		/* attempting to resolve the Section Name into a SectionID */
+		int duplicate = 0;
+		if (rl2_get_dbms_section_id
+		    (handle, coverage, section, &section_id,
+		     &duplicate) != RL2_OK)
+		  {
+		      if (duplicate)
+			  fprintf (stderr,
+				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   section, coverage);
+		      else
+			  fprintf (stderr,
+				   "Section \"%s\" does not exists in Coverage \"%s\"\n",
+				   section, coverage);
+		      return 0;
+		  }
+	    }
 	  xsections = sqlite3_mprintf ("%s_sections", coverage);
 	  xxsections = gaiaDoubleQuotedSql (xsections);
 	  sqlite3_free (xsections);
@@ -1319,6 +1540,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
 	  xxdata = gaiaDoubleQuotedSql (xdata);
 	  sqlite3_free (xdata);
+	  sprintf (sctn, "%lld", section_id);
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT s.section_id, s.section_name, s.width, s.height, "
@@ -1328,9 +1550,9 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 	       "FROM \"%s\" AS s "
 	       "JOIN \"%s\" AS t ON (s.section_id = t.section_id) "
 	       "JOIN \"%s\" AS d ON (d.tile_id = t.tile_id) "
-	       "WHERE s.section_name = %Q "
+	       "WHERE s.section_id = %s "
 	       "GROUP BY s.section_id, t.pyramid_level", xxsections,
-	       xxtiles, xxdata, section);
+	       xxtiles, xxdata, sctn);
 	  free (xxsections);
 	  free (xxtiles);
 	  free (xxdata);
@@ -1541,7 +1763,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section)
 
 static int
 exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
-	  unsigned short width, unsigned short height)
+	  unsigned int width, unsigned int height)
 {
 /* Rasterlite-2 datasource Map */
     char *sql;
@@ -1563,8 +1785,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
     double cy;
     double base_x;
     double base_y;
-    int row;
-    int col;
+    unsigned int row;
+    unsigned int col;
     unsigned char *p_alpha;
     rl2GraphicsContextPtr ctx = NULL;
     rl2RasterPtr rst = NULL;
@@ -1814,6 +2036,7 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 
 static int
 exec_histogram (sqlite3 * handle, const char *coverage, const char *section,
+		int ok_section_id, sqlite3_int64 section_id,
 		unsigned char band_index, const char *dst_path)
 {
 /* Rasterlite-2 PNG Histogram */
@@ -1823,16 +2046,37 @@ exec_histogram (sqlite3 * handle, const char *coverage, const char *section,
     char *xxsections;
     sqlite3_stmt *stmt = NULL;
 
-    if (section != NULL)
+    if (section != NULL || ok_section_id)
       {
 	  /* Histogram from Section-level Statistics */
+	  char sctn[1024];
+	  if (!ok_section_id)
+	    {
+		/* attempting to resolve the Section Name into a SectionID */
+		int duplicate = 0;
+		if (rl2_get_dbms_section_id
+		    (handle, coverage, section, &section_id,
+		     &duplicate) != RL2_OK)
+		  {
+		      if (duplicate)
+			  fprintf (stderr,
+				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   section, coverage);
+		      else
+			  fprintf (stderr,
+				   "Section \"%s\" does not exists in Coverage \"%s\"\n",
+				   section, coverage);
+		      return 0;
+		  }
+	    }
 	  xsections = sqlite3_mprintf ("%s_sections", coverage);
 	  xxsections = gaiaDoubleQuotedSql (xsections);
 	  sqlite3_free (xsections);
+	  sprintf (sctn, "%lld", section_id);
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT RL2_GetBandStatistics_Histogram(statistics, ?) "
-	       "FROM \"%s\"", xxsections);
+	       "FROM \"%s\" WHERE section_id = %s", xxsections, sctn);
 	  free (xxsections);
       }
     else
@@ -2095,7 +2339,9 @@ static int
 check_create_args (const char *db_path, const char *coverage, int sample,
 		   int pixel, int num_bands, int compression, int *quality,
 		   int tile_width, int tile_height, int srid, double x_res,
-		   double y_res, rl2PixelPtr pxl)
+		   double y_res, rl2PixelPtr pxl, int strict_resolution,
+		   int mixed_resolutions, int section_paths, int section_md5,
+		   int section_summary)
 {
 /* checking/printing CREATE args */
     int err = 0;
@@ -2340,26 +2586,42 @@ check_create_args (const char *db_path, const char *coverage, int sample,
       }
     else
 	printf ("                 Srid: %d\n", srid);
-    if (x_res == DBL_MAX || y_res <= 0.0)
+    if (mixed_resolutions)
+	;
+    else
       {
-	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
-	  err = 1;
-	  res_error = 1;
+	  if (x_res == DBL_MAX || y_res <= 0.0)
+	    {
+		fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
+		err = 1;
+		res_error = 1;
+	    }
+	  if (y_res == DBL_MAX || y_res <= 0.0)
+	    {
+		fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
+		err = 1;
+		res_error = 1;
+	    }
+	  if (x_res > 0.0 && y_res > 0.0 && !res_error)
+	    {
+		char *hres = formatFloat (x_res);
+		char *vres = formatFloat (y_res);
+		printf ("Pixel base resolution: X=%s Y=%s\n", hres, vres);
+		sqlite3_free (hres);
+		sqlite3_free (vres);
+	    }
       }
-    if (y_res == DBL_MAX || y_res <= 0.0)
-      {
-	  fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
-	  err = 1;
-	  res_error = 1;
-      }
-    if (x_res > 0.0 && y_res > 0.0 && !res_error)
-      {
-	  char *hres = formatFloat (x_res);
-	  char *vres = formatFloat (y_res);
-	  printf ("Pixel base resolution: X=%s Y=%s\n", hres, vres);
-	  sqlite3_free (hres);
-	  sqlite3_free (vres);
-      }
+    printf ("======= Coverage Policies =======\n");
+    printf ("Strict Resolution chek: %s\n",
+	    !strict_resolution ? "Disabled" : "Enabled");
+    printf ("Mixed Resolutions mode: %s\n",
+	    !mixed_resolutions ? "Disabled" : "Enabled");
+    printf (" Section's Input Paths: %s\n",
+	    !section_paths ? "Disabled" : "Enabled");
+    printf ("Section's MD5 Checksum: %s\n",
+	    !section_md5 ? "Disabled" : "Enabled");
+    printf (" Section's XML Summary: %s\n",
+	    !section_summary ? "Disabled" : "Enabled");
     printf ("===========================================================\n\n");
     return err;
 }
@@ -2367,8 +2629,8 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 static int
 check_import_args (const char *db_path, const char *src_path,
 		   const char *dir_path, const char *file_ext,
-		   const char *coverage, const char *section, int worldfile,
-		   int srid, int pyramidize)
+		   const char *coverage, int worldfile, int srid,
+		   int pyramidize)
 {
 /* checking/printing IMPORT args */
     int err = 0;
@@ -2419,10 +2681,6 @@ check_import_args (const char *db_path, const char *src_path,
       }
     else
 	printf ("             Coverage: %s\n", coverage);
-    if (section == NULL)
-	printf ("              Section: from file name\n");
-    else
-	printf ("              Section: %s\n", section);
     if (worldfile)
       {
 	  if (srid <= 0)
@@ -2445,8 +2703,8 @@ static int
 check_export_args (const char *db_path, const char *dst_path,
 		   const char *coverage, double x_res, double y_res,
 		   double *minx, double *miny, double *maxx, double *maxy,
-		   double *cx, double *cy, unsigned short *width,
-		   unsigned short *height)
+		   double *cx, double *cy, unsigned int *width,
+		   unsigned int *height)
 {
 /* checking/printing EXPORT args */
     double ext_x;
@@ -2454,6 +2712,7 @@ check_export_args (const char *db_path, const char *dst_path,
     char *dumb1;
     char *dumb2;
     int err = 0;
+    int no_res = 0;
     int err_bbox = 0;
     printf ("\n\nrl2_tool; request is EXPORT\n");
     printf ("===========================================================\n");
@@ -2475,19 +2734,271 @@ check_export_args (const char *db_path, const char *dst_path,
       {
 	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
 	  err = 1;
+	  no_res = 1;
       }
     if (y_res == DBL_MAX || y_res <= 0.0)
       {
 	  fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
 	  err = 1;
+	  no_res = 1;
       }
-    if (x_res > 0.0 && y_res > 0.0)
+    if (x_res > 0.0 && y_res > 0.0 && !no_res)
       {
 	  dumb1 = formatFloat (x_res);
 	  dumb2 = formatFloat (y_res);
 	  printf ("        Pixel size: X=%s Y=%s\n", dumb1, dumb2);
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
+      }
+    if (*width == 0)
+      {
+	  fprintf (stderr, "*** ERROR *** NULL/ZERO image Width\n");
+	  err = 1;
+	  err_bbox = 1;
+      }
+    if (*height == 0)
+      {
+	  fprintf (stderr, "*** ERROR *** NULL/ZERO image Height\n");
+	  err = 1;
+	  err_bbox = 1;
+      }
+    if (!err)
+	printf ("        Image Size: %u x %u\n", *width, *height);
+    if (dst_path == NULL)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** no output Destination path was specified\n");
+	  err = 1;
+      }
+    if (*minx == DBL_MAX && *miny == DBL_MAX && *maxx == DBL_MAX
+	&& *maxy == DBL_MAX)
+      {
+	  /* tie-point: Center Point */
+	  if (*cx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Center-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*cy == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Center-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *minx = *cx - (ext_x / 2.0);
+	  *maxx = *minx + ext_x;
+	  *miny = *cy - (ext_y / 2.0);
+	  *maxy = *miny + ext_y;
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *maxx == DBL_MAX
+	     && *maxy == DBL_MAX)
+      {
+	  /* tie-point: LowerLeft Corner */
+	  if (*minx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Min-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*miny == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Min-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *maxx = *minx + ext_x;
+	  *maxy = *miny + ext_y;
+	  *cx = *minx + (ext_x / 2.0);
+	  *cy = *miny + (ext_y / 2.0);
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *minx == DBL_MAX
+	     && *maxy == DBL_MAX)
+      {
+	  /* tie-point: LowerRight Corner */
+	  if (*maxx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*miny == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Min-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *minx = *maxx - ext_x;
+	  *maxy = *miny + ext_y;
+	  *cx = *maxx - (ext_x / 2.0);
+	  *cy = *miny + (ext_y / 2.0);
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *maxx == DBL_MAX
+	     && *miny == DBL_MAX)
+      {
+	  /* tie-point: UpperLeft Corner */
+	  if (*minx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Min-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxy == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *maxx = *minx + ext_x;
+	  *miny = *maxy - ext_y;
+	  *cx = *minx + (ext_x / 2.0);
+	  *cy = *maxy - (ext_y / 2.0);
+      }
+    else if (*cx == DBL_MAX && *cy == DBL_MAX && *minx == DBL_MAX
+	     && *miny == DBL_MAX)
+      {
+	  /* tie-point: UpperRight Corner */
+	  if (*maxx == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-X\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (*maxy == DBL_MAX)
+	    {
+		fprintf (stderr, "*** ERROR *** undeclared Max-Y\n");
+		err = 1;
+		err_bbox = 1;
+	    }
+	  if (err_bbox)
+	      goto error;
+	  ext_x = (double) (*width) * x_res;
+	  ext_y = (double) (*height) * y_res;
+	  *minx = *maxx - ext_x;
+	  *miny = *maxy - ext_y;
+	  *cx = *maxx - (ext_x / 2.0);
+	  *cy = *maxy - (ext_y / 2.0);
+      }
+    else
+      {
+	  /* invalid tie-point */
+	  fprintf (stderr, "*** ERROR *** invalid output image tie-point\n");
+	  err = 1;
+	  err_bbox = 1;
+      }
+  error:
+    if (err_bbox)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** unable to determine the BBOX of output image\n");
+	  err = 1;
+      }
+    else
+      {
+	  dumb1 = formatLong (*minx);
+	  dumb2 = formatLat (*miny);
+	  printf (" Lower-Left Corner: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatLong (*maxx);
+	  dumb2 = formatLat (*maxy);
+	  printf ("Upper-Right Corner: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+	  dumb1 = formatLong (*cx);
+	  dumb2 = formatLat (*cy);
+	  printf ("            Center: %s %s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
+    fprintf (stderr,
+	     "===========================================================\n\n");
+    return err;
+}
+
+static int
+check_section_export_args (const char *db_path, const char *dst_path,
+			   const char *coverage, const char *section,
+			   int ok_section_id, sqlite3_int64 section_id,
+			   double x_res, double y_res, double *minx,
+			   double *miny, double *maxx, double *maxy, double *cx,
+			   double *cy, unsigned int *width,
+			   unsigned int *height, int full_section)
+{
+/* checking/printing SECTION-EXPORT args */
+    double ext_x;
+    double ext_y;
+    char *dumb1;
+    char *dumb2;
+    int err = 0;
+    int no_res = 0;
+    int err_bbox = 0;
+    printf ("\n\nrl2_tool; request is SECTION-EXPORT\n");
+    printf ("===========================================================\n");
+    if (db_path == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no DB path was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("           DB path: %s\n", db_path);
+    if (coverage == NULL)
+      {
+	  fprintf (stderr, "*** ERROR *** no Coverage's name was specified\n");
+	  err = 1;
+      }
+    else
+	printf ("          Coverage: %s\n", coverage);
+    if (section == NULL && !ok_section_id)
+      {
+	  fprintf (stderr,
+		   "*** ERROR *** neither SectionName or SectionID was specified\n");
+	  err = 1;
+      }
+    else if (ok_section_id)
+	printf ("           Section: ID=%lld\n", section_id);
+    else
+	printf ("           Section: %s\n", section);
+    if (x_res == DBL_MAX || y_res <= 0.0)
+      {
+	  fprintf (stderr, "*** ERROR *** invalid X pixel size\n");
+	  err = 1;
+	  no_res = 1;
+      }
+    if (y_res == DBL_MAX || y_res <= 0.0)
+      {
+	  fprintf (stderr, "*** ERROR *** invalid Y pixel size\n");
+	  err = 1;
+	  no_res = 1;
+      }
+    if (x_res > 0.0 && y_res > 0.0 && !no_res)
+      {
+	  dumb1 = formatFloat (x_res);
+	  dumb2 = formatFloat (y_res);
+	  printf ("        Pixel size: X=%s Y=%s\n", dumb1, dumb2);
+	  sqlite3_free (dumb1);
+	  sqlite3_free (dumb2);
+      }
+    if (full_section)
+      {
+	  printf ("Full Section's Extent Selected\n");
+	  return err;
       }
     if (*width == 0)
       {
@@ -2698,7 +3209,8 @@ check_drop_args (const char *db_path, const char *coverage)
 
 static int
 check_delete_args (const char *db_path, const char *coverage,
-		   const char *section)
+		   const char *section, int ok_section_id,
+		   sqlite3_int64 section_id)
 {
 /* checking/printing DELETE args */
     int err = 0;
@@ -2718,11 +3230,14 @@ check_delete_args (const char *db_path, const char *coverage,
       }
     else
 	printf ("Coverage: %s\n", coverage);
-    if (section == NULL)
+    if (section == NULL && !ok_section_id)
       {
-	  fprintf (stderr, "*** ERROR *** no Section's name was specified\n");
+	  fprintf (stderr,
+		   "*** ERROR *** neither SectionName or SectionID was specified\n");
 	  err = 1;
       }
+    else if (ok_section_id)
+	printf ("           Section: ID=%lld\n", section_id);
     else
 	printf ("Section: %s\n", section);
     printf ("===========================================================\n\n");
@@ -2731,7 +3246,8 @@ check_delete_args (const char *db_path, const char *coverage,
 
 static int
 check_pyramidize_args (const char *db_path, const char *coverage,
-		       const char *section, int force)
+		       const char *section, int ok_section_id,
+		       sqlite3_int64 section_id, int force)
 {
 /* checking/printing PYRAMIDIZE args */
     int err = 0;
@@ -2751,10 +3267,12 @@ check_pyramidize_args (const char *db_path, const char *coverage,
       }
     else
 	printf ("Coverage: %s\n", coverage);
-    if (section == NULL)
-	printf ("Section: All Sections\n");
+    if (section == NULL && !ok_section_id)
+	printf (" Section: All Sections\n");
+    else if (ok_section_id)
+	printf (" Section: ID=%lld\n", section_id);
     else
-	printf ("Section: %s\n", section);
+	printf (" Section: %s\n", section);
     if (force)
 	printf ("Unconditionally rebuilding all Pyramid Levels\n");
     else
@@ -2795,7 +3313,8 @@ check_pyramidize_monolithic_args (const char *db_path, const char *coverage,
 
 static int
 check_de_pyramidize_args (const char *db_path, const char *coverage,
-			  const char *section)
+			  const char *section, int ok_section_id,
+			  sqlite3_int64 section_id)
 {
 /* checking/printing DE-PYRAMIDIZE args */
     int err = 0;
@@ -2815,17 +3334,20 @@ check_de_pyramidize_args (const char *db_path, const char *coverage,
       }
     else
 	printf ("Coverage: %s\n", coverage);
-    if (section == NULL)
-	printf ("Section: All Sections\n");
+    if (section == NULL && !ok_section_id)
+	printf (" Section: All Sections\n");
+    else if (ok_section_id)
+	printf (" Section: ID=%lld\n", section_id);
     else
-	printf ("Section: %s\n", section);
+	printf (" Section: %s\n", section);
     printf ("===========================================================\n\n");
     return err;
 }
 
 static int
 check_histogram_args (const char *db_path, const char *coverage,
-		      const char *section, unsigned char band_index,
+		      const char *section, int ok_section_id,
+		      sqlite3_int64 section_id, unsigned char band_index,
 		      const char *dst_path)
 {
 /* checking/printing HISTOGRAM args */
@@ -2846,8 +3368,13 @@ check_histogram_args (const char *db_path, const char *coverage,
       }
     else
 	printf ("   Coverage: %s\n", coverage);
-    if (section == NULL)
+    if (section == NULL && !ok_section_id)
 	printf ("             Histogram from Coverage-level Statistics\n");
+    else if (ok_section_id)
+      {
+	  printf ("   Section: ID=%lld\n", section_id);
+	  printf ("              Histogram from Section-level Statistics\n");
+      }
     else
       {
 	  printf ("   Section: %s\n", section);
@@ -2867,7 +3394,8 @@ check_histogram_args (const char *db_path, const char *coverage,
 }
 
 static int
-check_list_args (const char *db_path, const char *coverage, const char *section)
+check_list_args (const char *db_path, const char *coverage, const char *section,
+		 int ok_section_id, sqlite3_int64 section_id)
 {
 /* checking/printing LIST args */
     int err = 0;
@@ -2887,8 +3415,10 @@ check_list_args (const char *db_path, const char *coverage, const char *section)
       }
     else
 	printf ("Coverage: %s\n", coverage);
-    if (section == NULL)
+    if (section == NULL && !ok_section_id)
 	printf (" Section: All Sections\n");
+    else if (ok_section_id)
+	printf (" Section: ID=%lld\n", section_id);
     else
 	printf (" Section: %s\n", section);
     printf ("===========================================================\n\n");
@@ -2897,7 +3427,7 @@ check_list_args (const char *db_path, const char *coverage, const char *section)
 
 static int
 check_map_args (const char *db_path, const char *coverage, const char *dst_path,
-		unsigned short *width, unsigned short *height)
+		unsigned int *width, unsigned int *height)
 {
 /* checking/printing MAP args */
     int err = 0;
@@ -3216,6 +3746,16 @@ do_help (int mode)
 	  fprintf (stderr, "----------------------------------\n");
 	  fprintf (stderr,
 		   "NONE DEFLATE LZMA GIF PNG JPEG WEBP LL_WEBP FAX3 FAX4\n\n");
+	  fprintf (stderr,
+		   "-strict or --strict-resolution  Enables Strict Resolution\n");
+	  fprintf (stderr,
+		   "-mixed or --mixed-resolution    Enables Mixed Resolutions\n");
+	  fprintf (stderr,
+		   "-paths or --input-paths         Enables Input Path recording\n");
+	  fprintf (stderr,
+		   "-nomd5 or --no-input-md5        Disables Input MD5 checksum\n");
+	  fprintf (stderr,
+		   "-noxml or --no-xml-summary      Disables Input MXL Summariy\n");
       }
     if (mode == ARG_NONE || mode == ARG_MODE_DROP)
       {
@@ -3305,6 +3845,64 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "\t\t- Output Image UpperRight corner: -maxx AND -maxy\n\n");
       }
+    if (mode == ARG_NONE || mode == ARG_MODE_SECT_EXPORT)
+      {
+	  /* MODE = SECTION-EXPORT */
+	  fprintf (stderr, "\nmode: SECTION-EXPORT\n");
+	  fprintf (stderr,
+		   "will export an external image from a Coverage/Section\n");
+	  fprintf (stderr,
+		   "==============================================================\n");
+	  fprintf (stderr,
+		   "-db or --db-path      pathname  RasterLite2 DB path\n");
+	  fprintf (stderr,
+		   "-dst or --dst-path    pathname  output Image/Raster path\n");
+	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
+	  fprintf (stderr, "-sec or --section-name string   Section's name\n");
+	  fprintf (stderr, "-sid or --section-id   number   Section's ID\n");
+	  fprintf (stderr,
+		   "-res or --resolution   number   pixel resolution(X and Y)\n");
+	  fprintf (stderr,
+		   "-xres or --x-resol     number   pixel resolution(X specific)\n");
+	  fprintf (stderr,
+		   "-yres or --y-resol     number   pixel resolution(Y specific)\n");
+	  fprintf (stderr,
+		   "-full or --full-section         Full Section's extent: both\n");
+	  fprintf (stderr,
+		   "            Width and Height will be automatically computed\n");
+	  fprintf (stderr, "            accordingly to resolution.\n");
+	  fprintf (stderr,
+		   "-minx or --min-x       number   X coordinate (lower-left corner)\n");
+	  fprintf (stderr,
+		   "-miny or --min-y       number   Y coordinate (lower-left corner)\n");
+	  fprintf (stderr,
+		   "-maxx or --max-x       number   X coordinate (upper-right corner)\n");
+	  fprintf (stderr,
+		   "-maxy or --max-y       number   Y coordinate (upper-left corner)\n");
+	  fprintf (stderr,
+		   "-cx or --center-x      number   X coordinate (center)\n");
+	  fprintf (stderr,
+		   "-cy or --center-y      number   Y coordinate (center)\n");
+	  fprintf (stderr,
+		   "-outw or --out-width   number   image width (in pixels)\n");
+	  fprintf (stderr,
+		   "-outh or --out-height  number   image height (in pixels)\n\n");
+	  fprintf (stderr,
+		   "In order to export a raster you are expected to specify:\n");
+	  fprintf (stderr,
+		   "\t- the intended resolution (-res OR -xres AND -yres)\n");
+	  fprintf (stderr, "\t- the output image size (-outw AND -outh)\n");
+	  fprintf (stderr, "\t- a single tie-point, defined as one of:\n");
+	  fprintf (stderr, "\t\t- Output Image Center point: -cx AND -cy\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image LowerLeft corner: -minx AND -miny\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image LowerRight corner: -maxx AND -miny\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image UpperLeft corner: -minx AND -maxy\n");
+	  fprintf (stderr,
+		   "\t\t- Output Image UpperRight corner: -maxx AND -maxy\n\n");
+      }
     if (mode == ARG_NONE || mode == ARG_MODE_DELETE)
       {
 	  /* MODE = DELETE */
@@ -3316,7 +3914,8 @@ do_help (int mode)
 		   "-db or --db-path      pathname  RasterLite2 DB path\n");
 	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
 	  fprintf (stderr,
-		   "-sec or --section     string    Section's name\n\n");
+		   "-sec or --section-name string   Section's name\n\n");
+	  fprintf (stderr, "-sid or --section-id   number   Section's ID\n");
       }
     if (mode == ARG_NONE || mode == ARG_MODE_PYRAMIDIZE)
       {
@@ -3330,7 +3929,9 @@ do_help (int mode)
 		   "-db or --db-path      pathname  RasterLite2 DB path\n");
 	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
 	  fprintf (stderr,
-		   "-sec or --section     string    optional: Section's name\n");
+		   "-sec or --section-name string   optional: Section's name\n");
+	  fprintf (stderr,
+		   "-sid or --section-id   number   optional: Section's ID\n");
 	  fprintf (stderr,
 		   "                                default is \"All Sections\"\n");
 	  fprintf (stderr,
@@ -3363,7 +3964,9 @@ do_help (int mode)
 		   "-db or --db-path      pathname  RasterLite2 DB path\n");
 	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
 	  fprintf (stderr,
-		   "-sec or --section     string    optional: Section's name\n");
+		   "-sec or --section-name string   optional: Section's name\n");
+	  fprintf (stderr,
+		   "-sid or --section-id   number   optional: Section's ID\n");
 	  fprintf (stderr,
 		   "                                default is \"All Sections\"\n");
       }
@@ -3378,7 +3981,9 @@ do_help (int mode)
 		   "-db or --db-path      pathname  RasterLite2 DB path\n");
 	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
 	  fprintf (stderr,
-		   "-sec or --section     string    optional: Section's name\n");
+		   "-sec or --section-name string   optional: Section's name\n");
+	  fprintf (stderr,
+		   "-sid or --section-id   number   optional: Section's ID\n");
 	  fprintf (stderr,
 		   "                                default is \"All Sections\"\n");
       }
@@ -3422,7 +4027,9 @@ do_help (int mode)
 		   "-db or --db-path      pathname  RasterLite2 DB path\n");
 	  fprintf (stderr, "-cov or --coverage    string    Coverage's name\n");
 	  fprintf (stderr,
-		   "-sec or --section     string    optional: Section's name\n");
+		   "-sec or --section-name string   optional: Section's name\n");
+	  fprintf (stderr,
+		   "-sid or --section-id   number   optional: Section's ID\n");
 	  fprintf (stderr,
 		   "                                default is \"Coverage statistics\"\n");
 	  fprintf (stderr,
@@ -3464,6 +4071,8 @@ main (int argc, char *argv[])
     const char *file_ext = ".tif";
     const char *coverage = NULL;
     const char *section = NULL;
+    sqlite3_int64 section_id;
+    int ok_section_id = 0;
     unsigned char sample = RL2_SAMPLE_UNKNOWN;
     unsigned char pixel = RL2_PIXEL_UNKNOWN;
     unsigned char compression = RL2_COMPRESSION_NONE;
@@ -3480,8 +4089,8 @@ main (int argc, char *argv[])
     double maxy = DBL_MAX;
     double cx = DBL_MAX;
     double cy = DBL_MAX;
-    unsigned short width = 0;
-    unsigned short height = 0;
+    unsigned int width = 0;
+    unsigned int height = 0;
     int srid = -2;
     int virt_levels = 0;
     const char *no_data_str = NULL;
@@ -3492,11 +4101,17 @@ main (int argc, char *argv[])
     int in_memory = 0;
     int cache_size = 0;
     int journal_off = 0;
+    int full_section = 0;
     int error = 0;
     int mode = ARG_NONE;
     void *cache;
     void *cache_mem;
     char *hist_path = NULL;
+    int strict_resolution = 0;
+    int mixed_resolutions = 0;
+    int section_paths = 0;
+    int section_md5 = 1;
+    int section_summary = 1;
 
     if (argc >= 2)
       {
@@ -3509,6 +4124,8 @@ main (int argc, char *argv[])
 	      mode = ARG_MODE_IMPORT;
 	  if (strcasecmp (argv[1], "EXPORT") == 0)
 	      mode = ARG_MODE_EXPORT;
+	  if (strcasecmp (argv[1], "SECTION-EXPORT") == 0)
+	      mode = ARG_MODE_SECT_EXPORT;
 	  if (strcasecmp (argv[1], "DELETE") == 0)
 	      mode = ARG_MODE_DELETE;
 	  if (strcasecmp (argv[1], "PYRAMIDIZE") == 0)
@@ -3554,6 +4171,10 @@ main (int argc, char *argv[])
 		      break;
 		  case ARG_SECTION:
 		      section = argv[i];
+		      break;
+		  case ARG_SECTION_ID:
+		      section_id = atoll (argv[i]);
+		      ok_section_id = 1;
 		      break;
 		  case ARG_SAMPLE:
 		      if (strcasecmp (argv[i], "1-BIT") == 0)
@@ -3728,9 +4349,15 @@ main (int argc, char *argv[])
 		continue;
 	    }
 	  if (strcmp (argv[i], "-sec") == 0
-	      || strcasecmp (argv[i], "--section") == 0)
+	      || strcasecmp (argv[i], "--section-name") == 0)
 	    {
 		next_arg = ARG_SECTION;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-sid") == 0
+	      || strcasecmp (argv[i], "--section-id") == 0)
+	    {
+		next_arg = ARG_SECTION_ID;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-lev") == 0
@@ -3889,6 +4516,43 @@ main (int argc, char *argv[])
 		worldfile = 1;
 		continue;
 	    }
+	  if (strcmp (argv[i], "-full") == 0
+	      || strcasecmp (argv[i], "--full-section") == 0)
+	    {
+		full_section = 1;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-strict") == 0
+	      || strcasecmp (argv[i], "--strict-resolution") == 0)
+	    {
+		strict_resolution = 1;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-mixed") == 0
+	      || strcasecmp (argv[i], "--mixed-resolutions") == 0)
+	    {
+		mixed_resolutions = 1;
+		strict_resolution = 0;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-paths") == 0
+	      || strcasecmp (argv[i], "--input-paths") == 0)
+	    {
+		section_paths = 1;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-nomd5") == 0
+	      || strcasecmp (argv[i], "--no-input-md5") == 0)
+	    {
+		section_md5 = 0;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-noxml") == 0
+	      || strcasecmp (argv[i], "--no-xml-summary") == 0)
+	    {
+		section_summary = 0;
+		continue;
+	    }
 	  if (strcasecmp (argv[i], "--cache-size") == 0
 	      || strcmp (argv[i], "-cs") == 0)
 	    {
@@ -3950,7 +4614,9 @@ main (int argc, char *argv[])
 	  error =
 	      check_create_args (db_path, coverage, sample, pixel, num_bands,
 				 compression, &quality, tile_width, tile_height,
-				 srid, x_res, y_res, no_data);
+				 srid, x_res, y_res, no_data, strict_resolution,
+				 mixed_resolutions, section_paths, section_md5,
+				 section_summary);
 	  break;
       case ARG_MODE_DROP:
 	  error = check_drop_args (db_path, coverage);
@@ -3958,8 +4624,7 @@ main (int argc, char *argv[])
       case ARG_MODE_IMPORT:
 	  error =
 	      check_import_args (db_path, src_path, dir_path, file_ext,
-				 coverage, section, worldfile, srid,
-				 pyramidize);
+				 coverage, worldfile, srid, pyramidize);
 	  break;
       case ARG_MODE_EXPORT:
 	  error =
@@ -3967,22 +4632,36 @@ main (int argc, char *argv[])
 				 &minx, &miny, &maxx, &maxy, &cx, &cy, &width,
 				 &height);
 	  break;
+      case ARG_MODE_SECT_EXPORT:
+	  error =
+	      check_section_export_args (db_path, dst_path, coverage, section,
+					 ok_section_id, section_id, x_res,
+					 y_res, &minx, &miny, &maxx, &maxy, &cx,
+					 &cy, &width, &height, full_section);
+	  break;
       case ARG_MODE_DELETE:
-	  error = check_delete_args (db_path, coverage, section);
+	  error =
+	      check_delete_args (db_path, coverage, section, ok_section_id,
+				 section_id);
 	  break;
       case ARG_MODE_PYRAMIDIZE:
 	  error =
-	      check_pyramidize_args (db_path, coverage, section, force_pyramid);
+	      check_pyramidize_args (db_path, coverage, section, ok_section_id,
+				     section_id, force_pyramid);
 	  break;
       case ARG_MODE_PYRMONO:
 	  error =
 	      check_pyramidize_monolithic_args (db_path, coverage, virt_levels);
 	  break;
       case ARG_MODE_DE_PYRAMIDIZE:
-	  error = check_de_pyramidize_args (db_path, coverage, section);
+	  error =
+	      check_de_pyramidize_args (db_path, coverage, section,
+					ok_section_id, section_id);
 	  break;
       case ARG_MODE_LIST:
-	  error = check_list_args (db_path, coverage, section);
+	  error =
+	      check_list_args (db_path, coverage, section, ok_section_id,
+			       section_id);
 	  break;
       case ARG_MODE_MAP:
 	  error = check_map_args (db_path, coverage, dst_path, &width, &height);
@@ -3993,10 +4672,14 @@ main (int argc, char *argv[])
       case ARG_MODE_HISTOGRAM:
 	  if (dst_path == NULL)
 	    {
-		if (section == NULL)
+		if (section == NULL && !ok_section_id)
 		    hist_path =
 			sqlite3_mprintf ("./hist_%s_%d.png", coverage,
 					 band_index);
+		else if (ok_section_id)
+		    hist_path =
+			sqlite3_mprintf ("./hist_%s_ID%lld_%d.png", coverage,
+					 section_id, band_index);
 		else
 		    hist_path =
 			sqlite3_mprintf ("./hist_%s_%s_%d.png", coverage,
@@ -4004,8 +4687,8 @@ main (int argc, char *argv[])
 		dst_path = hist_path;
 	    }
 	  error =
-	      check_histogram_args (db_path, coverage, section, band_index,
-				    dst_path);
+	      check_histogram_args (db_path, coverage, section, ok_section_id,
+				    section_id, band_index, dst_path);
 	  break;
       default:
 	  fprintf (stderr, "did you forget setting some request MODE ?\n");
@@ -4086,7 +4769,9 @@ main (int argc, char *argv[])
 	  ret =
 	      exec_create (handle, coverage, sample, pixel,
 			   num_bands, compression, quality, tile_width,
-			   tile_height, srid, x_res, y_res, no_data);
+			   tile_height, srid, x_res, y_res, no_data,
+			   strict_resolution, mixed_resolutions, section_paths,
+			   section_md5, section_summary);
 	  break;
       case ARG_MODE_DROP:
 	  ret = exec_drop (handle, coverage);
@@ -4101,30 +4786,45 @@ main (int argc, char *argv[])
 	      exec_export (handle, dst_path, coverage, x_res, y_res, minx, miny,
 			   maxx, maxy, width, height);
 	  break;
+      case ARG_MODE_SECT_EXPORT:
+	  ret =
+	      exec_section_export (handle, dst_path, coverage, section,
+				   ok_section_id, section_id, x_res, y_res,
+				   minx, miny, maxx, maxy, width, height,
+				   full_section);
+	  break;
       case ARG_MODE_DELETE:
-	  ret = exec_delete (handle, coverage, section);
+	  ret =
+	      exec_delete (handle, coverage, section, ok_section_id,
+			   section_id);
 	  break;
       case ARG_MODE_PYRAMIDIZE:
-	  ret = exec_pyramidize (handle, coverage, section, force_pyramid);
+	  ret =
+	      exec_pyramidize (handle, coverage, section, ok_section_id,
+			       section_id, force_pyramid);
 	  break;
       case ARG_MODE_PYRMONO:
 	  ret = exec_pyramidize_monolithic (handle, coverage, virt_levels);
 	  break;
       case ARG_MODE_DE_PYRAMIDIZE:
-	  ret = exec_de_pyramidize (handle, coverage, section);
+	  ret =
+	      exec_de_pyramidize (handle, coverage, section, ok_section_id,
+				  section_id);
 	  break;
       case ARG_MODE_CATALOG:
 	  ret = exec_catalog (handle);
 	  break;
       case ARG_MODE_LIST:
-	  ret = exec_list (handle, coverage, section);
+	  ret =
+	      exec_list (handle, coverage, section, ok_section_id, section_id);
 	  break;
       case ARG_MODE_MAP:
 	  ret = exec_map (handle, coverage, dst_path, width, height);
 	  break;
       case ARG_MODE_HISTOGRAM:
 	  ret =
-	      exec_histogram (handle, coverage, section, band_index, dst_path);
+	      exec_histogram (handle, coverage, section, ok_section_id,
+			      section_id, band_index, dst_path);
 	  break;
       };
 
@@ -4151,6 +4851,9 @@ main (int argc, char *argv[])
 		break;
 	    case ARG_MODE_EXPORT:
 		op_name = "EXPORT";
+		break;
+	    case ARG_MODE_SECT_EXPORT:
+		op_name = "SECTION-EXPORT";
 		break;
 	    case ARG_MODE_DELETE:
 		op_name = "DELETE";

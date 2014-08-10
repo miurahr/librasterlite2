@@ -71,9 +71,9 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned char compression, int quality,
 			      unsigned int tile_width,
 			      unsigned int tile_height, int srid,
-			      double x_res, double y_res, unsigned char *blob,
-			      int blob_sz, unsigned char *blob_no_data,
-			      int blob_no_data_sz)
+			      int mixed_resolutions, double x_res, double y_res,
+			      unsigned char *blob, int blob_sz,
+			      unsigned char *blob_no_data, int blob_no_data_sz)
 {
 /* inserting into "raster_coverages" */
     int ret;
@@ -188,8 +188,18 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     sqlite3_bind_int (stmt, 6, quality);
     sqlite3_bind_int (stmt, 7, tile_width);
     sqlite3_bind_int (stmt, 8, tile_height);
-    sqlite3_bind_double (stmt, 9, x_res);
-    sqlite3_bind_double (stmt, 10, y_res);
+    if (mixed_resolutions)
+      {
+	  /* conventional setting for mixed resolutions Coverage */
+	  sqlite3_bind_double (stmt, 9, 999999.999999);
+	  sqlite3_bind_double (stmt, 10, 999999.999999);
+      }
+    else
+      {
+	  /* real resolution in any other case */
+	  sqlite3_bind_double (stmt, 9, x_res);
+	  sqlite3_bind_double (stmt, 10, y_res);
+      }
     sqlite3_bind_int (stmt, 11, srid);
     if (blob_no_data == NULL)
 	sqlite3_bind_null (stmt, 12);
@@ -209,6 +219,151 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     return 0;
   coverage_registered:
     sqlite3_finalize (stmt);
+    return 1;
+}
+
+static int
+insert_default_policies (sqlite3 * handle, const char *coverage,
+			 int strict_resolution, int mixed_resolutions,
+			 int section_paths, int section_md5,
+			 int section_summary)
+{
+/* inserting default Coverage Policies */
+    int ret;
+    char *sql;
+    sqlite3_stmt *stmt;
+
+/* normalizeing Boolean flags to 1/0 */
+    if (strict_resolution)
+	strict_resolution = 1;
+    if (mixed_resolutions)
+      {
+	  mixed_resolutions = 1;
+	  strict_resolution = 0;
+      }
+    if (section_paths)
+	section_paths = 1;
+    if (section_md5)
+	section_md5 = 1;
+    if (section_summary)
+	section_summary = 1;
+
+    sql = "INSERT INTO coverage_policies (coverage_name, strict_resolution, "
+	"mixed_resolutions, section_paths, section_md5, section_summary) VALUES "
+	"(Lower(?), ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  return 0;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 2, strict_resolution);
+    sqlite3_bind_int (stmt, 3, mixed_resolutions);
+    sqlite3_bind_int (stmt, 4, section_paths);
+    sqlite3_bind_int (stmt, 5, section_md5);
+    sqlite3_bind_int (stmt, 6, section_summary);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	goto coverage_registered;
+    fprintf (stderr,
+	     "sqlite3_step() error: INSERT INTO coverage_policies \"%s\"\n",
+	     sqlite3_errmsg (handle));
+    sqlite3_finalize (stmt);
+    return 0;
+  coverage_registered:
+    sqlite3_finalize (stmt);
+    return 1;
+}
+
+static int
+create_policies (sqlite3 * handle)
+{
+/* creating the COVERAGE_POLICIES table (if not exists) */
+    int ret;
+    char *sql;
+    char *sql_err = NULL;
+
+    sql = "CREATE TABLE IF NOT EXISTS coverage_policies ("
+	"\tcoverage_name TEXT NOT NULL PRIMARY KEY,\n"
+	"\tstrict_resolution INTEGER NOT NULL,\n"
+	"\tmixed_resolutions INTEGER NOT NULL,\n"
+	"\tsection_paths INTEGER NOT NULL,\n"
+	"\tsection_md5 INTEGER NOT NULL,\n"
+	"\tsection_summary INTEGER NOT NULL,\n"
+	"CONSTRAINT fk_rc_policies FOREIGN KEY (coverage_name) "
+	"REFERENCES raster_coverages (coverage_name))";
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE TABLE 'coverage_policies' error: %s\n",
+		   sql_err);
+	  sqlite3_free (sql_err);
+	  return 0;
+      }
+/* creating the raster_coverages triggers */
+    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_name_insert\n"
+	"BEFORE INSERT ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
+	"SELECT RAISE(ABORT,'insert on coverage_policies violates constraint: "
+	"coverage_name value must not contain a single quote')\n"
+	"WHERE NEW.coverage_name LIKE ('%''%');\n"
+	"SELECT RAISE(ABORT,'insert on coverage_policies violates constraint: "
+	"coverage_name value must not contain a double quote')\n"
+	"WHERE NEW.coverage_name LIKE ('%\"%');\n"
+	"SELECT RAISE(ABORT,'insert on raster_policies violates constraint: "
+	"coverage_name value must be lower case')\n"
+	"WHERE NEW.coverage_name <> lower(NEW.coverage_name);\nEND";
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n", sql_err);
+	  sqlite3_free (sql_err);
+	  return 0;
+      }
+    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_name_update\n"
+	"BEFORE UPDATE OF 'coverage_name' ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
+	"SELECT RAISE(ABORT,'update on coverage_policies violates constraint: "
+	"coverage_name value must not contain a single quote')\n"
+	"WHERE NEW.coverage_name LIKE ('%''%');\n"
+	"SELECT RAISE(ABORT,'update on coverage_policis violates constraint: "
+	"coverage_name value must not contain a double quote')\n"
+	"WHERE NEW.coverage_name LIKE ('%\"%');\n"
+	"SELECT RAISE(ABORT,'update on coverage_policies violates constraint: "
+	"coverage_name value must be lower case')\n"
+	"WHERE NEW.coverage_name <> lower(NEW.coverage_name);\nEND";
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n", sql_err);
+	  sqlite3_free (sql_err);
+	  return 0;
+      }
+    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_update\n"
+	"BEFORE UPDATE ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
+	"SELECT RAISE(ABORT, 'update on coverage_policies violates constraint: "
+	"attempting to change the definition of an already populated Coverage')\n"
+	"WHERE IsPopulatedCoverage(OLD.coverage_name) = 1;\nEND";
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n", sql_err);
+	  sqlite3_free (sql_err);
+	  return 0;
+      }
+    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_delete\n"
+	"BEFORE DELETE ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
+	"SELECT RAISE(ABORT, 'delete on coverage_policies violates constraint: "
+	"attempting to delete the definition of an already populated Coverage')\n"
+	"WHERE IsPopulatedCoverage(OLD.coverage_name) = 1;\nEND";
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n", sql_err);
+	  sqlite3_free (sql_err);
+	  return 0;
+      }
     return 1;
 }
 
@@ -250,6 +405,66 @@ create_levels (sqlite3 * handle, const char *coverage)
 }
 
 static int
+create_section_levels (sqlite3 * handle, const char *coverage)
+{
+/* creating the SECTION_LEVELS table */
+    int ret;
+    char *sql;
+    char *sql_err = NULL;
+    char *xcoverage;
+    char *xxcoverage;
+    char *pk_name;
+    char *xpk_name;
+    char *fk_name;
+    char *xfk_name;
+    char *mother;
+    char *xmother;
+
+    xcoverage = sqlite3_mprintf ("%s_section_levels", coverage);
+    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
+    sqlite3_free (xcoverage);
+    pk_name = sqlite3_mprintf ("pk_%s_sectlevela", coverage);
+    xpk_name = gaiaDoubleQuotedSql (pk_name);
+    sqlite3_free (pk_name);
+    fk_name = sqlite3_mprintf ("fk_%s_sectlevels", coverage);
+    xfk_name = gaiaDoubleQuotedSql (fk_name);
+    sqlite3_free (fk_name);
+    mother = sqlite3_mprintf ("%s_sections", coverage);
+    xmother = gaiaDoubleQuotedSql (mother);
+    sqlite3_free (mother);
+    sql = sqlite3_mprintf ("CREATE TABLE \"%s\" (\n"
+			   "\tsection_id INTEGER NOT NULL,\n"
+			   "\tpyramid_level INTEGER NOT NULL,\n"
+			   "\tx_resolution_1_1 DOUBLE NOT NULL,\n"
+			   "\ty_resolution_1_1 DOUBLE NOT NULL,\n"
+			   "\tx_resolution_1_2 DOUBLE,\n"
+			   "\ty_resolution_1_2 DOUBLE,\n"
+			   "\tx_resolution_1_4 DOUBLE,\n"
+			   "\ty_resolution_1_4 DOUBLE,\n"
+			   "\tx_resolution_1_8 DOUBLE,\n"
+			   "\ty_resolution_1_8 DOUBLE,\n"
+			   "\tCONSTRAINT \"%s\" PRIMARY KEY (section_id, pyramid_level)\n"
+			   "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
+			   "REFERENCES \"%s\" (section_id))\n", xxcoverage,
+			   xpk_name, xfk_name, xmother);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
+    free (xpk_name);
+    free (xfk_name);
+    free (xmother);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE TABLE \"%s_levels\" error: %s\n", xxcoverage,
+		   sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxcoverage);
+	  return 0;
+      }
+    free (xxcoverage);
+    return 1;
+}
+
+static int
 create_sections (sqlite3 * handle, const char *coverage, int srid)
 {
 /* creating the SECTIONS table */
@@ -273,6 +488,8 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 			   "\twidth INTEGER NOT NULL,\n"
 			   "\theight INTEGER NOT NULL,\n"
 			   "\tfile_path TEXT,\n"
+			   "\tmd5_checksum TEXT,\n"
+			   "\tsummary TEXT,\n"
 			   "\tstatistics BLOB)", xxcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -370,11 +587,33 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
     xcoverage = sqlite3_mprintf ("%s_sections", coverage);
     xxcoverage = gaiaDoubleQuotedSql (xcoverage);
     sqlite3_free (xcoverage);
-    xindex = sqlite3_mprintf ("idx_%s_sections", coverage);
+    xindex = sqlite3_mprintf ("idx_%s_sect_name", coverage);
     xxindex = gaiaDoubleQuotedSql (xindex);
     sqlite3_free (xindex);
     sql =
-	sqlite3_mprintf ("CREATE UNIQUE INDEX \"%s\" ON \"%s\" (section_name)",
+	sqlite3_mprintf ("CREATE INDEX \"%s\" ON \"%s\" (section_name)",
+			 xxindex, xxcoverage);
+    free (xxcoverage);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE INDEX \"%s\" error: %s\n", xxindex, sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxindex);
+	  return 0;
+      }
+    free (xxindex);
+
+/* creating the SECTIONS index by MD5 checksum */
+    xcoverage = sqlite3_mprintf ("%s_sections", coverage);
+    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
+    sqlite3_free (xcoverage);
+    xindex = sqlite3_mprintf ("idx_%s_sect_md5", coverage);
+    xxindex = gaiaDoubleQuotedSql (xindex);
+    sqlite3_free (xindex);
+    sql =
+	sqlite3_mprintf ("CREATE INDEX \"%s\" ON \"%s\" (md5_checksum)",
 			 xxindex, xxcoverage);
     free (xxcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
@@ -391,7 +630,8 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 }
 
 static int
-create_tiles (sqlite3 * handle, const char *coverage, int srid)
+create_tiles (sqlite3 * handle, const char *coverage, int srid,
+	      int mixed_resolutions)
 {
 /* creating the TILES table */
     int ret;
@@ -423,21 +663,39 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid)
     xfk = sqlite3_mprintf ("fk_%s_tiles_section", coverage);
     xxfk = gaiaDoubleQuotedSql (xfk);
     sqlite3_free (xfk);
-    xmother2 = sqlite3_mprintf ("%s_levels", coverage);
+    if (mixed_resolutions)
+	xmother2 = sqlite3_mprintf ("%s_section_levels", coverage);
+    else
+	xmother2 = sqlite3_mprintf ("%s_levels", coverage);
     xxmother2 = gaiaDoubleQuotedSql (xmother2);
     sqlite3_free (xmother2);
     xfk2 = sqlite3_mprintf ("fk_%s_tiles_level", coverage);
     xxfk2 = gaiaDoubleQuotedSql (xfk2);
     sqlite3_free (xfk2);
-    sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
-			   "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
-			   "\tpyramid_level INTEGER NOT NULL,\n"
-			   "\tsection_id INTEGER,\n"
-			   "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
-			   "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
-			   "\tCONSTRAINT \"%s\" FOREIGN KEY (pyramid_level) "
-			   "REFERENCES \"%s\" (pyramid_level) ON DELETE CASCADE)",
-			   xxcoverage, xxfk, xxmother, xxfk2, xxmother2);
+    if (mixed_resolutions)
+      {
+	  sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
+				 "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+				 "\tpyramid_level INTEGER NOT NULL,\n"
+				 "\tsection_id INTEGER,\n"
+				 "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
+				 "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
+				 "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id, pyramid_level) "
+				 "REFERENCES \"%s\" (section_id, pyramid_level) ON DELETE CASCADE)",
+				 xxcoverage, xxfk, xxmother, xxfk2, xxmother2);
+      }
+    else
+      {
+	  sql = sqlite3_mprintf ("CREATE TABLE \"%s\" ("
+				 "\ttile_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+				 "\tpyramid_level INTEGER NOT NULL,\n"
+				 "\tsection_id INTEGER,\n"
+				 "\tCONSTRAINT \"%s\" FOREIGN KEY (section_id) "
+				 "REFERENCES \"%s\" (section_id) ON DELETE CASCADE,\n"
+				 "\tCONSTRAINT \"%s\" FOREIGN KEY (pyramid_level) "
+				 "REFERENCES \"%s\" (pyramid_level) ON DELETE CASCADE)",
+				 xxcoverage, xxfk, xxmother, xxfk2, xxmother2);
+      }
     free (xxfk);
     free (xxmother);
     free (xxfk2);
@@ -605,7 +863,9 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 			  int quality, unsigned int tile_width,
 			  unsigned int tile_height, int srid, double x_res,
 			  double y_res, rl2PixelPtr no_data,
-			  rl2PalettePtr palette)
+			  rl2PalettePtr palette, int strict_resolution,
+			  int mixed_resolutions, int section_paths,
+			  int section_md5, int section_summary)
 {
 /* creating a DBMS-based Coverage */
     unsigned char *blob = NULL;
@@ -624,16 +884,30 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 	      (no_data, &blob_no_data, &blob_no_data_sz) != RL2_OK)
 	      goto error;
       }
+    if (!create_policies (handle))
+	goto error;
     if (!insert_into_raster_coverages
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
-	 tile_width, tile_height, srid, x_res, y_res, blob, blob_size,
-	 blob_no_data, blob_no_data_sz))
+	 tile_width, tile_height, srid, mixed_resolutions, x_res, y_res, blob,
+	 blob_size, blob_no_data, blob_no_data_sz))
 	goto error;
-    if (!create_levels (handle, coverage))
+    if (!insert_default_policies
+	(handle, coverage, strict_resolution, mixed_resolutions, section_paths,
+	 section_md5, section_summary))
 	goto error;
+    if (mixed_resolutions)
+      {
+	  if (!create_section_levels (handle, coverage))
+	      goto error;
+      }
+    else
+      {
+	  if (!create_levels (handle, coverage))
+	      goto error;
+      }
     if (!create_sections (handle, coverage, srid))
 	goto error;
-    if (!create_tiles (handle, coverage, srid))
+    if (!create_tiles (handle, coverage, srid, mixed_resolutions))
 	goto error;
     return RL2_OK;
   error:
@@ -641,17 +915,129 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
+rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
+				    sqlite3_int64 section_id, double x_res,
+				    double y_res, double *minX, double *minY,
+				    double *maxX, double *maxY,
+				    unsigned int *Width, unsigned int *Height)
+{
+/* resolving a Full Section Extent and related Width and Heigh */
+    rl2CoveragePtr cvg;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char level;
+    unsigned char scale;
+    int ret;
+    char *sql;
+    char *table;
+    char *xtable;
+    int count = 0;
+    sqlite3_stmt *stmt = NULL;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    int width;
+    int height;
+
+    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    if (cvg == NULL)
+	return RL2_ERROR;
+    if (rl2_find_matching_resolution
+	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    table = sqlite3_mprintf ("%s_sections", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf ("SELECT MbrMinX(geometry), MbrMinY(geometry), "
+			 "MbrMaxX(geometry), MbrMaxY(geometry), width, height "
+			 "FROM \"%s\" WHERE section_id = ?", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT section_full_extent SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* querying the section */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int64 (stmt, 1, section_id);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		minx = sqlite3_column_double (stmt, 0);
+		miny = sqlite3_column_double (stmt, 1);
+		maxx = sqlite3_column_double (stmt, 2);
+		maxy = sqlite3_column_double (stmt, 3);
+		width = sqlite3_column_int (stmt, 4);
+		height = sqlite3_column_int (stmt, 5);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT section_full_extent; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (level == 0 && scale == RL2_SCALE_1)
+	;
+    else
+      {
+	  /* rescaling Width and Height */
+	  double ext_x = maxx - minx;
+	  double ext_y = maxy - miny;
+	  width = (unsigned int) (ext_x / xx_res);
+	  if (((double) width * xx_res) < ext_x)
+	      width++;
+	  height = (unsigned int) (ext_y / yy_res);
+	  if (((double) height * yy_res) < ext_y)
+	      height++;
+      }
+    if (count == 1)
+      {
+	  *minX = minx;
+	  *minY = miny;
+	  *maxX = maxx;
+	  *maxY = maxy;
+	  *Width = width;
+	  *Height = height;
+	  return RL2_OK;
+      }
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
 rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
-			 const char *section, sqlite3_int64 * section_id)
+			 const char *section, sqlite3_int64 * section_id,
+			 int *duplicate)
 {
 /* retrieving a Section ID by its name */
     int ret;
     char *sql;
     char *table;
     char *xtable;
-    int found = 0;
+    int count = 0;
     sqlite3_stmt *stmt = NULL;
 
+    *duplicate = 0;
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = gaiaDoubleQuotedSql (table);
     sqlite3_free (table);
@@ -663,8 +1049,7 @@ rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  printf ("SELECT section_name SQL error: %s\n",
-		  sqlite3_errmsg (handle));
+	  printf ("SELECT section_id SQL error: %s\n", sqlite3_errmsg (handle));
 	  goto error;
       }
 
@@ -680,20 +1065,22 @@ rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
 	  if (ret == SQLITE_ROW)
 	    {
 		*section_id = sqlite3_column_int64 (stmt, 0);
-		found++;
+		count++;
 	    }
 	  else
 	    {
 		fprintf (stderr,
-			 "SELECT section_name; sqlite3_step() error: %s\n",
+			 "SELECT section_id; sqlite3_step() error: %s\n",
 			 sqlite3_errmsg (handle));
 		goto error;
 	    }
       }
     sqlite3_finalize (stmt);
     stmt = NULL;
-    if (found == 1)
+    if (count == 1)
 	return RL2_OK;
+    if (count > 1)
+	*duplicate = 1;
 
   error:
     if (stmt != NULL)
@@ -1320,6 +1707,11 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
     double x_res;
     double y_res;
     int srid;
+    int strict_resolution = 0;
+    int mixed_resolutions = 0;
+    int section_paths = 0;
+    int section_md5 = 0;
+    int section_summary = 0;
     int ok = 0;
     const char *value;
     rl2PixelPtr no_data = NULL;
@@ -1554,6 +1946,73 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 	  return NULL;
       }
 
+/* querying the Coverage Policies */
+    sql =
+	"SELECT strict_resolution, mixed_resolutions, section_paths, "
+	"section_md5, section_summary "
+	"FROM coverage_policies WHERE Lower(coverage_name) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto skip_policies;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		int ok_strict = 0;
+		int ok_mixed = 0;
+		int ok_paths = 0;
+		int ok_md5 = 0;
+		int ok_summary = 0;
+		int strict = 0;
+		int mixed = 0;
+		int paths = 0;
+		int md5 = 0;
+		int summary = 1;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
+		  {
+		      strict = sqlite3_column_int (stmt, 0);
+		      ok_strict = 1;
+		  }
+		if (sqlite3_column_type (stmt, 1) == SQLITE_INTEGER)
+		  {
+		      mixed = sqlite3_column_int (stmt, 1);
+		      ok_mixed = 1;
+		  }
+		if (sqlite3_column_type (stmt, 2) == SQLITE_INTEGER)
+		  {
+		      paths = sqlite3_column_int (stmt, 2);
+		      ok_paths = 1;
+		  }
+		if (sqlite3_column_type (stmt, 3) == SQLITE_INTEGER)
+		  {
+		      md5 = sqlite3_column_int (stmt, 3);
+		      ok_md5 = 1;
+		  }
+		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
+		  {
+		      summary = sqlite3_column_int (stmt, 4);
+		      ok_summary = 1;
+		  }
+		if (ok_strict && ok_mixed && ok_paths && ok_md5 && ok_summary)
+		  {
+		      strict_resolution = strict;
+		      mixed_resolutions = mixed;
+		      section_paths = paths;
+		      section_md5 = md5;
+		      section_summary = summary;
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+  skip_policies:
+
     cvg =
 	rl2_create_coverage (coverage, sample, pixel, num_bands, compression,
 			     quality, tile_width, tile_height, no_data);
@@ -1568,6 +2027,16 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
       {
 	  fprintf (stderr,
 		   "ERROR: unable to Georeference a Coverage Object supporting \"%s\"\n",
+		   coverage);
+	  rl2_destroy_coverage (cvg);
+	  return NULL;
+      }
+    if (rl2_set_coverage_policies
+	(cvg, strict_resolution, mixed_resolutions, section_paths, section_md5,
+	 section_summary) != RL2_OK)
+      {
+	  fprintf (stderr,
+		   "ERROR: unable to set the Policies on the Coverage Object supporting \"%s\"\n",
 		   coverage);
 	  rl2_destroy_coverage (cvg);
 	  return NULL;
@@ -3113,6 +3582,7 @@ rl2_get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
 
 static int
 get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
+			    int by_section, sqlite3_int64 section_id,
 			    unsigned int width, unsigned int height,
 			    double minx, double miny, double maxx, double maxy,
 			    double x_res, double y_res, unsigned char **buffer,
@@ -3380,13 +3850,34 @@ get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = gaiaDoubleQuotedSql (xtiles);
-    sql =
-	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-			 "FROM \"%s\" "
-			 "WHERE pyramid_level = ? AND ROWID IN ( "
-			 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-			 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles,
-			 xtiles);
+    if (by_section)
+      {
+	  /* only from a single Section */
+	  char sctn[1024];
+#if defined(_WIN32) && !defined(__MINGW32__)
+	  sprintf (sctn, "%I64d", section_id);
+#else
+	  sprintf (sctn, "%lld", section_id);
+#endif
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" "
+	       "WHERE section_id = %s AND pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, sctn,
+	       xtiles);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+      }
     sqlite3_free (xtiles);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
@@ -3514,10 +4005,26 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 			 unsigned char out_pixel)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
-    return get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
-				       maxx, maxy, x_res, y_res, buffer,
-				       buf_size, palette, out_pixel, NULL,
-				       NULL, NULL);
+    return get_raw_raster_data_common (handle, cvg, 0, 0, width, height, minx,
+				       miny, maxx, maxy, x_res, y_res, buffer,
+				       buf_size, palette, out_pixel, NULL, NULL,
+				       NULL);
+}
+
+RL2_DECLARE int
+rl2_get_section_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+				 sqlite3_int64 section_id, unsigned int width,
+				 unsigned int height, double minx, double miny,
+				 double maxx, double maxy, double x_res,
+				 double y_res, unsigned char **buffer,
+				 int *buf_size, rl2PalettePtr * palette,
+				 unsigned char out_pixel)
+{
+/* attempting to return a buffer containing raw pixels from the DBMS Coverage/Section */
+    return get_raw_raster_data_common (handle, cvg, 1, section_id, width,
+				       height, minx, miny, maxx, maxy, x_res,
+				       y_res, buffer, buf_size, palette,
+				       out_pixel, NULL, NULL, NULL);
 }
 
 RL2_DECLARE int
@@ -4036,10 +4543,10 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
     if (pixel_type == RL2_PIXEL_MONOCHROME)
 	xstyle = NULL;
     ret =
-	get_raw_raster_data_common (handle, cvg, width, height, minx, miny,
-				    maxx, maxy, x_res, y_res, buffer, buf_size,
-				    palette, *out_pixel, no_data, xstyle,
-				    stats);
+	get_raw_raster_data_common (handle, cvg, 0, 0, width, height, minx,
+				    miny, maxx, maxy, x_res, y_res, buffer,
+				    buf_size, palette, *out_pixel, no_data,
+				    xstyle, stats);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
     if (*out_pixel == RL2_PIXEL_GRAYSCALE && pixel_type == RL2_PIXEL_DATAGRID)

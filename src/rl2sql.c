@@ -1884,6 +1884,13 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 /                int num_bands, text compression, int quality,
 /                int tile_width, int tile_height, int srid,
 /                double horz_res, double vert_res, BLOB no_data)
+/ CreateCoverage(text coverage, text sample_type, text pixel_type,
+/                int num_bands, text compression, int quality,
+/                int tile_width, int tile_height, int srid,
+/                double horz_res, double vert_res, BLOB no_data,
+/                int strict_resolution, int mixed_resolutions,
+/                int section_paths, int section_md5,
+/                int section_summary)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
@@ -1904,6 +1911,11 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char sample;
     unsigned char pixel;
     unsigned char compr;
+    int strict_resolution = 0;
+    int mixed_resolutions = 0;
+    int section_paths = 0;
+    int section_md5 = 0;
+    int section_summary = 0;
     sqlite3 *sqlite;
     int ret;
     rl2PixelPtr no_data = NULL;
@@ -1943,6 +1955,16 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	      && sqlite3_value_type (argv[11]) != SQLITE_NULL)
 	      err = 1;
       }
+    if (argc > 12 && sqlite3_value_type (argv[12]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 13 && sqlite3_value_type (argv[11]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 14 && sqlite3_value_type (argv[13]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 15 && sqlite3_value_type (argv[14]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 16 && sqlite3_value_type (argv[15]) != SQLITE_INTEGER)
+	err = 1;
     if (err)
 	goto error;
 
@@ -1983,6 +2005,36 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  no_data = rl2_deserialize_dbms_pixel (blob, blob_sz);
 	  if (no_data == NULL)
 	      goto error;
+      }
+    if (argc > 12)
+      {
+	  strict_resolution = sqlite3_value_int (argv[12]);
+	  if (strict_resolution)
+	      strict_resolution = 1;
+      }
+    if (argc > 13)
+      {
+	  mixed_resolutions = sqlite3_value_int (argv[13]);
+	  if (mixed_resolutions)
+	      mixed_resolutions = 1;
+      }
+    if (argc > 14)
+      {
+	  section_paths = sqlite3_value_int (argv[14]);
+	  if (section_paths)
+	      section_paths = 1;
+      }
+    if (argc > 15)
+      {
+	  section_md5 = sqlite3_value_int (argv[15]);
+	  if (section_md5)
+	      section_md5 = 1;
+      }
+    if (argc > 16)
+      {
+	  section_summary = sqlite3_value_int (argv[16]);
+	  if (section_summary)
+	      section_summary = 1;
       }
 
 /* preliminary arg checking */
@@ -2074,7 +2126,10 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 				    compr, quality,
 				    (unsigned short) tile_width,
 				    (unsigned short) tile_height, srid,
-				    horz_res, vert_res, no_data, palette);
+				    horz_res, vert_res, no_data, palette,
+				    strict_resolution, mixed_resolutions,
+				    section_paths, section_md5,
+				    section_summary);
     if (ret == RL2_OK)
 	sqlite3_result_int (context, 1);
     else
@@ -2137,8 +2192,8 @@ static void
 fnct_DeleteSection (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ DeleteSection(text coverage, text section)
-/ DeleteSection(text coverage, text section, int transaction)
+/ DeleteSection(text coverage, integer section_id)
+/ DeleteSection(text coverage, integer section_id, int transaction)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
@@ -2146,17 +2201,16 @@ fnct_DeleteSection (sqlite3_context * context, int argc, sqlite3_value ** argv)
 */
     int err = 0;
     const char *coverage;
-    const char *section;
+    sqlite3_int64 section_id;
     int transaction = 1;
     sqlite3 *sqlite;
     int ret;
     rl2CoveragePtr cvg = NULL;
-    sqlite3_int64 section_id;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
 	err = 1;
-    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
 	err = 1;
     if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
 	err = 1;
@@ -2166,15 +2220,12 @@ fnct_DeleteSection (sqlite3_context * context, int argc, sqlite3_value ** argv)
 /* retrieving the arguments */
     sqlite = sqlite3_context_db_handle (context);
     coverage = (const char *) sqlite3_value_text (argv[0]);
-    section = (const char *) sqlite3_value_text (argv[1]);
+    section_id = sqlite3_value_int64 (argv[1]);
     if (argc > 2)
 	transaction = sqlite3_value_int (argv[2]);
 
     cvg = rl2_create_coverage_from_dbms (sqlite, coverage);
     if (cvg == NULL)
-	goto error;
-    if (rl2_get_dbms_section_id (sqlite, coverage, section, &section_id) !=
-	RL2_OK)
 	goto error;
 
     if (transaction)
@@ -2369,7 +2420,7 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	    }
       }
     ret = rl2_load_raster_into_dbms (sqlite, path, coverage,
-				     worldfile, force_srid, pyramidize);
+				     worldfile, force_srid, pyramidize, 0);
     rl2_destroy_coverage (coverage);
     if (ret != RL2_OK)
       {
@@ -2485,7 +2536,7 @@ fnct_LoadRastersFromDir (sqlite3_context * context, int argc,
 	    }
       }
     ret = rl2_load_mrasters_into_dbms (sqlite, path, file_ext, coverage,
-				       worldfile, force_srid, pyramidize);
+				       worldfile, force_srid, pyramidize, 0);
     rl2_destroy_coverage (coverage);
     if (ret != RL2_OK)
       {
@@ -2515,9 +2566,9 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
 / Pyramidize(text coverage)
-/ Pyramidize(text coverage, text section)
-/ Pyramidize(text coverage, text section, int force_rebuild)
-/ Pyramidize(text coverage, text section, int force_rebuild,
+/ Pyramidize(text coverage, integer section_id)
+/ Pyramidize(text coverage, integer section_id, int force_rebuild)
+/ Pyramidize(text coverage, integer section_id, int force_rebuild,
 /            int transaction)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
@@ -2526,7 +2577,8 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 */
     int err = 0;
     const char *cvg_name;
-    const char *sect_name = NULL;
+    sqlite3_int64 section_id;
+    int null_id = 1;
     int forced_rebuild = 0;
     int transaction = 1;
     sqlite3 *sqlite;
@@ -2535,7 +2587,7 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
 	err = 1;
-    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_TEXT
+    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_INTEGER
 	&& sqlite3_value_type (argv[1]) != SQLITE_NULL)
 	err = 1;
     if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
@@ -2552,8 +2604,11 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
     if (argc > 1)
       {
-	  if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
-	      sect_name = (const char *) sqlite3_value_text (argv[1]);
+	  if (sqlite3_value_type (argv[1]) == SQLITE_INTEGER)
+	    {
+		section_id = sqlite3_value_int64 (argv[1]);
+		null_id = 0;
+	    }
       }
     if (argc > 2)
 	forced_rebuild = sqlite3_value_int (argv[2]);
@@ -2569,11 +2624,11 @@ fnct_Pyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		return;
 	    }
       }
-    if (sect_name == NULL)
+    if (null_id)
 	ret = rl2_build_all_section_pyramids (sqlite, cvg_name, forced_rebuild);
     else
 	ret =
-	    rl2_build_section_pyramid (sqlite, cvg_name, sect_name,
+	    rl2_build_section_pyramid (sqlite, cvg_name, section_id,
 				       forced_rebuild);
     if (ret != RL2_OK)
       {
@@ -2676,8 +2731,8 @@ fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
 / DePyramidize(text coverage)
-/ DePyramidize(text coverage, text section)
-/ DePyramidize(text coverage, text section, int transaction)
+/ DePyramidize(text coverage, integer section)
+/ DePyramidize(text coverage, integer section, int transaction)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
@@ -2685,7 +2740,8 @@ fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 */
     int err = 0;
     const char *cvg_name;
-    const char *sect_name = NULL;
+    sqlite3_int64 section_id;
+    int null_id = 1;
     int transaction = 1;
     sqlite3 *sqlite;
     int ret;
@@ -2693,7 +2749,7 @@ fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
 	err = 1;
-    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_TEXT
+    if (argc > 1 && sqlite3_value_type (argv[1]) != SQLITE_INTEGER
 	&& sqlite3_value_type (argv[1]) != SQLITE_NULL)
 	err = 1;
     if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
@@ -2708,8 +2764,11 @@ fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
     cvg_name = (const char *) sqlite3_value_text (argv[0]);
     if (argc > 1)
       {
-	  if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
-	      sect_name = (const char *) sqlite3_value_text (argv[1]);
+	  if (sqlite3_value_type (argv[1]) == SQLITE_INTEGER)
+	    {
+		section_id = sqlite3_value_int64 (argv[1]);
+		null_id = 0;
+	    }
       }
     if (argc > 2)
 	transaction = sqlite3_value_int (argv[2]);
@@ -2723,10 +2782,10 @@ fnct_DePyramidize (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		return;
 	    }
       }
-    if (sect_name == NULL)
+    if (null_id)
 	ret = rl2_delete_all_pyramids (sqlite, cvg_name);
     else
-	ret = rl2_delete_section_pyramid (sqlite, cvg_name, sect_name);
+	ret = rl2_delete_section_pyramid (sqlite, cvg_name, section_id);
     if (ret != RL2_OK)
       {
 	  sqlite3_result_int (context, 0);
@@ -2810,6 +2869,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     int errcode = -1;
     gaiaGeomCollPtr geom;
     rl2CoveragePtr coverage = NULL;
+    rl2PrivCoveragePtr cvg;
     rl2RasterStatisticsPtr section_stats = NULL;
     sqlite3 *sqlite;
     int ret;
@@ -2827,6 +2887,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     sqlite3_stmt *stmt_data = NULL;
     sqlite3_stmt *stmt_tils = NULL;
     sqlite3_stmt *stmt_sect = NULL;
+    sqlite3_stmt *stmt_policies = NULL;
     sqlite3_stmt *stmt_levl = NULL;
     sqlite3_stmt *stmt_upd_sect = NULL;
     int first = 1;
@@ -3014,7 +3075,8 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     sql =
 	sqlite3_mprintf
 	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
-	 "width, height, geometry) VALUES (NULL, ?, ?, ?, ?, ?)", xtable);
+	 "md5_checksum, summary, width, height, geometry) "
+	 "VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_sect, NULL);
     sqlite3_free (sql);
@@ -3024,6 +3086,16 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		  sqlite3_errmsg (sqlite));
 	  goto error;
       }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT strict_resolution, mixed_resolutions, section_paths, "
+	 "section_md5, section_summary FROM coverage_policies "
+	 "WHERE coverage_name = Lower(%Q)", coverage);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_policies, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	stmt_policies = NULL;
 
     table = sqlite3_mprintf ("%s_sections", cvg_name);
     xtable = gaiaDoubleQuotedSql (table);
@@ -3106,6 +3178,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     if ((height * vert_res) < ext_y)
 	height++;
     retry_list = alloc_retry_list ();
+    cvg = (rl2PrivCoveragePtr) coverage;
     for (y = maxy; y > miny; y -= tileh)
       {
 	  for (x = minx; x < maxx; x += tilew)
@@ -3126,6 +3199,10 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		params.sqlite = sqlite;
 		params.rgba_tile = rgba_tile;
 		params.coverage = coverage;
+		params.mixedResolutions = cvg->mixedResolutions;
+		params.sectionPaths = cvg->sectionPaths;
+		params.sectionMD5 = cvg->sectionMD5;
+		params.sectionSummary = cvg->sectionSummary;
 		params.sect_name = sect_name;
 		params.x = x;
 		params.y = y;
@@ -3150,6 +3227,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		params.stmt_levl = stmt_levl;
 		params.stmt_tils = stmt_tils;
 		params.stmt_data = stmt_data;
+		params.xml_summary = NULL;
 		if (!insert_wms_tile
 		    (&params, &first, &section_stats, &section_id))
 		    goto error;
@@ -3183,6 +3261,10 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		params.sqlite = sqlite;
 		params.rgba_tile = rgba_tile;
 		params.coverage = coverage;
+		params.mixedResolutions = cvg->mixedResolutions;
+		params.sectionPaths = cvg->sectionPaths;
+		params.sectionMD5 = cvg->sectionMD5;
+		params.sectionSummary = cvg->sectionSummary;
 		params.sect_name = sect_name;
 		params.x = x;
 		params.y = y;
@@ -3207,6 +3289,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 		params.stmt_levl = stmt_levl;
 		params.stmt_tils = stmt_tils;
 		params.stmt_data = stmt_data;
+		params.xml_summary = NULL;
 		if (!insert_wms_tile
 		    (&params, &first, &section_stats, &section_id))
 		    goto error;
@@ -3224,12 +3307,15 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 
     sqlite3_finalize (stmt_upd_sect);
     sqlite3_finalize (stmt_sect);
+    if (stmt_policies != NULL)
+	sqlite3_finalize (stmt_policies);
     sqlite3_finalize (stmt_levl);
     sqlite3_finalize (stmt_tils);
     sqlite3_finalize (stmt_data);
     stmt_upd_sect = NULL;
     stmt_sect = NULL;
     stmt_levl = NULL;
+    stmt_policies = NULL;
     stmt_tils = NULL;
     stmt_data = NULL;
 
@@ -3274,6 +3360,8 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 	sqlite3_finalize (stmt_upd_sect);
     if (stmt_sect != NULL)
 	sqlite3_finalize (stmt_sect);
+    if (stmt_policies != NULL)
+	sqlite3_finalize (stmt_policies);
     if (stmt_levl != NULL)
 	sqlite3_finalize (stmt_levl);
     if (stmt_tils != NULL)
@@ -3290,33 +3378,14 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 }
 
 static void
-fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
+common_write_geotiff (int by_section, sqlite3_context * context, int argc,
+		      sqlite3_value ** argv)
 {
-/* SQL function:
-/ WriteGeoTiff(text coverage, text geotiff_path, int width,
-/              int height, BLOB geom, double resolution)
-/ WriteGeoTiff(text coverage, text geotiff_path, int width,
-/              int height, BLOB geom, double horz_res,
-/              double vert_res)
-/ WriteGeoTiff(text coverage, text geotiff_path, int width,
-/              int height, BLOB geom, double horz_res,
-/              double vert_res, int with_worldfile)
-/ WriteGeoTiff(text coverage, text geotiff_path, int width,
-/              int height, BLOB geom, double horz_res,
-/              double vert_res, int with_worldfile,
-/              text compression)
-/ WriteGeoTiff(text coverage, text geotiff_path, int width,
-/              int height, BLOB geom, double horz_res,
-/              double vert_res, int with_worldfile,
-/              text compression, int tile_sz)
-/
-/ will return 1 (TRUE, success) or 0 (FALSE, failure)
-/ or -1 (INVALID ARGS)
-/
-*/
+/* common implementation for Write GeoTIFF */
     int err = 0;
     const char *cvg_name;
     const char *path;
+    sqlite3_int64 section_id;
     int width;
     int height;
     const unsigned char *blob;
@@ -3337,28 +3406,60 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
     double maxy;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
-    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
-	err = 1;
-    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
-	err = 1;
-    if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_TEXT)
-	err = 1;
-    if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
-	err = 1;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[7]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_TEXT)
+	      err = 1;
+	  if (argc > 10 && sqlite3_value_type (argv[10]) != SQLITE_INTEGER)
+	      err = 1;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_TEXT)
+	      err = 1;
+	  if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
+	      err = 1;
+      }
     if (err)
       {
 	  sqlite3_result_int (context, -1);
@@ -3366,52 +3467,107 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
       }
 
 /* retrieving all arguments */
-    cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    path = (const char *) sqlite3_value_text (argv[1]);
-    width = sqlite3_value_int (argv[2]);
-    height = sqlite3_value_int (argv[3]);
-    blob = sqlite3_value_blob (argv[4]);
-    blob_sz = sqlite3_value_bytes (argv[4]);
-    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+    if (by_section)
       {
-	  int ival = sqlite3_value_int (argv[5]);
-	  horz_res = ival;
-      }
-    else
-	horz_res = sqlite3_value_double (argv[5]);
-    if (argc > 6)
-      {
+	  /* single Section */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  section_id = sqlite3_value_int64 (argv[1]);
+	  path = (const char *) sqlite3_value_text (argv[2]);
+	  width = sqlite3_value_int (argv[3]);
+	  height = sqlite3_value_int (argv[4]);
+	  blob = sqlite3_value_blob (argv[5]);
+	  blob_sz = sqlite3_value_bytes (argv[5]);
 	  if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
 	    {
 		int ival = sqlite3_value_int (argv[6]);
-		vert_res = ival;
+		horz_res = ival;
 	    }
 	  else
-	      vert_res = sqlite3_value_double (argv[6]);
+	      horz_res = sqlite3_value_double (argv[6]);
+	  if (argc > 7)
+	    {
+		if (sqlite3_value_type (argv[7]) == SQLITE_INTEGER)
+		  {
+		      int ival = sqlite3_value_int (argv[7]);
+		      vert_res = ival;
+		  }
+		else
+		    vert_res = sqlite3_value_double (argv[7]);
+	    }
+	  else
+	      vert_res = horz_res;
+	  if (argc > 8)
+	      worldfile = sqlite3_value_int (argv[8]);
+	  if (argc > 9)
+	    {
+		const char *compr = (const char *) sqlite3_value_text (argv[9]);
+		compression = RL2_COMPRESSION_UNKNOWN;
+		if (strcasecmp (compr, "NONE") == 0)
+		    compression = RL2_COMPRESSION_NONE;
+		if (strcasecmp (compr, "DEFLATE") == 0)
+		    compression = RL2_COMPRESSION_DEFLATE;
+		if (strcasecmp (compr, "LZW") == 0)
+		    compression = RL2_COMPRESSION_LZW;
+		if (strcasecmp (compr, "JPEG") == 0)
+		    compression = RL2_COMPRESSION_JPEG;
+		if (strcasecmp (compr, "FAX3") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX3;
+		if (strcasecmp (compr, "FAX4") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX4;
+	    }
+	  if (argc > 10)
+	      tile_sz = sqlite3_value_int (argv[10]);
       }
     else
-	vert_res = horz_res;
-    if (argc > 7)
-	worldfile = sqlite3_value_int (argv[7]);
-    if (argc > 8)
       {
-	  const char *compr = (const char *) sqlite3_value_text (argv[8]);
-	  compression = RL2_COMPRESSION_UNKNOWN;
-	  if (strcasecmp (compr, "NONE") == 0)
-	      compression = RL2_COMPRESSION_NONE;
-	  if (strcasecmp (compr, "DEFLATE") == 0)
-	      compression = RL2_COMPRESSION_DEFLATE;
-	  if (strcasecmp (compr, "LZW") == 0)
-	      compression = RL2_COMPRESSION_LZW;
-	  if (strcasecmp (compr, "JPEG") == 0)
-	      compression = RL2_COMPRESSION_JPEG;
-	  if (strcasecmp (compr, "FAX3") == 0)
-	      compression = RL2_COMPRESSION_CCITTFAX3;
-	  if (strcasecmp (compr, "FAX4") == 0)
-	      compression = RL2_COMPRESSION_CCITTFAX4;
+	  /* whole Coverage */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  path = (const char *) sqlite3_value_text (argv[1]);
+	  width = sqlite3_value_int (argv[2]);
+	  height = sqlite3_value_int (argv[3]);
+	  blob = sqlite3_value_blob (argv[4]);
+	  blob_sz = sqlite3_value_bytes (argv[4]);
+	  if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[5]);
+		horz_res = ival;
+	    }
+	  else
+	      horz_res = sqlite3_value_double (argv[5]);
+	  if (argc > 6)
+	    {
+		if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
+		  {
+		      int ival = sqlite3_value_int (argv[6]);
+		      vert_res = ival;
+		  }
+		else
+		    vert_res = sqlite3_value_double (argv[6]);
+	    }
+	  else
+	      vert_res = horz_res;
+	  if (argc > 7)
+	      worldfile = sqlite3_value_int (argv[7]);
+	  if (argc > 8)
+	    {
+		const char *compr = (const char *) sqlite3_value_text (argv[8]);
+		compression = RL2_COMPRESSION_UNKNOWN;
+		if (strcasecmp (compr, "NONE") == 0)
+		    compression = RL2_COMPRESSION_NONE;
+		if (strcasecmp (compr, "DEFLATE") == 0)
+		    compression = RL2_COMPRESSION_DEFLATE;
+		if (strcasecmp (compr, "LZW") == 0)
+		    compression = RL2_COMPRESSION_LZW;
+		if (strcasecmp (compr, "JPEG") == 0)
+		    compression = RL2_COMPRESSION_JPEG;
+		if (strcasecmp (compr, "FAX3") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX3;
+		if (strcasecmp (compr, "FAX4") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX4;
+	    }
+	  if (argc > 9)
+	      tile_sz = sqlite3_value_int (argv[9]);
       }
-    if (argc > 9)
-	tile_sz = sqlite3_value_int (argv[9]);
 
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
@@ -3433,6 +3589,14 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
       {
 	  errcode = -1;
 	  goto error;
+      }
+
+    sqlite = sqlite3_context_db_handle (context);
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
       }
 
 /* checking the Geometry */
@@ -3464,7 +3628,6 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -3472,10 +3635,26 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  return;
       }
 
-    ret =
-	rl2_export_geotiff_from_dbms (sqlite, path, coverage, horz_res,
-				      vert_res, minx, miny, maxx, maxy, width,
-				      height, compression, tile_sz, worldfile);
+    if (by_section)
+      {
+	  /* single Section */
+	  ret =
+	      rl2_export_section_geotiff_from_dbms (sqlite, path, coverage,
+						    section_id, horz_res,
+						    vert_res, minx, miny, maxx,
+						    maxy, width, height,
+						    compression, tile_sz,
+						    worldfile);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  ret =
+	      rl2_export_geotiff_from_dbms (sqlite, path, coverage, horz_res,
+					    vert_res, minx, miny, maxx, maxy,
+					    width, height, compression, tile_sz,
+					    worldfile);
+      }
     if (ret != RL2_OK)
       {
 	  errcode = 0;
@@ -3489,6 +3668,63 @@ fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (coverage != NULL)
 	rl2_destroy_coverage (coverage);
     sqlite3_result_int (context, errcode);
+}
+
+static void
+fnct_WriteGeoTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteGeoTiff(text coverage, text geotiff_path, int width,
+/              int height, BLOB geom, double resolution)
+/ WriteGeoTiff(text coverage, text geotiff_path, int width,
+/              int height, BLOB geom, double horz_res,
+/              double vert_res)
+/ WriteGeoTiff(text coverage, text geotiff_path, int width,
+/              int height, BLOB geom, double horz_res,
+/              double vert_res, int with_worldfile)
+/ WriteGeoTiff(text coverage, text geotiff_path, int width,
+/              int height, BLOB geom, double horz_res,
+/              double vert_res, int with_worldfile,
+/              text compression)
+/ WriteGeoTiff(text coverage, text geotiff_path, int width,
+/              int height, BLOB geom, double horz_res,
+/              double vert_res, int with_worldfile,
+/              text compression, int tile_sz)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_geotiff (0, context, argc, argv);
+}
+
+static void
+fnct_WriteSectionGeoTiff (sqlite3_context * context, int argc,
+			  sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteSectionGeoTiff(text coverage, int section_id, text geotiff_path,
+/                     int width, int height, BLOB geom, double resolution)
+/ WriteSectionGeoTiff(text coverage, int section_id, text geotiff_path,
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res)
+/ WriteSectionGeoTiff(text coverage, int section_id, text geotiff_path,
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res, int with_worldfile)
+/ WriteSectionGeoTiff(text coverage, int section_id, text geotiff_path,
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res, int with_worldfile,
+/                     text compression)
+/ WriteSectionGeoTiff(text coverage, int section_id, text geotiff_path, 
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res, int with_worldfile,
+/                    text compression, int tile_sz)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_geotiff (1, context, argc, argv);
 }
 
 static void
@@ -3630,6 +3866,11 @@ fnct_WriteTripleBandGeoTiff (sqlite3_context * context, int argc,
     if (argc > 12)
 	tile_sz = sqlite3_value_int (argv[12]);
 
+/* excluding any Mixed Resolution Coverage */
+    sqlite = sqlite3_context_db_handle (context);
+    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	goto error;
+
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
       {
@@ -3696,7 +3937,6 @@ fnct_WriteTripleBandGeoTiff (sqlite3_context * context, int argc,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -3855,6 +4095,11 @@ fnct_WriteMonoBandGeoTiff (sqlite3_context * context, int argc,
     if (argc > 10)
 	tile_sz = sqlite3_value_int (argv[10]);
 
+/* excluding any Mixed Resolution Coverage */
+    sqlite = sqlite3_context_db_handle (context);
+    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	goto error;
+
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
       {
@@ -3911,7 +4156,6 @@ fnct_WriteMonoBandGeoTiff (sqlite3_context * context, int argc,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -3942,29 +4186,14 @@ fnct_WriteMonoBandGeoTiff (sqlite3_context * context, int argc,
 }
 
 static void
-common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
-		   sqlite3_value ** argv)
+common_write_tiff (int by_section, int with_worldfile,
+		   sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
-/* SQL function:
-/ WriteTiff?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double resolution)
-/ WriteTiff?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double horz_res,
-/            double vert_res)
-/ WriteTiff?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double horz_res,
-/            double vert_res, text compression)
-/ WriteTiff?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double horz_res,
-/            double vert_res, text compression, int tile_sz)
-/
-/ will return 1 (TRUE, success) or 0 (FALSE, failure)
-/ or -1 (INVALID ARGS)
-/
-*/
+/* common implementation Write TIFF */
     int err = 0;
     const char *cvg_name;
     const char *path;
+    sqlite3_int64 section_id;
     int width;
     int height;
     const unsigned char *blob;
@@ -3984,26 +4213,56 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
     double maxy;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
-    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
-	err = 1;
-    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_TEXT)
-	err = 1;
-    if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
-	err = 1;
+    if (by_section)
+      {
+	  /* filtering by Section */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[7]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_TEXT)
+	      err = 1;
+	  if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
+	      err = 1;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_TEXT)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	      err = 1;
+      }
     if (err)
       {
 	  sqlite3_result_int (context, -1);
@@ -4011,50 +4270,103 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
       }
 
 /* retrieving all arguments */
-    cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    path = (const char *) sqlite3_value_text (argv[1]);
-    width = sqlite3_value_int (argv[2]);
-    height = sqlite3_value_int (argv[3]);
-    blob = sqlite3_value_blob (argv[4]);
-    blob_sz = sqlite3_value_bytes (argv[4]);
-    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+    if (by_section)
       {
-	  int ival = sqlite3_value_int (argv[5]);
-	  horz_res = ival;
-      }
-    else
-	horz_res = sqlite3_value_double (argv[5]);
-    if (argc > 6)
-      {
+	  /* filtering by Section */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  section_id = sqlite3_value_int64 (argv[1]);
+	  path = (const char *) sqlite3_value_text (argv[2]);
+	  width = sqlite3_value_int (argv[3]);
+	  height = sqlite3_value_int (argv[4]);
+	  blob = sqlite3_value_blob (argv[5]);
+	  blob_sz = sqlite3_value_bytes (argv[5]);
 	  if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
 	    {
 		int ival = sqlite3_value_int (argv[6]);
-		vert_res = ival;
+		horz_res = ival;
 	    }
 	  else
-	      vert_res = sqlite3_value_double (argv[6]);
+	      horz_res = sqlite3_value_double (argv[6]);
+	  if (argc > 7)
+	    {
+		if (sqlite3_value_type (argv[7]) == SQLITE_INTEGER)
+		  {
+		      int ival = sqlite3_value_int (argv[7]);
+		      vert_res = ival;
+		  }
+		else
+		    vert_res = sqlite3_value_double (argv[7]);
+	    }
+	  else
+	      vert_res = horz_res;
+	  if (argc > 8)
+	    {
+		const char *compr = (const char *) sqlite3_value_text (argv[8]);
+		compression = RL2_COMPRESSION_UNKNOWN;
+		if (strcasecmp (compr, "NONE") == 0)
+		    compression = RL2_COMPRESSION_NONE;
+		if (strcasecmp (compr, "DEFLATE") == 0)
+		    compression = RL2_COMPRESSION_DEFLATE;
+		if (strcasecmp (compr, "LZW") == 0)
+		    compression = RL2_COMPRESSION_LZW;
+		if (strcasecmp (compr, "JPEG") == 0)
+		    compression = RL2_COMPRESSION_JPEG;
+		if (strcasecmp (compr, "FAX3") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX3;
+		if (strcasecmp (compr, "FAX4") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX4;
+	    }
+	  if (argc > 9)
+	      tile_sz = sqlite3_value_int (argv[9]);
       }
     else
-	vert_res = horz_res;
-    if (argc > 7)
       {
-	  const char *compr = (const char *) sqlite3_value_text (argv[7]);
-	  compression = RL2_COMPRESSION_UNKNOWN;
-	  if (strcasecmp (compr, "NONE") == 0)
-	      compression = RL2_COMPRESSION_NONE;
-	  if (strcasecmp (compr, "DEFLATE") == 0)
-	      compression = RL2_COMPRESSION_DEFLATE;
-	  if (strcasecmp (compr, "LZW") == 0)
-	      compression = RL2_COMPRESSION_LZW;
-	  if (strcasecmp (compr, "JPEG") == 0)
-	      compression = RL2_COMPRESSION_JPEG;
-	  if (strcasecmp (compr, "FAX3") == 0)
-	      compression = RL2_COMPRESSION_CCITTFAX3;
-	  if (strcasecmp (compr, "FAX4") == 0)
-	      compression = RL2_COMPRESSION_CCITTFAX4;
+	  /* whole Coverage */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  path = (const char *) sqlite3_value_text (argv[1]);
+	  width = sqlite3_value_int (argv[2]);
+	  height = sqlite3_value_int (argv[3]);
+	  blob = sqlite3_value_blob (argv[4]);
+	  blob_sz = sqlite3_value_bytes (argv[4]);
+	  if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[5]);
+		horz_res = ival;
+	    }
+	  else
+	      horz_res = sqlite3_value_double (argv[5]);
+	  if (argc > 6)
+	    {
+		if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
+		  {
+		      int ival = sqlite3_value_int (argv[6]);
+		      vert_res = ival;
+		  }
+		else
+		    vert_res = sqlite3_value_double (argv[6]);
+	    }
+	  else
+	      vert_res = horz_res;
+	  if (argc > 7)
+	    {
+		const char *compr = (const char *) sqlite3_value_text (argv[7]);
+		compression = RL2_COMPRESSION_UNKNOWN;
+		if (strcasecmp (compr, "NONE") == 0)
+		    compression = RL2_COMPRESSION_NONE;
+		if (strcasecmp (compr, "DEFLATE") == 0)
+		    compression = RL2_COMPRESSION_DEFLATE;
+		if (strcasecmp (compr, "LZW") == 0)
+		    compression = RL2_COMPRESSION_LZW;
+		if (strcasecmp (compr, "JPEG") == 0)
+		    compression = RL2_COMPRESSION_JPEG;
+		if (strcasecmp (compr, "FAX3") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX3;
+		if (strcasecmp (compr, "FAX4") == 0)
+		    compression = RL2_COMPRESSION_CCITTFAX4;
+	    }
+	  if (argc > 8)
+	      tile_sz = sqlite3_value_int (argv[8]);
       }
-    if (argc > 8)
-	tile_sz = sqlite3_value_int (argv[8]);
 
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
@@ -4076,6 +4388,14 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
       {
 	  errcode = -1;
 	  goto error;
+      }
+
+    sqlite = sqlite3_context_db_handle (context);
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
       }
 
 /* checking the Geometry */
@@ -4107,31 +4427,64 @@ common_write_tiff (int with_worldfile, sqlite3_context * context, int argc,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-
-    if (with_worldfile)
+    if (by_section)
       {
-	  /* TIFF + Worldfile */
-	  ret =
-	      rl2_export_tiff_worldfile_from_dbms (sqlite, path, coverage,
-						   horz_res, vert_res, minx,
-						   miny, maxx, maxy, width,
-						   height, compression,
-						   tile_sz);
+	  /* only a single Section */
+	  if (with_worldfile)
+	    {
+		/* TIFF + Worldfile */
+		ret =
+		    rl2_export_section_tiff_worldfile_from_dbms (sqlite, path,
+								 coverage,
+								 section_id,
+								 horz_res,
+								 vert_res, minx,
+								 miny, maxx,
+								 maxy, width,
+								 height,
+								 compression,
+								 tile_sz);
+	    }
+	  else
+	    {
+		/* plain TIFF, no Worldfile */
+		ret =
+		    rl2_export_section_tiff_from_dbms (sqlite, path, coverage,
+						       section_id, horz_res,
+						       vert_res, minx, miny,
+						       maxx, maxy, width,
+						       height, compression,
+						       tile_sz);
+	    }
       }
     else
       {
-	  /* plain TIFF, no Worldfile */
-	  ret =
-	      rl2_export_tiff_from_dbms (sqlite, path, coverage, horz_res,
-					 vert_res, minx, miny, maxx, maxy,
-					 width, height, compression, tile_sz);
+	  /* whole Coverage */
+	  if (with_worldfile)
+	    {
+		/* TIFF + Worldfile */
+		ret =
+		    rl2_export_tiff_worldfile_from_dbms (sqlite, path, coverage,
+							 horz_res, vert_res,
+							 minx, miny, maxx, maxy,
+							 width, height,
+							 compression, tile_sz);
+	    }
+	  else
+	    {
+		/* plain TIFF, no Worldfile */
+		ret =
+		    rl2_export_tiff_from_dbms (sqlite, path, coverage, horz_res,
+					       vert_res, minx, miny, maxx, maxy,
+					       width, height, compression,
+					       tile_sz);
+	    }
       }
     if (ret != RL2_OK)
       {
@@ -4168,7 +4521,7 @@ fnct_WriteTiffTfw (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / or -1 (INVALID ARGS)
 /
 */
-    common_write_tiff (1, context, argc, argv);
+    common_write_tiff (0, 1, context, argc, argv);
 }
 
 static void
@@ -4191,30 +4544,66 @@ fnct_WriteTiff (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / or -1 (INVALID ARGS)
 /
 */
-    common_write_tiff (0, context, argc, argv);
+    common_write_tiff (0, 0, context, argc, argv);
 }
 
 static void
-common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
-		   sqlite3_value ** argv)
+fnct_WriteSectionTiffTfw (sqlite3_context * context, int argc,
+			  sqlite3_value ** argv)
 {
 /* SQL function:
-/ WriteJpeg?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double resolution)
-/ WriteJpeg?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double horz_res,
-/            double vert_res)
-/ WriteJpeg?(text coverage, text tiff_path, int width,
-/            int height, BLOB geom, double horz_res,
-/            double vert_res, int quality)
+/ WriteSectionTiffTfw(text coverage, int section_id, text tiff_path,
+/                     int width, int height, BLOB geom, double resolution)
+/ WriteSectionTiffTfw(text coverage, int section_id, text tiff_path,
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res)
+/ WriteSectionTiffTfw(text coverage, int section_id, text tiff_path,
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res, text compression)
+/ WriteSectionTiffTfw(text coverage, int section_id, text tiff_path,
+/                     int width, int height, BLOB geom, double horz_res,
+/                     double vert_res, text compression, int tile_sz)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
 /
 */
+    common_write_tiff (1, 1, context, argc, argv);
+}
+
+static void
+fnct_WriteSectionTiff (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteSectionTiff(text coverage, int section_id, text tiff_path,
+/                  int width, int height, BLOB geom, double resolution)
+/ WriteSectionTiff(text coverage, int section_id, text tiff_path,
+/                  int width, int height, BLOB geom, double horz_res,
+/                  double vert_res)
+/ WriteSectionTiff(text coverage, int section_id, text tiff_path,
+/                  int width, int height, BLOB geom, double horz_res,
+/                  double vert_res, text compression)
+/ WriteSectionTiff(text coverage, int section_id, text tiff_path,
+/                  int width, int height, BLOB geom, double horz_res,
+/                  double vert_res, text compression, int tile_sz)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_tiff (1, 0, context, argc, argv);
+}
+
+static void
+common_write_jpeg (int with_worldfile, int by_section,
+		   sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* common implementation for Write JPEG */
     int err = 0;
     const char *cvg_name;
     const char *path;
+    sqlite3_int64 section_id;
     int width;
     int height;
     const unsigned char *blob;
@@ -4233,24 +4622,52 @@ common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
     double maxy;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
-    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
-	err = 1;
-    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
-	err = 1;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[7]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	      err = 1;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	      err = 1;
+      }
     if (err)
       {
 	  sqlite3_result_int (context, -1);
@@ -4258,33 +4675,69 @@ common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
       }
 
 /* retrieving all arguments */
-    cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    path = (const char *) sqlite3_value_text (argv[1]);
-    width = sqlite3_value_int (argv[2]);
-    height = sqlite3_value_int (argv[3]);
-    blob = sqlite3_value_blob (argv[4]);
-    blob_sz = sqlite3_value_bytes (argv[4]);
-    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+    if (by_section)
       {
-	  int ival = sqlite3_value_int (argv[5]);
-	  horz_res = ival;
-      }
-    else
-	horz_res = sqlite3_value_double (argv[5]);
-    if (argc > 6)
-      {
+	  /* single Section */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  section_id = sqlite3_value_int64 (argv[1]);
+	  path = (const char *) sqlite3_value_text (argv[2]);
+	  width = sqlite3_value_int (argv[3]);
+	  height = sqlite3_value_int (argv[4]);
+	  blob = sqlite3_value_blob (argv[5]);
+	  blob_sz = sqlite3_value_bytes (argv[5]);
 	  if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
 	    {
 		int ival = sqlite3_value_int (argv[6]);
-		vert_res = ival;
+		horz_res = ival;
 	    }
 	  else
-	      vert_res = sqlite3_value_double (argv[6]);
+	      horz_res = sqlite3_value_double (argv[6]);
+	  if (argc > 7)
+	    {
+		if (sqlite3_value_type (argv[7]) == SQLITE_INTEGER)
+		  {
+		      int ival = sqlite3_value_int (argv[7]);
+		      vert_res = ival;
+		  }
+		else
+		    vert_res = sqlite3_value_double (argv[7]);
+	    }
+	  else
+	      vert_res = horz_res;
+	  if (argc > 8)
+	      quality = sqlite3_value_int (argv[8]);
       }
     else
-	vert_res = horz_res;
-    if (argc > 7)
-	quality = sqlite3_value_int (argv[7]);
+      {
+	  /* whole Coverage */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  path = (const char *) sqlite3_value_text (argv[1]);
+	  width = sqlite3_value_int (argv[2]);
+	  height = sqlite3_value_int (argv[3]);
+	  blob = sqlite3_value_blob (argv[4]);
+	  blob_sz = sqlite3_value_bytes (argv[4]);
+	  if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[5]);
+		horz_res = ival;
+	    }
+	  else
+	      horz_res = sqlite3_value_double (argv[5]);
+	  if (argc > 6)
+	    {
+		if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
+		  {
+		      int ival = sqlite3_value_int (argv[6]);
+		      vert_res = ival;
+		  }
+		else
+		    vert_res = sqlite3_value_double (argv[6]);
+	    }
+	  else
+	      vert_res = horz_res;
+	  if (argc > 7)
+	      quality = sqlite3_value_int (argv[7]);
+      }
 
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
@@ -4301,6 +4754,14 @@ common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
 	quality = 0;
     if (quality > 100)
 	quality = 100;
+
+    sqlite = sqlite3_context_db_handle (context);
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
+      }
 
 /* checking the Geometry */
     geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
@@ -4331,7 +4792,6 @@ common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -4339,10 +4799,25 @@ common_write_jpeg (int with_worldfile, sqlite3_context * context, int argc,
 	  return;
       }
 
-    ret =
-	rl2_export_jpeg_from_dbms (sqlite, path, coverage, horz_res,
-				   vert_res, minx, miny, maxx, maxy,
-				   width, height, quality, with_worldfile);
+    if (by_section)
+      {
+	  /* single Section */
+	  ret =
+	      rl2_export_section_jpeg_from_dbms (sqlite, path, coverage,
+						 section_id, horz_res, vert_res,
+						 minx, miny, maxx, maxy, width,
+						 height, quality,
+						 with_worldfile);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  ret =
+	      rl2_export_jpeg_from_dbms (sqlite, path, coverage, horz_res,
+					 vert_res, minx, miny, maxx, maxy,
+					 width, height, quality,
+					 with_worldfile);
+      }
     if (ret != RL2_OK)
       {
 	  errcode = 0;
@@ -4362,12 +4837,12 @@ static void
 fnct_WriteJpegJgw (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ WriteJpegJgw(text coverage, text tiff_path, int width,
+/ WriteJpegJgw(text coverage, text jpeg_path, int width,
 /              int height, BLOB geom, double resolution)
-/ WriteJpegJgw(text coverage, text tiff_path, int width,
+/ WriteJpegJgw(text coverage, text jpeg_path, int width,
 /              int height, BLOB geom, double horz_res,
 /              double vert_res)
-/ WriteJpegJgw(text coverage, text tiff_path, int width,
+/ WriteJpegJgw(text coverage, text jpeg_path, int width,
 /              int height, BLOB geom, double horz_res,
 /              double vert_res, int quality)
 /
@@ -4375,19 +4850,19 @@ fnct_WriteJpegJgw (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / or -1 (INVALID ARGS)
 /
 */
-    common_write_jpeg (1, context, argc, argv);
+    common_write_jpeg (1, 0, context, argc, argv);
 }
 
 static void
 fnct_WriteJpeg (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ WriteJpeg(text coverage, text tiff_path, int width,
+/ WriteJpeg(text coverage, text jpeg_path, int width,
 /           int height, BLOB geom, double resolution)
-/ WriteJpeg(text coverage, text tiff_path, int width,
+/ WriteJpeg(text coverage, text jpeg_path, int width,
 /           int height, BLOB geom, double horz_res,
 /              double vert_res)
-/ WriteJpeg(text coverage, text tiff_path, int width,
+/ WriteJpeg(text coverage, text jpeg_path, int width,
 /           int height, BLOB geom, double horz_res,
 /              double vert_res, int quality)
 /
@@ -4395,7 +4870,51 @@ fnct_WriteJpeg (sqlite3_context * context, int argc, sqlite3_value ** argv)
 / or -1 (INVALID ARGS)
 /
 */
-    common_write_jpeg (0, context, argc, argv);
+    common_write_jpeg (0, 0, context, argc, argv);
+}
+
+static void
+fnct_WriteSectionJpegJgw (sqlite3_context * context, int argc,
+			  sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteSectionJpegJgw(text coverage, int section_id, text jpeg_path,
+/                     int width, int height, BLOB geom, 
+/                     double resolution)
+/ WriteSectionJpegJgw(text coverage, int section_id, text jpeg_path,
+/                     int width, int height, BLOB geom,
+/                     double horz_res, double vert_res)
+/ WriteSectionJpegJgw(text coverage, int section_id, text jpeg_path,
+/                     int width, int height, BLOB geom,
+/                     double horz_res, double vert_res, int quality)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_jpeg (1, 1, context, argc, argv);
+}
+
+static void
+fnct_WriteSectionJpeg (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteSectionJpeg(text coverage, int section_id, text jpeg_path,
+/                  int width, int height, BLOB geom, 
+/                  double resolution)
+/ WriteSectionJpeg(text coverage, int section_id, text jpeg_path,
+/                  int width, int height, BLOB geom, 
+/                  double horz_res, double vert_res)
+/ WriteSectionJpeg(text coverage, int section_id, text jpeg_path,
+/                  int width, int height, BLOB geom, 
+/                  double horz_res, double vert_res, int quality)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_jpeg (0, 1, context, argc, argv);
 }
 
 static void
@@ -4565,6 +5084,11 @@ common_write_triple_band_tiff (int with_worldfile, sqlite3_context * context,
 	  goto error;
       }
 
+/* excluding any Mixed Resolution Coverage */
+    sqlite = sqlite3_context_db_handle (context);
+    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	goto error;
+
 /* checking the Geometry */
     geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
     if (geom == NULL)
@@ -4594,7 +5118,6 @@ common_write_triple_band_tiff (int with_worldfile, sqlite3_context * context,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -4845,6 +5368,11 @@ common_write_mono_band_tiff (int with_worldfile, sqlite3_context * context,
 	  goto error;
       }
 
+/* excluding any Mixed Resolution Coverage */
+    sqlite = sqlite3_context_db_handle (context);
+    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	goto error;
+
 /* checking the Geometry */
     geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
     if (geom == NULL)
@@ -4874,7 +5402,6 @@ common_write_mono_band_tiff (int with_worldfile, sqlite3_context * context,
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -4971,25 +5498,14 @@ fnct_WriteMonoBandTiff (sqlite3_context * context, int argc,
 }
 
 static void
-fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
+common_write_ascii_grid (int by_section, sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
-/* SQL function:
-/ WriteAsciiGrid(text coverage, text tiff_path, int width,
-/           int height, BLOB geom, double resolution)
-/ WriteTiff(text coverage, text tiff_path, int width,
-/           int height, BLOB geom, double resolution, 
-/           int is_centered)
-/ WriteTiff(text coverage, text tiff_path, int width,
-/           int height, BLOB geom, double resolution, 
-/           int is_centered, int decimal_digits)
-/
-/ will return 1 (TRUE, success) or 0 (FALSE, failure)
-/ or -1 (INVALID ARGS)
-/
-*/
+/* common export ASCII Grid implementation */
     int err = 0;
     const char *cvg_name;
     const char *path;
+    sqlite3_int64 section_id;
     int width;
     int height;
     const unsigned char *blob;
@@ -5008,23 +5524,50 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int decimal_digits = 4;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
-    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
-	err = 1;
-    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
-	err = 1;
-    if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
-	err = 1;
-    if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
-	&& sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
-	err = 1;
-    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
-	err = 1;
-    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
-	err = 1;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[6]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[6]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	      err = 1;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[5]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	      err = 1;
+      }
     if (err)
       {
 	  sqlite3_result_int (context, -1);
@@ -5032,23 +5575,49 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
       }
 
 /* retrieving all arguments */
-    cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    path = (const char *) sqlite3_value_text (argv[1]);
-    width = sqlite3_value_int (argv[2]);
-    height = sqlite3_value_int (argv[3]);
-    blob = sqlite3_value_blob (argv[4]);
-    blob_sz = sqlite3_value_bytes (argv[4]);
-    if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+    if (by_section)
       {
-	  int ival = sqlite3_value_int (argv[5]);
-	  resolution = ival;
+	  /* single Section */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  section_id = sqlite3_value_int64 (argv[1]);
+	  path = (const char *) sqlite3_value_text (argv[2]);
+	  width = sqlite3_value_int (argv[3]);
+	  height = sqlite3_value_int (argv[4]);
+	  blob = sqlite3_value_blob (argv[5]);
+	  blob_sz = sqlite3_value_bytes (argv[5]);
+	  if (sqlite3_value_type (argv[6]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[6]);
+		resolution = ival;
+	    }
+	  else
+	      resolution = sqlite3_value_double (argv[6]);
+	  if (argc > 7)
+	      is_centered = sqlite3_value_int (argv[7]);
+	  if (argc > 8)
+	      decimal_digits = sqlite3_value_int (argv[8]);
       }
     else
-	resolution = sqlite3_value_double (argv[5]);
-    if (argc > 6)
-	is_centered = sqlite3_value_int (argv[6]);
-    if (argc > 7)
-	decimal_digits = sqlite3_value_int (argv[7]);
+      {
+	  /* whole Coverage */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  path = (const char *) sqlite3_value_text (argv[1]);
+	  width = sqlite3_value_int (argv[2]);
+	  height = sqlite3_value_int (argv[3]);
+	  blob = sqlite3_value_blob (argv[4]);
+	  blob_sz = sqlite3_value_bytes (argv[4]);
+	  if (sqlite3_value_type (argv[5]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[5]);
+		resolution = ival;
+	    }
+	  else
+	      resolution = sqlite3_value_double (argv[5]);
+	  if (argc > 6)
+	      is_centered = sqlite3_value_int (argv[6]);
+	  if (argc > 7)
+	      decimal_digits = sqlite3_value_int (argv[7]);
+      }
 
     if (decimal_digits < 1)
 	decimal_digits = 0;
@@ -5065,6 +5634,14 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
       {
 	  errcode = -1;
 	  goto error;
+      }
+
+    sqlite = sqlite3_context_db_handle (context);
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
       }
 
 /* checking the Geometry */
@@ -5096,7 +5673,6 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -5104,11 +5680,27 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  return;
       }
 
-    ret =
-	rl2_export_ascii_grid_from_dbms (sqlite, path, coverage,
-					 resolution, minx,
-					 miny, maxx, maxy, width,
-					 height, is_centered, decimal_digits);
+    if (by_section)
+      {
+	  /* single Section */
+	  ret =
+	      rl2_export_section_ascii_grid_from_dbms (sqlite, path, coverage,
+						       section_id, resolution,
+						       minx, miny, maxx, maxy,
+						       width, height,
+						       is_centered,
+						       decimal_digits);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  ret =
+	      rl2_export_ascii_grid_from_dbms (sqlite, path, coverage,
+					       resolution, minx,
+					       miny, maxx, maxy, width,
+					       height, is_centered,
+					       decimal_digits);
+      }
     if (ret != RL2_OK)
       {
 	  errcode = 0;
@@ -5122,6 +5714,49 @@ fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (coverage != NULL)
 	rl2_destroy_coverage (coverage);
     sqlite3_result_int (context, errcode);
+}
+
+static void
+fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteAsciiGrid(text coverage, text ascuu_path, int width,
+/                int height, BLOB geom, double resolution)
+/ WriteAsciiGrid(text coverage, text ascii_path, int width,
+/                int height, BLOB geom, double resolution, 
+/                int is_centered)
+/ WriteAsciiGrid(text coverage, text ascii_path, int width,
+/                int height, BLOB geom, double resolution, 
+/                int is_centered, int decimal_digits)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_ascii_grid (0, context, argc, argv);
+}
+
+static void
+fnct_WriteSectionAsciiGrid (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteSectionAsciiGrid(text coverage, int section_id,
+/                       text ascii_path, int width, int height, 
+/                       BLOB geom, double resolution)
+/ WriteSectionAsciiGrid(text coverage, int section_id,
+/                       text ascii_path, int width, int height,
+/                       BLOB geom, double resolution, int is_centered)
+/ WriteSectionAsciiGrid(text coverage, int section_id,
+/                       text ascii_path, int width, int height,
+/                       BLOB geom, double resolution, int is_centered,
+/                       int decimal_digits)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_ascii_grid (1, context, argc, argv);
 }
 
 static void
@@ -6415,11 +7050,15 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_CreateCoverage, 0, 0);
     sqlite3_create_function (db, "CreateCoverage", 12, SQLITE_ANY, 0,
 			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "CreateCoverage", 17, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
     sqlite3_create_function (db, "RL2_CreateCoverage", 10, SQLITE_ANY, 0,
 			     fnct_CreateCoverage, 0, 0);
     sqlite3_create_function (db, "RL2_CreateCoverage", 11, SQLITE_ANY, 0,
 			     fnct_CreateCoverage, 0, 0);
     sqlite3_create_function (db, "RL2_CreateCoverage", 12, SQLITE_ANY, 0,
+			     fnct_CreateCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_CreateCoverage", 17, SQLITE_ANY, 0,
 			     fnct_CreateCoverage, 0, 0);
     sqlite3_create_function (db, "DeleteSection", 2, SQLITE_ANY, 0,
 			     fnct_DeleteSection, 0, 0);
@@ -6806,6 +7445,60 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_WriteTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_ANY, 0,
 				   fnct_WriteTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 7, SQLITE_ANY,
+				   0, fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 8, SQLITE_ANY,
+				   0, fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 9, SQLITE_ANY,
+				   0, fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 10, SQLITE_ANY, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 10,
+				   SQLITE_ANY, 0, fnct_WriteSectionGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 11, SQLITE_ANY, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 11,
+				   SQLITE_ANY, 0, fnct_WriteSectionGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 7, SQLITE_ANY,
+				   0, fnct_WriteSectionTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 8, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 8, SQLITE_ANY,
+				   0, fnct_WriteSectionTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 9, SQLITE_ANY,
+				   0, fnct_WriteSectionTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 10, SQLITE_ANY, 0,
+				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 10,
+				   SQLITE_ANY, 0, fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 10, SQLITE_ANY, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 10, SQLITE_ANY,
+				   0, fnct_WriteSectionTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteJpegJgw", 6, SQLITE_ANY, 0,
 				   fnct_WriteJpegJgw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 6, SQLITE_ANY, 0,
@@ -6830,150 +7523,155 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_WriteJpeg, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteJpeg", 8, SQLITE_ANY, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpegJgw", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 7, SQLITE_ANY,
+				   0, fnct_WriteSectionJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpegJgw", 8, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 8, SQLITE_ANY,
+				   0, fnct_WriteSectionJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpegJgw", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 9, SQLITE_ANY,
+				   0, fnct_WriteSectionJpegJgw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpeg", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 7, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpeg", 8, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 8, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpeg", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 9, SQLITE_ANY, 0,
+				   fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 9, SQLITE_ANY,
+				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 9,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 10, SQLITE_ANY,
+				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 10,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 11, SQLITE_ANY,
+				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 11,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 12,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 12, SQLITE_ANY,
+				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 12,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 13,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 13, SQLITE_ANY,
+				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 13,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 7,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 7,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
+				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
+				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
+				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 10, SQLITE_ANY,
+				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
+				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 11, SQLITE_ANY,
+				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 9,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
-				   0, 0);
+				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 9, SQLITE_ANY,
+				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 9,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 10,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 10, SQLITE_ANY,
+				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 10,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 11,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 11, SQLITE_ANY,
+				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 11,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 12,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 12, SQLITE_ANY,
+				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 12,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 7,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 7, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 7,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 9, SQLITE_ANY,
-				   0, fnct_WriteTripleBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
+				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 8, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 8,
+				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 9, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 9,
+				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 10, SQLITE_ANY,
+				   0, fnct_WriteMonoBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 10,
+				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteTripleBandTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 9, SQLITE_ANY,
 				   0, fnct_WriteTripleBandTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 10, SQLITE_ANY, 0,
+				   fnct_WriteTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 10,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 11, SQLITE_ANY,
-				   0, fnct_WriteTripleBandTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 11, SQLITE_ANY, 0,
+				   fnct_WriteTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 11,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 12, SQLITE_ANY,
-				   0, fnct_WriteTripleBandTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 12, SQLITE_ANY, 0,
+				   fnct_WriteTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 12,
 				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 7, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 7, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 7, SQLITE_ANY,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 7,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 8, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 8, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 8, SQLITE_ANY,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 9, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 9, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 9, SQLITE_ANY,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 10, SQLITE_ANY, 0,
+				   fnct_WriteMonoBandTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 10, SQLITE_ANY,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteAsciiGrid", 6, SQLITE_ANY, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 6, SQLITE_ANY, 0,
@@ -6986,6 +7684,21 @@ register_rl2_sql_functions (void *p_db)
 				   fnct_WriteAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 7, SQLITE_ANY,
+				   0, fnct_WriteSectionAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 7,
+				   SQLITE_ANY, 0, fnct_WriteSectionAsciiGrid, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 8, SQLITE_ANY,
+				   0, fnct_WriteSectionAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 8,
+				   SQLITE_ANY, 0, fnct_WriteSectionAsciiGrid, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 9, SQLITE_ANY,
+				   0, fnct_WriteSectionAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 9,
+				   SQLITE_ANY, 0, fnct_WriteSectionAsciiGrid, 0,
+				   0);
       }
 }
 

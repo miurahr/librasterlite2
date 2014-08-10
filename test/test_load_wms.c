@@ -353,9 +353,7 @@ main (int argc, char *argv[])
 	  sqlite3_free (err_msg);
 	  return -9;
       }
-    sql =
-	sqlite3_mprintf
-	("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", "ctrt10k", "firenze");
+    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, 1, 1, 1)", "ctrt10k");
     ret = execute_check (db_handle, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)

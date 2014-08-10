@@ -326,7 +326,7 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
 	  return 0;
       }
     intval = atoi (string);
-    if (intval != 719996)
+    if (intval != 719998)
       {
 	  fprintf (stderr, "Unexpected ValidPixelsCount: %d\n", intval);
 	  *retcode += -6;
@@ -402,7 +402,7 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
 	  return 0;
       }
     intval = atoi (string);
-    if (intval != 6)
+    if (intval != 30)
       {
 	  fprintf (stderr, "Unexpected Band Min: %d\n", intval);
 	  *retcode += -13;
@@ -434,7 +434,7 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
 	  return 0;
       }
     intval = atoi (string);
-    if (intval != 183)
+    if (intval != 184)
       {
 	  fprintf (stderr, "Unexpected Band Avg: %d\n", intval);
 	  *retcode += -17;
@@ -593,8 +593,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* deleting the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
-			   coverage, "trieste1");
+    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -621,9 +620,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* building the Pyramid Levels */
-    sql =
-	sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", coverage,
-			 "trieste2");
+    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, 2, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -648,9 +645,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* building yet again the Pyramid Levels */
-    sql =
-	sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, %Q, 1, 1)", coverage,
-			 "trieste2");
+    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, 2, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)

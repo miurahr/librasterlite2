@@ -461,6 +461,16 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     char *sql;
     int tile_size;
     gaiaGeomCollPtr geom;
+    sqlite3_int64 section_id;
+    int duplicate;
+    double x_res;
+    double y_res;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    unsigned int width;
+    unsigned int height;
 
 /* setting the coverage name */
     switch (pixel)
@@ -562,33 +572,6 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
 
-/* deleting the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
-			   coverage, "indiana1");
-    ret = execute_check (sqlite, sql);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DeleteSection \"%s\" error: %s\n", coverage,
-		   err_msg);
-	  sqlite3_free (err_msg);
-	  *retcode += -3;
-	  return 0;
-      }
-
-/* re-loading yet again the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 26716, 0, 1)",
-			   coverage, "map_samples/usgs-indiana/indiana1.tif");
-    ret = execute_check (sqlite, sql);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "LoadRaster \"%s\" error: %s\n", coverage, err_msg);
-	  sqlite3_free (err_msg);
-	  *retcode += -4;
-	  return 0;
-      }
-
 /* building the Pyramid Levels */
     sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, NULL, 0, 1)", coverage);
     ret = execute_check (sqlite, sql);
@@ -602,9 +585,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* destroying Pyramid Levels on the second section */
-    sql =
-	sqlite3_mprintf ("SELECT RL2_DePyramidize(%Q, 'indiana2', 1)",
-			 coverage);
+    sql = sqlite3_mprintf ("SELECT RL2_DePyramidize(%Q, 2, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -726,6 +707,34 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     if (!do_export_tile_image (sqlite, coverage, -1))
       {
 	  *retcode += -26;
+	  return 0;
+      }
+    if (rl2_get_dbms_section_id
+	(sqlite, coverage, "indiana2", &section_id, &duplicate) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected error: GetDbmsSectionID\n");
+	  *retcode += -27;
+	  return 0;
+      }
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+      {
+	  *retcode += -28;
+	  return 0;
+      }
+    if (rl2_resolve_full_section_from_dbms
+	(sqlite, coverage, section_id, x_res, y_res, &minx, &miny, &maxx, &maxy,
+	 &width, &height) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected error: ResolveDbmsFullSection\n");
+	  *retcode += -29;
+	  return 0;
+      }
+    if (rl2_resolve_full_section_from_dbms
+	(sqlite, coverage, section_id, x_res * 4, y_res * 4, &minx, &miny,
+	 &maxx, &maxy, &width, &height) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected error: ResolveDbmsFullSection\n");
+	  *retcode += -29;
 	  return 0;
       }
 

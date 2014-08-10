@@ -285,6 +285,11 @@ extern "C"
 	double hResolution;
 	double vResolution;
 	rl2PrivPixelPtr noData;
+	int strictResolution;
+	int mixedResolutions;
+	int sectionPaths;
+	int sectionMD5;
+	int sectionSummary;
     } rl2PrivCoverage;
     typedef rl2PrivCoverage *rl2PrivCoveragePtr;
 
@@ -687,6 +692,10 @@ extern "C"
 	unsigned char *rgba_tile;
 	rl2CoveragePtr coverage;
 	const char *sect_name;
+	int mixedResolutions;
+	int sectionPaths;
+	int sectionMD5;
+	int sectionSummary;
 	double x;
 	double y;
 	int width;
@@ -710,6 +719,7 @@ extern "C"
 	sqlite3_stmt *stmt_levl;
 	sqlite3_stmt *stmt_tils;
 	sqlite3_stmt *stmt_data;
+	char *xml_summary;
     } InsertWms;
     typedef InsertWms *InsertWmsPtr;
 
@@ -942,6 +952,13 @@ extern "C"
 				      unsigned char sample_type,
 				      sqlite3_stmt * stmt_levl);
 
+    RL2_PRIVATE int do_insert_section_levels (sqlite3 * handle,
+					      sqlite3_int64 section_id,
+					      double base_res_x,
+					      double base_res_y, double factor,
+					      unsigned char sample_type,
+					      sqlite3_stmt * stmt_levl);
+
     RL2_PRIVATE int do_insert_stats (sqlite3 * handle,
 				     rl2RasterStatisticsPtr section_stats,
 				     sqlite3_int64 section_id,
@@ -952,6 +969,9 @@ extern "C"
 				       unsigned int width,
 				       unsigned int height, double minx,
 				       double miny, double maxx, double maxy,
+				       char *xml_summary,
+				       int section_paths, int section_md5,
+				       int section_summary,
 				       sqlite3_stmt * stmt_sect,
 				       sqlite3_int64 * id);
 
@@ -1317,6 +1337,19 @@ extern "C"
     RL2_PRIVATE double rl2_get_shaded_relief_scale_factor (sqlite3 * handle,
 							   const char
 							   *coverage);
+
+    RL2_PRIVATE void *rl2_CreateMD5Checksum (void);
+
+    RL2_PRIVATE void rl2_FreeMD5Checksum (void *p_md5);
+
+    RL2_PRIVATE void rl2_UpdateMD5Checksum (void *p_md5,
+					    const unsigned char *blob,
+					    int blob_len);
+
+    RL2_PRIVATE char *rl2_FinalizeMD5Checksum (void *p_md5);
+
+    RL2_PRIVATE int rl2_is_mixed_resolutions_coverage (sqlite3 * handle,
+						       const char *coverage);
 
 #ifdef __cplusplus
 }

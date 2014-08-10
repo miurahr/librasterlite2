@@ -454,6 +454,26 @@ EXTRA_DIST = loadraster1.testcase \
 	writegeotiff17.testcase \
 	writegeotiff18.testcase \
 	writegeotiff19.testcase \
+	writesectiongeotiff1.testcase \
+	writesectiongeotiff2.testcase \
+	writesectiongeotiff3.testcase \
+	writesectiongeotiff4.testcase \
+	writesectiongeotiff5.testcase \
+	writesectiongeotiff6.testcase \
+	writesectiongeotiff7.testcase \
+	writesectiongeotiff8.testcase \
+	writesectiongeotiff9.testcase \
+	writesectiongeotiff10.testcase \
+	writesectiongeotiff11.testcase \
+	writesectiongeotiff12.testcase \
+	writesectiongeotiff13.testcase \
+	writesectiongeotiff14.testcase \
+	writesectiongeotiff15.testcase \
+	writesectiongeotiff16.testcase \
+	writesectiongeotiff17.testcase \
+	writesectiongeotiff18.testcase \
+	writesectiongeotiff19.testcase \
+	writesectiongeotiff20.testcase \
 	writejpeg1.testcase \
 	writejpeg2.testcase \
 	writejpeg3.testcase \
@@ -469,6 +489,53 @@ EXTRA_DIST = loadraster1.testcase \
 	writejpeg13.testcase \
 	writejpeg14.testcase \
 	writejpeg15.testcase \
+	writejpegjgw1.testcase \
+	writejpegjgw2.testcase \
+	writejpegjgw3.testcase \
+	writejpegjgw4.testcase \
+	writejpegjgw5.testcase \
+	writejpegjgw6.testcase \
+	writejpegjgw7.testcase \
+	writejpegjgw8.testcase \
+	writejpegjgw9.testcase \
+	writejpegjgw10.testcase \
+	writejpegjgw11.testcase \
+	writejpegjgw12.testcase \
+	writejpegjgw13.testcase \
+	writejpegjgw14.testcase \
+	writejpegjgw15.testcase \
+	writesectionjpeg1.testcase \
+	writesectionjpeg2.testcase \
+	writesectionjpeg3.testcase \
+	writesectionjpeg4.testcase \
+	writesectionjpeg5.testcase \
+	writesectionjpeg6.testcase \
+	writesectionjpeg7.testcase \
+	writesectionjpeg8.testcase \
+	writesectionjpeg9.testcase \
+	writesectionjpeg10.testcase \
+	writesectionjpeg11.testcase \
+	writesectionjpeg12.testcase \
+	writesectionjpeg13.testcase \
+	writesectionjpeg14.testcase \
+	writesectionjpeg15.testcase \
+	writesectionjpeg16.testcase \
+	writesectionjpegjgw1.testcase \
+	writesectionjpegjgw2.testcase \
+	writesectionjpegjgw3.testcase \
+	writesectionjpegjgw4.testcase \
+	writesectionjpegjgw5.testcase \
+	writesectionjpegjgw6.testcase \
+	writesectionjpegjgw7.testcase \
+	writesectionjpegjgw8.testcase \
+	writesectionjpegjgw9.testcase \
+	writesectionjpegjgw10.testcase \
+	writesectionjpegjgw11.testcase \
+	writesectionjpegjgw12.testcase \
+	writesectionjpegjgw13.testcase \
+	writesectionjpegjgw14.testcase \
+	writesectionjpegjgw15.testcase \
+	writesectionjpegjgw16.testcase \
 	writetiff1.testcase \
 	writetiff2.testcase \
 	writetiff3.testcase \
@@ -486,7 +553,63 @@ EXTRA_DIST = loadraster1.testcase \
 	writetiff15.testcase \
 	writetiff16.testcase \
 	writetiff17.testcase \
-	writetiff18.testcase
+	writetiff18.testcase \
+	writesectiontiff1.testcase \
+	writesectiontiff2.testcase \
+	writesectiontiff3.testcase \
+	writesectiontiff4.testcase \
+	writesectiontiff5.testcase \
+	writesectiontiff6.testcase \
+	writesectiontiff7.testcase \
+	writesectiontiff8.testcase \
+	writesectiontiff9.testcase \
+	writesectiontiff10.testcase \
+	writesectiontiff11.testcase \
+	writesectiontiff12.testcase \
+	writesectiontiff13.testcase \
+	writesectiontiff14.testcase \
+	writesectiontiff15.testcase \
+	writesectiontiff16.testcase \
+	writesectiontiff17.testcase \
+	writesectiontiff18.testcase \
+	writesectiontiff19.testcase \
+	writetifftfw1.testcase \
+	writetifftfw2.testcase \
+	writetifftfw3.testcase \
+	writetifftfw4.testcase \
+	writetifftfw5.testcase \
+	writetifftfw6.testcase \
+	writetifftfw7.testcase \
+	writetifftfw8.testcase \
+	writetifftfw9.testcase \
+	writetifftfw10.testcase \
+	writetifftfw11.testcase \
+	writetifftfw12.testcase \
+	writetifftfw13.testcase \
+	writetifftfw14.testcase \
+	writetifftfw15.testcase \
+	writetifftfw16.testcase \
+	writetifftfw17.testcase \
+	writetifftfw18.testcase \
+	writesectiontifftfw1.testcase \
+	writesectiontifftfw2.testcase \
+	writesectiontifftfw3.testcase \
+	writesectiontifftfw4.testcase \
+	writesectiontifftfw5.testcase \
+	writesectiontifftfw6.testcase \
+	writesectiontifftfw7.testcase \
+	writesectiontifftfw8.testcase \
+	writesectiontifftfw9.testcase \
+	writesectiontifftfw10.testcase \
+	writesectiontifftfw11.testcase \
+	writesectiontifftfw12.testcase \
+	writesectiontifftfw13.testcase \
+	writesectiontifftfw14.testcase \
+	writesectiontifftfw15.testcase \
+	writesectiontifftfw16.testcase \
+	writesectiontifftfw17.testcase \
+	writesectiontifftfw18.testcase \
+	writesectiontifftfw19.testcase 
 
 all: all-am
 

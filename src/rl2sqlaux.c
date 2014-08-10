@@ -511,7 +511,7 @@ do_insert_levels (sqlite3 * handle, double base_res_x, double base_res_y,
 		  double factor, unsigned char sample_type,
 		  sqlite3_stmt * stmt_levl)
 {
-/* INSERTing the base-levels */
+/* INSERTing the base-levels - single resolution Coverage */
     int ret;
     double res_x = base_res_x * factor;
     double res_y = base_res_y * factor;
@@ -545,6 +545,54 @@ do_insert_levels (sqlite3 * handle, double base_res_x, double base_res_y,
       {
 	  fprintf (stderr,
 		   "INSERT INTO levels; sqlite3_step() error: %s\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    return 1;
+  error:
+    return 0;
+}
+
+RL2_PRIVATE int
+do_insert_section_levels (sqlite3 * handle, sqlite3_int64 section_id,
+			  double base_res_x, double base_res_y, double factor,
+			  unsigned char sample_type, sqlite3_stmt * stmt_levl)
+{
+/* INSERTing the base-levels - mixed resolution Coverage */
+    int ret;
+    double res_x = base_res_x * factor;
+    double res_y = base_res_y * factor;
+    sqlite3_reset (stmt_levl);
+    sqlite3_clear_bindings (stmt_levl);
+    sqlite3_bind_int64 (stmt_levl, 1, section_id);
+    sqlite3_bind_double (stmt_levl, 2, res_x);
+    sqlite3_bind_double (stmt_levl, 3, res_y);
+    if (sample_type == RL2_SAMPLE_1_BIT || sample_type == RL2_SAMPLE_2_BIT
+	|| sample_type == RL2_SAMPLE_4_BIT)
+      {
+	  sqlite3_bind_null (stmt_levl, 4);
+	  sqlite3_bind_null (stmt_levl, 5);
+	  sqlite3_bind_null (stmt_levl, 6);
+	  sqlite3_bind_null (stmt_levl, 7);
+	  sqlite3_bind_null (stmt_levl, 8);
+	  sqlite3_bind_null (stmt_levl, 9);
+      }
+    else
+      {
+	  sqlite3_bind_double (stmt_levl, 4, res_x * 2.0);
+	  sqlite3_bind_double (stmt_levl, 5, res_y * 2.0);
+	  sqlite3_bind_double (stmt_levl, 6, res_x * 4.0);
+	  sqlite3_bind_double (stmt_levl, 7, res_y * 4.0);
+	  sqlite3_bind_double (stmt_levl, 8, res_x * 8.0);
+	  sqlite3_bind_double (stmt_levl, 9, res_y * 8.0);
+      }
+    ret = sqlite3_step (stmt_levl);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "INSERT INTO section_levels; sqlite3_step() error: %s\n",
 		   sqlite3_errmsg (handle));
 	  goto error;
       }
@@ -617,12 +665,41 @@ get_section_name (const char *src_path)
     return name;
 }
 
+static char *
+do_compute_md5_checksum (const char *src_path)
+{
+/* attempting to compute an MD5 checksum from a file */
+    size_t rd;
+    size_t blk = 1024 * 1024;
+    unsigned char *buf;
+    void *p_md5;
+    char *md5;
+    FILE *in = fopen (src_path, "rb");
+    if (in == NULL)
+	return NULL;
+    buf = malloc (blk);
+    p_md5 = rl2_CreateMD5Checksum ();
+    while (1)
+      {
+	  rd = fread (buf, 1, blk, in);
+	  if (rd == 0)
+	      break;
+	  rl2_UpdateMD5Checksum (p_md5, buf, rd);
+      }
+    free (buf);
+    fclose (in);
+    md5 = rl2_FinalizeMD5Checksum (p_md5);
+    rl2_FreeMD5Checksum (p_md5);
+    return md5;
+}
+
 RL2_PRIVATE int
 do_insert_section (sqlite3 * handle, const char *src_path,
 		   const char *section, int srid, unsigned int width,
 		   unsigned int height, double minx, double miny,
-		   double maxx, double maxy, sqlite3_stmt * stmt_sect,
-		   sqlite3_int64 * id)
+		   double maxx, double maxy, char *xml_summary,
+		   int section_paths, int section_md5, int section_summary,
+		   sqlite3_stmt * stmt_sect, sqlite3_int64 * id)
 {
 /* INSERTing the section */
     int ret;
@@ -643,14 +720,41 @@ do_insert_section (sqlite3 * handle, const char *src_path,
 	      sqlite3_bind_text (stmt_sect, 1, sect_name, strlen (sect_name),
 				 free);
       }
-    sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
-		       SQLITE_STATIC);
-    sqlite3_bind_int (stmt_sect, 3, width);
-    sqlite3_bind_int (stmt_sect, 4, height);
+    if (section_paths)
+	sqlite3_bind_text (stmt_sect, 2, src_path, strlen (src_path),
+			   SQLITE_STATIC);
+    else
+	sqlite3_bind_null (stmt_sect, 2);
+    if (section_md5)
+      {
+	  char *md5 = do_compute_md5_checksum (src_path);
+	  if (md5 == NULL)
+	      sqlite3_bind_null (stmt_sect, 3);
+	  else
+	      sqlite3_bind_text (stmt_sect, 3, md5, strlen (md5), free);
+      }
+    else
+	sqlite3_bind_null (stmt_sect, 3);
+    if (section_summary)
+      {
+	  if (xml_summary == NULL)
+	      sqlite3_bind_null (stmt_sect, 4);
+	  else
+	      sqlite3_bind_blob (stmt_sect, 4, xml_summary,
+				 strlen (xml_summary), free);
+      }
+    else
+      {
+	  sqlite3_bind_null (stmt_sect, 4);
+	  if (xml_summary != NULL)
+	      free (xml_summary);
+      }
+    sqlite3_bind_int (stmt_sect, 5, width);
+    sqlite3_bind_int (stmt_sect, 6, height);
     geom = build_extent (srid, minx, miny, maxx, maxy);
     gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
     gaiaFreeGeomColl (geom);
-    sqlite3_bind_blob (stmt_sect, 5, blob, blob_size, free);
+    sqlite3_bind_blob (stmt_sect, 7, blob, blob_size, free);
     ret = sqlite3_step (stmt_sect);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	section_id = sqlite3_last_insert_rowid (handle);
@@ -818,17 +922,30 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
 	  if (!do_insert_section
 	      (ptr->sqlite, "WMS Service", ptr->sect_name, ptr->srid,
 	       ptr->width, ptr->height, ptr->minx, ptr->miny, ptr->maxx,
-	       ptr->maxy, ptr->stmt_sect, section_id))
+	       ptr->maxy, ptr->xml_summary, ptr->sectionPaths, ptr->sectionMD5,
+	       ptr->sectionSummary, ptr->stmt_sect, section_id))
 	      goto error;
 	  *section_stats =
 	      rl2_create_raster_statistics (ptr->sample_type, ptr->num_bands);
 	  if (*section_stats == NULL)
 	      goto error;
 	  /* INSERTing the base-levels */
-	  if (!do_insert_levels
-	      (ptr->sqlite, base_res_x, base_res_y, 1.0, RL2_SAMPLE_UNKNOWN,
-	       ptr->stmt_levl))
-	      goto error;
+	  if (ptr->mixedResolutions)
+	    {
+		/* multiple resolutions Coverage */
+		if (!do_insert_section_levels
+		    (ptr->sqlite, *section_id, base_res_x, base_res_y, 1.0,
+		     RL2_SAMPLE_UNKNOWN, ptr->stmt_levl))
+		    goto error;
+	    }
+	  else
+	    {
+		/* single resolution Coverage */
+		if (!do_insert_levels
+		    (ptr->sqlite, base_res_x, base_res_y, 1.0,
+		     RL2_SAMPLE_UNKNOWN, ptr->stmt_levl))
+		    goto error;
+	    }
       }
 
     /* building the raster tile */
@@ -4407,4 +4524,40 @@ rl2_test_layer_group (sqlite3 * handle, const char *name)
 	ok = 1;
     sqlite3_free_table (results);
     return ok;
+}
+
+RL2_PRIVATE int
+rl2_is_mixed_resolutions_coverage (sqlite3 * handle, const char *coverage)
+{
+/* querying the Coverage Policies defs */
+    char *sql;
+    int ret;
+    sqlite3_stmt *stmt;
+    int value = -1;
+    sql =
+	"SELECT mixed_resolutions "
+	"FROM coverage_policies WHERE Lower(coverage_name) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  return value;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
+		    value = sqlite3_column_int (stmt, 0);
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return value;
 }

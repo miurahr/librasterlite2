@@ -1228,7 +1228,7 @@ read_from_jpeg (rl2PrivRasterPtr origin, unsigned short width,
 static int
 eval_jpeg_origin_compatibility (rl2PrivCoveragePtr coverage,
 				rl2PrivRasterPtr raster,
-				unsigned char forced_conversion)
+				unsigned char forced_conversion, int verbose)
 {
 /* checking for strict compatibility */
     if (coverage->sampleType == RL2_SAMPLE_UINT8
@@ -1255,13 +1255,15 @@ eval_jpeg_origin_compatibility (rl2PrivCoveragePtr coverage,
 	      && forced_conversion == RL2_CONVERT_GRAYSCALE_TO_RGB)
 	      return 1;
       }
-    return 0;
+    if (verbose)
+	fprintf (stderr, "Mismatching JPEG colorspace !!!\n");
+    return RL2_FALSE;
 }
 
 RL2_DECLARE rl2RasterPtr
 rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr jpeg,
 			       unsigned int startRow, unsigned int startCol,
-			       unsigned char forced_conversion)
+			       unsigned char forced_conversion, int verbose)
 {
 /* attempting to create a Coverage-tile from a JPEG origin */
     unsigned int x;
@@ -1277,7 +1279,8 @@ rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr jpeg,
 
     if (coverage == NULL || origin == NULL)
 	return NULL;
-    if (!eval_jpeg_origin_compatibility (coverage, origin, forced_conversion))
+    if (!eval_jpeg_origin_compatibility
+	(coverage, origin, forced_conversion, verbose))
 	return NULL;
 
 /* testing for tile's boundary validity */
@@ -1341,4 +1344,153 @@ rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr jpeg,
     if (mask != NULL)
 	free (mask);
     return NULL;
+}
+
+RL2_DECLARE char *
+rl2_build_jpeg_xml_summary (unsigned int width, unsigned int height,
+			    unsigned char pixel_type, int is_georeferenced,
+			    double res_x, double res_y, double minx,
+			    double miny, double maxx, double maxy)
+{
+/* attempting to build an XML Summary from a JPEG */
+    char *xml;
+    char *prev;
+    int len;
+
+    xml = sqlite3_mprintf ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<ImportedRaster>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<RasterFormat>JPEG</RasterFormat>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<RasterWidth>%u</RasterWidth>", prev, width);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<RasterHeight>%u</RasterHeight>", prev, height);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<RowsPerStrip>1</RowsPerStrip>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<BitsPerSample>8</BitsPerSample>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    if (pixel_type == RL2_PIXEL_GRAYSCALE)
+	xml = sqlite3_mprintf ("%s<SamplesPerPixel>1</SamplesPerPixel>", prev);
+    else
+	xml = sqlite3_mprintf ("%s<SamplesPerPixel>3</SamplesPerPixel>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    if (pixel_type == RL2_PIXEL_GRAYSCALE)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>min-is-black</PhotometricInterpretation>",
+	     prev);
+    else
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>RGB</PhotometricInterpretation>",
+	     prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<Compression>JPEG</Compression>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml =
+	sqlite3_mprintf ("%s<SampleFormat>unsigned integer</SampleFormat>",
+			 prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml =
+	sqlite3_mprintf
+	("%s<PlanarConfiguration>single Raster plane</PlanarConfiguration>",
+	 prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<NoDataPixel>unknown</NoDataPixel>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    if (is_georeferenced)
+      {
+	  xml = sqlite3_mprintf ("%s<GeoReferencing>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<SpatialReferenceSystem>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<SRID>unspecified</SRID>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<RefSysName>undeclared</RefSysName>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</SpatialReferenceSystem>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<SpatialResolution>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf
+	      ("%s<HorizontalResolution>%1.10f</HorizontalResolution>", prev,
+	       res_x);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf
+	      ("%s<VerticalResolution>%1.10f</VerticalResolution>", prev,
+	       res_y);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</SpatialResolution>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<BoundingBox>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MinX>%1.10f</MinX>", prev, minx);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MinY>%1.10f</MinY>", prev, miny);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MaxX>%1.10f</MaxX>", prev, maxx);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MaxY>%1.10f</MaxY>", prev, maxy);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</BoundingBox>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<Extent>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf ("%s<HorizontalExtent>%1.10f</HorizontalExtent>",
+			       prev, maxx - minx);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf ("%s<VerticalExtent>%1.10f</VerticalExtent>",
+			       prev, maxy - miny);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</Extent>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</GeoReferencing>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+      }
+    xml = sqlite3_mprintf ("%s</ImportedRaster>", prev);
+    sqlite3_free (prev);
+    len = strlen (xml);
+    prev = xml;
+    xml = malloc (len + 1);
+    strcpy (xml, prev);
+    sqlite3_free (prev);
+    return xml;
 }

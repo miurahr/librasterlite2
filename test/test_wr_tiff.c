@@ -1567,7 +1567,8 @@ check_origin (const char *path, const char *tfw_path, int srid, double minx,
 	    {
 		fprintf (stderr, "ERROR: unable to create a Pixel\n");
 	    }
-	  raster = rl2_get_tile_from_tiff_origin (coverage, origin, 0, 0, -1);
+	  raster =
+	      rl2_get_tile_from_tiff_origin (coverage, origin, 0, 0, -1, 0);
 	  if (raster == NULL)
 	    {
 		fprintf (stderr, "ERROR: unable to retrieve a TIFF tile (1)\n");
@@ -1706,7 +1707,7 @@ check_origin (const char *path, const char *tfw_path, int srid, double minx,
 	    };
 	  rl2_destroy_raster (raster);
 	  raster =
-	      rl2_get_tile_from_tiff_origin (coverage, origin, 512, 512, -1);
+	      rl2_get_tile_from_tiff_origin (coverage, origin, 512, 512, -1, 0);
 	  if (raster == NULL)
 	    {
 		fprintf (stderr, "ERROR: unable to retrieve a TIFF tile (2)\n");

@@ -342,6 +342,117 @@ do_export_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
     return retcode;
 }
 
+static int
+do_export_section_jpeg (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
+		int scale)
+{
+/* exporting a JPEG [no Worldfile] - Section */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+
+    path = sqlite3_mprintf ("./%s_sect1_%d.jpg", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteSectionJpeg(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 7, xx_res);
+    sqlite3_bind_double (stmt, 8, yy_res);
+    sqlite3_bind_int (stmt, 9, 90);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_section_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
+		    gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a JPEG + Worldfile - Section */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+
+    path = sqlite3_mprintf ("./%s_sect1_jgw_%d.jpg", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteSectionJpegJgw(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 7, xx_res);
+    sqlite3_bind_double (stmt, 8, yy_res);
+    sqlite3_bind_int (stmt, 9, 40);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    path = sqlite3_mprintf ("./%s_sect1_jgw_%d.jgw", coverage, scale);
+    unlink (path);
+    sqlite3_free (path);
+    return retcode;
+}
+
 static gaiaGeomCollPtr
 get_center_point (sqlite3 * sqlite, const char *coverage)
 {
@@ -454,7 +565,6 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     unsigned char num_bands;
     const char *compression_name;
     const char *indir;
-    const char *delsect;
     const char *reload;
     int qlty;
     char *sql;
@@ -464,13 +574,11 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     if (!type)
       {
 	  indir = "map_samples/trento-gray";
-	  delsect = "trento-gray1";
 	  reload = "map_samples/trento-gray/trento-gray1.jpg";
       }
     else
       {
 	  indir = "map_samples/trento-rgb";
-	  delsect = "trento-rgb1";
 	  reload = "map_samples/trento-rgb/trento-rgb1.jpg";
       }
 
@@ -609,8 +717,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       }
 
 /* deleting the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
-			   coverage, delsect);
+    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -744,22 +851,62 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -24;
 	  return 0;
       }
+    if (!do_export_section_jpeg (sqlite, coverage, geom, 1))
+      {
+	  *retcode += -25;
+	  return 0;
+      }
+    if (!do_export_section_jpeg (sqlite, coverage, geom, 2))
+      {
+	  *retcode += -26;
+	  return 0;
+      }
+    if (!do_export_section_jpeg (sqlite, coverage, geom, 4))
+      {
+	  *retcode += -27;
+	  return 0;
+      }
+    if (!do_export_section_jpeg (sqlite, coverage, geom, 8))
+      {
+	  *retcode += -28;
+	  return 0;
+      }
+    if (!do_export_section_jpeg_jgw (sqlite, coverage, geom, 1))
+      {
+	  *retcode += -29;
+	  return 0;
+      }
+    if (!do_export_section_jpeg_jgw (sqlite, coverage, geom, 2))
+      {
+	  *retcode += -30;
+	  return 0;
+      }
+    if (!do_export_section_jpeg_jgw (sqlite, coverage, geom, 4))
+      {
+	  *retcode += -31;
+	  return 0;
+      }
+    if (!do_export_section_jpeg_jgw (sqlite, coverage, geom, 8))
+      {
+	  *retcode += -32;
+	  return 0;
+      }
     gaiaFreeGeomColl (geom);
 
 /* testing GetTileImage() */
     if (!do_export_tile_image (sqlite, coverage, 1))
       {
-	  *retcode += -23;
+	  *retcode += -33;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, 2))
       {
-	  *retcode += -24;
+	  *retcode += -34;
 	  return 0;
       }
     if (!do_export_tile_image (sqlite, coverage, -1))
       {
-	  *retcode += -25;
+	  *retcode += -35;
 	  return 0;
       }
 

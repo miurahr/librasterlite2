@@ -41,10 +41,12 @@ the terms of any one of the MPL, the GPL or the LGPL.
  
 */
 
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+#include <time.h>
 
 #include <sys/types.h>
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -228,10 +230,12 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 		      int pyramidize, unsigned char sample_type,
 		      unsigned char compression, sqlite3_stmt * stmt_data,
 		      sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
-		      sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect)
+		      sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect,
+		      int verbose, int current, int total)
 {
 /* importing an ASCII Data Grid file */
     int ret;
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
     rl2AsciiGridOriginPtr origin = NULL;
     rl2RasterPtr raster = NULL;
     rl2RasterStatisticsPtr section_stats = NULL;
@@ -256,17 +260,38 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     double res_y;
     double base_res_x;
     double base_res_y;
+    double confidence;
     char *dumb1;
     char *dumb2;
     sqlite3_int64 section_id;
+    time_t start;
+    time_t now;
+    time_t diff;
+    int mins;
+    int secs;
+    char *xml_summary = NULL;
 
+    time (&start);
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
-	goto error;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Unknown Coverage Resolution\n");
+	  goto error;
+      }
     origin = rl2_create_ascii_grid_origin (src_path, srid, sample_type);
     if (origin == NULL)
-	goto error;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Invalid ASCII Grid Origin: %s\n", src_path);
+	  goto error;
+      }
+    xml_summary = rl2_build_ascii_xml_summary (origin);
 
-    printf ("Importing: %s\n", rl2_get_ascii_grid_origin_path (origin));
+    if (total > 1)
+	printf ("%d/%d) Importing: %s\n", current, total,
+		rl2_get_ascii_grid_origin_path (origin));
+    else
+	printf ("Importing: %s\n", rl2_get_ascii_grid_origin_path (origin));
     printf ("------------------\n");
     ret = rl2_get_ascii_grid_origin_size (origin, &width, &height);
     if (ret == RL2_OK)
@@ -297,8 +322,53 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
       }
+    if (coverage->mixedResolutions)
+      {
+	  /* accepting any resolution */
+      }
+    else if (coverage->strictResolution)
+      {
+	  /* enforcing Strict Resolution check */
+	  if (res_x != coverage->hResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Strict) !!!\n");
+		goto error;
+	    }
+	  if (res_y != coverage->vResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution (Strict) !!!\n");
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* permissive Resolution check */
+	  confidence = coverage->hResolution / 100.0;
+	  if (res_x < (coverage->hResolution - confidence)
+	      || res_x > (coverage->hResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Permissive) !!!\n");
+		goto error;
+	    }
+	  confidence = coverage->vResolution / 100.0;
+	  if (res_y < (coverage->vResolution - confidence)
+	      || res_y > (coverage->vResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution (Permissive) !!!\n");
+		goto error;
+	    }
+      }
 
-    if (rl2_eval_ascii_grid_origin_compatibility (cvg, origin) != RL2_TRUE)
+    if (rl2_eval_ascii_grid_origin_compatibility (cvg, origin, verbose) !=
+	RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/ASCII mismatch\n");
 	  goto error;
@@ -308,15 +378,27 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 /* INSERTing the section */
     if (!do_insert_section
 	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
-	 stmt_sect, &section_id))
+	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
+	 coverage->sectionSummary, stmt_sect, &section_id))
 	goto error;
     section_stats = rl2_create_raster_statistics (sample_type, 1);
     if (section_stats == NULL)
 	goto error;
 /* INSERTing the base-levels */
-    if (!do_insert_levels
-	(handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
-	goto error;
+    if (coverage->mixedResolutions)
+      {
+	  /* multiple resolutions Coverage */
+	  if (!do_insert_section_levels
+	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  if (!do_insert_levels
+	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
 
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
@@ -325,7 +407,8 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	  for (col = 0; col < width; col += tile_w)
 	    {
 		raster =
-		    rl2_get_tile_from_ascii_grid_origin (cvg, origin, row, col);
+		    rl2_get_tile_from_ascii_grid_origin (cvg, origin, row, col,
+							 verbose);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,
@@ -357,6 +440,10 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
+	  if (verbose && isatty (STDOUT_FILENO))
+	    {
+		printf (">> Imported row %u of %u\r", row + tile_h, height);
+	    }
       }
 
 /* updating the Section's Statistics */
@@ -368,32 +455,24 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     rl2_destroy_raster_statistics (section_stats);
     origin = NULL;
     section_stats = NULL;
+    time (&now);
+    diff = now - start;
+    mins = diff / 60;
+    secs = diff - (mins * 60);
+    printf (">> Grid succesfully imported in: %d mins %02d secs\n", mins, secs);
 
     if (pyramidize)
       {
 	  /* immediately building the Section's Pyramid */
 	  const char *coverage_name = rl2_get_coverage_name (cvg);
-	  const char *section_name = section;
-	  char *sect_name = NULL;
 	  if (coverage_name == NULL)
 	      goto error;
-	  if (section_name == NULL)
-	    {
-		sect_name = get_section_name (src_path);
-		section_name = sect_name;
-	    }
-	  if (section_name == NULL)
-	      goto error;
-	  if (rl2_build_section_pyramid (handle, coverage_name, section_name, 1)
+	  if (rl2_build_section_pyramid (handle, coverage_name, section_id, 1)
 	      != RL2_OK)
 	    {
-		if (sect_name != NULL)
-		    free (sect_name);
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
 	    }
-	  if (sect_name != NULL)
-	      free (sect_name);
       }
 
     return 1;
@@ -465,10 +544,10 @@ check_jpeg_origin_compatibility (rl2RasterPtr raster, rl2CoveragePtr coverage,
     return 0;
 }
 
-static char *
-build_worldfile_path (const char *path, const char *suffix)
+RL2_DECLARE char *
+rl2_build_worldfile_path (const char *path, const char *suffix)
 {
-/* building the JGW path (WorldFile) */
+/* building a WorldFile path */
     char *wf_path;
     const char *x = NULL;
     const char *p = path;
@@ -504,12 +583,30 @@ read_jgw_worldfile (const char *src_path, double *minx, double *maxy,
     double y;
     char *jgw_path = NULL;
 
-    jgw_path = build_worldfile_path (src_path, ".jgw");
+    jgw_path = rl2_build_worldfile_path (src_path, ".jgw");
     if (jgw_path == NULL)
 	goto error;
     jgw = fopen (jgw_path, "r");
     free (jgw_path);
     jgw_path = NULL;
+    if (jgw == NULL)
+      {
+	  /* trying the ".jpgw" suffix */
+	  jgw_path = rl2_build_worldfile_path (src_path, ".jpgw");
+	  if (jgw_path == NULL)
+	      goto error;
+	  jgw = fopen (jgw_path, "r");
+	  free (jgw_path);
+      }
+    if (jgw == NULL)
+      {
+	  /* trying the ".wld" suffix */
+	  jgw_path = rl2_build_worldfile_path (src_path, ".wld");
+	  if (jgw_path == NULL)
+	      goto error;
+	  jgw = fopen (jgw_path, "r");
+	  free (jgw_path);
+      }
     if (jgw == NULL)
 	goto error;
     if (!parse_worldfile (jgw, &x, &y, &res_x, &res_y))
@@ -537,7 +634,7 @@ write_jgw_worldfile (const char *path, double minx, double maxy, double x_res,
     FILE *jgw = NULL;
     char *jgw_path = NULL;
 
-    jgw_path = build_worldfile_path (path, ".jgw");
+    jgw_path = rl2_build_worldfile_path (path, ".jgw");
     if (jgw_path == NULL)
 	goto error;
     jgw = fopen (jgw_path, "w");
@@ -569,11 +666,13 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 		      unsigned char num_bands, unsigned char compression,
 		      sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
 		      sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
-		      sqlite3_stmt * stmt_upd_sect)
+		      sqlite3_stmt * stmt_upd_sect, int verbose, int current,
+		      int total)
 {
 /* importing a JPEG image file [with optional WorldFile */
     rl2SectionPtr origin;
     rl2RasterPtr rst_in;
+    rl2PrivRasterPtr raster_in;
     rl2RasterPtr raster = NULL;
     rl2RasterStatisticsPtr section_stats = NULL;
     rl2PixelPtr no_data = NULL;
@@ -595,18 +694,36 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     double maxy;
     double res_x;
     double res_y;
+    int is_georeferenced = 0;
     char *dumb1;
     char *dumb2;
     sqlite3_int64 section_id;
     unsigned char forced_conversion = RL2_CONVERT_NO;
     double base_res_x;
     double base_res_y;
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
+    double confidence;
+    time_t start;
+    time_t now;
+    time_t diff;
+    int mins;
+    int secs;
+    char *xml_summary = NULL;
 
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
-	goto error;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Unknown Coverage Resolution\n");
+	  goto error;
+      }
     origin = rl2_section_from_jpeg (src_path);
     if (origin == NULL)
-	goto error;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Invalid JPEG Origin: %s\n", src_path);
+	  goto error;
+      }
+    time (&start);
     rst_in = rl2_get_section_raster (origin);
     if (!check_jpeg_origin_compatibility
 	(rst_in, cvg, &width, &height, &forced_conversion))
@@ -616,6 +733,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 	  /* georeferenced JPEG */
 	  maxx = minx + ((double) width * res_x);
 	  miny = maxy - ((double) height * res_y);
+	  is_georeferenced = 1;
       }
     else
       {
@@ -629,8 +747,16 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 	  res_x = 1.0;
 	  res_y = 1.0;
       }
+    raster_in = (rl2PrivRasterPtr) rst_in;
+    xml_summary =
+	rl2_build_jpeg_xml_summary (width, height, raster_in->pixelType,
+				    is_georeferenced, res_x, res_y, minx, miny,
+				    maxx, maxy);
 
-    printf ("Importing: %s\n", src_path);
+    if (total > 1)
+	printf ("%d/%d) Importing: %s\n", current, total, src_path);
+    else
+	printf ("Importing: %s\n", src_path);
     printf ("------------------\n");
     printf ("    Image Size (pixels): %d x %d\n", width, height);
     printf ("                   SRID: %d\n", srid);
@@ -649,21 +775,83 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     printf ("       Pixel resolution: X=%s Y=%s\n", dumb1, dumb2);
     sqlite3_free (dumb1);
     sqlite3_free (dumb2);
+    if (coverage->Srid != srid)
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching SRID !!!\n");
+	  goto error;
+      }
+    if (coverage->mixedResolutions)
+      {
+	  /* accepting any resolution */
+      }
+    else if (coverage->strictResolution)
+      {
+	  /* enforcing Strict Resolution check */
+	  if (res_x != coverage->hResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Strict) !!!\n");
+		goto error;
+	    }
+	  if (res_y != coverage->vResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution (Strict) !!!\n");
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* permissive Resolution check */
+	  confidence = coverage->hResolution / 100.0;
+	  if (res_x < (coverage->hResolution - confidence)
+	      || res_x > (coverage->hResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Permissive) !!!\n");
+		goto error;
+	    }
+	  confidence = coverage->vResolution / 100.0;
+	  if (res_y < (coverage->vResolution - confidence)
+	      || res_y > (coverage->vResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution !(Permissive) !!\n");
+		goto error;
+	    }
+      }
 
     no_data = rl2_get_coverage_no_data (cvg);
 
 /* INSERTing the section */
     if (!do_insert_section
 	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
-	 stmt_sect, &section_id))
+	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
+	 coverage->sectionSummary, stmt_sect, &section_id))
 	goto error;
     section_stats = rl2_create_raster_statistics (sample_type, num_bands);
     if (section_stats == NULL)
 	goto error;
 /* INSERTing the base-levels */
-    if (!do_insert_levels
-	(handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
-	goto error;
+    if (coverage->mixedResolutions)
+      {
+	  /* multiple resolutions Coverage */
+	  if (!do_insert_section_levels
+	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  if (!do_insert_levels
+	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
 
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
@@ -673,7 +861,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 	    {
 		raster =
 		    rl2_get_tile_from_jpeg_origin (cvg, rst_in, row, col,
-						   forced_conversion);
+						   forced_conversion, verbose);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,
@@ -705,6 +893,10 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
+	  if (verbose && isatty (STDOUT_FILENO))
+	    {
+		printf (">> Imported row %u of %u\r", row + tile_h, height);
+	    }
       }
 
 /* updating the Section's Statistics */
@@ -716,32 +908,25 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     rl2_destroy_raster_statistics (section_stats);
     origin = NULL;
     section_stats = NULL;
+    time (&now);
+    diff = now - start;
+    mins = diff / 60;
+    secs = diff - (mins * 60);
+    printf (">> Image succesfully imported in: %d mins %02d secs\n", mins,
+	    secs);
 
     if (pyramidize)
       {
 	  /* immediately building the Section's Pyramid */
 	  const char *coverage_name = rl2_get_coverage_name (cvg);
-	  const char *section_name = section;
-	  char *sect_name = NULL;
 	  if (coverage_name == NULL)
 	      goto error;
-	  if (section_name == NULL)
-	    {
-		sect_name = get_section_name (src_path);
-		section_name = sect_name;
-	    }
-	  if (section_name == NULL)
-	      goto error;
-	  if (rl2_build_section_pyramid (handle, coverage_name, section_name, 1)
+	  if (rl2_build_section_pyramid (handle, coverage_name, section_id, 1)
 	      != RL2_OK)
 	    {
-		if (sect_name != NULL)
-		    free (sect_name);
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
 	    }
-	  if (sect_name != NULL)
-	      free (sect_name);
       }
 
     return 1;
@@ -795,9 +980,11 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		unsigned char compression, int quality,
 		sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
 		sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
-		sqlite3_stmt * stmt_upd_sect)
+		sqlite3_stmt * stmt_upd_sect, int verbose, int current,
+		int total)
 {
 /* importing a single Source file */
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
     int ret;
     rl2TiffOriginPtr origin = NULL;
     rl2RasterPtr raster = NULL;
@@ -829,22 +1016,35 @@ do_import_file (sqlite3 * handle, const char *src_path,
     sqlite3_int64 section_id;
     double base_res_x;
     double base_res_y;
+    double confidence;
+    time_t start;
+    time_t now;
+    time_t diff;
+    int mins;
+    int secs;
+    char *xml_summary = NULL;
 
     if (is_ascii_grid (src_path))
 	return do_import_ascii_grid (handle, src_path, cvg, section, force_srid,
 				     tile_w, tile_h, pyramidize, sample_type,
 				     compression, stmt_data, stmt_tils,
-				     stmt_sect, stmt_levl, stmt_upd_sect);
+				     stmt_sect, stmt_levl,
+				     stmt_upd_sect, verbose, current, total);
 
     if (is_jpeg_image (src_path))
 	return do_import_jpeg_image (handle, src_path, cvg, section, force_srid,
 				     tile_w, tile_h, pyramidize, sample_type,
 				     num_bands, compression, stmt_data,
 				     stmt_tils, stmt_sect, stmt_levl,
-				     stmt_upd_sect);
+				     stmt_upd_sect, verbose, current, total);
 
+    time (&start);
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
-	goto error;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Unknown Coverage Resolution\n");
+	  goto error;
+      }
     if (worldfile)
 	origin =
 	    rl2_create_tiff_origin (src_path, RL2_TIFF_WORLDFILE, force_srid,
@@ -854,14 +1054,23 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	    rl2_create_tiff_origin (src_path, RL2_TIFF_GEOTIFF, force_srid,
 				    sample_type, pixel_type, num_bands);
     if (origin == NULL)
-	goto error;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Invalid TIFF Origin: %s\n", src_path);
+	  goto error;
+      }
     if (rl2_get_coverage_srid (cvg, &xsrid) == RL2_OK)
       {
 	  if (xsrid == RL2_GEOREFERENCING_NONE)
 	      rl2_set_tiff_origin_not_referenced (origin);
       }
+    xml_summary = rl2_build_tiff_xml_summary (origin);
 
-    printf ("Importing: %s\n", rl2_get_tiff_origin_path (origin));
+    if (total > 1)
+	printf ("%d/%d) Importing: %s\n", current, total,
+		rl2_get_tiff_origin_path (origin));
+    else
+	printf ("Importing: %s\n", rl2_get_tiff_origin_path (origin));
     printf ("------------------\n");
     ret = rl2_get_tiff_origin_size (origin, &width, &height);
     if (ret == RL2_OK)
@@ -901,6 +1110,50 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  sqlite3_free (dumb1);
 	  sqlite3_free (dumb2);
       }
+    if (coverage->mixedResolutions)
+      {
+	  /* accepting any resolution */
+      }
+    else if (coverage->strictResolution)
+      {
+	  /* enforcing Strict Resolution check */
+	  if (res_x != coverage->hResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Strict) !!!\n");
+		goto error;
+	    }
+	  if (res_y != coverage->vResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution (Strict) !!!\n");
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* permissive Resolution check */
+	  confidence = coverage->hResolution / 100.0;
+	  if (res_x < (coverage->hResolution - confidence)
+	      || res_x > (coverage->hResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Permissive) !!!\n");
+		goto error;
+	    }
+	  confidence = coverage->vResolution / 100.0;
+	  if (res_y < (coverage->vResolution - confidence)
+	      || res_y > (coverage->vResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution !(Permissive) !!\n");
+		goto error;
+	    }
+      }
 
     if (pixel_type == RL2_PIXEL_PALETTE)
       {
@@ -912,7 +1165,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	    }
       }
 
-    if (rl2_eval_tiff_origin_compatibility (cvg, origin, force_srid) !=
+    if (rl2_eval_tiff_origin_compatibility (cvg, origin, force_srid, verbose) !=
 	RL2_TRUE)
       {
 	  fprintf (stderr, "Coverage/TIFF mismatch\n");
@@ -923,15 +1176,27 @@ do_import_file (sqlite3 * handle, const char *src_path,
 /* INSERTing the section */
     if (!do_insert_section
 	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
-	 stmt_sect, &section_id))
+	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
+	 coverage->sectionSummary, stmt_sect, &section_id))
 	goto error;
     section_stats = rl2_create_raster_statistics (sample_type, num_bands);
     if (section_stats == NULL)
 	goto error;
 /* INSERTing the base-levels */
-    if (!do_insert_levels
-	(handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
-	goto error;
+    if (coverage->mixedResolutions)
+      {
+	  /* multiple resolutions Coverage */
+	  if (!do_insert_section_levels
+	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  if (!do_insert_levels
+	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
 
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
@@ -940,7 +1205,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  for (col = 0; col < width; col += tile_w)
 	    {
 		raster =
-		    rl2_get_tile_from_tiff_origin (cvg, origin, row, col, srid);
+		    rl2_get_tile_from_tiff_origin (cvg, origin, row, col, srid,
+						   verbose);
 		if (raster == NULL)
 		  {
 		      fprintf (stderr,
@@ -974,6 +1240,10 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
+	  if (verbose && isatty (STDOUT_FILENO))
+	    {
+		printf (">> Imported row %u of %u\r", row + tile_h, height);
+	    }
       }
 
 /* updating the Section's Statistics */
@@ -985,32 +1255,25 @@ do_import_file (sqlite3 * handle, const char *src_path,
     rl2_destroy_raster_statistics (section_stats);
     origin = NULL;
     section_stats = NULL;
+    time (&now);
+    diff = now - start;
+    mins = diff / 60;
+    secs = diff - (mins * 60);
+    printf (">> Image succesfully imported in: %d mins %02d secs\n", mins,
+	    secs);
 
     if (pyramidize)
       {
 	  /* immediately building the Section's Pyramid */
 	  const char *coverage_name = rl2_get_coverage_name (cvg);
-	  const char *section_name = section;
-	  char *sect_name = NULL;
 	  if (coverage_name == NULL)
 	      goto error;
-	  if (section_name == NULL)
-	    {
-		sect_name = get_section_name (src_path);
-		section_name = sect_name;
-	    }
-	  if (section_name == NULL)
-	      goto error;
-	  if (rl2_build_section_pyramid (handle, coverage_name, section_name, 1)
+	  if (rl2_build_section_pyramid (handle, coverage_name, section_id, 1)
 	      != RL2_OK)
 	    {
-		if (sect_name != NULL)
-		    free (sect_name);
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
 	    }
-	  if (sect_name != NULL)
-	      free (sect_name);
       }
 
     return 1;
@@ -1081,7 +1344,8 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 	       unsigned int tile_w, unsigned int tile_h,
 	       unsigned char compression, int quality, sqlite3_stmt * stmt_data,
 	       sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
-	       sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect)
+	       sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect,
+	       int verbose)
 {
 /* importing a whole directory */
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -1089,6 +1353,7 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
     struct _finddata_t c_file;
     intptr_t hFile;
     int cnt = 0;
+    int total = 0;
     char *search;
     char *path;
     int ret;
@@ -1103,37 +1368,66 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 	    {
 		if ((c_file.attrib & _A_RDONLY) == _A_RDONLY
 		    || (c_file.attrib & _A_NORMAL) == _A_NORMAL)
-		  {
-		      path = sqlite3_mprintf ("%s/%s", dir_path, c_file.name);
-		      ret =
-			  do_import_file (handle, path, cvg, section, worldfile,
-					  force_srid, pyramidize, sample_type,
-					  pixel_type, num_bands, tile_w, tile_h,
-					  compression, quality, stmt_data,
-					  stmt_tils, stmt_sect, stmt_levl,
-					  stmt_upd_sect);
-		      sqlite3_free (path);
-		      if (!ret)
-			  goto error;
-		      cnt++;
-		  }
+		    total++;
 		if (_findnext (hFile, &c_file) != 0)
 		    break;
-	    };
-	error:
+	    }
 	  _findclose (hFile);
-      }
-    sqlite3_free (search);
-    return cnt;
+	  if ((hFile = _findfirst (search, &c_file)) == -1L)
+	      ;
+	  else
+	    {
+		while (1)
+		  {
+		      if ((c_file.attrib & _A_RDONLY) == _A_RDONLY
+			  || (c_file.attrib & _A_NORMAL) == _A_NORMAL)
+			{
+			    path =
+				sqlite3_mprintf ("%s/%s", dir_path,
+						 c_file.name);
+			    ret =
+				do_import_file (handle, path, cvg, section,
+						worldfile, force_srid,
+						pyramidize, sample_type,
+						pixel_type, num_bands, tile_w,
+						tile_h, compression, quality,
+						stmt_data, stmt_tils, stmt_sect,
+						stmt_levl, stmt_upd_sect,
+						verbose, cnt + 1, total);
+			    sqlite3_free (path);
+			    if (!ret)
+				goto error;
+			    cnt++;
+			}
+		      if (_findnext (hFile, &c_file) != 0)
+			  break;
+		  }
+	      error:
+		_findclose (hFile);
+	    }
+	  sqlite3_free (search);
+	  return cnt;
 #else
 /* not Visual Studio .NET */
     int cnt = 0;
+    int total = 0;
     char *path;
     struct dirent *entry;
     int ret;
     DIR *dir = opendir (dir_path);
     if (!dir)
 	return 0;
+    while (1)
+      {
+	  /* counting how many valid entries */
+	  entry = readdir (dir);
+	  if (!entry)
+	      break;
+	  if (!check_extension_match (entry->d_name, file_ext))
+	      continue;
+	  total++;
+      }
+    rewinddir (dir);
     while (1)
       {
 	  /* scanning dir-entries */
@@ -1147,7 +1441,8 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 	      do_import_file (handle, path, cvg, section, worldfile, force_srid,
 			      pyramidize, sample_type, pixel_type, num_bands,
 			      tile_w, tile_h, compression, quality, stmt_data,
-			      stmt_tils, stmt_sect, stmt_levl, stmt_upd_sect);
+			      stmt_tils, stmt_sect, stmt_levl,
+			      stmt_upd_sect, verbose, cnt + 1, total);
 	  sqlite3_free (path);
 	  if (!ret)
 	      goto error;
@@ -1162,9 +1457,10 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 static int
 do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
 		  const char *file_ext, rl2CoveragePtr cvg, const char *section,
-		  int worldfile, int force_srid, int pyramidize)
+		  int worldfile, int force_srid, int pyramidize, int verbose)
 {
 /* main IMPORT Raster function */
+    rl2PrivCoveragePtr privcvg = (rl2PrivCoveragePtr) cvg;
     int ret;
     char *sql;
     const char *coverage;
@@ -1203,7 +1499,8 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
     sql =
 	sqlite3_mprintf
 	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
-	 "width, height, geometry) VALUES (NULL, ?, ?, ?, ?, ?)", xtable);
+	 "md5_checksum, summary, width, height, geometry) "
+	 "VALUES (NULL, ?, ?, ?, XB_Create(?), ?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_sect, NULL);
     sqlite3_free (sql);
@@ -1229,24 +1526,53 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
 	  goto error;
       }
 
-    table = sqlite3_mprintf ("%s_levels", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
-    sqlite3_free (table);
-    sql =
-	sqlite3_mprintf
-	("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
-	 "x_resolution_1_1, y_resolution_1_1, "
-	 "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
-	 "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
-	 "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
-    free (xtable);
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
+    if (privcvg->mixedResolutions)
       {
-	  printf ("INSERT INTO levels SQL error: %s\n",
-		  sqlite3_errmsg (handle));
-	  goto error;
+	  /* mixed resolutions Coverage */
+	  table = sqlite3_mprintf ("%s_section_levels", coverage);
+	  xtable = gaiaDoubleQuotedSql (table);
+	  sqlite3_free (table);
+	  sql =
+	      sqlite3_mprintf
+	      ("INSERT OR IGNORE INTO \"%s\" (section_id, pyramid_level, "
+	       "x_resolution_1_1, y_resolution_1_1, "
+	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
+	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
+	       "VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
+	  free (xtable);
+	  ret =
+	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		printf ("INSERT INTO section_levels SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  table = sqlite3_mprintf ("%s_levels", coverage);
+	  xtable = gaiaDoubleQuotedSql (table);
+	  sqlite3_free (table);
+	  sql =
+	      sqlite3_mprintf
+	      ("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	       "x_resolution_1_1, y_resolution_1_1, "
+	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
+	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
+	       "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
+	  free (xtable);
+	  ret =
+	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		printf ("INSERT INTO levels SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto error;
+	    }
       }
 
     table = sqlite3_mprintf ("%s_tiles", coverage);
@@ -1289,7 +1615,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
 	      (handle, src_path, cvg, section, worldfile, force_srid,
 	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
 	       compression, quality, stmt_data, stmt_tils, stmt_sect,
-	       stmt_levl, stmt_upd_sect))
+	       stmt_levl, stmt_upd_sect, verbose, -1, -1))
 	      goto error;
       }
     else
@@ -1299,7 +1625,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
 	      (handle, dir_path, file_ext, cvg, section, worldfile, force_srid,
 	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
 	       compression, quality, stmt_data, stmt_tils, stmt_sect,
-	       stmt_levl, stmt_upd_sect))
+	       stmt_levl, stmt_upd_sect, verbose))
 	      goto error;
       }
 
@@ -1339,12 +1665,12 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
 RL2_DECLARE int
 rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
 			   rl2CoveragePtr coverage, int worldfile,
-			   int force_srid, int pyramidize)
+			   int force_srid, int pyramidize, int verbose)
 {
 /* importing a single Raster file */
     if (!do_import_common
 	(handle, src_path, NULL, NULL, coverage, NULL, worldfile, force_srid,
-	 pyramidize))
+	 pyramidize, verbose))
 	return RL2_ERROR;
     return RL2_OK;
 }
@@ -1353,12 +1679,12 @@ RL2_DECLARE int
 rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
 			     const char *file_ext,
 			     rl2CoveragePtr coverage, int worldfile,
-			     int force_srid, int pyramidize)
+			     int force_srid, int pyramidize, int verbose)
 {
 /* importing multiple Raster files from dir */
     if (!do_import_common
 	(handle, NULL, dir_path, file_ext, coverage, NULL, worldfile,
-	 force_srid, pyramidize))
+	 force_srid, pyramidize, verbose))
 	return RL2_ERROR;
     return RL2_OK;
 }
@@ -1701,13 +2027,14 @@ copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
       };
 }
 
-RL2_DECLARE int
-rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
-			      rl2CoveragePtr cvg, double x_res, double y_res,
-			      double minx, double miny, double maxx,
-			      double maxy, unsigned int width,
-			      unsigned int height, unsigned char compression,
-			      unsigned int tile_sz, int with_worldfile)
+static int
+export_geotiff_common (sqlite3 * handle, const char *dst_path,
+		       rl2CoveragePtr cvg, int by_section,
+		       sqlite3_int64 section_id, double x_res, double y_res,
+		       double minx, double miny, double maxx, double maxy,
+		       unsigned int width, unsigned int height,
+		       unsigned char compression, unsigned int tile_sz,
+		       int with_worldfile)
 {
 /* exporting a GeoTIFF from the DBMS into the file-system */
     rl2RasterPtr raster = NULL;
@@ -1771,10 +2098,23 @@ rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	    }
       }
 
-    if (rl2_get_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* just a single Section */
+	  if (rl2_get_section_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	       pixel_type) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
+	      goto error;
+      }
 
 /* computing the sample size */
     switch (sample_type)
@@ -1867,14 +2207,43 @@ rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
-				     rl2CoveragePtr cvg, double x_res,
-				     double y_res, double minx, double miny,
-				     double maxx, double maxy,
-				     unsigned int width,
-				     unsigned int height,
-				     unsigned char compression,
-				     unsigned int tile_sz)
+rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
+			      rl2CoveragePtr cvg, double x_res, double y_res,
+			      double minx, double miny, double maxx,
+			      double maxy, unsigned int width,
+			      unsigned int height, unsigned char compression,
+			      unsigned int tile_sz, int with_worldfile)
+{
+/* exporting a GeoTIFF from the DBMS into the file-system */
+    return export_geotiff_common (handle, dst_path, cvg, 0, 0, x_res, y_res,
+				  minx, miny, maxx, maxy, width, height,
+				  compression, tile_sz, with_worldfile);
+}
+
+RL2_DECLARE int
+rl2_export_section_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				      rl2CoveragePtr cvg,
+				      sqlite3_int64 section_id, double x_res,
+				      double y_res, double minx, double miny,
+				      double maxx, double maxy,
+				      unsigned int width, unsigned int height,
+				      unsigned char compression,
+				      unsigned int tile_sz, int with_worldfile)
+{
+/* exporting a GeoTIFF from the DBMS into the file-system - Section*/
+    return export_geotiff_common (handle, dst_path, cvg, 1, section_id, x_res,
+				  y_res, minx, miny, maxx, maxy, width, height,
+				  compression, tile_sz, with_worldfile);
+}
+
+static int
+export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
+			     rl2CoveragePtr cvg, int by_section,
+			     sqlite3_int64 section_id, double x_res,
+			     double y_res, double minx, double miny,
+			     double maxx, double maxy, unsigned int width,
+			     unsigned int height, unsigned char compression,
+			     unsigned int tile_sz)
 {
 /* exporting a TIFF+TFW from the DBMS into the file-system */
     rl2RasterPtr raster = NULL;
@@ -1938,10 +2307,23 @@ rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
 	    }
       }
 
-    if (rl2_get_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* just a single select Section */
+	  if (rl2_get_section_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	       pixel_type) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
+	      goto error;
+      }
 
 /* computing the sample size */
     switch (sample_type)
@@ -2031,12 +2413,47 @@ rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-			   rl2CoveragePtr cvg, double x_res, double y_res,
-			   double minx, double miny, double maxx,
-			   double maxy, unsigned int width,
-			   unsigned int height, unsigned char compression,
-			   unsigned int tile_sz)
+rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
+				     rl2CoveragePtr cvg, double x_res,
+				     double y_res, double minx, double miny,
+				     double maxx, double maxy,
+				     unsigned int width,
+				     unsigned int height,
+				     unsigned char compression,
+				     unsigned int tile_sz)
+{
+/* exporting a TIFF+TFW from the DBMS into the file-system */
+    return export_tiff_worlfile_common (handle, dst_path, cvg, 0, 0, x_res,
+					y_res, minx, miny, maxx, maxy, width,
+					height, compression, tile_sz);
+}
+
+RL2_DECLARE int
+rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle,
+					     const char *dst_path,
+					     rl2CoveragePtr cvg,
+					     sqlite3_int64 section_id,
+					     double x_res, double y_res,
+					     double minx, double miny,
+					     double maxx, double maxy,
+					     unsigned int width,
+					     unsigned int height,
+					     unsigned char compression,
+					     unsigned int tile_sz)
+{
+/* exporting a TIFF+TFW from the DBMS into the file-system / single Section */
+    return export_tiff_worlfile_common (handle, dst_path, cvg, 1, section_id,
+					x_res, y_res, minx, miny, maxx, maxy,
+					width, height, compression, tile_sz);
+}
+
+static int
+export_tiff_common (sqlite3 * handle, const char *dst_path,
+		    rl2CoveragePtr cvg, int by_section,
+		    sqlite3_int64 section_id, double x_res, double y_res,
+		    double minx, double miny, double maxx, double maxy,
+		    unsigned int width, unsigned int height,
+		    unsigned char compression, unsigned int tile_sz)
 {
 /* exporting a plain TIFF from the DBMS into the file-system */
     rl2RasterPtr raster = NULL;
@@ -2102,10 +2519,23 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	    }
       }
 
-    if (rl2_get_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* just a single Section */
+	  if (rl2_get_section_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	       pixel_type) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
+	      goto error;
+      }
 
 /* computing the sample size */
     switch (sample_type)
@@ -2186,6 +2616,35 @@ rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
     if (palette != NULL)
 	rl2_destroy_palette (palette);
     return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+			   rl2CoveragePtr cvg, double x_res, double y_res,
+			   double minx, double miny, double maxx,
+			   double maxy, unsigned int width,
+			   unsigned int height, unsigned char compression,
+			   unsigned int tile_sz)
+{
+/* exporting a plain TIFF from the DBMS into the file-system */
+    return export_tiff_common (handle, dst_path, cvg, 0, 0, x_res, y_res, minx,
+			       miny, maxx, maxy, width, height, compression,
+			       tile_sz);
+}
+
+RL2_DECLARE int
+rl2_export_section_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				   rl2CoveragePtr cvg, sqlite3_int64 section_id,
+				   double x_res, double y_res, double minx,
+				   double miny, double maxx, double maxy,
+				   unsigned int width, unsigned int height,
+				   unsigned char compression,
+				   unsigned int tile_sz)
+{
+/* exporting a plain TIFF from the DBMS into the file-system - single Section*/
+    return export_tiff_common (handle, dst_path, cvg, 1, section_id, x_res,
+			       y_res, minx, miny, maxx, maxy, width, height,
+			       compression, tile_sz);
 }
 
 RL2_DECLARE int
@@ -2985,13 +3444,13 @@ rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
     return RL2_ERROR;
 }
 
-RL2_DECLARE int
-rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
-				 rl2CoveragePtr cvg, double res,
-				 double minx, double miny, double maxx,
-				 double maxy, unsigned int width,
-				 unsigned int height, int is_centered,
-				 int decimal_digits)
+static int
+export_ascii_grid_common (int by_section, sqlite3 * handle,
+			  const char *dst_path, rl2CoveragePtr cvg,
+			  sqlite3_int64 section_id, double res, double minx,
+			  double miny, double maxx, double maxy,
+			  unsigned int width, unsigned int height,
+			  int is_centered, int decimal_digits)
 {
 /* exporting an ASCII Grid from the DBMS into the file-system */
     rl2PalettePtr palette = NULL;
@@ -3085,10 +3544,23 @@ rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
 	    }
       }
 
-    if (rl2_get_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, res, res, &pixels,
-	 &pixels_size, &palette, RL2_PIXEL_DATAGRID) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       res, res, &pixels, &pixels_size, &palette,
+	       RL2_PIXEL_DATAGRID) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, res, res,
+	       &pixels, &pixels_size, &palette, RL2_PIXEL_DATAGRID) != RL2_OK)
+	      goto error;
+      }
 
     ascii =
 	rl2_create_ascii_grid_destination (dst_path, width, height,
@@ -3125,14 +3597,43 @@ rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
-			   rl2CoveragePtr cvg, double x_res,
-			   double y_res, double minx, double miny,
-			   double maxx, double maxy,
-			   unsigned int width,
-			   unsigned int height, int quality, int with_worldfile)
+rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
+				 rl2CoveragePtr cvg, double res,
+				 double minx, double miny, double maxx,
+				 double maxy, unsigned int width,
+				 unsigned int height, int is_centered,
+				 int decimal_digits)
 {
-/* exporting a JPEG (with possible JGW) from the DBMS into the file-system */
+/* exporting an ASCII Grid from the DBMS into the file-system */
+    return export_ascii_grid_common (0, handle, dst_path, cvg, 0, res, minx,
+				     miny, maxx, maxy, width, height,
+				     is_centered, decimal_digits);
+}
+
+RL2_DECLARE int
+rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
+					 rl2CoveragePtr cvg,
+					 sqlite3_int64 section_id, double res,
+					 double minx, double miny, double maxx,
+					 double maxy, unsigned int width,
+					 unsigned int height, int is_centered,
+					 int decimal_digits)
+{
+/* exporting an ASCII Grid from the DBMS- Section */
+    return export_ascii_grid_common (1, handle, dst_path, cvg, section_id, res,
+				     minx, miny, maxx, maxy, width, height,
+				     is_centered, decimal_digits);
+}
+
+static int
+export_jpeg_common (int by_section, sqlite3 * handle, const char *dst_path,
+		    rl2CoveragePtr cvg, sqlite3_int64 section_id, double x_res,
+		    double y_res, double minx, double miny,
+		    double maxx, double maxy,
+		    unsigned int width,
+		    unsigned int height, int quality, int with_worldfile)
+{
+/* common implementation for Write JPEG */
     rl2SectionPtr section = NULL;
     rl2RasterPtr raster = NULL;
     unsigned char level;
@@ -3165,10 +3666,23 @@ rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
     else
 	goto error;
 
-    if (rl2_get_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, &outbuf, &outbuf_size, NULL, pixel_type) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, NULL,
+	       pixel_type) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, &outbuf, &outbuf_size, NULL, pixel_type) != RL2_OK)
+	      goto error;
+      }
 
     raster =
 	rl2_create_raster (width, height, sample_type, pixel_type, num_bands,
@@ -3201,4 +3715,32 @@ rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
     if (outbuf != NULL)
 	free (outbuf);
     return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
+			   rl2CoveragePtr cvg, double x_res,
+			   double y_res, double minx, double miny,
+			   double maxx, double maxy,
+			   unsigned int width,
+			   unsigned int height, int quality, int with_worldfile)
+{
+/* exporting a JPEG (with possible JGW) from the DBMS into the file-system */
+    return export_jpeg_common (0, handle, dst_path, cvg, 0, x_res, y_res, minx,
+			       miny, maxx, maxy, width, height, quality,
+			       with_worldfile);
+}
+
+RL2_DECLARE int
+rl2_export_section_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
+				   rl2CoveragePtr cvg, sqlite3_int64 section_id,
+				   double x_res, double y_res, double minx,
+				   double miny, double maxx, double maxy,
+				   unsigned int width, unsigned int height,
+				   int quality, int with_worldfile)
+{
+/* exporting a JPEG (with possible JGW) from the DBMS - Section */
+    return export_jpeg_common (1, handle, dst_path, cvg, section_id, x_res,
+			       y_res, minx, miny, maxx, maxy, width, height,
+			       quality, with_worldfile);
 }

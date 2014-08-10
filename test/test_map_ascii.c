@@ -122,6 +122,52 @@ do_export_ascii (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     return retcode;
 }
 
+static int
+do_export_section_ascii (sqlite3 * sqlite, const char *coverage,
+			 gaiaGeomCollPtr geom, int scale)
+{
+/* exporting an ASCII Grid */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    double res = 1.0 * (double) scale;
+
+    path = sqlite3_mprintf ("./%s_sect1_%d.asc", coverage, scale);
+
+    sql = "SELECT RL2_WriteSectionAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 6, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 7, res);
+    sqlite3_bind_int (stmt, 8, 1);
+    sqlite3_bind_int (stmt, 9, 2);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
 static gaiaGeomCollPtr
 get_center_point (sqlite3 * sqlite, const char *coverage)
 {
@@ -761,8 +807,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
       }
 
 /* deleting the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, %Q, 1)",
-			   coverage, "ascii1");
+    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, 1, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -814,9 +859,29 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -9;
 	  return 0;
       }
+    if (!do_export_section_ascii (sqlite, coverage, geom, 1))
+      {
+	  *retcode += -10;
+	  return 0;
+      }
+    if (!do_export_section_ascii (sqlite, coverage, geom, 2))
+      {
+	  *retcode += -11;
+	  return 0;
+      }
+    if (!do_export_section_ascii (sqlite, coverage, geom, 4))
+      {
+	  *retcode += -12;
+	  return 0;
+      }
+    if (!do_export_section_ascii (sqlite, coverage, geom, 8))
+      {
+	  *retcode += -13;
+	  return 0;
+      }
     gaiaFreeGeomColl (geom);
 
-    *retcode += -10;
+    *retcode += -14;
     if (!test_statistics (sqlite, coverage, retcode))
 	return 0;
 
@@ -833,7 +898,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 		fprintf (stderr, "PyramidizeMonolithic \"%s\" error: %s\n",
 			 coverage, err_msg);
 		sqlite3_free (err_msg);
-		*retcode += -11;
+		*retcode += -15;
 		return 0;
 	    }
       }

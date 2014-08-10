@@ -298,33 +298,20 @@ rl2_destroy_tiff_origin (rl2TiffOriginPtr tiff)
 }
 
 static void
-origin_set_tfw_path (const char *path, rl2PrivTiffOriginPtr origin)
+origin_set_tfw_path (const char *path, const char *suffix,
+		     rl2PrivTiffOriginPtr origin)
 {
 /* building the TFW path (WorldFile) */
-    char *tfw;
-    const char *x = NULL;
-    const char *p = path;
-    int len = strlen (path);
-    len -= 1;
-    while (*p != '\0')
-      {
-	  if (*p == '.')
-	      x = p;
-	  p++;
-      }
-    if (x > path)
-	len = x - path;
-    tfw = malloc (len + 5);
-    memcpy (tfw, path, len);
-    memcpy (tfw + len, ".tfw", 4);
-    *(tfw + len + 4) = '\0';
-    origin->tfw_path = tfw;
+    if (origin->tfw_path != NULL)
+	free (origin->tfw_path);
+    origin->tfw_path = NULL;
+    origin->tfw_path = rl2_build_worldfile_path (path, suffix);
 }
 
 static int
 is_valid_float (char *str)
 {
-/* testing for a valid worlodfile float value */
+/* testing for a valid worldfile float value */
     char *p = str;
     int point = 0;
     int sign = 0;
@@ -467,8 +454,20 @@ worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int srid)
     double x;
     double y;
 
-    origin_set_tfw_path (path, origin);
+    origin_set_tfw_path (path, ".tfw", origin);
     tfw = fopen (origin->tfw_path, "r");
+    if (tfw == NULL)
+      {
+	  /* trying the ".tifw" suffix */
+	  origin_set_tfw_path (path, ".tifw", origin);
+	  tfw = fopen (origin->tfw_path, "r");
+      }
+    if (tfw == NULL)
+      {
+	  /* trying the ".wld" suffix */
+	  origin_set_tfw_path (path, ".wld", origin);
+	  tfw = fopen (origin->tfw_path, "r");
+      }
     if (tfw == NULL)
 	goto error;
     if (!parse_worldfile (tfw, &x, &y, &res_x, &res_y))
@@ -491,6 +490,56 @@ worldfile_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int srid)
 }
 
 static void
+recover_incomplete_geotiff (rl2PrivTiffOriginPtr origin, TIFF * in,
+			    uint32 width, uint32 height, int force_srid)
+{
+/* final desperate attempt to recover an imcomplete GeoTIFF */
+    double *tie_points;
+    double *scale;
+    uint16 count;
+    double res_x = DBL_MAX;
+    double res_y = DBL_MAX;
+    double x = DBL_MAX;
+    double y = DBL_MAX;
+
+
+    if (force_srid <= 0)
+	return;
+
+    if (TIFFGetField (in, TIFFTAG_GEOPIXELSCALE, &count, &scale))
+      {
+	  if (count >= 2 && scale[0] != 0.0 && scale[1] != 0.0)
+	    {
+		res_x = scale[0];
+		res_y = scale[1];
+	    }
+      }
+    if (TIFFGetField (in, TIFFTAG_GEOTIEPOINTS, &count, &tie_points))
+      {
+	  int i;
+	  int max_count = count / 6;
+	  for (i = 0; i < max_count; i++)
+	    {
+		x = tie_points[i * 6 + 3];
+		y = tie_points[i * 6 + 4];
+	    }
+      }
+    if (x == DBL_MAX || y == DBL_MAX || res_x == DBL_MAX || res_y == DBL_MAX)
+	return;
+
+/* computing the pixel resolution */
+    origin->Srid = force_srid;
+    origin->minX = x;
+    origin->maxX = x + ((double) width * res_x);
+    origin->minY = y - ((double) height * res_y);
+    origin->maxY = y;
+    origin->hResolution = (origin->maxX - origin->minX) / (double) width;
+    origin->vResolution = (origin->maxY - origin->minY) / (double) height;
+    origin->isGeoReferenced = 1;
+    origin->isGeoTiff = 1;
+}
+
+static void
 geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
 {
 /* attempting to retrieve georeferencing from a GeoTIFF origin */
@@ -501,6 +550,7 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
     GTIFDefn definition;
     char *pString;
     int len;
+    int basic = 0;
     TIFF *in = (TIFF *) 0;
     GTIF *gtif = (GTIF *) 0;
 
@@ -515,6 +565,12 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
     gtif = GTIFNew (in);
     if (gtif == NULL)
 	goto error;
+
+/* retrieving the TIFF dimensions */
+    TIFFGetField (in, TIFFTAG_IMAGELENGTH, &height);
+    TIFFGetField (in, TIFFTAG_IMAGEWIDTH, &width);
+    basic = 1;
+
 
     if (!GTIFGetDefn (gtif, &definition))
 	goto error;
@@ -568,10 +624,6 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
 	  CPLFree (pString);
       }
 
-/* retrieving the TIFF dimensions */
-    TIFFGetField (in, TIFFTAG_IMAGELENGTH, &height);
-    TIFFGetField (in, TIFFTAG_IMAGEWIDTH, &width);
-
 /* computing the corners coords */
     cx = 0.0;
     cy = 0.0;
@@ -594,6 +646,8 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
     origin->isGeoTiff = 1;
 
   error:
+    if (basic && origin->isGeoTiff == 0)
+	recover_incomplete_geotiff (origin, in, width, height, force_srid);
     if (in != (TIFF *) 0)
 	XTIFFClose (in);
     if (gtif != (GTIF *) 0)
@@ -2037,7 +2091,7 @@ rl2_get_tiff_origin_compression (rl2TiffOriginPtr tiff,
 
 RL2_DECLARE int
 rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
-				    int force_srid)
+				    int force_srid, int verbose)
 {
 /* testing if a Coverage and a TIFF origin are mutually compatible */
     unsigned char sample_type;
@@ -2067,11 +2121,23 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	pixel_type = RL2_PIXEL_DATAGRID;
 
     if (coverage->sampleType != sample_type)
-	return RL2_FALSE;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching SampleType !!!\n");
+	  return RL2_FALSE;
+      }
     if (coverage->pixelType != pixel_type)
-	return RL2_FALSE;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching PixelType !!!\n");
+	  return RL2_FALSE;
+      }
     if (coverage->nBands != num_bands)
-	return RL2_FALSE;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching Number of Bands !!!\n");
+	  return RL2_FALSE;
+      }
 
     if (coverage->Srid == RL2_GEOREFERENCING_NONE)
 	return RL2_TRUE;
@@ -2084,10 +2150,18 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	  if (force_srid > 0)
 	    {
 		if (coverage->Srid != force_srid)
-		    return RL2_FALSE;
+		  {
+		      if (verbose)
+			  fprintf (stderr, "Mismatching SRID !!!\n");
+		      return RL2_FALSE;
+		  }
 	    }
 	  else
-	      return RL2_FALSE;
+	    {
+		if (verbose)
+		    fprintf (stderr, "Mismatching SRID !!!\n");
+		return RL2_FALSE;
+	    }
       }
     if (rl2_get_tiff_origin_resolution (tiff, &hResolution, &vResolution) !=
 	RL2_OK)
@@ -2095,11 +2169,19 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     confidence = coverage->hResolution / 100.0;
     if (hResolution < (coverage->hResolution - confidence)
 	|| hResolution > (coverage->hResolution + confidence))
-	return RL2_FALSE;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching Horizontal Resolution !!!\n");
+	  return RL2_FALSE;
+      }
     confidence = coverage->vResolution / 100.0;
     if (vResolution < (coverage->vResolution - confidence)
 	|| vResolution > (coverage->vResolution + confidence))
-	return RL2_FALSE;
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching Vertical Resolution !!!\n");
+	  return RL2_FALSE;
+      }
     return RL2_TRUE;
 }
 
@@ -4181,7 +4263,7 @@ build_remap (rl2PrivTiffOriginPtr origin)
 RL2_DECLARE rl2RasterPtr
 rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 			       unsigned int startRow, unsigned int startCol,
-			       int force_srid)
+			       int force_srid, int verbose)
 {
 /* attempting to create a Coverage-tile from a Tiff origin */
     unsigned int x;
@@ -4198,7 +4280,8 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 
     if (coverage == NULL || tiff == NULL)
 	return NULL;
-    if (rl2_eval_tiff_origin_compatibility (cvg, tiff, force_srid) != RL2_TRUE)
+    if (rl2_eval_tiff_origin_compatibility (cvg, tiff, force_srid, verbose) !=
+	RL2_TRUE)
 	return NULL;
 
 /* testing for tile's boundary validity */
@@ -7726,4 +7809,279 @@ rl2_raster_from_tiff (const unsigned char *blob, int blob_size)
     if (mask != NULL)
 	free (mask);
     return NULL;
+}
+
+RL2_DECLARE char *
+rl2_build_tiff_xml_summary (rl2TiffOriginPtr tiff)
+{
+/* attempting to build an XML Summary from a (geo)TIFF */
+    char *xml;
+    char *prev;
+    int len;
+    rl2PrivTiffOriginPtr org = (rl2PrivTiffOriginPtr) tiff;
+    if (org == NULL)
+	return NULL;
+
+    xml = sqlite3_mprintf ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<ImportedRaster>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->isGeoTiff)
+	xml = sqlite3_mprintf ("%s<RasterFormat>GeoTIFF</RasterFormat>", prev);
+    else if (org->isGeoReferenced)
+	xml =
+	    sqlite3_mprintf ("%s<RasterFormat>TIFF+WorldFile</RasterFormat>",
+			     prev);
+    else
+	xml = sqlite3_mprintf ("%s<RasterFormat>TIFF</RasterFormat>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<RasterWidth>%u</RasterWidth>", prev, org->width);
+    sqlite3_free (prev);
+    prev = xml;
+    xml =
+	sqlite3_mprintf ("%s<RasterHeight>%u</RasterHeight>", prev,
+			 org->height);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->isTiled)
+      {
+	  xml =
+	      sqlite3_mprintf ("%s<TileWidth>%u</TileWidth>", prev,
+			       org->tileWidth);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf ("%s<TileHeight>%u</TileHeight>", prev,
+			       org->tileHeight);
+	  sqlite3_free (prev);
+	  prev = xml;
+      }
+    else
+      {
+	  xml =
+	      sqlite3_mprintf ("%s<RowsPerStrip>%u</RowsPerStrip>", prev,
+			       org->rowsPerStrip);
+	  sqlite3_free (prev);
+	  prev = xml;
+      }
+    xml =
+	sqlite3_mprintf ("%s<BitsPerSample>%u</BitsPerSample>", prev,
+			 org->bitsPerSample);
+    sqlite3_free (prev);
+    prev = xml;
+    xml =
+	sqlite3_mprintf ("%s<SamplesPerPixel>%u</SamplesPerPixel>", prev,
+			 org->samplesPerPixel);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->photometric == PHOTOMETRIC_MINISBLACK)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>min-is-black</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_MINISWHITE)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>min-is-white</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_RGB)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>RGB</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_PALETTE)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>Palette</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_MASK)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>Mask</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_SEPARATED)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>Separated (CMYC)</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_YCBCR)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>YCbCr</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_CIELAB)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>CIE L*a*b*</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_ICCLAB)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>alternate CIE L*a*b*</PhotometricInterpretation>",
+	     prev);
+    else if (org->photometric == PHOTOMETRIC_ITULAB)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>ITU L*a*b</PhotometricInterpretation>",
+	     prev);
+    else
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PhotometricInterpretation>%u</PhotometricInterpretation>",
+	     prev, org->photometric);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->compression == COMPRESSION_NONE)
+	xml = sqlite3_mprintf ("%s<Compression>none</Compression>", prev);
+    else if (org->compression == COMPRESSION_CCITTRLE)
+	xml = sqlite3_mprintf ("%s<Compression>CCITT RLE</Compression>", prev);
+    else if (org->compression == COMPRESSION_CCITTFAX3)
+	xml = sqlite3_mprintf ("%s<Compression>CCITT Fax3</Compression>", prev);
+    else if (org->compression == COMPRESSION_CCITTFAX4)
+	xml = sqlite3_mprintf ("%s<Compression>CCITT Fax4</Compression>", prev);
+    else if (org->compression == COMPRESSION_LZW)
+	xml = sqlite3_mprintf ("%s<Compression>LZW</Compression>", prev);
+    else if (org->compression == COMPRESSION_OJPEG)
+	xml = sqlite3_mprintf ("%s<Compression>old JPEG</Compression>", prev);
+    else if (org->compression == COMPRESSION_JPEG)
+	xml = sqlite3_mprintf ("%s<Compression>JPEG</Compression>", prev);
+    else if (org->compression == COMPRESSION_DEFLATE)
+	xml = sqlite3_mprintf ("%s<Compression>DEFLATE</Compression>", prev);
+    else if (org->compression == COMPRESSION_ADOBE_DEFLATE)
+	xml =
+	    sqlite3_mprintf ("%s<Compression>Adobe DEFLATE</Compression>",
+			     prev);
+    else if (org->compression == COMPRESSION_JBIG)
+	xml = sqlite3_mprintf ("%s<Compression>JBIG</Compression>", prev);
+    else if (org->compression == COMPRESSION_JP2000)
+	xml = sqlite3_mprintf ("%s<Compression>JPEG 2000</Compression>", prev);
+    else
+	xml =
+	    sqlite3_mprintf ("%s<Compression>%u</Compression>", prev,
+			     org->compression);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->sampleFormat == SAMPLEFORMAT_UINT)
+	xml =
+	    sqlite3_mprintf ("%s<SampleFormat>unsigned integer</SampleFormat>",
+			     prev);
+    else if (org->sampleFormat == SAMPLEFORMAT_INT)
+	xml =
+	    sqlite3_mprintf ("%s<SampleFormat>signed integer</SampleFormat>",
+			     prev);
+    else if (org->sampleFormat == SAMPLEFORMAT_IEEEFP)
+	xml =
+	    sqlite3_mprintf ("%s<SampleFormat>floating point</SampleFormat>",
+			     prev);
+    else
+	xml =
+	    sqlite3_mprintf ("%s<SampleFormat>%u</SampleFormat>", prev,
+			     org->sampleFormat);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->sampleFormat == PLANARCONFIG_SEPARATE)
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PlanarConfiguration>separate Raster planes</PlanarConfiguratio>",
+	     prev);
+    else
+	xml =
+	    sqlite3_mprintf
+	    ("%s<PlanarConfiguration>single Raster plane</PlanarConfiguration>",
+	     prev);
+    sqlite3_free (prev);
+    prev = xml;
+    xml = sqlite3_mprintf ("%s<NoDataPixel>unknown</NoDataPixel>", prev);
+    sqlite3_free (prev);
+    prev = xml;
+    if (org->isGeoReferenced)
+      {
+	  xml = sqlite3_mprintf ("%s<GeoReferencing>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<SpatialReferenceSystem>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<SRID>%d</SRID>", prev, org->Srid);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  if (org->srsName != NULL)
+	      xml =
+		  sqlite3_mprintf ("%s<RefSysName>%s</RefSysName>", prev,
+				   org->srsName);
+	  else
+	      xml =
+		  sqlite3_mprintf ("%s<RefSysName>undeclared</RefSysName>",
+				   prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</SpatialReferenceSystem>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<SpatialResolution>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf
+	      ("%s<HorizontalResolution>%1.10f</HorizontalResolution>", prev,
+	       org->hResolution);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf
+	      ("%s<VerticalResolution>%1.10f</VerticalResolution>", prev,
+	       org->vResolution);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</SpatialResolution>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<BoundingBox>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MinX>%1.10f</MinX>", prev, org->minX);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MinY>%1.10f</MinY>", prev, org->minY);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MaxX>%1.10f</MaxX>", prev, org->maxX);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<MaxY>%1.10f</MaxY>", prev, org->maxY);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</BoundingBox>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s<Extent>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf ("%s<HorizontalExtent>%1.10f</HorizontalExtent>",
+			       prev, org->maxX - org->minX);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml =
+	      sqlite3_mprintf ("%s<VerticalExtent>%1.10f</VerticalExtent>",
+			       prev, org->maxY - org->minY);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</Extent>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+	  xml = sqlite3_mprintf ("%s</GeoReferencing>", prev);
+	  sqlite3_free (prev);
+	  prev = xml;
+      }
+    xml = sqlite3_mprintf ("%s</ImportedRaster>", prev);
+    sqlite3_free (prev);
+    len = strlen (xml);
+    prev = xml;
+    xml = malloc (len + 1);
+    strcpy (xml, prev);
+    sqlite3_free (prev);
+    return xml;
 }

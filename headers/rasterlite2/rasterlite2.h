@@ -452,7 +452,7 @@ extern "C"
 		RL2_PIXEL_RGB, RL2_PIXEL_MULTIBAND, RL2_PIXEL_DATAGRID.
  \param num_samples number of samples per pixel (aka Bands)
  
- \return the pointer to newly created Coverage Object: NULL on failure.
+ \return the pointer to newly created Pixel Object: NULL on failure.
  
  \sa rl2_destroy_pixel, rl2_compare_pixels, rl2_get_pixel_type, 
 		rl2_get_pixel_sample_1bit,
@@ -1101,6 +1101,49 @@ extern "C"
     RL2_DECLARE int
 	rl2_coverage_georeference (rl2CoveragePtr cvg, int srid,
 				   double horz_res, double vert_res);
+
+/**
+ Gets the Policies from a Coverage Object
+
+ \param cvg pointer to the Coverage Object.
+ \param strict_resolution on completion the BOOLEAN variable referenced
+  by this pointer will contain the StrictResolution flag.
+ \param mixed_resolutions on completion the BOOLEAN variable referenced
+  by this pointer will contain the MixedResolutions flag.
+ \param section_paths on completion the BOOLEAN variable referenced
+  by this pointer will contain the SectionPaths flag.
+ \param section_md5 on completion the BOOLEAN variable referenced
+  by this pointer will contain the SectionMD5 flag.
+ \param section_summary on completion the BOOLEAN variable referenced
+  by this pointer will contain the SectionSummary flag.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_coverage, rl2_set_coverage_policies
+ */
+    RL2_DECLARE int
+	rl2_get_coverage_policies (rl2CoveragePtr cvg, int *stric_resolution,
+				   int *mixed_resolutions, int *section_paths,
+				   int *section_md5, int *section_summary);
+
+/**
+ Sets the Policies for a Coverage Object
+
+ \param cvg pointer to the Coverage Object.
+ \param strict_resolution the StrictResolution BOOLEAN flag.
+ \param mixed_resolutions the MixedResolutions BOOLEAN flag.
+ \param section_paths the SectionPaths BOOLEAN flag.
+ \param section_md5 the SectionMD5 BOOLEAN flag.
+ \param section_summary the SectionSummary BOOLEAN flag.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_coverage, rl2_get_coverage_policies
+ */
+    RL2_DECLARE int
+	rl2_set_coverage_policies (rl2CoveragePtr cvg, int stric_resolution,
+				   int mixed_resolutions, int section_paths,
+				   int section_md5, int section_summary);
 
 /**
  Retrieving the Name from a Coverage Object
@@ -2905,6 +2948,17 @@ extern "C"
 				 unsigned char out_pixel);
 
     RL2_DECLARE int
+	rl2_get_section_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+					 sqlite3_int64 section_id,
+					 unsigned int width,
+					 unsigned int height, double minx,
+					 double miny, double maxx, double maxy,
+					 double x_res, double y_res,
+					 unsigned char **buffer, int *buf_size,
+					 rl2PalettePtr * palette,
+					 unsigned char out_pixel);
+
+    RL2_DECLARE int
 	rl2_get_triple_band_raw_raster_data (sqlite3 * handle,
 					     rl2CoveragePtr cvg,
 					     unsigned int width,
@@ -2954,7 +3008,10 @@ extern "C"
 				  unsigned int tile_width,
 				  unsigned int tile_height, int srid,
 				  double x_res, double y_res,
-				  rl2PixelPtr no_data, rl2PalettePtr palette);
+				  rl2PixelPtr no_data, rl2PalettePtr palette,
+				  int strict_resolution, int mixed_resolutions,
+				  int section_paths, int section_md5,
+				  int section_summary);
 
     RL2_DECLARE int
 	rl2_delete_dbms_section (sqlite3 * handle, const char *coverage,
@@ -2963,7 +3020,17 @@ extern "C"
     RL2_DECLARE int
 	rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
 				 const char *section,
-				 sqlite3_int64 * section_id);
+				 sqlite3_int64 * section_id, int *duplicate);
+
+    RL2_DECLARE int
+	rl2_resolve_full_section_from_dbms (sqlite3 * handle,
+					    const char *coverage,
+					    sqlite3_int64 section_id,
+					    double x_res, double y_res,
+					    double *minx, double *miny,
+					    double *maxx, double *maxy,
+					    unsigned int *width,
+					    unsigned int *height);
 
     RL2_DECLARE int
 	rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage);
@@ -3020,7 +3087,8 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_eval_ascii_grid_origin_compatibility (rl2CoveragePtr cvg,
-						  rl2AsciiGridOriginPtr ascii);
+						  rl2AsciiGridOriginPtr ascii,
+						  int verbose);
 
     RL2_DECLARE const char
 	*rl2_get_ascii_grid_origin_path (rl2AsciiGridOriginPtr ascii);
@@ -3054,11 +3122,14 @@ extern "C"
 					 double *hResolution,
 					 double *vResolution);
 
+    RL2_DECLARE char *rl2_build_ascii_xml_summary (rl2AsciiGridOriginPtr ascii);
+
     RL2_DECLARE rl2RasterPtr
 	rl2_get_tile_from_ascii_grid_origin (rl2CoveragePtr cvg,
 					     rl2AsciiGridOriginPtr ascii,
 					     unsigned int startRow,
-					     unsigned int startCol);
+					     unsigned int startCol,
+					     int verbose);
 
     RL2_DECLARE rl2AsciiGridDestinationPtr
 	rl2_create_ascii_grid_destination (const char *path,
@@ -3106,18 +3177,28 @@ extern "C"
 	rl2_get_tile_from_jpeg_origin (rl2CoveragePtr cvg, rl2RasterPtr rst,
 				       unsigned int startRow,
 				       unsigned int startCol,
-				       unsigned char forced_conversion);
+				       unsigned char forced_conversion,
+				       int verbose);
+
+    RL2_DECLARE char *rl2_build_jpeg_xml_summary (unsigned int width,
+						  unsigned int height,
+						  unsigned char pixel_type,
+						  int is_georeferenced,
+						  double res_x, double res_y,
+						  double minx, double miny,
+						  double maxx, double maxy);
 
     RL2_DECLARE int
 	rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
 				   rl2CoveragePtr coverage, int worldfile,
-				   int force_srid, int pyramidize);
+				   int force_srid, int pyramidize, int verbose);
 
     RL2_DECLARE int
 	rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
 				     const char *file_ext,
 				     rl2CoveragePtr coverage, int worldfile,
-				     int force_srid, int pyramidize);
+				     int force_srid, int pyramidize,
+				     int verbose);
 
     RL2_DECLARE int
 	rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
@@ -3128,6 +3209,20 @@ extern "C"
 				      unsigned int height,
 				      unsigned char compression,
 				      unsigned int tile_sz, int with_worldfile);
+
+    RL2_DECLARE int
+	rl2_export_section_geotiff_from_dbms (sqlite3 * handle,
+					      const char *dst_path,
+					      rl2CoveragePtr coverage,
+					      sqlite3_int64 section_id,
+					      double x_res, double y_res,
+					      double minx, double miny,
+					      double maxx, double maxy,
+					      unsigned int width,
+					      unsigned int height,
+					      unsigned char compression,
+					      unsigned int tile_sz,
+					      int with_worldfile);
 
     RL2_DECLARE int
 	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle,
@@ -3150,6 +3245,32 @@ extern "C"
 				   unsigned int height,
 				   unsigned char compression,
 				   unsigned int tile_sz);
+
+    RL2_DECLARE int
+	rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle,
+						     const char *dst_path,
+						     rl2CoveragePtr coverage,
+						     sqlite3_int64 section_id,
+						     double x_res, double y_res,
+						     double minx, double miny,
+						     double maxx, double maxy,
+						     unsigned int width,
+						     unsigned int height,
+						     unsigned char compression,
+						     unsigned int tile_sz);
+
+    RL2_DECLARE int
+	rl2_export_section_tiff_from_dbms (sqlite3 * handle,
+					   const char *dst_path,
+					   rl2CoveragePtr coverage,
+					   sqlite3_int64 section_id,
+					   double x_res, double y_res,
+					   double minx, double miny,
+					   double maxx, double maxy,
+					   unsigned int width,
+					   unsigned int height,
+					   unsigned char compression,
+					   unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
@@ -3262,6 +3383,19 @@ extern "C"
 					 int decimal_digits);
 
     RL2_DECLARE int
+	rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle,
+						 const char *dst_path,
+						 rl2CoveragePtr coverage,
+						 sqlite3_int64 section_id,
+						 double res, double minx,
+						 double miny, double maxx,
+						 double maxy,
+						 unsigned int width,
+						 unsigned int height,
+						 int is_centered,
+						 int decimal_digits);
+
+    RL2_DECLARE int
 	rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
 				   rl2CoveragePtr coverage, double x_res,
 				   double y_res, double minx, double miny,
@@ -3270,8 +3404,21 @@ extern "C"
 				   int quality, int with_worldfile);
 
     RL2_DECLARE int
+	rl2_export_section_jpeg_from_dbms (sqlite3 * handle,
+					   const char *dst_path,
+					   rl2CoveragePtr coverage,
+					   sqlite3_int64 section_id,
+					   double x_res, double y_res,
+					   double minx, double miny,
+					   double maxx, double maxy,
+					   unsigned int width,
+					   unsigned int height, int quality,
+					   int with_worldfile);
+
+    RL2_DECLARE int
 	rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
-				   const char *section, int forced_rebuild);
+				   sqlite3_int64 section_id,
+				   int forced_rebuild);
 
     RL2_DECLARE int
 	rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
@@ -3283,7 +3430,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_delete_section_pyramid (sqlite3 * handle, const char *coverage,
-				    const char *section);
+				    sqlite3_int64 section_id);
 
     RL2_DECLARE int
 	rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage);
@@ -3706,6 +3853,9 @@ extern "C"
 							       style);
 
     RL2_DECLARE void rl2_destroy_group_renderer (rl2GroupRendererPtr group);
+
+    RL2_DECLARE char *rl2_build_worldfile_path (const char *path,
+						const char *suffix);
 
 #ifdef __cplusplus
 }

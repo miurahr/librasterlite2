@@ -559,16 +559,16 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* testing some DBMS Coverage */
     int ret;
     char *err_msg = NULL;
-    const char *coverage;
-    const char *sample_name;
-    const char *pixel_name;
-    unsigned char num_bands;
-    const char *compression_name;
+    const char *coverage = NULL;
+    const char *sample_name = NULL;
+    const char *pixel_name = NULL;
+    unsigned char num_bands = 1;
+    const char *compression_name = NULL;
     const char *indir;
     const char *reload;
-    int qlty;
+    int qlty = 100;
     char *sql;
-    int tile_size;
+    int tile_size = 256;
     gaiaGeomCollPtr geom;
 
     if (!type)
@@ -920,7 +920,7 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 /* dropping some DBMS Coverage */
     int ret;
     char *err_msg = NULL;
-    const char *coverage;
+    const char *coverage = NULL;
     char *sql;
 
 /* setting the coverage name */

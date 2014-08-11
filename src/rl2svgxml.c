@@ -469,8 +469,8 @@ svg_parse_path_d (rl2PrivSvgPathPtr path, const char *value)
     double first_y = DBL_MAX;
     double last_x = DBL_MAX;
     double last_y = DBL_MAX;
-    double bezier_reflect_x;
-    double bezier_reflect_y;
+    double bezier_reflect_x = DBL_MAX;
+    double bezier_reflect_y = DBL_MAX;
     double x;
     double y;
     double x1;

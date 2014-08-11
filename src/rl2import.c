@@ -670,7 +670,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 		      int total)
 {
 /* importing a JPEG image file [with optional WorldFile */
-    rl2SectionPtr origin;
+    rl2SectionPtr origin = NULL;
     rl2RasterPtr rst_in;
     rl2PrivRasterPtr raster_in;
     rl2RasterPtr raster = NULL;
@@ -2036,7 +2036,7 @@ export_geotiff_common (sqlite3 * handle, const char *dst_path,
 		       unsigned char compression, unsigned int tile_sz,
 		       int with_worldfile)
 {
-/* exporting a GeoTIFF from the DBMS into the file-system */
+/* exporting a GeoTIFF common implementation */
     rl2RasterPtr raster = NULL;
     rl2PalettePtr palette = NULL;
     rl2PalettePtr plt2 = NULL;
@@ -2230,7 +2230,7 @@ rl2_export_section_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 				      unsigned char compression,
 				      unsigned int tile_sz, int with_worldfile)
 {
-/* exporting a GeoTIFF from the DBMS into the file-system - Section*/
+/* exporting a GeoTIFF - Section*/
     return export_geotiff_common (handle, dst_path, cvg, 1, section_id, x_res,
 				  y_res, minx, miny, maxx, maxy, width, height,
 				  compression, tile_sz, with_worldfile);
@@ -2245,7 +2245,7 @@ export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
 			     unsigned int height, unsigned char compression,
 			     unsigned int tile_sz)
 {
-/* exporting a TIFF+TFW from the DBMS into the file-system */
+/* exporting a TIFF+TFW common implementation */
     rl2RasterPtr raster = NULL;
     rl2PalettePtr palette = NULL;
     rl2PalettePtr plt2 = NULL;
@@ -2441,7 +2441,7 @@ rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle,
 					     unsigned char compression,
 					     unsigned int tile_sz)
 {
-/* exporting a TIFF+TFW from the DBMS into the file-system / single Section */
+/* exporting a TIFF+TFW - single Section */
     return export_tiff_worlfile_common (handle, dst_path, cvg, 1, section_id,
 					x_res, y_res, minx, miny, maxx, maxy,
 					width, height, compression, tile_sz);
@@ -2455,7 +2455,7 @@ export_tiff_common (sqlite3 * handle, const char *dst_path,
 		    unsigned int width, unsigned int height,
 		    unsigned char compression, unsigned int tile_sz)
 {
-/* exporting a plain TIFF from the DBMS into the file-system */
+/* exporting a plain TIFF common implementation */
     rl2RasterPtr raster = NULL;
     rl2PalettePtr palette = NULL;
     rl2PalettePtr plt2 = NULL;
@@ -2641,28 +2641,26 @@ rl2_export_section_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 				   unsigned char compression,
 				   unsigned int tile_sz)
 {
-/* exporting a plain TIFF from the DBMS into the file-system - single Section*/
+/* exporting a plain TIFF - single Section*/
     return export_tiff_common (handle, dst_path, cvg, 1, section_id, x_res,
 			       y_res, minx, miny, maxx, maxy, width, height,
 			       compression, tile_sz);
 }
 
-RL2_DECLARE int
-rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
-					  const char *dst_path,
-					  rl2CoveragePtr cvg, double x_res,
-					  double y_res, double minx,
-					  double miny, double maxx,
-					  double maxy, unsigned int width,
-					  unsigned int height,
-					  unsigned char red_band,
-					  unsigned char green_band,
-					  unsigned char blue_band,
-					  unsigned char compression,
-					  unsigned int tile_sz,
-					  int with_worldfile)
+static int
+export_triple_band_geotiff_common (int by_section, sqlite3 * handle,
+				   const char *dst_path,
+				   rl2CoveragePtr cvg, sqlite3_int64 section_id,
+				   double x_res, double y_res, double minx,
+				   double miny, double maxx, double maxy,
+				   unsigned int width, unsigned int height,
+				   unsigned char red_band,
+				   unsigned char green_band,
+				   unsigned char blue_band,
+				   unsigned char compression,
+				   unsigned int tile_sz, int with_worldfile)
 {
-/* exporting a Band-Composed GeoTIFF from the DBMS into the file-system */
+/* exporting a Band-Composed GeoTIFF - common implementation */
     rl2RasterPtr raster = NULL;
     rl2TiffDestinationPtr tiff = NULL;
     rl2PixelPtr no_data_multi = NULL;
@@ -2710,11 +2708,24 @@ rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
 	rl2_create_triple_band_pixel (no_data_multi, red_band, green_band,
 				      blue_band);
 
-    if (rl2_get_triple_band_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
-	 no_data) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_triple_band_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, red_band, green_band, blue_band, &outbuf,
+	       &outbuf_size, no_data) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_triple_band_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
+	       no_data) != RL2_OK)
+	      goto error;
+      }
 
     tiff =
 	rl2_create_geotiff_destination (dst_path, handle, width, height,
@@ -2787,19 +2798,67 @@ rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_mono_band_geotiff_from_dbms (sqlite3 * handle,
-					const char *dst_path,
-					rl2CoveragePtr cvg, double x_res,
-					double y_res, double minx,
-					double miny, double maxx,
-					double maxy, unsigned int width,
-					unsigned int height,
-					unsigned char mono_band,
-					unsigned char compression,
-					unsigned int tile_sz,
-					int with_worldfile)
+rl2_export_triple_band_geotiff_from_dbms (sqlite3 * handle,
+					  const char *dst_path,
+					  rl2CoveragePtr cvg, double x_res,
+					  double y_res, double minx,
+					  double miny, double maxx,
+					  double maxy, unsigned int width,
+					  unsigned int height,
+					  unsigned char red_band,
+					  unsigned char green_band,
+					  unsigned char blue_band,
+					  unsigned char compression,
+					  unsigned int tile_sz,
+					  int with_worldfile)
 {
-/* exporting a Mono-Band GeoTIFF from the DBMS into the file-system */
+/* exporting a Band-Composed GeoTIFF from the DBMS into the file-system */
+    return export_triple_band_geotiff_common (0, handle, dst_path, cvg, 0,
+					      x_res, y_res, minx, miny, maxx,
+					      maxy, width, height, red_band,
+					      green_band, blue_band,
+					      compression, tile_sz,
+					      with_worldfile);
+}
+
+RL2_DECLARE int
+rl2_export_section_triple_band_geotiff_from_dbms (sqlite3 * handle,
+						  const char *dst_path,
+						  rl2CoveragePtr cvg,
+						  sqlite3_int64 section_id,
+						  double x_res, double y_res,
+						  double minx, double miny,
+						  double maxx, double maxy,
+						  unsigned int width,
+						  unsigned int height,
+						  unsigned char red_band,
+						  unsigned char green_band,
+						  unsigned char blue_band,
+						  unsigned char compression,
+						  unsigned int tile_sz,
+						  int with_worldfile)
+{
+/* exporting a Band-Composed GeoTIFF - Section */
+    return export_triple_band_geotiff_common (1, handle, dst_path, cvg,
+					      section_id, x_res, y_res, minx,
+					      miny, maxx, maxy, width, height,
+					      red_band, green_band, blue_band,
+					      compression, tile_sz,
+					      with_worldfile);
+}
+
+static int
+export_mono_band_geotiff_common (int by_section, sqlite3 * handle,
+				 const char *dst_path,
+				 rl2CoveragePtr cvg, sqlite3_int64 section_id,
+				 double x_res, double y_res, double minx,
+				 double miny, double maxx, double maxy,
+				 unsigned int width, unsigned int height,
+				 unsigned char mono_band,
+				 unsigned char compression,
+				 unsigned int tile_sz, int with_worldfile)
+{
+/* exporting a Mono-Band GeoTIFF common implementation */
     rl2RasterPtr raster = NULL;
     rl2TiffDestinationPtr tiff = NULL;
     rl2PixelPtr no_data_mono = NULL;
@@ -2842,10 +2901,23 @@ rl2_export_mono_band_geotiff_from_dbms (sqlite3 * handle,
     no_data_mono = rl2_get_coverage_no_data (cvg);
     no_data = rl2_create_mono_band_pixel (no_data_mono, mono_band);
 
-    if (rl2_get_mono_band_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_mono_band_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, mono_band, &outbuf, &outbuf_size,
+	       no_data) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_mono_band_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
+	      goto error;
+      }
 
     if (sample_type == RL2_SAMPLE_UINT16)
 	out_pixel = RL2_PIXEL_DATAGRID;
@@ -2923,21 +2995,65 @@ rl2_export_mono_band_geotiff_from_dbms (sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
-						 const char *dst_path,
-						 rl2CoveragePtr cvg,
-						 double x_res, double y_res,
-						 double minx, double miny,
-						 double maxx, double maxy,
-						 unsigned int width,
-						 unsigned int height,
-						 unsigned char red_band,
-						 unsigned char green_band,
-						 unsigned char blue_band,
-						 unsigned char compression,
-						 unsigned int tile_sz)
+rl2_export_mono_band_geotiff_from_dbms (sqlite3 * handle,
+					const char *dst_path,
+					rl2CoveragePtr cvg, double x_res,
+					double y_res, double minx,
+					double miny, double maxx,
+					double maxy, unsigned int width,
+					unsigned int height,
+					unsigned char mono_band,
+					unsigned char compression,
+					unsigned int tile_sz,
+					int with_worldfile)
 {
-/* exporting a Band-Composed TIFF+TFW from the DBMS into the file-system */
+/* exporting a Mono-Band GeoTIFF from the DBMS into the file-system */
+    return export_mono_band_geotiff_common (0, handle, dst_path, cvg, 0, x_res,
+					    y_res, minx, miny, maxx, maxy,
+					    width, height, mono_band,
+					    compression, tile_sz,
+					    with_worldfile);
+}
+
+RL2_DECLARE int
+rl2_export_section_mono_band_geotiff_from_dbms (sqlite3 * handle,
+						const char *dst_path,
+						rl2CoveragePtr cvg,
+						sqlite3_int64 section_id,
+						double x_res, double y_res,
+						double minx, double miny,
+						double maxx, double maxy,
+						unsigned int width,
+						unsigned int height,
+						unsigned char mono_band,
+						unsigned char compression,
+						unsigned int tile_sz,
+						int with_worldfile)
+{
+/* exporting a Mono-Band GeoTIFF - Section */
+    return export_mono_band_geotiff_common (1, handle, dst_path, cvg,
+					    section_id, x_res, y_res, minx,
+					    miny, maxx, maxy, width, height,
+					    mono_band, compression, tile_sz,
+					    with_worldfile);
+}
+
+static int
+export_triple_band_tiff_worldfile_common (int by_section, sqlite3 * handle,
+					  const char *dst_path,
+					  rl2CoveragePtr cvg,
+					  sqlite3_int64 section_id,
+					  double x_res, double y_res,
+					  double minx, double miny, double maxx,
+					  double maxy, unsigned int width,
+					  unsigned int height,
+					  unsigned char red_band,
+					  unsigned char green_band,
+					  unsigned char blue_band,
+					  unsigned char compression,
+					  unsigned int tile_sz)
+{
+/* exporting a Band-Composed TIFF+TFW common implementation */
     rl2RasterPtr raster = NULL;
     rl2PixelPtr no_data_multi = NULL;
     rl2PixelPtr no_data = NULL;
@@ -2985,11 +3101,24 @@ rl2_export_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
 	rl2_create_triple_band_pixel (no_data_multi, red_band, green_band,
 				      blue_band);
 
-    if (rl2_get_triple_band_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
-	 no_data) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_triple_band_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, red_band, green_band, blue_band, &outbuf,
+	       &outbuf_size, no_data) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_triple_band_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
+	       no_data) != RL2_OK)
+	      goto error;
+      }
 
     tiff =
 	rl2_create_tiff_worldfile_destination (dst_path, width, height,
@@ -3059,19 +3188,74 @@ rl2_export_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
-					       const char *dst_path,
-					       rl2CoveragePtr cvg,
-					       double x_res, double y_res,
-					       double minx, double miny,
-					       double maxx, double maxy,
-					       unsigned int width,
-					       unsigned int height,
-					       unsigned char mono_band,
-					       unsigned char compression,
-					       unsigned int tile_sz)
+rl2_export_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+						 const char *dst_path,
+						 rl2CoveragePtr cvg,
+						 double x_res, double y_res,
+						 double minx, double miny,
+						 double maxx, double maxy,
+						 unsigned int width,
+						 unsigned int height,
+						 unsigned char red_band,
+						 unsigned char green_band,
+						 unsigned char blue_band,
+						 unsigned char compression,
+						 unsigned int tile_sz)
 {
-/* exporting a Mono-Band TIFF+TFW from the DBMS into the file-system */
+/* exporting a Band-Composed TIFF+TFW from the DBMS into the file-system */
+    return export_triple_band_tiff_worldfile_common (0, handle, dst_path, cvg,
+						     0, x_res, y_res, minx,
+						     miny, maxx, maxy, width,
+						     height, red_band,
+						     green_band, blue_band,
+						     compression, tile_sz);
+}
+
+RL2_DECLARE int
+rl2_export_section_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+							 const char *dst_path,
+							 rl2CoveragePtr cvg,
+							 sqlite3_int64
+							 section_id,
+							 double x_res,
+							 double y_res,
+							 double minx,
+							 double miny,
+							 double maxx,
+							 double maxy,
+							 unsigned int width,
+							 unsigned int height,
+							 unsigned char red_band,
+							 unsigned char
+							 green_band,
+							 unsigned char
+							 blue_band,
+							 unsigned char
+							 compression,
+							 unsigned int tile_sz)
+{
+/* exporting a Band-Composed TIFF+TFW - Sction */
+    return export_triple_band_tiff_worldfile_common (1, handle, dst_path, cvg,
+						     section_id, x_res, y_res,
+						     minx, miny, maxx, maxy,
+						     width, height, red_band,
+						     green_band, blue_band,
+						     compression, tile_sz);
+}
+
+static int
+export_mono_band_tiff_worldfile_common (int by_section, sqlite3 * handle,
+					const char *dst_path,
+					rl2CoveragePtr cvg,
+					sqlite3_int64 section_id, double x_res,
+					double y_res, double minx, double miny,
+					double maxx, double maxy,
+					unsigned int width, unsigned int height,
+					unsigned char mono_band,
+					unsigned char compression,
+					unsigned int tile_sz)
+{
+/* exporting a Mono-Band TIFF+TFW - common implementation */
     rl2RasterPtr raster = NULL;
     rl2PixelPtr no_data_multi = NULL;
     rl2PixelPtr no_data = NULL;
@@ -3114,10 +3298,23 @@ rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
     no_data_multi = rl2_get_coverage_no_data (cvg);
     no_data = rl2_create_mono_band_pixel (no_data_multi, mono_band);
 
-    if (rl2_get_mono_band_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_mono_band_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, mono_band, &outbuf, &outbuf_size,
+	       no_data) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_mono_band_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
+	      goto error;
+      }
 
     if (sample_type == RL2_SAMPLE_UINT16)
 	out_pixel = RL2_PIXEL_DATAGRID;
@@ -3192,19 +3389,62 @@ rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-				       rl2CoveragePtr cvg, double x_res,
-				       double y_res, double minx, double miny,
-				       double maxx, double maxy,
-				       unsigned int width,
-				       unsigned int height,
-				       unsigned char red_band,
-				       unsigned char green_band,
-				       unsigned char blue_band,
-				       unsigned char compression,
-				       unsigned int tile_sz)
+rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+					       const char *dst_path,
+					       rl2CoveragePtr cvg,
+					       double x_res, double y_res,
+					       double minx, double miny,
+					       double maxx, double maxy,
+					       unsigned int width,
+					       unsigned int height,
+					       unsigned char mono_band,
+					       unsigned char compression,
+					       unsigned int tile_sz)
 {
-/* exporting a plain Band-Composed TIFF from the DBMS into the file-system */
+/* exporting a Mono-Band TIFF+TFW from the DBMS into the file-system */
+    return export_mono_band_tiff_worldfile_common (0, handle, dst_path, cvg, 0,
+						   x_res, y_res, minx, miny,
+						   maxx, maxy, width, height,
+						   mono_band, compression,
+						   tile_sz);
+}
+
+RL2_DECLARE int
+rl2_export_section_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+						       const char *dst_path,
+						       rl2CoveragePtr cvg,
+						       sqlite3_int64 section_id,
+						       double x_res,
+						       double y_res,
+						       double minx, double miny,
+						       double maxx, double maxy,
+						       unsigned int width,
+						       unsigned int height,
+						       unsigned char mono_band,
+						       unsigned char
+						       compression,
+						       unsigned int tile_sz)
+{
+/* exporting a Mono-Band TIFF+TFW - Section */
+    return export_mono_band_tiff_worldfile_common (1, handle, dst_path, cvg,
+						   section_id, x_res, y_res,
+						   minx, miny, maxx, maxy,
+						   width, height, mono_band,
+						   compression, tile_sz);
+}
+
+static int
+export_triple_band_tiff_common (int by_section, sqlite3 * handle,
+				const char *dst_path, rl2CoveragePtr cvg,
+				sqlite3_int64 section_id, double x_res,
+				double y_res, double minx, double miny,
+				double maxx, double maxy, unsigned int width,
+				unsigned int height, unsigned char red_band,
+				unsigned char green_band,
+				unsigned char blue_band,
+				unsigned char compression, unsigned int tile_sz)
+{
+/* exporting a plain Band-Composed TIFF common implementation */
     rl2RasterPtr raster = NULL;
     rl2PixelPtr no_data_multi = NULL;
     rl2PixelPtr no_data = NULL;
@@ -3252,11 +3492,24 @@ rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 	rl2_create_triple_band_pixel (no_data_multi, red_band, green_band,
 				      blue_band);
 
-    if (rl2_get_triple_band_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
-	 no_data) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_triple_band_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, red_band, green_band, blue_band, &outbuf,
+	       &outbuf_size, no_data) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_triple_band_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, red_band, green_band, blue_band, &outbuf, &outbuf_size,
+	       no_data) != RL2_OK)
+	      goto error;
+      }
 
     tiff =
 	rl2_create_tiff_destination (dst_path, width, height, sample_type,
@@ -3320,17 +3573,58 @@ rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-				     rl2CoveragePtr cvg, double x_res,
-				     double y_res, double minx, double miny,
-				     double maxx, double maxy,
-				     unsigned int width,
-				     unsigned int height,
-				     unsigned char mono_band,
-				     unsigned char compression,
-				     unsigned int tile_sz)
+rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				       rl2CoveragePtr cvg, double x_res,
+				       double y_res, double minx, double miny,
+				       double maxx, double maxy,
+				       unsigned int width,
+				       unsigned int height,
+				       unsigned char red_band,
+				       unsigned char green_band,
+				       unsigned char blue_band,
+				       unsigned char compression,
+				       unsigned int tile_sz)
 {
-/* exporting a plain Mono-Band TIFF from the DBMS into the file-system */
+/* exporting a plain Band-Composed TIFF from the DBMS into the file-system */
+    return export_triple_band_tiff_common (0, handle, dst_path, cvg, 0, x_res,
+					   y_res, minx, miny, maxx, maxy, width,
+					   height, red_band, green_band,
+					   blue_band, compression, tile_sz);
+}
+
+RL2_DECLARE int
+rl2_export_section_triple_band_tiff_from_dbms (sqlite3 * handle,
+					       const char *dst_path,
+					       rl2CoveragePtr cvg,
+					       sqlite3_int64 section_id,
+					       double x_res, double y_res,
+					       double minx, double miny,
+					       double maxx, double maxy,
+					       unsigned int width,
+					       unsigned int height,
+					       unsigned char red_band,
+					       unsigned char green_band,
+					       unsigned char blue_band,
+					       unsigned char compression,
+					       unsigned int tile_sz)
+{
+/* exporting a plain Band-Composed TIFF - Section */
+    return export_triple_band_tiff_common (1, handle, dst_path, cvg, section_id,
+					   x_res, y_res, minx, miny, maxx, maxy,
+					   width, height, red_band, green_band,
+					   blue_band, compression, tile_sz);
+}
+
+static int
+export_mono_band_tiff_common (int by_section, sqlite3 * handle,
+			      const char *dst_path, rl2CoveragePtr cvg,
+			      sqlite3_int64 section_id, double x_res,
+			      double y_res, double minx, double miny,
+			      double maxx, double maxy, unsigned int width,
+			      unsigned int height, unsigned char mono_band,
+			      unsigned char compression, unsigned int tile_sz)
+{
+/* exporting a plain Mono-Band TIFF - common implementation */
     rl2RasterPtr raster = NULL;
     rl2PixelPtr no_data_multi = NULL;
     rl2PixelPtr no_data = NULL;
@@ -3373,10 +3667,23 @@ rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
     no_data_multi = rl2_get_coverage_no_data (cvg);
     no_data = rl2_create_mono_band_pixel (no_data_multi, mono_band);
 
-    if (rl2_get_mono_band_raw_raster_data
-	(handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	 yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
-	goto error;
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_mono_band_raw_raster_data
+	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, mono_band, &outbuf, &outbuf_size,
+	       no_data) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_mono_band_raw_raster_data
+	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
+	       yy_res, mono_band, &outbuf, &outbuf_size, no_data) != RL2_OK)
+	      goto error;
+      }
 
     if (sample_type == RL2_SAMPLE_UINT16)
 	out_pixel = RL2_PIXEL_DATAGRID;
@@ -3444,6 +3751,45 @@ rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
     return RL2_ERROR;
 }
 
+RL2_DECLARE int
+rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+				     rl2CoveragePtr cvg, double x_res,
+				     double y_res, double minx, double miny,
+				     double maxx, double maxy,
+				     unsigned int width,
+				     unsigned int height,
+				     unsigned char mono_band,
+				     unsigned char compression,
+				     unsigned int tile_sz)
+{
+/* exporting a plain Mono-Band TIFF from the DBMS into the file-system */
+    return export_mono_band_tiff_common (0, handle, dst_path, cvg, 0, x_res,
+					 y_res, minx, miny, maxx, maxy, width,
+					 height, mono_band, compression,
+					 tile_sz);
+}
+
+RL2_DECLARE int
+rl2_export_section_mono_band_tiff_from_dbms (sqlite3 * handle,
+					     const char *dst_path,
+					     rl2CoveragePtr cvg,
+					     sqlite3_int64 section_id,
+					     double x_res, double y_res,
+					     double minx, double miny,
+					     double maxx, double maxy,
+					     unsigned int width,
+					     unsigned int height,
+					     unsigned char mono_band,
+					     unsigned char compression,
+					     unsigned int tile_sz)
+{
+/* exporting a plain Mono-Band TIFF from the DBMS - Section */
+    return export_mono_band_tiff_common (1, handle, dst_path, cvg, section_id,
+					 x_res, y_res, minx, miny, maxx, maxy,
+					 width, height, mono_band, compression,
+					 tile_sz);
+}
+
 static int
 export_ascii_grid_common (int by_section, sqlite3 * handle,
 			  const char *dst_path, rl2CoveragePtr cvg,
@@ -3452,7 +3798,7 @@ export_ascii_grid_common (int by_section, sqlite3 * handle,
 			  unsigned int width, unsigned int height,
 			  int is_centered, int decimal_digits)
 {
-/* exporting an ASCII Grid from the DBMS into the file-system */
+/* exporting an ASCII Grid common implementation */
     rl2PalettePtr palette = NULL;
     rl2AsciiGridDestinationPtr ascii = NULL;
     rl2PixelPtr pixel;
@@ -3619,7 +3965,7 @@ rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
 					 unsigned int height, int is_centered,
 					 int decimal_digits)
 {
-/* exporting an ASCII Grid from the DBMS- Section */
+/* exporting an ASCII Grid - Section */
     return export_ascii_grid_common (1, handle, dst_path, cvg, section_id, res,
 				     minx, miny, maxx, maxy, width, height,
 				     is_centered, decimal_digits);
@@ -3739,7 +4085,7 @@ rl2_export_section_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
 				   unsigned int width, unsigned int height,
 				   int quality, int with_worldfile)
 {
-/* exporting a JPEG (with possible JGW) from the DBMS - Section */
+/* exporting a JPEG (with possible JGW) - Section */
     return export_jpeg_common (1, handle, dst_path, cvg, section_id, x_res,
 			       y_res, minx, miny, maxx, maxy, width, height,
 			       quality, with_worldfile);

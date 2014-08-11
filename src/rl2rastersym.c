@@ -2531,8 +2531,8 @@ compute_stretching (rl2PrivBandStatisticsPtr band, double *min, double *max,
     double sum = 0.0;
     double percentile_2;
     double percentile_98;
-    double vmin;
-    double vmax;
+    double vmin = DBL_MAX;
+    double vmax = 0.0 - DBL_MAX;
     double range;
 
     for (i = 0; i < band->nHistogram; i++)

@@ -132,6 +132,89 @@ EXTRA_DIST = loadraster1.testcase \
 	writebandtiff25.testcase \
 	writebandtiff26.testcase \
 	writebandtiff27.testcase \
+	writebandtifftfw1.testcase \
+	writebandtifftfw2.testcase \
+	writebandtifftfw3.testcase \
+	writebandtifftfw4.testcase \
+	writebandtifftfw5.testcase \
+	writebandtifftfw6.testcase \
+	writebandtifftfw7.testcase \
+	writebandtifftfw8.testcase \
+	writebandtifftfw9.testcase \
+	writebandtifftfw10.testcase \
+	writebandtifftfw11.testcase \
+	writebandtifftfw12.testcase \
+	writebandtifftfw13.testcase \
+	writebandtifftfw14.testcase \
+	writebandtifftfw15.testcase \
+	writebandtifftfw16.testcase \
+	writebandtifftfw17.testcase \
+	writebandtifftfw18.testcase \
+	writebandtifftfw19.testcase \
+	writebandtifftfw20.testcase \
+	writebandtifftfw21.testcase \
+	writebandtifftfw22.testcase \
+	writebandtifftfw23.testcase \
+	writebandtifftfw24.testcase \
+	writebandtifftfw25.testcase \
+	writebandtifftfw26.testcase \
+	writebandtifftfw27.testcase \
+	writesectionbandtiff1.testcase \
+	writesectionbandtiff2.testcase \
+	writesectionbandtiff3.testcase \
+	writesectionbandtiff4.testcase \
+	writesectionbandtiff5.testcase \
+	writesectionbandtiff6.testcase \
+	writesectionbandtiff7.testcase \
+	writesectionbandtiff8.testcase \
+	writesectionbandtiff9.testcase \
+	writesectionbandtiff10.testcase \
+	writesectionbandtiff11.testcase \
+	writesectionbandtiff12.testcase \
+	writesectionbandtiff13.testcase \
+	writesectionbandtiff14.testcase \
+	writesectionbandtiff15.testcase \
+	writesectionbandtiff16.testcase \
+	writesectionbandtiff17.testcase \
+	writesectionbandtiff18.testcase \
+	writesectionbandtiff19.testcase \
+	writesectionbandtiff20.testcase \
+	writesectionbandtiff21.testcase \
+	writesectionbandtiff22.testcase \
+	writesectionbandtiff23.testcase \
+	writesectionbandtiff24.testcase \
+	writesectionbandtiff25.testcase \
+	writesectionbandtiff26.testcase \
+	writesectionbandtiff27.testcase \
+	writesectionbandtiff28.testcase \
+	writesectionbandtifftfw1.testcase \
+	writesectionbandtifftfw2.testcase \
+	writesectionbandtifftfw3.testcase \
+	writesectionbandtifftfw4.testcase \
+	writesectionbandtifftfw5.testcase \
+	writesectionbandtifftfw6.testcase \
+	writesectionbandtifftfw7.testcase \
+	writesectionbandtifftfw8.testcase \
+	writesectionbandtifftfw9.testcase \
+	writesectionbandtifftfw10.testcase \
+	writesectionbandtifftfw11.testcase \
+	writesectionbandtifftfw12.testcase \
+	writesectionbandtifftfw13.testcase \
+	writesectionbandtifftfw14.testcase \
+	writesectionbandtifftfw15.testcase \
+	writesectionbandtifftfw16.testcase \
+	writesectionbandtifftfw17.testcase \
+	writesectionbandtifftfw18.testcase \
+	writesectionbandtifftfw19.testcase \
+	writesectionbandtifftfw20.testcase \
+	writesectionbandtifftfw21.testcase \
+	writesectionbandtifftfw22.testcase \
+	writesectionbandtifftfw23.testcase \
+	writesectionbandtifftfw24.testcase \
+	writesectionbandtifftfw25.testcase \
+	writesectionbandtifftfw26.testcase \
+	writesectionbandtifftfw27.testcase \
+	writesectionbandtifftfw28.testcase \
 	writebandgeotiff1.testcase \
 	writebandgeotiff2.testcase \
 	writebandgeotiff3.testcase \
@@ -160,6 +243,35 @@ EXTRA_DIST = loadraster1.testcase \
 	writebandgeotiff26.testcase \
 	writebandgeotiff27.testcase \
 	writebandgeotiff28.testcase \
+	writesectionbandgeotiff1.testcase \
+	writesectionbandgeotiff2.testcase \
+	writesectionbandgeotiff3.testcase \
+	writesectionbandgeotiff4.testcase \
+	writesectionbandgeotiff5.testcase \
+	writesectionbandgeotiff6.testcase \
+	writesectionbandgeotiff7.testcase \
+	writesectionbandgeotiff8.testcase \
+	writesectionbandgeotiff9.testcase \
+	writesectionbandgeotiff10.testcase \
+	writesectionbandgeotiff11.testcase \
+	writesectionbandgeotiff12.testcase \
+	writesectionbandgeotiff13.testcase \
+	writesectionbandgeotiff14.testcase \
+	writesectionbandgeotiff15.testcase \
+	writesectionbandgeotiff16.testcase \
+	writesectionbandgeotiff17.testcase \
+	writesectionbandgeotiff18.testcase \
+	writesectionbandgeotiff19.testcase \
+	writesectionbandgeotiff20.testcase \
+	writesectionbandgeotiff21.testcase \
+	writesectionbandgeotiff22.testcase \
+	writesectionbandgeotiff23.testcase \
+	writesectionbandgeotiff24.testcase \
+	writesectionbandgeotiff25.testcase \
+	writesectionbandgeotiff26.testcase \
+	writesectionbandgeotiff27.testcase \
+	writesectionbandgeotiff28.testcase \
+	writesectionbandgeotiff29.testcase \
 	writemonotiff1.testcase \
 	writemonotiff2.testcase \
 	writemonotiff3.testcase \
@@ -181,6 +293,71 @@ EXTRA_DIST = loadraster1.testcase \
 	writemonotiff19.testcase \
 	writemonotiff20.testcase \
 	writemonotiff21.testcase \
+	writemonotifftfw1.testcase \
+	writemonotifftfw2.testcase \
+	writemonotifftfw3.testcase \
+	writemonotifftfw4.testcase \
+	writemonotifftfw5.testcase \
+	writemonotifftfw6.testcase \
+	writemonotifftfw7.testcase \
+	writemonotifftfw8.testcase \
+	writemonotifftfw9.testcase \
+	writemonotifftfw10.testcase \
+	writemonotifftfw11.testcase \
+	writemonotifftfw12.testcase \
+	writemonotifftfw13.testcase \
+	writemonotifftfw14.testcase \
+	writemonotifftfw15.testcase \
+	writemonotifftfw16.testcase \
+	writemonotifftfw17.testcase \
+	writemonotifftfw18.testcase \
+	writemonotifftfw19.testcase \
+	writemonotifftfw20.testcase \
+	writemonotifftfw21.testcase \
+	writesectionmonotiff1.testcase \
+	writesectionmonotiff2.testcase \
+	writesectionmonotiff3.testcase \
+	writesectionmonotiff4.testcase \
+	writesectionmonotiff5.testcase \
+	writesectionmonotiff6.testcase \
+	writesectionmonotiff7.testcase \
+	writesectionmonotiff8.testcase \
+	writesectionmonotiff9.testcase \
+	writesectionmonotiff10.testcase \
+	writesectionmonotiff11.testcase \
+	writesectionmonotiff12.testcase \
+	writesectionmonotiff13.testcase \
+	writesectionmonotiff14.testcase \
+	writesectionmonotiff15.testcase \
+	writesectionmonotiff16.testcase \
+	writesectionmonotiff17.testcase \
+	writesectionmonotiff18.testcase \
+	writesectionmonotiff19.testcase \
+	writesectionmonotiff20.testcase \
+	writesectionmonotiff21.testcase \
+	writesectionmonotiff22.testcase \
+	writesectionmonotifftfw1.testcase \
+	writesectionmonotifftfw2.testcase \
+	writesectionmonotifftfw3.testcase \
+	writesectionmonotifftfw4.testcase \
+	writesectionmonotifftfw5.testcase \
+	writesectionmonotifftfw6.testcase \
+	writesectionmonotifftfw7.testcase \
+	writesectionmonotifftfw8.testcase \
+	writesectionmonotifftfw9.testcase \
+	writesectionmonotifftfw10.testcase \
+	writesectionmonotifftfw11.testcase \
+	writesectionmonotifftfw12.testcase \
+	writesectionmonotifftfw13.testcase \
+	writesectionmonotifftfw14.testcase \
+	writesectionmonotifftfw15.testcase \
+	writesectionmonotifftfw16.testcase \
+	writesectionmonotifftfw17.testcase \
+	writesectionmonotifftfw18.testcase \
+	writesectionmonotifftfw19.testcase \
+	writesectionmonotifftfw20.testcase \
+	writesectionmonotifftfw21.testcase \
+	writesectionmonotifftfw22.testcase \
 	writemonogeotiff1.testcase \
 	writemonogeotiff2.testcase \
 	writemonogeotiff3.testcase \
@@ -203,6 +380,29 @@ EXTRA_DIST = loadraster1.testcase \
 	writemonogeotiff20.testcase \
 	writemonogeotiff21.testcase \
 	writemonogeotiff22.testcase \
+	writesectionmonogeotiff1.testcase \
+	writesectionmonogeotiff2.testcase \
+	writesectionmonogeotiff3.testcase \
+	writesectionmonogeotiff4.testcase \
+	writesectionmonogeotiff5.testcase \
+	writesectionmonogeotiff6.testcase \
+	writesectionmonogeotiff7.testcase \
+	writesectionmonogeotiff8.testcase \
+	writesectionmonogeotiff9.testcase \
+	writesectionmonogeotiff10.testcase \
+	writesectionmonogeotiff11.testcase \
+	writesectionmonogeotiff12.testcase \
+	writesectionmonogeotiff13.testcase \
+	writesectionmonogeotiff14.testcase \
+	writesectionmonogeotiff15.testcase \
+	writesectionmonogeotiff16.testcase \
+	writesectionmonogeotiff17.testcase \
+	writesectionmonogeotiff18.testcase \
+	writesectionmonogeotiff19.testcase \
+	writesectionmonogeotiff20.testcase \
+	writesectionmonogeotiff21.testcase \
+	writesectionmonogeotiff22.testcase \
+	writesectionmonogeotiff23.testcase \
 	writegeotiff1.testcase \
 	writegeotiff2.testcase \
 	writegeotiff3.testcase \

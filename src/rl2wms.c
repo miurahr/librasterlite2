@@ -4278,7 +4278,7 @@ parse_tile_service_info (xmlNodePtr node, wmsCapabilitiesPtr cap)
 	    {
 		int len;
 		xmlNodePtr child_node;
-		const char *value;
+		const char *value = NULL;
 		if (strcmp ((const char *) (cur_node->name), "Name") == 0)
 		  {
 		      if (cap->TileServiceName != NULL)

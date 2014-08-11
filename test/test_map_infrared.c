@@ -707,6 +707,364 @@ do_export_mono_band_tiff_tfw (sqlite3 * sqlite, const char *coverage,
 }
 
 static int
+do_export_section_triple_geotiff (sqlite3 * sqlite, const char *coverage,
+				  gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a Section TripleBand GeoTiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    unsigned char red_band = 0;
+    unsigned char green_band = 1;
+    unsigned char blue_band = 2;
+
+    path = sqlite3_mprintf ("./%s_sect1_triple_gt_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql =
+	"SELECT RL2_WriteSectionTripleBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, red_band);
+    sqlite3_bind_int (stmt, 7, green_band);
+    sqlite3_bind_int (stmt, 8, blue_band);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 9, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 10, xx_res);
+    sqlite3_bind_double (stmt, 11, yy_res);
+    sqlite3_bind_int (stmt, 12, 0);
+    sqlite3_bind_text (stmt, 13, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_section_triple_tiff (sqlite3 * sqlite, const char *coverage,
+			       gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a Section TripleBand Tiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    unsigned char red_band = 0;
+    unsigned char green_band = 1;
+    unsigned char blue_band = 2;
+
+    path = sqlite3_mprintf ("./%s_sect1_triple_tif_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql =
+	"SELECT RL2_WriteSectionTripleBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, red_band);
+    sqlite3_bind_int (stmt, 7, green_band);
+    sqlite3_bind_int (stmt, 8, blue_band);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 9, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 10, xx_res);
+    sqlite3_bind_double (stmt, 11, yy_res);
+    sqlite3_bind_text (stmt, 12, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_section_triple_tiff_tfw (sqlite3 * sqlite, const char *coverage,
+				   gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a Section TripleBand TiffTfw */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    unsigned char red_band = 0;
+    unsigned char green_band = 1;
+    unsigned char blue_band = 2;
+
+    path = sqlite3_mprintf ("./%s_sect1_triple_tfw_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql =
+	"SELECT RL2_WriteSectionTripleBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, red_band);
+    sqlite3_bind_int (stmt, 7, green_band);
+    sqlite3_bind_int (stmt, 8, blue_band);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 9, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 10, xx_res);
+    sqlite3_bind_double (stmt, 11, yy_res);
+    sqlite3_bind_text (stmt, 12, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    path = sqlite3_mprintf ("./%s_sect1_triple_tfw_%d.tfw", coverage, scale);
+    unlink (path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_section_mono_geotiff (sqlite3 * sqlite, const char *coverage,
+				gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a Section MonoBand GeoTiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+
+    path = sqlite3_mprintf ("./%s_sect1_mono_gt_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql =
+	"SELECT RL2_WriteSectionMonoBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, 0);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 7, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 8, xx_res);
+    sqlite3_bind_double (stmt, 9, yy_res);
+    sqlite3_bind_int (stmt, 10, 0);
+    sqlite3_bind_text (stmt, 11, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_section_mono_tiff (sqlite3 * sqlite, const char *coverage,
+			     gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a Section MonoBand Tiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+
+    path = sqlite3_mprintf ("./%s_sect1_mono_tif_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql = "SELECT RL2_WriteSectionMonoBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, 0);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 7, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 8, xx_res);
+    sqlite3_bind_double (stmt, 9, yy_res);
+    sqlite3_bind_text (stmt, 10, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
+do_export_section_mono_tiff_tfw (sqlite3 * sqlite, const char *coverage,
+				 gaiaGeomCollPtr geom, int scale)
+{
+/* exporting a Section MonoBand Tiff */
+    char *sql;
+    char *path;
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+
+    path = sqlite3_mprintf ("./%s_sect1_mono_tfw_%d.tif", coverage, scale);
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+
+    sql =
+	"SELECT RL2_WriteSectionMonoBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, 0);
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 7, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 8, xx_res);
+    sqlite3_bind_double (stmt, 9, yy_res);
+    sqlite3_bind_text (stmt, 10, "NONE", 4, SQLITE_TRANSIENT);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    sqlite3_free (path);
+    path = sqlite3_mprintf ("./%s_sect1_mono_tfw_%d.tfw", coverage, scale);
+    unlink (path);
+    sqlite3_free (path);
+    return retcode;
+}
+
+static int
 do_export_map_image (sqlite3 * sqlite, const char *coverage,
 		     gaiaGeomCollPtr geom, const char *style,
 		     const char *suffix, int monolithic)
@@ -808,13 +1166,13 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 /* testing some DBMS Coverage */
     int ret;
     char *err_msg = NULL;
-    const char *coverage;
-    const char *sample_name;
-    const char *pixel_name;
-    unsigned char num_bands;
-    const char *compression_name;
-    int qlty;
-    int tile_size;
+    const char *coverage = NULL;
+    const char *sample_name = NULL;
+    const char *pixel_name = NULL;
+    unsigned char num_bands = 1;
+    const char *compression_name = NULL;
+    int qlty = 100;
+    int tile_size = 256;
     char *sql;
     gaiaGeomCollPtr geom;
     int test_map_image = 0;
@@ -1421,6 +1779,144 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  gaiaFreeGeomColl (geom);
       }
 
+    if (strcmp (coverage, "infrared_zip_1024") == 0)
+      {
+	  /* testing Band Composed Section */
+	  geom = get_center_point (sqlite, coverage);
+	  if (geom == NULL)
+	    {
+		*retcode += -75;
+		return 0;
+	    }
+	  /* GeoTiff TripleBand */
+	  if (!do_export_section_triple_geotiff (sqlite, coverage, geom, 1))
+	    {
+		*retcode += -76;
+		return 0;
+	    }
+	  if (!do_export_section_triple_geotiff (sqlite, coverage, geom, 2))
+	    {
+		*retcode += -77;
+		return 0;
+	    }
+	  if (!do_export_section_triple_geotiff (sqlite, coverage, geom, 4))
+	    {
+		*retcode += -78;
+		return 0;
+	    }
+	  if (!do_export_section_triple_geotiff (sqlite, coverage, geom, 8))
+	    {
+		*retcode += -79;
+		return 0;
+	    }
+	  /* Tiff TripleBand */
+	  if (!do_export_section_triple_tiff (sqlite, coverage, geom, 1))
+	    {
+		*retcode += -80;
+		return 0;
+	    }
+	  if (!do_export_section_triple_tiff (sqlite, coverage, geom, 2))
+	    {
+		*retcode += -81;
+		return 0;
+	    }
+	  if (!do_export_section_triple_tiff (sqlite, coverage, geom, 4))
+	    {
+		*retcode += -82;
+		return 0;
+	    }
+	  if (!do_export_section_triple_tiff (sqlite, coverage, geom, 8))
+	    {
+		*retcode += -83;
+		return 0;
+	    }
+	  /* TiffTfw TripleBand */
+	  if (!do_export_section_triple_tiff_tfw (sqlite, coverage, geom, 1))
+	    {
+		*retcode += -84;
+		return 0;
+	    }
+	  if (!do_export_section_triple_tiff_tfw (sqlite, coverage, geom, 2))
+	    {
+		*retcode += -85;
+		return 0;
+	    }
+	  if (!do_export_section_triple_tiff_tfw (sqlite, coverage, geom, 4))
+	    {
+		*retcode += -86;
+		return 0;
+	    }
+	  if (!do_export_section_triple_tiff_tfw (sqlite, coverage, geom, 8))
+	    {
+		*retcode += -87;
+		return 0;
+	    }
+	  /* GeoTiff MonoBand */
+	  if (!do_export_section_mono_geotiff (sqlite, coverage, geom, 1))
+	    {
+		*retcode += -88;
+		return 0;
+	    }
+	  if (!do_export_section_mono_geotiff (sqlite, coverage, geom, 2))
+	    {
+		*retcode += -89;
+		return 0;
+	    }
+	  if (!do_export_section_mono_geotiff (sqlite, coverage, geom, 4))
+	    {
+		*retcode += -90;
+		return 0;
+	    }
+	  if (!do_export_section_mono_geotiff (sqlite, coverage, geom, 8))
+	    {
+		*retcode += -91;
+		return 0;
+	    }
+	  /* Tiff MonoBand */
+	  if (!do_export_section_mono_tiff (sqlite, coverage, geom, 1))
+	    {
+		*retcode += -92;
+		return 0;
+	    }
+	  if (!do_export_section_mono_tiff (sqlite, coverage, geom, 2))
+	    {
+		*retcode += -93;
+		return 0;
+	    }
+	  if (!do_export_section_mono_tiff (sqlite, coverage, geom, 4))
+	    {
+		*retcode += -94;
+		return 0;
+	    }
+	  if (!do_export_section_mono_tiff (sqlite, coverage, geom, 8))
+	    {
+		*retcode += -95;
+		return 0;
+	    }
+	  /* TiffTfw MonoBand */
+	  if (!do_export_section_mono_tiff_tfw (sqlite, coverage, geom, 1))
+	    {
+		*retcode += -97;
+		return 0;
+	    }
+	  if (!do_export_section_mono_tiff_tfw (sqlite, coverage, geom, 2))
+	    {
+		*retcode += -98;
+		return 0;
+	    }
+	  if (!do_export_section_mono_tiff_tfw (sqlite, coverage, geom, 4))
+	    {
+		*retcode += -99;
+		return 0;
+	    }
+	  if (!do_export_section_mono_tiff_tfw (sqlite, coverage, geom, 8))
+	    {
+		*retcode += -100;
+		return 0;
+	    }
+	  gaiaFreeGeomColl (geom);
+      }
+
     return 1;
 }
 
@@ -1431,7 +1927,7 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 /* dropping some DBMS Coverage */
     int ret;
     char *err_msg = NULL;
-    const char *coverage;
+    const char *coverage = NULL;
     char *sql;
 
 /* setting the coverage name */

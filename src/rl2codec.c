@@ -1819,7 +1819,7 @@ odd_even_rows (rl2PrivRasterPtr raster, int *odd_rows, int *row_stride_odd,
     int o_size;
     int e_size;
     unsigned int row;
-    int pix_size;
+    int pix_size = 1;
     int swap = 0;
     if (little_endian != endianArch ())
 	swap = 1;
@@ -1945,7 +1945,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     unsigned char *block_even = NULL;
     int block_even_size = 0;
     unsigned char *ptr;
-    int uncompressed;
+    int uncompressed = 0;
     int compressed;
     int uncompressed_mask = 0;
     int compressed_mask = 0;
@@ -4615,8 +4615,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     rl2PalettePtr palette2 = NULL;
     unsigned int width;
     unsigned int height;
-    unsigned short mask_width;
-    unsigned short mask_height;
+    unsigned short mask_width = 0;
+    unsigned short mask_height = 0;
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;

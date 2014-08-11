@@ -259,15 +259,15 @@ rl2_create_ascii_grid_origin (const char *path, int srid,
 {
 /* creating an ASCII Grid Origin */
     FILE *in;
-    unsigned int width;
-    unsigned int height;
-    double minx;
-    double miny;
-    double maxx;
-    double maxy;
-    double xres;
-    double yres;
-    double no_data;
+    unsigned int width = 0;
+    unsigned int height = 0;
+    double minx = 0.0;
+    double miny = 0.0;
+    double maxx = 0.0;
+    double maxy = 0.0;
+    double xres = 0.0;
+    double yres = 0.0;
+    double no_data = 0.0;
     char buf[1024];
     char *p_out = buf;
     unsigned int line_no = 0;
@@ -1325,15 +1325,15 @@ rl2_write_ascii_grid_scanline (rl2AsciiGridDestinationPtr ascii,
 			       unsigned int *line_no)
 {
 /* attempting to write a scanline into an ASCII Grid */
-    char *p8;
-    unsigned char *pu8;
-    short *p16;
-    unsigned short *pu16;
-    int *p32;
-    unsigned int *pu32;
-    float *pflt;
-    double *pdbl;
-    double cell_value;
+    char *p8 = NULL;
+    unsigned char *pu8 = NULL;
+    short *p16 = NULL;
+    unsigned short *pu16 = NULL;
+    int *p32 = NULL;
+    unsigned int *pu32 = NULL;
+    float *pflt = NULL;
+    double *pdbl = NULL;
+    double cell_value = 0.0;
     char *pxl;
     unsigned int x;
     rl2PrivAsciiDestinationPtr dst = (rl2PrivAsciiDestinationPtr) ascii;

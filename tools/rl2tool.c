@@ -2153,7 +2153,7 @@ spatialite_autocreate (sqlite3 * db)
     int ret;
     char sql[1024];
     char *err_msg = NULL;
-    int count;
+    int count = 0;
     int i;
     char **results;
     int rows;
@@ -3510,14 +3510,14 @@ parse_no_data (const char *in, unsigned char sample_type,
     const char *p;
     const char *start;
     const char *end;
-    char int8_value;
-    unsigned char uint8_value;
-    short int16_value;
-    unsigned short uint16_value;
-    int int32_value;
-    unsigned int uint32_value;
-    float flt_value;
-    double dbl_value;
+    char int8_value = 0;
+    unsigned char uint8_value = 0;
+    short int16_value = 0;
+    unsigned short uint16_value = 0;
+    int int32_value = 0;
+    unsigned int uint32_value = 0;
+    float flt_value = 0.0;
+    double dbl_value = 0.0;
     rl2PixelPtr pixel = NULL;
 
     switch (pixel_type)
@@ -4071,7 +4071,7 @@ main (int argc, char *argv[])
     const char *file_ext = ".tif";
     const char *coverage = NULL;
     const char *section = NULL;
-    sqlite3_int64 section_id;
+    sqlite3_int64 section_id = 0;
     int ok_section_id = 0;
     unsigned char sample = RL2_SAMPLE_UNKNOWN;
     unsigned char pixel = RL2_PIXEL_UNKNOWN;
@@ -4105,7 +4105,7 @@ main (int argc, char *argv[])
     int error = 0;
     int mode = ARG_NONE;
     void *cache;
-    void *cache_mem;
+    void *cache_mem = NULL;
     char *hist_path = NULL;
     int strict_resolution = 0;
     int mixed_resolutions = 0;

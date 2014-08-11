@@ -117,7 +117,7 @@ compress_palette_png (const unsigned char *pixels, unsigned int width,
 /* compressing a PNG image of the PALETTE type */
     png_structp png_ptr;
     png_infop info_ptr;
-    int bit_depth;
+    int bit_depth = 0;
     png_bytep *row_pointers = NULL;
     png_bytep p_out;
     unsigned int row;
@@ -683,7 +683,7 @@ rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
 		 unsigned char pixel_type, unsigned char **png, int *png_size)
 {
 /* encoding a PNG image */
-    int ret;
+    int ret = RL2_ERROR;
     unsigned char *blob;
     int blob_size;
 
@@ -797,7 +797,7 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
     struct png_memory_buffer membuf;
     unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
     unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
-    int nBands;
+    int nBands = 1;
     int i;
     png_colorp palette;
     int red[256];

@@ -607,6 +607,7 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
     p_in = rst->rasterBuffer;
     p_mask = rst->maskBuffer;
     p_out = buf;
+    p_alpha = NULL;
     for (row = 0; row < rst->height; row++)
       {
 	  for (col = 0; col < rst->width; col++)
@@ -673,7 +674,8 @@ rl2_raster_data_to_ARGB (rl2RasterPtr ptr, unsigned char **buffer,
 				(r, g, b, transpR, transpG, transpB))
 				a = 0;
 			}
-		      *p_alpha = a;
+		      if (p_alpha != NULL)
+			  *p_alpha = a;
 		  }
 	    }
       }
@@ -1579,9 +1581,9 @@ rl2_raster_bands_to_RGB (rl2RasterPtr ptr, int bandR, int bandG, int bandB,
       {
 	  for (col = 0; col < rst->width; col++)
 	    {
-		unsigned char red;
-		unsigned char green;
-		unsigned char blue;
+		unsigned char red = 0;
+		unsigned char green = 0;
+		unsigned char blue = 0;
 		for (nBand = 0; nBand < rst->nBands; nBand++)
 		  {
 		      if (nBand == bandR)

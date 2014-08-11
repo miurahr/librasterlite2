@@ -171,7 +171,7 @@ test_sql_palette (unsigned char *blob, int blob_size, unsigned char *blob2,
     const char *sql;
     sqlite3_stmt *stmt;
     unsigned char *blob3 = NULL;
-    int blob_size3;
+    int blob_size3 = 0;
     void *cache = spatialite_alloc_connection ();
 
 /* opening and initializing the "memory" test DB */

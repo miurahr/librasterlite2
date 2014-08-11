@@ -1634,7 +1634,7 @@ svg_resolve_gradients_xlink_href (rl2PrivSvgDocumentPtr svg_doc)
 {
 /* resolving any indirect reference: Gradient xlink:href */
     rl2PrivSvgGradientPtr grad = svg_doc->first_grad;
-    rl2PrivSvgGradientPtr ret;
+    rl2PrivSvgGradientPtr ret = NULL;
 
     while (grad)
       {

@@ -724,10 +724,10 @@ static int
 parse_sld_se_interpolation_point (xmlNodePtr node, rl2PrivRasterStylePtr style)
 {
 /* parsing RasterSymbolizer ColorMap InterpolationPoint */
-    double value;
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
+    double value = 0.0;
+    unsigned char red = 0;
+    unsigned char green = 0;
+    unsigned char blue = 0;
     int has_data = 0;
     int has_value = 0;
 
@@ -1864,7 +1864,7 @@ rl2_get_group_named_layer (rl2GroupStylePtr style, int index)
 {
 /* return the Nth NamedLayer from a Group Style */
     int cnt = 0;
-    const char *str;
+    const char *str = NULL;
     rl2PrivChildStylePtr child;
     rl2PrivGroupStylePtr stl = (rl2PrivGroupStylePtr) style;
     if (stl == NULL)
@@ -1900,7 +1900,7 @@ rl2_get_group_named_style (rl2GroupStylePtr style, int index)
 {
 /* return the Nth NamedStyle from a Group Style */
     int cnt = 0;
-    const char *str;
+    const char *str = NULL;
     rl2PrivChildStylePtr child;
     rl2PrivGroupStylePtr stl = (rl2PrivGroupStylePtr) style;
     if (stl == NULL)

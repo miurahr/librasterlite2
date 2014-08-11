@@ -4628,7 +4628,7 @@ do_one_grid_double_test (const unsigned char *rgb, sqlite3 * handle,
     rl2RasterPtr raster;
     int tile_size = 128;
     const char *tfw_path;
-    char *tfw;
+    char *tfw = NULL;
     unsigned char xsample_type;
     unsigned char xpixel_type;
     unsigned char alias_pixel_type;

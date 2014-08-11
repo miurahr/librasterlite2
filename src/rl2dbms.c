@@ -749,12 +749,36 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid,
     xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
     xxcoverage = gaiaDoubleQuotedSql (xcoverage);
     sqlite3_free (xcoverage);
-    xindex = sqlite3_mprintf ("idx_%s_tiles", coverage);
+    xindex = sqlite3_mprintf ("idx_%s_tiles_sect", coverage);
     xxindex = gaiaDoubleQuotedSql (xindex);
     sqlite3_free (xindex);
     sql =
-	sqlite3_mprintf ("CREATE INDEX \"%s\" ON \"%s\" (section_id)", xxindex,
-			 xxcoverage);
+	sqlite3_mprintf
+	("CREATE INDEX \"%s\" ON \"%s\" (section_id, pyramid_level)", xxindex,
+	 xxcoverage);
+    free (xxcoverage);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "CREATE INDEX \"%s\" error: %s\n", xxindex, sql_err);
+	  sqlite3_free (sql_err);
+	  free (xxindex);
+	  return 0;
+      }
+    free (xxindex);
+
+/* creating the TILES index by level */
+    xcoverage = sqlite3_mprintf ("%s_tiles", coverage);
+    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
+    sqlite3_free (xcoverage);
+    xindex = sqlite3_mprintf ("idx_%s_tiles_lev", coverage);
+    xxindex = gaiaDoubleQuotedSql (xindex);
+    sqlite3_free (xindex);
+    sql =
+	sqlite3_mprintf
+	("CREATE INDEX \"%s\" ON \"%s\" (pyramid_level, section_id)", xxindex,
+	 xxcoverage);
     free (xxcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -933,12 +957,12 @@ rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
     char *xtable;
     int count = 0;
     sqlite3_stmt *stmt = NULL;
-    double minx;
-    double miny;
-    double maxx;
-    double maxy;
-    int width;
-    int height;
+    double minx = 0.0;
+    double miny = 0.0;
+    double maxx = 0.0;
+    double maxy = 0.0;
+    int width = 0;
+    int height = 0;
 
     cvg = rl2_create_coverage_from_dbms (handle, coverage);
     if (cvg == NULL)
@@ -4027,17 +4051,18 @@ rl2_get_section_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 				       out_pixel, NULL, NULL, NULL);
 }
 
-RL2_DECLARE int
-rl2_get_triple_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-				     unsigned int width,
-				     unsigned int height, double minx,
-				     double miny, double maxx, double maxy,
-				     double x_res, double y_res,
-				     unsigned char red_band,
-				     unsigned char green_band,
-				     unsigned char blue_band,
-				     unsigned char **buffer, int *buf_size,
-				     rl2PixelPtr bgcolor)
+static int
+get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
+					rl2CoveragePtr cvg,
+					sqlite3_int64 section_id,
+					unsigned int width, unsigned int height,
+					double minx, double miny, double maxx,
+					double maxy, double x_res, double y_res,
+					unsigned char red_band,
+					unsigned char green_band,
+					unsigned char blue_band,
+					unsigned char **buffer, int *buf_size,
+					rl2PixelPtr bgcolor)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
@@ -4104,13 +4129,34 @@ rl2_get_triple_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = gaiaDoubleQuotedSql (xtiles);
-    sql =
-	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-			 "FROM \"%s\" "
-			 "WHERE pyramid_level = ? AND ROWID IN ( "
-			 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-			 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles,
-			 xtiles);
+    if (by_section)
+      {
+	  /* only from a single Section */
+	  char sctn[1024];
+#if defined(_WIN32) && !defined(__MINGW32__)
+	  sprintf (sctn, "%I64d", section_id);
+#else
+	  sprintf (sctn, "%lld", section_id);
+#endif
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" "
+	       "WHERE section_id = %s AND pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, sctn,
+	       xtiles);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+      }
     sqlite3_free (xtiles);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
@@ -4160,12 +4206,57 @@ rl2_get_triple_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
     return RL2_ERROR;
 }
 
+RL2_DECLARE int
+rl2_get_triple_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+				     unsigned int width,
+				     unsigned int height, double minx,
+				     double miny, double maxx, double maxy,
+				     double x_res, double y_res,
+				     unsigned char red_band,
+				     unsigned char green_band,
+				     unsigned char blue_band,
+				     unsigned char **buffer, int *buf_size,
+				     rl2PixelPtr bgcolor)
+{
+/* attempting to return a buffer containing raw pixels from the DBMS Coverage */
+    return get_triple_band_raw_raster_data_common (0, handle, cvg, 0, width,
+						   height, minx, miny, maxx,
+						   maxy, x_res, y_res, red_band,
+						   green_band, blue_band,
+						   buffer, buf_size, bgcolor);
+}
+
+RL2_DECLARE int
+rl2_get_section_triple_band_raw_raster_data (sqlite3 * handle,
+					     rl2CoveragePtr cvg,
+					     sqlite3_int64 section_id,
+					     unsigned int width,
+					     unsigned int height, double minx,
+					     double miny, double maxx,
+					     double maxy, double x_res,
+					     double y_res,
+					     unsigned char red_band,
+					     unsigned char green_band,
+					     unsigned char blue_band,
+					     unsigned char **buffer,
+					     int *buf_size, rl2PixelPtr bgcolor)
+{
+/* attempting to return a buffer containing raw pixels - Section */
+    return get_triple_band_raw_raster_data_common (1, handle, cvg, section_id,
+						   width, height, minx, miny,
+						   maxx, maxy, x_res, y_res,
+						   red_band, green_band,
+						   blue_band, buffer, buf_size,
+						   bgcolor);
+}
+
 static int
-get_mono_band_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
-				      unsigned int width,
-				      unsigned int height, double minx,
-				      double miny, double maxx, double maxy,
-				      double x_res, double y_res,
+get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
+				      rl2CoveragePtr cvg,
+				      sqlite3_int64 section_id,
+				      unsigned int width, unsigned int height,
+				      double minx, double miny, double maxx,
+				      double maxy, double x_res, double y_res,
 				      unsigned char **buffer, int *buf_size,
 				      unsigned char mono_band,
 				      rl2PixelPtr bgcolor)
@@ -4231,13 +4322,35 @@ get_mono_band_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = gaiaDoubleQuotedSql (xtiles);
-    sql =
-	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-			 "FROM \"%s\" "
-			 "WHERE pyramid_level = ? AND ROWID IN ( "
-			 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-			 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles,
-			 xtiles);
+
+    if (by_section)
+      {
+	  /* single Section */
+	  char sctn[1024];
+#if defined(_WIN32) && !defined(__MINGW32__)
+	  sprintf (sctn, "%I64d", section_id);
+#else
+	  sprintf (sctn, "%lld", section_id);
+#endif
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" "
+	       "WHERE section_id = %s AND pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, sctn,
+	       xtiles);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+      }
     sqlite3_free (xtiles);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
@@ -4297,10 +4410,30 @@ rl2_get_mono_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 				   rl2PixelPtr no_data)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
-    return get_mono_band_raw_raster_data_common (handle, cvg, width, height,
-						 minx, miny, maxx, maxy,
-						 x_res, y_res, buffer,
-						 buf_size, mono_band, no_data);
+    return get_mono_band_raw_raster_data_common (0, handle, cvg, 0, width,
+						 height, minx, miny, maxx, maxy,
+						 x_res, y_res, buffer, buf_size,
+						 mono_band, no_data);
+}
+
+RL2_DECLARE int
+rl2_get_section_mono_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+					   sqlite3_int64 section_id,
+					   unsigned int width,
+					   unsigned int height, double minx,
+					   double miny, double maxx,
+					   double maxy, double x_res,
+					   double y_res,
+					   unsigned char mono_band,
+					   unsigned char **buffer,
+					   int *buf_size, rl2PixelPtr no_data)
+{
+/* attempting to return a buffer containing raw pixels from the DBMS Coverage */
+    return get_mono_band_raw_raster_data_common (1, handle, cvg, section_id,
+						 width, height, minx, miny,
+						 maxx, maxy, x_res, y_res,
+						 buffer, buf_size, mono_band,
+						 no_data);
 }
 
 RL2_DECLARE int
@@ -4559,9 +4692,9 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
       }
     if (pixel_type == RL2_PIXEL_MONOCHROME)
       {
-	  unsigned char red;
-	  unsigned char green;
-	  unsigned char blue;
+	  unsigned char red = 0;
+	  unsigned char green = 0;
+	  unsigned char blue = 0;
 	  int ok = 0;
 	  if (style != NULL)
 	    {

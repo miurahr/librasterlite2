@@ -2974,6 +2974,22 @@ extern "C"
 					     rl2PixelPtr no_data);
 
     RL2_DECLARE int
+	rl2_get_section_triple_band_raw_raster_data (sqlite3 * handle,
+						     rl2CoveragePtr cvg,
+						     sqlite3_int64 section_id,
+						     unsigned int width,
+						     unsigned int height,
+						     double minx, double miny,
+						     double maxx, double maxy,
+						     double x_res, double y_res,
+						     unsigned char red_band,
+						     unsigned char green_band,
+						     unsigned char blue_band,
+						     unsigned char **buffer,
+						     int *buf_size,
+						     rl2PixelPtr no_data);
+
+    RL2_DECLARE int
 	rl2_get_mono_band_raw_raster_data (sqlite3 * handle,
 					   rl2CoveragePtr cvg,
 					   unsigned int width,
@@ -2984,6 +3000,20 @@ extern "C"
 					   unsigned char mono_band,
 					   unsigned char **buffer,
 					   int *buf_size, rl2PixelPtr no_data);
+
+    RL2_DECLARE int
+	rl2_get_section_mono_band_raw_raster_data (sqlite3 * handle,
+						   rl2CoveragePtr cvg,
+						   sqlite3_int64 section_id,
+						   unsigned int width,
+						   unsigned int height,
+						   double minx, double miny,
+						   double maxx, double maxy,
+						   double x_res, double y_res,
+						   unsigned char mono_band,
+						   unsigned char **buffer,
+						   int *buf_size,
+						   rl2PixelPtr no_data);
 
     RL2_DECLARE int
 	rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
@@ -3289,6 +3319,32 @@ extern "C"
 						  int with_worldfile);
 
     RL2_DECLARE int
+	rl2_export_section_triple_band_geotiff_from_dbms (sqlite3 * handle,
+							  const char *dst_path,
+							  rl2CoveragePtr
+							  coverage,
+							  sqlite3_int64
+							  section_id,
+							  double x_res,
+							  double y_res,
+							  double minx,
+							  double miny,
+							  double maxx,
+							  double maxy,
+							  unsigned int width,
+							  unsigned int height,
+							  unsigned char
+							  red_band,
+							  unsigned char
+							  green_band,
+							  unsigned char
+							  blue_band,
+							  unsigned char
+							  compression,
+							  unsigned int tile_sz,
+							  int with_worldfile);
+
+    RL2_DECLARE int
 	rl2_export_mono_band_geotiff_from_dbms (sqlite3 * handle,
 						const char *dst_path,
 						rl2CoveragePtr coverage,
@@ -3303,21 +3359,38 @@ extern "C"
 						int with_worldfile);
 
     RL2_DECLARE int
+	rl2_export_section_mono_band_geotiff_from_dbms (sqlite3 * handle,
+							const char *dst_path,
+							rl2CoveragePtr coverage,
+							sqlite3_int64
+							section_id,
+							double x_res,
+							double y_res,
+							double minx,
+							double miny,
+							double maxx,
+							double maxy,
+							unsigned int width,
+							unsigned int height,
+							unsigned char mono_band,
+							unsigned char
+							compression,
+							unsigned int tile_sz,
+							int with_worldfile);
+
+    RL2_DECLARE int
 	rl2_export_triple_band_tiff_worldfile_from_dbms (sqlite3 * handle,
 							 const char *dst_path,
 							 rl2CoveragePtr
-							 coverage,
-							 double x_res,
+							 coverage, double x_res,
 							 double y_res,
 							 double minx,
 							 double miny,
 							 double maxx,
 							 double maxy,
 							 unsigned int width,
-							 unsigned int
-							 height,
-							 unsigned char
-							 red_band,
+							 unsigned int height,
+							 unsigned char red_band,
 							 unsigned char
 							 green_band,
 							 unsigned char
@@ -3327,10 +3400,39 @@ extern "C"
 							 unsigned int tile_sz);
 
     RL2_DECLARE int
+	rl2_export_section_triple_band_tiff_worldfile_from_dbms (sqlite3 *
+								 handle,
+								 const char
+								 *dst_path,
+								 rl2CoveragePtr
+								 coverage,
+								 sqlite3_int64
+								 section_id,
+								 double x_res,
+								 double y_res,
+								 double minx,
+								 double miny,
+								 double maxx,
+								 double maxy,
+								 unsigned int
+								 width,
+								 unsigned int
+								 height,
+								 unsigned char
+								 red_band,
+								 unsigned char
+								 green_band,
+								 unsigned char
+								 blue_band,
+								 unsigned char
+								 compression,
+								 unsigned int
+								 tile_sz);
+
+    RL2_DECLARE int
 	rl2_export_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
 						       const char *dst_path,
-						       rl2CoveragePtr
-						       coverage,
+						       rl2CoveragePtr coverage,
 						       double x_res,
 						       double y_res,
 						       double minx,
@@ -3345,6 +3447,31 @@ extern "C"
 						       unsigned char
 						       compression,
 						       unsigned int tile_sz);
+
+    RL2_DECLARE int
+	rl2_export_section_mono_band_tiff_worldfile_from_dbms (sqlite3 * handle,
+							       const char
+							       *dst_path,
+							       rl2CoveragePtr
+							       coverage,
+							       sqlite3_int64
+							       section_id,
+							       double x_res,
+							       double y_res,
+							       double minx,
+							       double miny,
+							       double maxx,
+							       double maxy,
+							       unsigned int
+							       width,
+							       unsigned int
+							       height,
+							       unsigned char
+							       mono_band,
+							       unsigned char
+							       compression,
+							       unsigned int
+							       tile_sz);
 
     RL2_DECLARE int
 	rl2_export_triple_band_tiff_from_dbms (sqlite3 * handle,
@@ -3362,6 +3489,24 @@ extern "C"
 					       unsigned int tile_sz);
 
     RL2_DECLARE int
+	rl2_export_section_triple_band_tiff_from_dbms (sqlite3 * handle,
+						       const char *dst_path,
+						       rl2CoveragePtr coverage,
+						       sqlite3_int64 section_id,
+						       double x_res,
+						       double y_res,
+						       double minx, double miny,
+						       double maxx, double maxy,
+						       unsigned int width,
+						       unsigned int height,
+						       unsigned char red_band,
+						       unsigned char green_band,
+						       unsigned char blue_band,
+						       unsigned char
+						       compression,
+						       unsigned int tile_sz);
+
+    RL2_DECLARE int
 	rl2_export_mono_band_tiff_from_dbms (sqlite3 * handle,
 					     const char *dst_path,
 					     rl2CoveragePtr coverage,
@@ -3373,6 +3518,20 @@ extern "C"
 					     unsigned char mono_band,
 					     unsigned char compression,
 					     unsigned int tile_sz);
+
+    RL2_DECLARE int
+	rl2_export_section_mono_band_tiff_from_dbms (sqlite3 * handle,
+						     const char *dst_path,
+						     rl2CoveragePtr coverage,
+						     sqlite3_int64 section_id,
+						     double x_res, double y_res,
+						     double minx, double miny,
+						     double maxx, double maxy,
+						     unsigned int width,
+						     unsigned int height,
+						     unsigned char mono_band,
+						     unsigned char compression,
+						     unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,

@@ -18,8 +18,10 @@ librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 
 if MINGW
 librasterlite2_la_LDFLAGS = -avoid-version -no-undefined
+librasterlite2_la_LIBADD += -lm
 else
 librasterlite2_la_LDFLAGS = -version-info 1:0:0
+librasterlite2_la_LIBADD += -lpthread -lm
 endif
 
 librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
@@ -44,8 +46,10 @@ mod_rasterlite2_la_LIBTOOLFLAGS = --tag=disable-static
 
 if MINGW
 mod_rasterlite2_la_LDFLAGS = -module -avoid-version -no-undefined
+mod_rasterlite2_la_LIBADD += -lm
 else
 mod_rasterlite2_la_LDFLAGS = -module -version-info 1:0:0
+mod_rasterlite2_la_LIBADD += -lpthread -lm
 endif
 
 MOSTLYCLEANFILES = *.gcna *.gcno *.gcda

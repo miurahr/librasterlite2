@@ -1989,8 +1989,8 @@ get_current_timestamp ()
     char *dummy;
     struct tm *xtm;
     time_t now;
-    const char *day;
-    const char *month;
+    const char *day = NULL;
+    const char *month = NULL;
     time (&now);
     xtm = gmtime (&now);
     switch (xtm->tm_wday)

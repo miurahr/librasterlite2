@@ -1,7 +1,6 @@
 
 AM_CFLAGS = @LIBPNG_CFLAGS@ @LIBWEBP_CFLAGS@ @LIBLZMA_CFLAGS@ \
-	@LIBSPATIALITE_CFLAGS@ @LIBCAIRO_CFLAGS@ @LIBCURL_CFLAGS@ \
-	@LIBXML2_CFLAGS@ 
+	@LIBCAIRO_CFLAGS@ @LIBCURL_CFLAGS@ @LIBXML2_CFLAGS@ 
 
 AM_CPPFLAGS = @CFLAGS@
 AM_CPPFLAGS += -I$(top_srcdir)/headers
@@ -16,6 +15,10 @@ librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2svgaux.c rl2symbolizer.c rl2rastersym.c rl2version.c \
 	rl2md5.c md5.c
 
+librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
+	@LIBLZMA_LIBS@ @LIBCAIRO_LIBS@	@LIBCURL_LIBS@ \
+	@LIBXML2_LIBS@
+
 if MINGW
 librasterlite2_la_LDFLAGS = -avoid-version -no-undefined
 librasterlite2_la_LIBADD += -lm
@@ -23,10 +26,6 @@ else
 librasterlite2_la_LDFLAGS = -version-info 1:0:0
 librasterlite2_la_LIBADD += -lpthread -lm
 endif
-
-librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
-	@LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ \
-	@LIBCURL_LIBS@ @LIBXML2_LIBS@
 
 mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
@@ -36,8 +35,8 @@ mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2md5.c md5.c
 
 mod_rasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
-	@LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ \
-	@LIBCURL_LIBS@ @LIBXML2_LIBS@
+	@LIBLZMA_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \
+	@LIBXML2_LIBS@
 
 mod_rasterlite2_la_CPPFLAGS = @CFLAGS@
 mod_rasterlite2_la_CPPFLAGS += -I$(top_srcdir)/headers -I.

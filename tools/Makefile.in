@@ -78,7 +78,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = rl2tool$(EXEEXT) wmslite$(EXEEXT)
+bin_PROGRAMS = rl2sniff$(EXEEXT) rl2tool$(EXEEXT) wmslite$(EXEEXT)
 subdir = tools
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp
@@ -95,13 +95,16 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_rl2tool_OBJECTS = rl2tool.$(OBJEXT)
-rl2tool_OBJECTS = $(am_rl2tool_OBJECTS)
-rl2tool_DEPENDENCIES =
+am_rl2sniff_OBJECTS = rl2sniff.$(OBJEXT)
+rl2sniff_OBJECTS = $(am_rl2sniff_OBJECTS)
+rl2sniff_DEPENDENCIES =
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+am_rl2tool_OBJECTS = rl2tool.$(OBJEXT)
+rl2tool_OBJECTS = $(am_rl2tool_OBJECTS)
+rl2tool_DEPENDENCIES =
 am_wmslite_OBJECTS = wmslite.$(OBJEXT)
 wmslite_OBJECTS = $(am_wmslite_OBJECTS)
 wmslite_DEPENDENCIES =
@@ -139,8 +142,9 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(rl2tool_SOURCES) $(wmslite_SOURCES)
-DIST_SOURCES = $(rl2tool_SOURCES) $(wmslite_SOURCES)
+SOURCES = $(rl2sniff_SOURCES) $(rl2tool_SOURCES) $(wmslite_SOURCES)
+DIST_SOURCES = $(rl2sniff_SOURCES) $(rl2tool_SOURCES) \
+	$(wmslite_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -310,8 +314,14 @@ AM_CFLAGS = @LIBPNG_CFLAGS@ @LIBWEBP_CFLAGS@ @LIBLZMA_CFLAGS@ \
 
 AM_LDFLAGS = -L../src 
 AM_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers
+rl2sniff_SOURCES = rl2sniff.c
 rl2tool_SOURCES = rl2tool.c
 wmslite_SOURCES = wmslite.c
+rl2sniff_LDADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
+	@LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \
+	@LIBXML2_LIBS@ \
+	-lrasterlite2 
+
 rl2tool_LDADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
 	@LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \
 	@LIBXML2_LIBS@ \
@@ -411,6 +421,10 @@ clean-binPROGRAMS:
 	echo " rm -f" $$list; \
 	rm -f $$list
 
+rl2sniff$(EXEEXT): $(rl2sniff_OBJECTS) $(rl2sniff_DEPENDENCIES) $(EXTRA_rl2sniff_DEPENDENCIES) 
+	@rm -f rl2sniff$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(rl2sniff_OBJECTS) $(rl2sniff_LDADD) $(LIBS)
+
 rl2tool$(EXEEXT): $(rl2tool_OBJECTS) $(rl2tool_DEPENDENCIES) $(EXTRA_rl2tool_DEPENDENCIES) 
 	@rm -f rl2tool$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(rl2tool_OBJECTS) $(rl2tool_LDADD) $(LIBS)
@@ -425,6 +439,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2sniff.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2tool.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wmslite.Po@am__quote@
 

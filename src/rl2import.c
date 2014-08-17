@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -66,8 +66,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2tiff.h"
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
-
-#include <spatialite/gaiaaux.h>
 
 static char *
 formatFloat (double value)
@@ -137,9 +135,6 @@ do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 /* INSERTing the tile */
     int ret;
     sqlite3_int64 tile_id;
-    unsigned char *blob;
-    int blob_size;
-    gaiaGeomCollPtr geom;
     rl2RasterStatisticsPtr stats = NULL;
 
     stats = rl2_get_raster_statistics
@@ -156,10 +151,11 @@ do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
     *tile_miny = *tile_maxy - ((double) tile_h * res_y);
     if (*tile_miny < miny)
 	*tile_miny = miny;
-    geom = build_extent (srid, *tile_minx, *tile_miny, *tile_maxx, *tile_maxy);
-    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-    gaiaFreeGeomColl (geom);
-    sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
+    sqlite3_bind_double (stmt_tils, 2, *tile_minx);
+    sqlite3_bind_double (stmt_tils, 3, *tile_miny);
+    sqlite3_bind_double (stmt_tils, 4, *tile_maxx);
+    sqlite3_bind_double (stmt_tils, 5, *tile_maxy);
+    sqlite3_bind_int (stmt_tils, 6, srid);
     ret = sqlite3_step (stmt_tils);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	;
@@ -287,12 +283,12 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
       }
     xml_summary = rl2_build_ascii_xml_summary (origin);
 
+    printf ("------------------\n");
     if (total > 1)
 	printf ("%d/%d) Importing: %s\n", current, total,
 		rl2_get_ascii_grid_origin_path (origin));
     else
 	printf ("Importing: %s\n", rl2_get_ascii_grid_origin_path (origin));
-    printf ("------------------\n");
     ret = rl2_get_ascii_grid_origin_size (origin, &width, &height);
     if (ret == RL2_OK)
 	printf ("    Image Size (pixels): %d x %d\n", width, height);
@@ -376,7 +372,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     no_data = rl2_get_coverage_no_data (cvg);
 
 /* INSERTing the section */
-    if (!do_insert_section
+    if (!rl2_do_insert_section
 	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
 	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
 	 coverage->sectionSummary, stmt_sect, &section_id))
@@ -388,14 +384,14 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     if (coverage->mixedResolutions)
       {
 	  /* multiple resolutions Coverage */
-	  if (!do_insert_section_levels
+	  if (!rl2_do_insert_section_levels
 	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
 	      goto error;
       }
     else
       {
 	  /* single resolution Coverage */
-	  if (!do_insert_levels
+	  if (!rl2_do_insert_levels
 	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
 	      goto error;
       }
@@ -448,7 +444,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
-    if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+    if (!rl2_do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
 	goto error;
 
     rl2_destroy_ascii_grid_origin (origin);
@@ -459,7 +455,8 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     diff = now - start;
     mins = diff / 60;
     secs = diff - (mins * 60);
-    printf (">> Grid succesfully imported in: %d mins %02d secs\n", mins, secs);
+    printf (">> Grid successfully imported in: %d mins %02d secs\n", mins,
+	    secs);
 
     if (pyramidize)
       {
@@ -753,11 +750,11 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 				    is_georeferenced, res_x, res_y, minx, miny,
 				    maxx, maxy);
 
+    printf ("------------------\n");
     if (total > 1)
 	printf ("%d/%d) Importing: %s\n", current, total, src_path);
     else
 	printf ("Importing: %s\n", src_path);
-    printf ("------------------\n");
     printf ("    Image Size (pixels): %d x %d\n", width, height);
     printf ("                   SRID: %d\n", srid);
     dumb1 = formatLong (minx);
@@ -829,7 +826,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     no_data = rl2_get_coverage_no_data (cvg);
 
 /* INSERTing the section */
-    if (!do_insert_section
+    if (!rl2_do_insert_section
 	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
 	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
 	 coverage->sectionSummary, stmt_sect, &section_id))
@@ -841,14 +838,14 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     if (coverage->mixedResolutions)
       {
 	  /* multiple resolutions Coverage */
-	  if (!do_insert_section_levels
+	  if (!rl2_do_insert_section_levels
 	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
 	      goto error;
       }
     else
       {
 	  /* single resolution Coverage */
-	  if (!do_insert_levels
+	  if (!rl2_do_insert_levels
 	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
 	      goto error;
       }
@@ -901,7 +898,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
-    if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+    if (!rl2_do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
 	goto error;
 
     rl2_destroy_section (origin);
@@ -912,7 +909,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     diff = now - start;
     mins = diff / 60;
     secs = diff - (mins * 60);
-    printf (">> Image succesfully imported in: %d mins %02d secs\n", mins,
+    printf (">> Image successfully imported in: %d mins %02d secs\n", mins,
 	    secs);
 
     if (pyramidize)
@@ -1066,12 +1063,12 @@ do_import_file (sqlite3 * handle, const char *src_path,
       }
     xml_summary = rl2_build_tiff_xml_summary (origin);
 
+    printf ("------------------\n");
     if (total > 1)
 	printf ("%d/%d) Importing: %s\n", current, total,
 		rl2_get_tiff_origin_path (origin));
     else
 	printf ("Importing: %s\n", rl2_get_tiff_origin_path (origin));
-    printf ("------------------\n");
     ret = rl2_get_tiff_origin_size (origin, &width, &height);
     if (ret == RL2_OK)
 	printf ("    Image Size (pixels): %d x %d\n", width, height);
@@ -1174,7 +1171,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     no_data = rl2_get_coverage_no_data (cvg);
 
 /* INSERTing the section */
-    if (!do_insert_section
+    if (!rl2_do_insert_section
 	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
 	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
 	 coverage->sectionSummary, stmt_sect, &section_id))
@@ -1186,14 +1183,14 @@ do_import_file (sqlite3 * handle, const char *src_path,
     if (coverage->mixedResolutions)
       {
 	  /* multiple resolutions Coverage */
-	  if (!do_insert_section_levels
+	  if (!rl2_do_insert_section_levels
 	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
 	      goto error;
       }
     else
       {
 	  /* single resolution Coverage */
-	  if (!do_insert_levels
+	  if (!rl2_do_insert_levels
 	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
 	      goto error;
       }
@@ -1248,7 +1245,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
-    if (!do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+    if (!rl2_do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
 	goto error;
 
     rl2_destroy_tiff_origin (origin);
@@ -1259,7 +1256,7 @@ do_import_file (sqlite3 * handle, const char *src_path,
     diff = now - start;
     mins = diff / 60;
     secs = diff - (mins * 60);
-    printf (">> Image succesfully imported in: %d mins %02d secs\n", mins,
+    printf (">> Image successfully imported in: %d mins %02d secs\n", mins,
 	    secs);
 
     if (pyramidize)
@@ -1494,7 +1491,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
     coverage = rl2_get_coverage_name (cvg);
 
     table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -1512,7 +1509,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
       }
 
     table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -1530,7 +1527,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
       {
 	  /* mixed resolutions Coverage */
 	  table = sqlite3_mprintf ("%s_section_levels", coverage);
-	  xtable = gaiaDoubleQuotedSql (table);
+	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
@@ -1554,7 +1551,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
       {
 	  /* single resolution Coverage */
 	  table = sqlite3_mprintf ("%s_levels", coverage);
-	  xtable = gaiaDoubleQuotedSql (table);
+	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
@@ -1576,12 +1573,12 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
       }
 
     table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
 	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, 0, ?, ?)", xtable);
+	 "VALUES (NULL, 0, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
     sqlite3_free (sql);
@@ -1592,7 +1589,7 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
       }
 
     table = sqlite3_mprintf ("%s_tile_data", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -2059,7 +2056,8 @@ export_geotiff_common (sqlite3 * handle, const char *dst_path,
     unsigned int base_y;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -2268,7 +2266,8 @@ export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
     unsigned int base_y;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -2478,7 +2477,8 @@ export_tiff_common (sqlite3 * handle, const char *dst_path,
     unsigned int base_y;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -2681,7 +2681,8 @@ export_triple_band_geotiff_common (int by_section, sqlite3 * handle,
     unsigned int base_y;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -2880,7 +2881,8 @@ export_mono_band_geotiff_common (int by_section, sqlite3 * handle,
     unsigned char out_pixel;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -3074,7 +3076,8 @@ export_triple_band_tiff_worldfile_common (int by_section, sqlite3 * handle,
     unsigned int base_y;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -3277,7 +3280,8 @@ export_mono_band_tiff_worldfile_common (int by_section, sqlite3 * handle,
     unsigned char out_pixel;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -3465,7 +3469,8 @@ export_triple_band_tiff_common (int by_section, sqlite3 * handle,
     unsigned int base_y;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -3646,7 +3651,8 @@ export_mono_band_tiff_common (int by_section, sqlite3 * handle,
     unsigned char out_pixel;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -3815,7 +3821,8 @@ export_ascii_grid_common (int by_section, sqlite3 * handle,
     int pixels_size;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size
@@ -3993,7 +4000,8 @@ export_jpeg_common (int by_section, sqlite3 * handle, const char *dst_path,
     int outbuf_size;
 
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	return RL2_ERROR;
 
     if (mismatching_size

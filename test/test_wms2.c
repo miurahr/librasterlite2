@@ -419,9 +419,9 @@ test_GetCapabilities (rl2WmsCachePtr cache)
 		   str);
 	  return -49;
       }
-    str = get_wms_tile_pattern_sample_url (pattern);
+    xurl = get_wms_tile_pattern_sample_url (pattern);
     if (strcmp
-	(str,
+	(xurl,
 	 "request=GetMap&layers=global_mosaic&srs=EPSG:4326&format=image/jpeg&styles=visual&width=512&height=512&bbox=-180,58,-148,90")
 	!= 0)
       {
@@ -430,6 +430,7 @@ test_GetCapabilities (rl2WmsCachePtr cache)
 		   str);
 	  return -50;
       }
+    free (xurl);
     int_res = get_wms_tile_pattern_tile_width (layer, 0);
     if (int_res != 512)
       {

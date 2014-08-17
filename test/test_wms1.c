@@ -1353,6 +1353,8 @@ test_GetFeatureInfo_gml ()
     double my;
     double ratio;
     sqlite3 *sqlite;
+    const unsigned char *blob;
+    int blob_sz;
     gaiaGeomCollPtr geom;
     void *cache = spatialite_alloc_connection ();
 
@@ -1428,11 +1430,18 @@ test_GetFeatureInfo_gml ()
 		   count);
 	  return -206;
       }
-    geom = get_wms_feature_attribute_geometry (ftr, 0);
+    if (get_wms_feature_attribute_blob_geometry (ftr, 0, &blob, &blob_sz) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "GetFeatureAttributeValue (GML-Geom): unexpected failure\n");
+	  return -207;
+      }
+    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
     if (geom == NULL)
       {
 	  fprintf (stderr,
-		   "GetFeatureAttributeValue (GML-Geom): unexpected NULL\n");
+		   "GetFeatureAttributeValue (GML-Geom): unexpected failure\n");
 	  return -207;
       }
     else if (geom->Srid != 3003)
@@ -1442,6 +1451,7 @@ test_GetFeatureInfo_gml ()
 		   geom->Srid);
 	  return -208;
       }
+    gaiaFreeGeomColl (geom);
     str = get_wms_feature_attribute_name (ftr, 4);
     if (strcmp (str, "CODCOM") != 0)
       {
@@ -1458,8 +1468,8 @@ test_GetFeatureInfo_gml ()
 		   str);
 	  return -210;
       }
-    geom = get_wms_feature_attribute_geometry (ftr, 4);
-    if (geom != NULL)
+    if (get_wms_feature_attribute_blob_geometry (ftr, 4, &blob, &blob_sz) !=
+	RL2_ERROR)
       {
 	  fprintf (stderr,
 		   "GetFeatureAttributeValue (GML-Geom): unexpected result\n");
@@ -1497,7 +1507,8 @@ test_GetFeatureInfo_xml ()
     double my;
     double ratio;
     sqlite3 *sqlite;
-    gaiaGeomCollPtr geom;
+    const unsigned char *blob;
+    int blob_sz;
     void *cache = spatialite_alloc_connection ();
 
     ret =
@@ -1569,8 +1580,8 @@ test_GetFeatureInfo_xml ()
 		   str);
 	  return -306;
       }
-    geom = get_wms_feature_attribute_geometry (ftr, 0);
-    if (geom != NULL)
+    if (get_wms_feature_attribute_blob_geometry (ftr, 0, &blob, &blob_sz) !=
+	RL2_ERROR)
       {
 	  fprintf (stderr,
 		   "GetFeatureAttributeValue (XML-Geom): unexpected value\n");

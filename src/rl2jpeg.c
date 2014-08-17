@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -892,6 +892,69 @@ rl2_raster_from_jpeg (const unsigned char *jpeg, int jpeg_size)
     return NULL;
 }
 
+RL2_DECLARE int
+rl2_get_jpeg_infos (const char *path, unsigned int *width, unsigned int *height,
+		    unsigned char *pixel_type)
+{
+/* attempting to retrieve basic infos from a JPEG image */
+    int jpeg_size;
+    unsigned char *jpeg = NULL;
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    int row_stride;
+    JSAMPARRAY buffer;
+
+/* attempting to create a raster */
+    if (rl2_blob_from_file (path, &jpeg, &jpeg_size) != RL2_OK)
+	return RL2_ERROR;
+
+    cinfo.err = jpeg_std_error (&jerr);
+    jpeg_create_decompress (&cinfo);
+    rl2_jpeg_src (&cinfo, (unsigned char *) jpeg, jpeg_size);
+    jpeg_read_header (&cinfo, TRUE);
+    cinfo.scale_num = 8;
+    cinfo.scale_denom = 8;
+    if ((cinfo.jpeg_color_space == JCS_CMYK)
+	|| (cinfo.jpeg_color_space == JCS_YCCK))
+	cinfo.out_color_space = JCS_CMYK;
+    if (!jpeg_start_decompress (&cinfo))
+	goto error;
+
+    if (cinfo.out_color_space == JCS_RGB && cinfo.output_components == 3)
+	*pixel_type = RL2_PIXEL_RGB;
+    else if (cinfo.out_color_space == JCS_GRAYSCALE
+	     && cinfo.output_components == 1)
+	*pixel_type = RL2_PIXEL_GRAYSCALE;
+    else if (cinfo.out_color_space == JCS_CMYK && cinfo.output_components == 4)
+	*pixel_type = RL2_PIXEL_RGB;
+    else
+	goto error;
+    *width = cinfo.output_width;
+    *height = cinfo.output_height;
+/* creating the scanline buffer */
+    row_stride = cinfo.output_width * cinfo.output_components;
+    buffer =
+	(*cinfo.mem->alloc_sarray) ((j_common_ptr) & cinfo, JPOOL_IMAGE,
+				    row_stride, 1);
+    if (buffer == NULL)
+	goto error;
+    while (cinfo.output_scanline < cinfo.output_height)
+      {
+	  /* reading all decompressed scanlines */
+	  jpeg_read_scanlines (&cinfo, buffer, 1);
+      }
+
+/* memory cleanup */
+    jpeg_finish_decompress (&cinfo);
+    jpeg_destroy_decompress (&cinfo);
+    free (jpeg);
+    return RL2_OK;
+
+  error:
+    free (jpeg);
+    jpeg_destroy_decompress (&cinfo);
+    return RL2_ERROR;
+}
 
 RL2_PRIVATE int
 rl2_decode_jpeg_scaled (int scale, const unsigned char *jpeg, int jpeg_size,

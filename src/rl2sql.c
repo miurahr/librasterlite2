@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -57,16 +57,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "config.h"
 
-#ifdef LOADABLE_EXTENSION
-#include "rasterlite2/sqlite.h"
-#endif
-
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2/rl2wms.h"
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
-
-#include <spatialite/gaiaaux.h>
 
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
@@ -2867,7 +2861,6 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     double miny;
     double maxy;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
     rl2CoveragePtr coverage = NULL;
     rl2PrivCoveragePtr cvg;
     rl2RasterStatisticsPtr section_stats = NULL;
@@ -2988,22 +2981,16 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     if (argc > 13)
 	transaction = sqlite3_value_int (argv[13]);
 
-/* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+/* retrieving the BBOX */
+    sqlite = sqlite3_context_db_handle (context);
+    if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy) !=
+	RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-/* retrieving the BBOX */
-    minx = geom->MinX;
-    maxx = geom->MaxX;
-    miny = geom->MinY;
-    maxy = geom->MaxY;
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
-    sqlite = sqlite3_context_db_handle (context);
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
     if (coverage == NULL)
       {
@@ -3070,7 +3057,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 
 /* SQL prepared statements */
     table = sqlite3_mprintf ("%s_sections", cvg_name);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -3098,7 +3085,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 	stmt_policies = NULL;
 
     table = sqlite3_mprintf ("%s_sections", cvg_name);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -3113,7 +3100,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
       }
 
     table = sqlite3_mprintf ("%s_levels", cvg_name);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -3133,12 +3120,12 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
       }
 
     table = sqlite3_mprintf ("%s_tiles", cvg_name);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
 	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, 0, ?, ?)", xtable);
+	 "VALUES (NULL, 0, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_tils, NULL);
     sqlite3_free (sql);
@@ -3149,7 +3136,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
       }
 
     table = sqlite3_mprintf ("%s_tile_data", cvg_name);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -3298,7 +3285,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
 	    }
       }
 
-    if (!do_insert_stats (sqlite, section_stats, section_id, stmt_upd_sect))
+    if (!rl2_do_insert_stats (sqlite, section_stats, section_id, stmt_upd_sect))
 	goto error;
     free_retry_list (retry_list);
     retry_list = NULL;
@@ -3399,7 +3386,8 @@ common_write_geotiff (int by_section, sqlite3_context * context, int argc,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -3600,32 +3588,22 @@ common_write_geotiff (int by_section, sqlite3_context * context, int argc,
       }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -3752,7 +3730,8 @@ common_write_triple_band_geotiff (int by_section, sqlite3_context * context,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -3942,10 +3921,13 @@ common_write_triple_band_geotiff (int by_section, sqlite3_context * context,
 	      tile_sz = sqlite3_value_int (argv[12]);
       }
 
-/* excluding any Mixed Resolution Coverage */
     sqlite = sqlite3_context_db_handle (context);
-    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
-	goto error;
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
+      }
 
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
@@ -3985,32 +3967,22 @@ common_write_triple_band_geotiff (int by_section, sqlite3_context * context,
       }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -4161,7 +4133,8 @@ common_write_mono_band_geotiff (int by_section, sqlite3_context * context,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -4338,10 +4311,13 @@ common_write_mono_band_geotiff (int by_section, sqlite3_context * context,
 	      tile_sz = sqlite3_value_int (argv[10]);
       }
 
-/* excluding any Mixed Resolution Coverage */
     sqlite = sqlite3_context_db_handle (context);
-    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
-	goto error;
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
+      }
 
 /* coarse args validation */
     if (width < 0 || width > UINT16_MAX)
@@ -4371,32 +4347,22 @@ common_write_mono_band_geotiff (int by_section, sqlite3_context * context,
       }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -4529,7 +4495,8 @@ common_write_tiff (int by_section, int with_worldfile,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -4722,32 +4689,22 @@ common_write_tiff (int by_section, int with_worldfile,
       }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -4938,7 +4895,8 @@ common_write_jpeg (int with_worldfile, int by_section,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -5087,32 +5045,22 @@ common_write_jpeg (int with_worldfile, int by_section,
       }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -5265,7 +5213,8 @@ common_write_triple_band_tiff (int with_worldfile, int by_section,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -5484,38 +5433,31 @@ common_write_triple_band_tiff (int with_worldfile, int by_section,
 	  goto error;
       }
 
-/* excluding any Mixed Resolution Coverage */
     sqlite = sqlite3_context_db_handle (context);
-    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
-	goto error;
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
+      }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -5744,7 +5686,8 @@ common_write_mono_band_tiff (int with_worldfile, int by_section,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -5939,38 +5882,31 @@ common_write_mono_band_tiff (int with_worldfile, int by_section,
 	  goto error;
       }
 
-/* excluding any Mixed Resolution Coverage */
     sqlite = sqlite3_context_db_handle (context);
-    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
-	goto error;
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
+      }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * horz_res;
+	  double ext_y = (double) height * vert_res;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * horz_res;
-	  double ext_y = (double) height * vert_res;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -6175,7 +6111,8 @@ common_write_ascii_grid (int by_section, sqlite3_context * context, int argc,
     sqlite3 *sqlite;
     int ret;
     int errcode = -1;
-    gaiaGeomCollPtr geom;
+    double pt_x;
+    double pt_y;
     double minx;
     double maxx;
     double miny;
@@ -6305,32 +6242,22 @@ common_write_ascii_grid (int by_section, sqlite3_context * context, int argc,
       }
 
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) != RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * resolution;
+	  double ext_y = (double) height * resolution;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
       {
 	  errcode = -1;
 	  goto error;
       }
-    if (is_point (geom))
-      {
-	  /* assumed to be the GeoTiff Center Point */
-	  gaiaPointPtr pt = geom->FirstPoint;
-	  double ext_x = (double) width * resolution;
-	  double ext_y = (double) height * resolution;
-	  minx = pt->X - ext_x / 2.0;
-	  maxx = minx + ext_x;
-	  miny = pt->Y - ext_y / 2.0;
-	  maxy = miny + ext_y;
-      }
-    else
-      {
-	  /* assumed to be any possible Geometry defining a BBOX */
-	  minx = geom->MinX;
-	  maxx = geom->MaxX;
-	  miny = geom->MinY;
-	  maxy = geom->MaxY;
-      }
-    gaiaFreeGeomColl (geom);
 
 /* attempting to load the Coverage definitions from the DBMS */
     coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
@@ -6463,7 +6390,6 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     int quality = 80;
     int reaspect = 0;
     sqlite3 *sqlite;
-    gaiaGeomCollPtr geom;
     double minx;
     double maxx;
     double miny;
@@ -6495,6 +6421,7 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     double opacity = 1.0;
     struct aux_renderer aux;
     int was_monochrome;
+    int by_section = 0;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
@@ -6576,18 +6503,14 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
 	goto error;
 /* checking the Geometry */
-    geom = gaiaFromSpatiaLiteBlobWkb (blob, blob_sz);
-    if (geom == NULL)
+    if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy) !=
+	RL2_OK)
 	goto error;
-    minx = geom->MinX;
-    maxx = geom->MaxX;
-    miny = geom->MinY;
-    maxy = geom->MaxY;
+
     ext_x = maxx - minx;
     ext_y = maxy - miny;
     if (ext_x <= 0.0 || ext_y <= 0.0)
 	goto error;
-    gaiaFreeGeomColl (geom);
     if (rl2_test_layer_group (sqlite, cvg_name))
       {
 	  /* switching the whole task to the Group renderer */
@@ -6728,11 +6651,23 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	  goto error;
       }
 
+    if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+      {
+	  /* Mixed Resolutions Coverage */
+	  by_section = 1;
+	  xx_res = x_res;
+	  yy_res = y_res;
+      }
+    else
+      {
+	  /* ordinary Coverage */
+	  by_section = 0;
 /* retrieving the optimal resolution level */
-    if (!find_best_resolution_level
-	(sqlite, cvg_name, x_res, y_res, &level_id, &scale, &xscale, &xx_res,
-	 &yy_res))
-	goto error;
+	  if (!rl2_find_best_resolution_level
+	      (sqlite, cvg_name, 0, 0, x_res, y_res, &level_id, &scale, &xscale,
+	       &xx_res, &yy_res))
+	      goto error;
+      }
     base_width = (int) (ext_x / xx_res);
     base_height = (int) (ext_y / yy_res);
     if ((base_width <= 0 && base_width >= USHRT_MAX)
@@ -6757,30 +6692,57 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     else if (aspect_org != aspect_dst && !reaspect)
 	goto error;
 
-    was_monochrome = 0;
-    if (out_pixel == RL2_PIXEL_MONOCHROME)
+    if (by_section)
       {
-	  if (level_id != 0 && scale != 1)
+	  /* Mixed Resolutions Coverage */
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
 	    {
 		out_pixel = RL2_PIXEL_GRAYSCALE;
 		was_monochrome = 1;
 	    }
-      }
-    if (out_pixel == RL2_PIXEL_PALETTE)
-      {
-	  if (level_id != 0 && scale != 1)
+	  if (out_pixel == RL2_PIXEL_PALETTE)
 	      out_pixel = RL2_PIXEL_RGB;
+	  if (rl2_get_raw_raster_data_mixed_resolutions
+	      (sqlite, coverage, base_width, base_height,
+	       minx, miny, maxx, maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	       bg_blue, symbolizer, stats) != RL2_OK)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		rl2_destroy_raster_style (symbolizer);
+		symbolizer = NULL;
+	    }
       }
-    if (rl2_get_raw_raster_data_bgcolor
-	(sqlite, coverage, base_width, base_height,
-	 minx, miny, maxx, maxy, xx_res, yy_res,
-	 &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
-	 bg_blue, symbolizer, stats) != RL2_OK)
-	goto error;
-    if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+    else
       {
-	  rl2_destroy_raster_style (symbolizer);
-	  symbolizer = NULL;
+	  /* ordinary Coverage */
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		if (level_id != 0 && scale != 1)
+		  {
+		      out_pixel = RL2_PIXEL_GRAYSCALE;
+		      was_monochrome = 1;
+		  }
+	    }
+	  if (out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		if (level_id != 0 && scale != 1)
+		    out_pixel = RL2_PIXEL_RGB;
+	    }
+	  if (rl2_get_raw_raster_data_bgcolor
+	      (sqlite, coverage, base_width, base_height,
+	       minx, miny, maxx, maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	       bg_blue, symbolizer, stats) != RL2_OK)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		rl2_destroy_raster_style (symbolizer);
+		symbolizer = NULL;
+	    }
       }
 
 /* preparing the aux struct for passing rendering arguments */
@@ -6794,8 +6756,18 @@ fnct_GetMapImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     aux.maxx = maxx;
     aux.maxy = maxy;
     aux.srid = srid;
-    aux.xx_res = xx_res;
-    aux.yy_res = yy_res;
+    if (by_section)
+      {
+	  aux.by_section = 1;
+	  aux.x_res = x_res;
+	  aux.y_res = y_res;
+      }
+    else
+      {
+	  aux.by_section = 0;
+	  aux.xx_res = xx_res;
+	  aux.yy_res = yy_res;
+      }
     aux.transparent = transparent;
     aux.opacity = opacity;
     aux.quality = quality;
@@ -6955,10 +6927,10 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 
 /* querying the tile */
     table_tile_data = sqlite3_mprintf ("%s_tile_data", cvg_name);
-    xtable_tile_data = gaiaDoubleQuotedSql (table_tile_data);
+    xtable_tile_data = rl2_double_quoted_sql (table_tile_data);
     sqlite3_free (table_tile_data);
     table_tiles = sqlite3_mprintf ("%s_tiles", cvg_name);
-    xtable_tiles = gaiaDoubleQuotedSql (table_tiles);
+    xtable_tiles = rl2_double_quoted_sql (table_tiles);
     sqlite3_free (table_tiles);
     sql = sqlite3_mprintf ("SELECT d.tile_data_odd, d.tile_data_even, "
 			   "t.pyramid_level FROM \"%s\" AS d "
@@ -7348,10 +7320,10 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
 
 /* querying the tile */
     table_tile_data = sqlite3_mprintf ("%s_tile_data", cvg_name);
-    xtable_tile_data = gaiaDoubleQuotedSql (table_tile_data);
+    xtable_tile_data = rl2_double_quoted_sql (table_tile_data);
     sqlite3_free (table_tile_data);
     table_tiles = sqlite3_mprintf ("%s_tiles", cvg_name);
-    xtable_tiles = gaiaDoubleQuotedSql (table_tiles);
+    xtable_tiles = rl2_double_quoted_sql (table_tiles);
     sqlite3_free (table_tiles);
     sql = sqlite3_mprintf ("SELECT d.tile_data_odd, d.tile_data_even, "
 			   "t.pyramid_level FROM \"%s\" AS d "

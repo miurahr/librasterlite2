@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -65,8 +65,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2wms.h"
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
-
-#include <spatialite/gaiaaux.h>
 
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
@@ -413,25 +411,255 @@ add_retry (WmsRetryListPtr lst, double minx, double miny, double maxx,
     lst->last = p;
 }
 
-RL2_PRIVATE gaiaGeomCollPtr
-build_extent (int srid, double minx, double miny, double maxx, double maxy)
+RL2_PRIVATE int
+rl2_parse_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
+		 double *x, double *y)
 {
-/* building an MBR (Envelope) */
-    gaiaPolygonPtr pg;
-    gaiaRingPtr rng;
-    gaiaGeomCollPtr geom = gaiaAllocGeomColl ();
-    geom->Srid = srid;
-    pg = gaiaAddPolygonToGeomColl (geom, 5, 0);
-    rng = pg->Exterior;
-    gaiaSetPoint (rng->Coords, 0, minx, miny);
-    gaiaSetPoint (rng->Coords, 1, maxx, miny);
-    gaiaSetPoint (rng->Coords, 2, maxx, maxy);
-    gaiaSetPoint (rng->Coords, 3, minx, maxy);
-    gaiaSetPoint (rng->Coords, 4, minx, miny);
-    return geom;
+/* attempts to get the coordinates from a POINT */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    double pt_x;
+    double pt_y;
+    int count = 0;
+
+    sql = "SELECT ST_X(?), ST_Y(?) WHERE ST_GeometryType(?) IN "
+	"('POINT', 'POINT Z', 'POINT M', 'POINT ZM')";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT rl2_parse_point SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 3, blob, blob_sz, SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		pt_x = sqlite3_column_double (stmt, 0);
+		pt_y = sqlite3_column_double (stmt, 1);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT rl2_parse_point; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return RL2_ERROR;
+    *x = pt_x;
+    *y = pt_y;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
 }
 
 RL2_PRIVATE int
+rl2_parse_point_generic (sqlite3 * handle, const unsigned char *blob,
+			 int blob_sz, double *x, double *y)
+{
+/* attempts to get X,Y coordinates from a generic Geometry */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    double pt_x;
+    double pt_y;
+    int count = 0;
+
+    sql = "SELECT ST_X(ST_GeometryN(DissolvePoints(?), 1)), "
+	"ST_Y(ST_GeometryN(DissolvePoints(?), 1))";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT rl2_parse_point_generic SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob, blob_sz, SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		pt_x = sqlite3_column_double (stmt, 0);
+		pt_y = sqlite3_column_double (stmt, 1);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT rl2_parse_point_generic; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return RL2_ERROR;
+    *x = pt_x;
+    *y = pt_y;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_PRIVATE int
+rl2_parse_bbox (sqlite3 * handle, const unsigned char *blob, int blob_sz,
+		double *minx, double *miny, double *maxx, double *maxy)
+{
+/* attempts the get the BBOX from a BLOB geometry request */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    double mnx;
+    double mny;
+    double mxx;
+    double mxy;
+    int count = 0;
+
+    sql = "SELECT MBRMinX(?), MBRMinY(?), MBRMaxX(?), MBRMaxY(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT rl2_parse_bbox SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 3, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 4, blob, blob_sz, SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		mnx = sqlite3_column_double (stmt, 0);
+		mny = sqlite3_column_double (stmt, 1);
+		mxx = sqlite3_column_double (stmt, 2);
+		mxy = sqlite3_column_double (stmt, 3);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT rl2_parse_bbox; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return RL2_ERROR;
+    *minx = mnx;
+    *miny = mny;
+    *maxx = mxx;
+    *maxy = mxy;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_PRIVATE int
+rl2_build_bbox (sqlite3 * handle, int srid, double minx, double miny,
+		double maxx, double maxy, unsigned char **blob, int *blob_sz)
+{
+/* building an MBR (Envelope) */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    const unsigned *x_blob;
+    unsigned char *p_blob;
+    int p_blob_sz;
+    int count = 0;
+
+    sql = "SELECT BuildMBR(?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT rl2_build_bbox SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, minx);
+    sqlite3_bind_double (stmt, 2, miny);
+    sqlite3_bind_double (stmt, 3, maxx);
+    sqlite3_bind_double (stmt, 4, maxy);
+    sqlite3_bind_int (stmt, 5, srid);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      x_blob = sqlite3_column_blob (stmt, 0);
+		      p_blob_sz = sqlite3_column_bytes (stmt, 0);
+		      p_blob = malloc (p_blob_sz);
+		      memcpy (p_blob, x_blob, p_blob_sz);
+		      count++;
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT rl2_build_bbox; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return RL2_ERROR;
+    *blob = p_blob;
+    *blob_sz = p_blob_sz;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+static int
 do_insert_wms_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 		    unsigned char *blob_even, int blob_even_sz,
 		    sqlite3_int64 section_id, int srid, double res_x,
@@ -445,9 +673,6 @@ do_insert_wms_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 /* INSERTing the tile */
     int ret;
     sqlite3_int64 tile_id;
-    unsigned char *blob;
-    int blob_size;
-    gaiaGeomCollPtr geom;
     rl2RasterStatisticsPtr stats = NULL;
 
     stats = rl2_get_raster_statistics
@@ -464,10 +689,11 @@ do_insert_wms_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
     tile_miny = tile_maxy - ((double) tile_h * res_y);
     if (tile_miny < miny)
 	tile_miny = miny;
-    geom = build_extent (srid, tile_minx, tile_miny, tile_maxx, tile_maxy);
-    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-    gaiaFreeGeomColl (geom);
-    sqlite3_bind_blob (stmt_tils, 2, blob, blob_size, free);
+    sqlite3_bind_double (stmt_tils, 2, tile_minx);
+    sqlite3_bind_double (stmt_tils, 3, tile_miny);
+    sqlite3_bind_double (stmt_tils, 4, tile_maxx);
+    sqlite3_bind_double (stmt_tils, 5, tile_maxy);
+    sqlite3_bind_int (stmt_tils, 6, srid);
     ret = sqlite3_step (stmt_tils);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	;
@@ -507,9 +733,9 @@ do_insert_wms_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 }
 
 RL2_PRIVATE int
-do_insert_levels (sqlite3 * handle, double base_res_x, double base_res_y,
-		  double factor, unsigned char sample_type,
-		  sqlite3_stmt * stmt_levl)
+rl2_do_insert_levels (sqlite3 * handle, double base_res_x, double base_res_y,
+		      double factor, unsigned char sample_type,
+		      sqlite3_stmt * stmt_levl)
 {
 /* INSERTing the base-levels - single resolution Coverage */
     int ret;
@@ -554,9 +780,10 @@ do_insert_levels (sqlite3 * handle, double base_res_x, double base_res_y,
 }
 
 RL2_PRIVATE int
-do_insert_section_levels (sqlite3 * handle, sqlite3_int64 section_id,
-			  double base_res_x, double base_res_y, double factor,
-			  unsigned char sample_type, sqlite3_stmt * stmt_levl)
+rl2_do_insert_section_levels (sqlite3 * handle, sqlite3_int64 section_id,
+			      double base_res_x, double base_res_y,
+			      double factor, unsigned char sample_type,
+			      sqlite3_stmt * stmt_levl)
 {
 /* INSERTing the base-levels - mixed resolution Coverage */
     int ret;
@@ -602,8 +829,8 @@ do_insert_section_levels (sqlite3 * handle, sqlite3_int64 section_id,
 }
 
 RL2_PRIVATE int
-do_insert_stats (sqlite3 * handle, rl2RasterStatisticsPtr section_stats,
-		 sqlite3_int64 section_id, sqlite3_stmt * stmt_upd_sect)
+rl2_do_insert_stats (sqlite3 * handle, rl2RasterStatisticsPtr section_stats,
+		     sqlite3_int64 section_id, sqlite3_stmt * stmt_upd_sect)
 {
 /* updating the Section's Statistics */
     unsigned char *blob_stats;
@@ -665,8 +892,8 @@ get_section_name (const char *src_path)
     return name;
 }
 
-static char *
-do_compute_md5_checksum (const char *src_path)
+RL2_DECLARE char *
+rl2_compute_file_md5_checksum (const char *src_path)
 {
 /* attempting to compute an MD5 checksum from a file */
     size_t rd;
@@ -694,18 +921,17 @@ do_compute_md5_checksum (const char *src_path)
 }
 
 RL2_PRIVATE int
-do_insert_section (sqlite3 * handle, const char *src_path,
-		   const char *section, int srid, unsigned int width,
-		   unsigned int height, double minx, double miny,
-		   double maxx, double maxy, char *xml_summary,
-		   int section_paths, int section_md5, int section_summary,
-		   sqlite3_stmt * stmt_sect, sqlite3_int64 * id)
+rl2_do_insert_section (sqlite3 * handle, const char *src_path,
+		       const char *section, int srid, unsigned int width,
+		       unsigned int height, double minx, double miny,
+		       double maxx, double maxy, char *xml_summary,
+		       int section_paths, int section_md5, int section_summary,
+		       sqlite3_stmt * stmt_sect, sqlite3_int64 * id)
 {
 /* INSERTing the section */
     int ret;
     unsigned char *blob;
     int blob_size;
-    gaiaGeomCollPtr geom;
     sqlite3_int64 section_id;
 
     sqlite3_reset (stmt_sect);
@@ -727,7 +953,7 @@ do_insert_section (sqlite3 * handle, const char *src_path,
 	sqlite3_bind_null (stmt_sect, 2);
     if (section_md5)
       {
-	  char *md5 = do_compute_md5_checksum (src_path);
+	  char *md5 = rl2_compute_file_md5_checksum (src_path);
 	  if (md5 == NULL)
 	      sqlite3_bind_null (stmt_sect, 3);
 	  else
@@ -751,9 +977,9 @@ do_insert_section (sqlite3 * handle, const char *src_path,
       }
     sqlite3_bind_int (stmt_sect, 5, width);
     sqlite3_bind_int (stmt_sect, 6, height);
-    geom = build_extent (srid, minx, miny, maxx, maxy);
-    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-    gaiaFreeGeomColl (geom);
+    if (rl2_build_bbox (handle, srid, minx, miny, maxx, maxy, &blob, &blob_size)
+	!= RL2_OK)
+	goto error;
     sqlite3_bind_blob (stmt_sect, 7, blob, blob_size, free);
     ret = sqlite3_step (stmt_sect);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
@@ -919,7 +1145,7 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
       {
 	  /* INSERTing the section */
 	  *first = 0;
-	  if (!do_insert_section
+	  if (!rl2_do_insert_section
 	      (ptr->sqlite, "WMS Service", ptr->sect_name, ptr->srid,
 	       ptr->width, ptr->height, ptr->minx, ptr->miny, ptr->maxx,
 	       ptr->maxy, ptr->xml_summary, ptr->sectionPaths, ptr->sectionMD5,
@@ -933,7 +1159,7 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
 	  if (ptr->mixedResolutions)
 	    {
 		/* multiple resolutions Coverage */
-		if (!do_insert_section_levels
+		if (!rl2_do_insert_section_levels
 		    (ptr->sqlite, *section_id, base_res_x, base_res_y, 1.0,
 		     RL2_SAMPLE_UNKNOWN, ptr->stmt_levl))
 		    goto error;
@@ -941,7 +1167,7 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
 	  else
 	    {
 		/* single resolution Coverage */
-		if (!do_insert_levels
+		if (!rl2_do_insert_levels
 		    (ptr->sqlite, base_res_x, base_res_y, 1.0,
 		     RL2_SAMPLE_UNKNOWN, ptr->stmt_levl))
 		    goto error;
@@ -990,39 +1216,6 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
 	free (blob_even);
     free (ptr->rgba_tile);
     ptr->rgba_tile = NULL;
-    return 0;
-}
-
-RL2_PRIVATE int
-is_point (gaiaGeomCollPtr geom)
-{
-/* checking if the Geom is a simple Point */
-    int pts = 0;
-    int lns = 0;
-    int pgs = 0;
-    gaiaPointPtr pt;
-    gaiaLinestringPtr ln;
-    gaiaPolygonPtr pg;
-    pt = geom->FirstPoint;
-    while (pt != NULL)
-      {
-	  pts++;
-	  pt = pt->Next;
-      }
-    ln = geom->FirstLinestring;
-    while (ln != NULL)
-      {
-	  lns++;
-	  ln = ln->Next;
-      }
-    pg = geom->FirstPolygon;
-    while (pg != NULL)
-      {
-	  pgs++;
-	  pg = pg->Next;
-      }
-    if (pts == 1 && lns == 0 && pgs == 0)
-	return 1;
     return 0;
 }
 
@@ -1092,10 +1285,11 @@ add_base_resolution (ResolutionsListPtr list, int level, int scale,
 }
 
 RL2_PRIVATE int
-find_best_resolution_level (sqlite3 * handle, const char *coverage,
-			    double x_res, double y_res, int *level_id,
-			    int *scale, int *real_scale, double *xx_res,
-			    double *yy_res)
+rl2_find_best_resolution_level (sqlite3 * handle, const char *coverage,
+				int by_section, sqlite3_int64 section_id,
+				double x_res, double y_res, int *level_id,
+				int *scale, int *real_scale, double *xx_res,
+				double *yy_res)
 {
 /* attempting to identify the optimal resolution level */
     int ret;
@@ -1115,15 +1309,39 @@ find_best_resolution_level (sqlite3 * handle, const char *coverage,
     if (coverage == NULL)
 	return 0;
 
-    xcoverage = sqlite3_mprintf ("%s_levels", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
-    sqlite3_free (xcoverage);
-    sql =
-	sqlite3_mprintf
-	("SELECT pyramid_level, x_resolution_1_8, y_resolution_1_8, "
-	 "x_resolution_1_4, y_resolution_1_4, x_resolution_1_2, y_resolution_1_2, "
-	 "x_resolution_1_1, y_resolution_1_1 FROM \"%s\" "
-	 "ORDER BY pyramid_level DESC", xxcoverage);
+    if (by_section)
+      {
+	  /* Multi Resolution Coverage */
+	  char sctn[1024];
+#if defined(_WIN32) && !defined(__MINGW32__)
+	  sprintf (sctn, "%I64d", section_id);
+#else
+	  sprintf (sctn, "%lld", section_id);
+#endif
+	  xcoverage = sqlite3_mprintf ("%s_section_levels", coverage);
+	  xxcoverage = rl2_double_quoted_sql (xcoverage);
+	  sqlite3_free (xcoverage);
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT pyramid_level, x_resolution_1_8, y_resolution_1_8, "
+	       "x_resolution_1_4, y_resolution_1_4, x_resolution_1_2, y_resolution_1_2, "
+	       "x_resolution_1_1, y_resolution_1_1 FROM \"%s\" "
+	       "WHERE section_id = %s ORDER BY pyramid_level DESC", xxcoverage,
+	       sctn);
+      }
+    else
+      {
+	  /* ordinary Coverage */
+	  xcoverage = sqlite3_mprintf ("%s_levels", coverage);
+	  xxcoverage = rl2_double_quoted_sql (xcoverage);
+	  sqlite3_free (xcoverage);
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT pyramid_level, x_resolution_1_8, y_resolution_1_8, "
+	       "x_resolution_1_4, y_resolution_1_4, x_resolution_1_2, y_resolution_1_2, "
+	       "x_resolution_1_1, y_resolution_1_1 FROM \"%s\" "
+	       "ORDER BY pyramid_level DESC", xxcoverage);
+      }
     free (xxcoverage);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -4432,7 +4650,10 @@ get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
     if (rl2_data_to_png
 	(raster, NULL, 1.0, NULL, width, height, RL2_SAMPLE_UINT8,
 	 RL2_PIXEL_GRAYSCALE, image, image_sz) == RL2_OK)
-	return RL2_OK;
+      {
+	  free (raster);
+	  return RL2_OK;
+      }
     free (raster);
     return RL2_ERROR;
 }
@@ -4560,4 +4781,71 @@ rl2_is_mixed_resolutions_coverage (sqlite3 * handle, const char *coverage)
       }
     sqlite3_finalize (stmt);
     return value;
+}
+
+RL2_PRIVATE char *
+rl2_double_quoted_sql (const char *value)
+{
+/*
+/ returns a well formatted TEXT value for SQL
+/ 1] strips trailing spaces
+/ 2] masks any QUOTE inside the string, appending another QUOTE
+*/
+    const char *p_in;
+    const char *p_end;
+    char qt = '"';
+    char *out;
+    char *p_out;
+    int len = 0;
+    int i;
+
+    if (!value)
+	return NULL;
+
+    p_end = value;
+    for (i = (strlen (value) - 1); i >= 0; i--)
+      {
+	  /* stripping trailing spaces */
+	  p_end = value + i;
+	  if (value[i] != ' ')
+	      break;
+      }
+
+    p_in = value;
+    while (p_in <= p_end)
+      {
+	  /* computing the output length */
+	  len++;
+	  if (*p_in == qt)
+	      len++;
+	  p_in++;
+      }
+    if (len == 1 && *value == ' ')
+      {
+	  /* empty string */
+	  len = 0;
+      }
+
+    out = malloc (len + 1);
+    if (!out)
+	return NULL;
+
+    if (len == 0)
+      {
+	  /* empty string */
+	  *out = '\0';
+	  return out;
+      }
+
+    p_out = out;
+    p_in = value;
+    while (p_in <= p_end)
+      {
+	  /* creating the output string */
+	  if (*p_in == qt)
+	      *p_out++ = qt;
+	  *p_out++ = *p_in++;
+      }
+    *p_out = '\0';
+    return out;
 }

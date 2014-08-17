@@ -1,5 +1,5 @@
 /* 
-/ rl2_tool
+/ rl2tool
 /
 / a generic tool supporting RasterLite2 DataSources
 /
@@ -31,14 +31,6 @@
 #include <limits.h>
 #include <time.h>
 
-#include <sys/types.h>
-#if defined(_WIN32) && !defined(__MINGW32__)
-#include <io.h>
-#include <direct.h>
-#else
-#include <dirent.h>
-#endif
-
 #include <rasterlite2/rasterlite2.h>
 #include <rasterlite2/rl2tiff.h>
 #include <rasterlite2/rl2graphics.h>
@@ -68,7 +60,7 @@
 #define ARG_FILE_EXT		14
 #define ARG_COVERAGE		15
 #define ARG_SECTION		16
-#define ARG_SECTION_ID	17
+#define ARG_SECTION_ID		17
 #define ARG_SAMPLE		18
 #define ARG_PIXEL		19
 #define ARG_NUM_BANDS		20
@@ -76,7 +68,7 @@
 #define ARG_QUALITY		22
 #define ARG_TILE_WIDTH		23
 #define ARG_TILE_HEIGHT		24
-#define ARG_BAND_INDEX	25
+#define ARG_BAND_INDEX		25
 #define ARG_IMG_WIDTH		26
 #define ARG_IMG_HEIGHT		27
 #define ARG_SRID		28
@@ -90,9 +82,9 @@
 #define ARG_CX			36
 #define ARG_CY			37
 #define ARG_NO_DATA		38
-#define ARG_VIRT_LEVELS	39
-#define ARG_STRICT_RES	40
-#define ARG_MIXED_RES	41
+#define ARG_VIRT_LEVELS		39
+#define ARG_STRICT_RES		40
+#define ARG_MIXED_RES		41
 #define ARG_PATHS		42
 #define ARG_MD5			43
 #define ARG_SUMMARY		44
@@ -602,31 +594,25 @@ exec_section_export (sqlite3 * handle, const char *dst_path,
     if (is_ascii_grid (dst_path))
       {
 	  /* export an ASCII Grid */
-	  /*
-	     if (rl2_export_ascii_grid_from_dbms
-	     (handle, dst_path, cvg, x_res, minx, miny, maxx, maxy, width,
-	     height, 0, 4) != RL2_OK)
-	     goto error;
-	   */
-	  fprintf (stderr, "NO ASCII GRID SUPPORTED\n");
+	  if (rl2_export_section_ascii_grid_from_dbms
+	      (handle, dst_path, cvg, section_id, x_res, minx, miny, maxx, maxy,
+	       width, height, 0, 4) != RL2_OK)
+	      goto error;
       }
     else if (is_jpeg_image (dst_path))
       {
 	  /* export a JPEG Image (with possible WorldFile) */
-	  /*
-	     int srid;
-	     int with_worldfile = 0;
-	     if (rl2_get_coverage_srid (cvg, &srid) == RL2_OK)
-	     {
-	     if (srid > 0)
-	     with_worldfile = 1;
-	     }
-	     if (rl2_export_jpeg_from_dbms
-	     (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
-	     width, height, 85, with_worldfile) != RL2_OK)
-	     goto error;
-	   */
-	  fprintf (stderr, "NO JPEG SUPPORTED\n");
+	  int srid;
+	  int with_worldfile = 0;
+	  if (rl2_get_coverage_srid (cvg, &srid) == RL2_OK)
+	    {
+		if (srid > 0)
+		    with_worldfile = 1;
+	    }
+	  if (rl2_export_section_jpeg_from_dbms
+	      (handle, dst_path, cvg, section_id, x_res, y_res, minx, miny,
+	       maxx, maxy, width, height, 85, with_worldfile) != RL2_OK)
+	      goto error;
       }
     else
       {
@@ -2346,7 +2332,7 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 /* checking/printing CREATE args */
     int err = 0;
     int res_error = 0;
-    printf ("\n\nrl2_tool: request is CREATE\n");
+    printf ("\n\nrl2tool: request is CREATE\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -2612,15 +2598,15 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	    }
       }
     printf ("======= Coverage Policies =======\n");
-    printf ("Strict Resolution chek: %s\n",
+    printf ("Strict Resolution check: %s\n",
 	    !strict_resolution ? "Disabled" : "Enabled");
-    printf ("Mixed Resolutions mode: %s\n",
+    printf (" Mixed Resolutions mode: %s\n",
 	    !mixed_resolutions ? "Disabled" : "Enabled");
-    printf (" Section's Input Paths: %s\n",
+    printf ("  Section's Input Paths: %s\n",
 	    !section_paths ? "Disabled" : "Enabled");
-    printf ("Section's MD5 Checksum: %s\n",
+    printf (" Section's MD5 Checksum: %s\n",
 	    !section_md5 ? "Disabled" : "Enabled");
-    printf (" Section's XML Summary: %s\n",
+    printf ("  Section's XML Summary: %s\n",
 	    !section_summary ? "Disabled" : "Enabled");
     printf ("===========================================================\n\n");
     return err;
@@ -2634,7 +2620,7 @@ check_import_args (const char *db_path, const char *src_path,
 {
 /* checking/printing IMPORT args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is IMPORT\n");
+    printf ("\n\nrl2tool; request is IMPORT\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -2714,7 +2700,7 @@ check_export_args (const char *db_path, const char *dst_path,
     int err = 0;
     int no_res = 0;
     int err_bbox = 0;
-    printf ("\n\nrl2_tool; request is EXPORT\n");
+    printf ("\n\nrl2tool; request is EXPORT\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -2949,7 +2935,7 @@ check_section_export_args (const char *db_path, const char *dst_path,
     int err = 0;
     int no_res = 0;
     int err_bbox = 0;
-    printf ("\n\nrl2_tool; request is SECTION-EXPORT\n");
+    printf ("\n\nrl2tool; request is SECTION-EXPORT\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3187,7 +3173,7 @@ check_drop_args (const char *db_path, const char *coverage)
 {
 /* checking/printing DROP args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is DROP\n");
+    printf ("\n\nrl2tool; request is DROP\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3214,7 +3200,7 @@ check_delete_args (const char *db_path, const char *coverage,
 {
 /* checking/printing DELETE args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is DELETE\n");
+    printf ("\n\nrl2tool; request is DELETE\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3251,7 +3237,7 @@ check_pyramidize_args (const char *db_path, const char *coverage,
 {
 /* checking/printing PYRAMIDIZE args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is PYRAMIDIZE\n");
+    printf ("\n\nrl2tool; request is PYRAMIDIZE\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3287,7 +3273,7 @@ check_pyramidize_monolithic_args (const char *db_path, const char *coverage,
 {
 /* checking/printing PYRAMIDIZE-MONOLITHIC args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is PYRAMIDIZE-MONOLITHIC\n");
+    printf ("\n\nrl2tool; request is PYRAMIDIZE-MONOLITHIC\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3318,7 +3304,7 @@ check_de_pyramidize_args (const char *db_path, const char *coverage,
 {
 /* checking/printing DE-PYRAMIDIZE args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is DE-PYRAMIDIZE\n");
+    printf ("\n\nrl2tool; request is DE-PYRAMIDIZE\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3352,7 +3338,7 @@ check_histogram_args (const char *db_path, const char *coverage,
 {
 /* checking/printing HISTOGRAM args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is HISTOGRAM\n");
+    printf ("\n\nrl2tool; request is HISTOGRAM\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3399,7 +3385,7 @@ check_list_args (const char *db_path, const char *coverage, const char *section,
 {
 /* checking/printing LIST args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is LIST\n");
+    printf ("\n\nrl2tool; request is LIST\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3431,7 +3417,7 @@ check_map_args (const char *db_path, const char *coverage, const char *dst_path,
 {
 /* checking/printing MAP args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is MAP\n");
+    printf ("\n\nrl2tool; request is MAP\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3473,7 +3459,7 @@ check_catalog_args (const char *db_path)
 {
 /* checking/printing CATALOG args */
     int err = 0;
-    printf ("\n\nrl2_tool; request is CATALOG\n");
+    printf ("\n\nrl2tool; request is CATALOG\n");
     printf ("===========================================================\n");
     if (db_path == NULL)
       {
@@ -3694,7 +3680,7 @@ static void
 do_help (int mode)
 {
 /* printing the argument list */
-    fprintf (stderr, "\n\nusage: rl2_tool MODE [ ARGLIST ]\n");
+    fprintf (stderr, "\n\nusage: rl2tool MODE [ ARGLIST ]\n");
     fprintf (stderr,
 	     "==============================================================\n");
     fprintf (stderr,

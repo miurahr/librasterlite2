@@ -744,6 +744,10 @@ extern "C"
 	double maxx;
 	double maxy;
 	int srid;
+	int by_section;
+	sqlite3_int64 section_id;
+	double x_res;
+	double y_res;
 	double xx_res;
 	double yy_res;
 	int transparent;
@@ -869,34 +873,35 @@ extern "C"
 				      unsigned char num_bands,
 				      rl2PixelPtr no_data);
 
-    RL2_PRIVATE int load_dbms_tiles (sqlite3 * handle,
-				     sqlite3_stmt * stmt_tiles,
-				     sqlite3_stmt * stmt_data,
-				     unsigned char *outbuf,
-				     unsigned int width,
-				     unsigned int height,
-				     unsigned char sample_type,
-				     unsigned char num_bands, double x_res,
-				     double y_res, double minx, double miny,
-				     double maxx, double maxy, int level,
-				     int scale, rl2PalettePtr palette,
-				     rl2PixelPtr no_data,
-				     rl2RasterStylePtr style,
-				     rl2RasterStatisticsPtr stats);
+    RL2_PRIVATE int rl2_load_dbms_tiles (sqlite3 * handle,
+					 sqlite3_stmt * stmt_tiles,
+					 sqlite3_stmt * stmt_data,
+					 unsigned char *outbuf,
+					 unsigned int width,
+					 unsigned int height,
+					 unsigned char sample_type,
+					 unsigned char num_bands, double x_res,
+					 double y_res, double minx, double miny,
+					 double maxx, double maxy, int level,
+					 int scale, rl2PalettePtr palette,
+					 rl2PixelPtr no_data,
+					 rl2RasterStylePtr style,
+					 rl2RasterStatisticsPtr stats);
 
-    RL2_PRIVATE int load_dbms_tiles_section (sqlite3 * handle,
-					     sqlite3_int64 section_id,
-					     sqlite3_stmt * stmt_tiles,
-					     sqlite3_stmt * stmt_data,
-					     unsigned char *outbuf,
-					     unsigned int width,
-					     unsigned int height,
-					     unsigned char sample_type,
-					     unsigned char num_bands,
-					     double x_res, double y_res,
-					     double minx, double maxy,
-					     int scale, rl2PalettePtr palette,
-					     rl2PixelPtr no_data);
+    RL2_PRIVATE int rl2_load_dbms_tiles_section (sqlite3 * handle,
+						 sqlite3_int64 section_id,
+						 sqlite3_stmt * stmt_tiles,
+						 sqlite3_stmt * stmt_data,
+						 unsigned char *outbuf,
+						 unsigned int width,
+						 unsigned int height,
+						 unsigned char sample_type,
+						 unsigned char num_bands,
+						 double x_res, double y_res,
+						 double minx, double maxy,
+						 int scale,
+						 rl2PalettePtr palette,
+						 rl2PixelPtr no_data);
 
     RL2_PRIVATE void
 	compute_aggregate_sq_diff (rl2RasterStatisticsPtr aggreg_stats);
@@ -925,55 +930,35 @@ extern "C"
     RL2_PRIVATE void add_retry (WmsRetryListPtr lst, double minx, double miny,
 				double maxx, double maxy);
 
-    RL2_PRIVATE gaiaGeomCollPtr build_extent (int srid, double minx,
-					      double miny, double maxx,
-					      double maxy);
+    RL2_PRIVATE int rl2_do_insert_levels (sqlite3 * handle, double base_res_x,
+					  double base_res_y, double factor,
+					  unsigned char sample_type,
+					  sqlite3_stmt * stmt_levl);
 
-    RL2_PRIVATE int do_insert_wms_tile (sqlite3 * handle,
-					unsigned char *blob_odd,
-					int blob_odd_sz,
-					unsigned char *blob_even,
-					int blob_even_sz,
-					sqlite3_int64 section_id, int srid,
-					double res_x, double res_y,
-					unsigned int tile_w,
-					unsigned int tile_h, double miny,
-					double maxx, double tile_minx,
-					double tile_miny, double tile_maxx,
-					double tile_maxy,
-					rl2PalettePtr aux_palette,
-					rl2PixelPtr no_data,
-					sqlite3_stmt * stmt_tils,
-					sqlite3_stmt * stmt_data,
-					rl2RasterStatisticsPtr section_stats);
+    RL2_PRIVATE int rl2_do_insert_section_levels (sqlite3 * handle,
+						  sqlite3_int64 section_id,
+						  double base_res_x,
+						  double base_res_y,
+						  double factor,
+						  unsigned char sample_type,
+						  sqlite3_stmt * stmt_levl);
 
-    RL2_PRIVATE int do_insert_levels (sqlite3 * handle, double base_res_x,
-				      double base_res_y, double factor,
-				      unsigned char sample_type,
-				      sqlite3_stmt * stmt_levl);
+    RL2_PRIVATE int rl2_do_insert_stats (sqlite3 * handle,
+					 rl2RasterStatisticsPtr section_stats,
+					 sqlite3_int64 section_id,
+					 sqlite3_stmt * stmt_upd_sect);
 
-    RL2_PRIVATE int do_insert_section_levels (sqlite3 * handle,
-					      sqlite3_int64 section_id,
-					      double base_res_x,
-					      double base_res_y, double factor,
-					      unsigned char sample_type,
-					      sqlite3_stmt * stmt_levl);
-
-    RL2_PRIVATE int do_insert_stats (sqlite3 * handle,
-				     rl2RasterStatisticsPtr section_stats,
-				     sqlite3_int64 section_id,
-				     sqlite3_stmt * stmt_upd_sect);
-
-    RL2_PRIVATE int do_insert_section (sqlite3 * handle, const char *src_path,
-				       const char *section, int srid,
-				       unsigned int width,
-				       unsigned int height, double minx,
-				       double miny, double maxx, double maxy,
-				       char *xml_summary,
-				       int section_paths, int section_md5,
-				       int section_summary,
-				       sqlite3_stmt * stmt_sect,
-				       sqlite3_int64 * id);
+    RL2_PRIVATE int rl2_do_insert_section (sqlite3 * handle,
+					   const char *src_path,
+					   const char *section, int srid,
+					   unsigned int width,
+					   unsigned int height, double minx,
+					   double miny, double maxx,
+					   double maxy, char *xml_summary,
+					   int section_paths, int section_md5,
+					   int section_summary,
+					   sqlite3_stmt * stmt_sect,
+					   sqlite3_int64 * id);
 
     RL2_PRIVATE char *get_section_name (const char *src_path);
 
@@ -984,8 +969,6 @@ extern "C"
 				     rl2RasterStatisticsPtr * section_stats,
 				     sqlite3_int64 * section_id);
 
-    RL2_PRIVATE int is_point (gaiaGeomCollPtr geom);
-
     RL2_PRIVATE ResolutionsListPtr alloc_resolutions_list ();
 
     RL2_PRIVATE void destroy_resolutions_list (ResolutionsListPtr list);
@@ -994,12 +977,15 @@ extern "C"
 					  int scale, double x_res,
 					  double y_res);
 
-    RL2_PRIVATE int find_best_resolution_level (sqlite3 * handle,
-						const char *coverage,
-						double x_res, double y_res,
-						int *level_id, int *scale,
-						int *real_scale, double *xx_res,
-						double *yy_res);
+    RL2_PRIVATE int rl2_find_best_resolution_level (sqlite3 * handle,
+						    const char *coverage,
+						    int by_section,
+						    sqlite3_int64 section_id,
+						    double x_res, double y_res,
+						    int *level_id, int *scale,
+						    int *real_scale,
+						    double *xx_res,
+						    double *yy_res);
 
     RL2_PRIVATE unsigned char get_palette_format (rl2PrivPalettePtr plt);
 
@@ -1290,16 +1276,17 @@ extern "C"
 					       unsigned char **image,
 					       int *image_sz);
 
-    RL2_PRIVATE int copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
-				     unsigned int width,
-				     unsigned int height,
-				     unsigned char sample_type,
-				     unsigned char num_bands, double x_res,
-				     double y_res, double minx, double maxy,
-				     double tile_minx, double tile_maxy,
-				     rl2PixelPtr no_data,
-				     rl2RasterStylePtr style,
-				     rl2RasterStatisticsPtr stats);
+    RL2_PRIVATE int rl2_copy_raw_pixels (rl2RasterPtr raster,
+					 unsigned char *outbuf,
+					 unsigned int width,
+					 unsigned int height,
+					 unsigned char sample_type,
+					 unsigned char num_bands, double x_res,
+					 double y_res, double minx, double maxy,
+					 double tile_minx, double tile_maxy,
+					 rl2PixelPtr no_data,
+					 rl2RasterStylePtr style,
+					 rl2RasterStatisticsPtr stats);
 
     RL2_PRIVATE int rl2_build_shaded_relief_mask (sqlite3 * handle,
 						  rl2CoveragePtr cvg,
@@ -1350,6 +1337,44 @@ extern "C"
 
     RL2_PRIVATE int rl2_is_mixed_resolutions_coverage (sqlite3 * handle,
 						       const char *coverage);
+
+    RL2_PRIVATE int rl2_has_styled_rgb_colors (rl2RasterStylePtr style);
+
+    RL2_PRIVATE int rl2_get_raw_raster_data_common (sqlite3 * handle,
+						    rl2CoveragePtr cvg,
+						    int by_section,
+						    sqlite3_int64 section_id,
+						    unsigned int width,
+						    unsigned int height,
+						    double minx, double miny,
+						    double maxx, double maxy,
+						    double x_res, double y_res,
+						    unsigned char **buffer,
+						    int *buf_size,
+						    rl2PalettePtr * palette,
+						    unsigned char out_pixel,
+						    rl2PixelPtr bgcolor,
+						    rl2RasterStylePtr style,
+						    rl2RasterStatisticsPtr
+						    stats);
+
+    RL2_PRIVATE char *rl2_double_quoted_sql (const char *value);
+
+    RL2_PRIVATE int rl2_parse_point (sqlite3 * sqlite,
+				     const unsigned char *blob, int blob_sz,
+				     double *x, double *y);
+
+    RL2_PRIVATE int rl2_parse_point_generic (sqlite3 * sqlite,
+					     const unsigned char *blob,
+					     int blob_sz, double *x, double *y);
+
+    RL2_PRIVATE int rl2_parse_bbox (sqlite3 * sqlite, const unsigned char *blob,
+				    int blob_sz, double *minx, double *miny,
+				    double *maxx, double *maxy);
+
+    RL2_PRIVATE int rl2_build_bbox (sqlite3 * sqlite, int srid, double minx,
+				    double miny, double maxx, double maxy,
+				    unsigned char **blob, int *blob_sz);
 
 #ifdef __cplusplus
 }

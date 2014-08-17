@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -54,8 +54,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2_private.h"
-
-#include <spatialite/gaiaaux.h>
 
 /* 64 bit integer: portable format for printf() */
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -3436,13 +3434,13 @@ destroy_mono_handling (rl2BandHandlingPtr mono)
 }
 
 RL2_PRIVATE int
-copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
-		 unsigned int width,
-		 unsigned int height, unsigned char sample_type,
-		 unsigned char num_bands, double x_res, double y_res,
-		 double minx, double maxy, double tile_minx, double tile_maxy,
-		 rl2PixelPtr no_data, rl2RasterStylePtr style,
-		 rl2RasterStatisticsPtr stats)
+rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
+		     unsigned int width,
+		     unsigned int height, unsigned char sample_type,
+		     unsigned char num_bands, double x_res, double y_res,
+		     double minx, double maxy, double tile_minx,
+		     double tile_maxy, rl2PixelPtr no_data,
+		     rl2RasterStylePtr style, rl2RasterStatisticsPtr stats)
 {
 /* copying raw pixels into the output buffer */
     unsigned int tile_width;
@@ -4263,7 +4261,7 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
     if (coverage == NULL)
 	goto error;
     if (rl2_find_matching_resolution
-	(handle, cvg, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, 0, 0, &xx_res, &yy_res, &level, &scale) != RL2_OK)
 	goto error;
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
@@ -4276,7 +4274,7 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
 
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
-    xxtiles = gaiaDoubleQuotedSql (xtiles);
+    xxtiles = rl2_double_quoted_sql (xtiles);
     sql =
 	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
 			 "FROM \"%s\" "
@@ -4299,7 +4297,7 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
       {
 	  /* preparing the data SQL query - both ODD and EVEN */
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
-	  xxdata = gaiaDoubleQuotedSql (xdata);
+	  xxdata = rl2_double_quoted_sql (xdata);
 	  sqlite3_free (xdata);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
 				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
@@ -4318,7 +4316,7 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
       {
 	  /* preparing the data SQL query - only ODD */
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
-	  xxdata = gaiaDoubleQuotedSql (xdata);
+	  xxdata = rl2_double_quoted_sql (xdata);
 	  sqlite3_free (xdata);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd "
 				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
@@ -4360,7 +4358,7 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
 	  goto error;
       }
     void_raw_buffer (rawbuf, width + 2, height + 2, sample_type, 1, no_data);
-    if (!load_dbms_tiles
+    if (!rl2_load_dbms_tiles
 	(handle, stmt_tiles, stmt_data, rawbuf, width + 2, height + 2,
 	 sample_type, 1, xx_res, yy_res, minx - xx_res, miny - yy_res,
 	 maxx + xx_res, maxy + yy_res, level, scale, NULL, no_data, NULL, NULL))

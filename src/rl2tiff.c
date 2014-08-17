@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -2166,21 +2166,47 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     if (rl2_get_tiff_origin_resolution (tiff, &hResolution, &vResolution) !=
 	RL2_OK)
 	return RL2_FALSE;
-    confidence = coverage->hResolution / 100.0;
-    if (hResolution < (coverage->hResolution - confidence)
-	|| hResolution > (coverage->hResolution + confidence))
+    if (coverage->mixedResolutions)
       {
-	  if (verbose)
-	      fprintf (stderr, "Mismatching Horizontal Resolution !!!\n");
-	  return RL2_FALSE;
+	  /* accepting any resolution */
       }
-    confidence = coverage->vResolution / 100.0;
-    if (vResolution < (coverage->vResolution - confidence)
-	|| vResolution > (coverage->vResolution + confidence))
+    else if (coverage->strictResolution)
       {
-	  if (verbose)
-	      fprintf (stderr, "Mismatching Vertical Resolution !!!\n");
-	  return RL2_FALSE;
+	  /* enforcing Strict Resolution check */
+	  if (hResolution != coverage->hResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Strict) !!!\n");
+		return RL2_FALSE;
+	    }
+	  if (vResolution != coverage->vResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution (Strict) !!!\n");
+		return RL2_FALSE;
+	    }
+      }
+    else
+      {
+	  /* permissive Resolution check */
+	  confidence = coverage->hResolution / 100.0;
+	  if (hResolution < (coverage->hResolution - confidence)
+	      || hResolution > (coverage->hResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr, "Mismatching Horizontal Resolution !!!\n");
+		return RL2_FALSE;
+	    }
+	  confidence = coverage->vResolution / 100.0;
+	  if (vResolution < (coverage->vResolution - confidence)
+	      || vResolution > (coverage->vResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr, "Mismatching Vertical Resolution !!!\n");
+		return RL2_FALSE;
+	    }
       }
     return RL2_TRUE;
 }
@@ -4334,7 +4360,7 @@ rl2_get_tile_from_tiff_origin (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
 	  if (origin->remapMaxPalette > 0)
 	    {
 		palette = rl2_create_palette (origin->remapMaxPalette);
-		for (x = 0; x < origin->maxPalette; x++)
+		for (x = 0; x < origin->remapMaxPalette; x++)
 		  {
 		      rl2_set_palette_color (palette, x,
 					     origin->remapRed[x],
@@ -7984,7 +8010,7 @@ rl2_build_tiff_xml_summary (rl2TiffOriginPtr tiff)
     if (org->sampleFormat == PLANARCONFIG_SEPARATE)
 	xml =
 	    sqlite3_mprintf
-	    ("%s<PlanarConfiguration>separate Raster planes</PlanarConfiguratio>",
+	    ("%s<PlanarConfiguration>separate Raster planes</PlanarConfiguration>",
 	     prev);
     else
 	xml =

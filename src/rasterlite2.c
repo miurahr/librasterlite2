@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -1104,30 +1104,6 @@ rl2_get_raster_extent (rl2RasterPtr ptr, double *minX, double *minY,
     *maxX = rst->maxX;
     *maxY = rst->maxY;
     return RL2_OK;
-}
-
-RL2_DECLARE gaiaGeomCollPtr
-rl2_get_raster_bbox (rl2RasterPtr ptr)
-{
-/* return the Raster BBox [envelope] */
-    gaiaGeomCollPtr geom;
-    gaiaPolygonPtr pg;
-    gaiaRingPtr rng;
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
-    if (rst == NULL)
-	return NULL;
-    if (rst->Srid == RL2_GEOREFERENCING_NONE)
-	return NULL;
-    geom = gaiaAllocGeomColl ();
-    geom->Srid = rst->Srid;
-    pg = gaiaAddPolygonToGeomColl (geom, 5, 0);
-    rng = pg->Exterior;
-    gaiaSetPoint (rng->Coords, 0, rst->minX, rst->minY);
-    gaiaSetPoint (rng->Coords, 1, rst->maxX, rst->minY);
-    gaiaSetPoint (rng->Coords, 2, rst->maxX, rst->maxY);
-    gaiaSetPoint (rng->Coords, 3, rst->minX, rst->maxY);
-    gaiaSetPoint (rng->Coords, 4, rst->minX, rst->minY);
-    return geom;
 }
 
 RL2_DECLARE int

@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -904,6 +904,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
     struct aux_renderer aux;
     rl2PalettePtr palette = NULL;
     rl2PrivRasterStylePtr symbolizer = NULL;
+    int by_section = 0;
     sqlite3 *sqlite = sqlite3_context_db_handle (auxgrp->context);
 
     ext_x = auxgrp->maxx - auxgrp->minx;
@@ -1021,11 +1022,23 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		  }
 	    }
 
-	  /* retrieving the optimal resolution level */
-	  if (!find_best_resolution_level
-	      (sqlite, cvg->coverageName, x_res, y_res, &level_id, &scale,
-	       &xscale, &xx_res, &yy_res))
-	      goto error;
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg->coverageName) > 0)
+	    {
+		/* Mixed Resolutions Coverage */
+		by_section = 1;
+		xx_res = x_res;
+		yy_res = y_res;
+	    }
+	  else
+	    {
+		/* ordinary Coverage */
+		by_section = 0;
+		/* retrieving the optimal resolution level */
+		if (!rl2_find_best_resolution_level
+		    (sqlite, cvg->coverageName, 0, 0, x_res, y_res, &level_id,
+		     &scale, &xscale, &xx_res, &yy_res))
+		    goto error;
+	    }
 	  base_width = (int) (ext_x / xx_res);
 	  base_height = (int) (ext_y / yy_res);
 	  if ((base_width <= 0 && base_width >= USHRT_MAX)
@@ -1084,8 +1097,18 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 	  aux.maxx = auxgrp->maxx;
 	  aux.maxy = auxgrp->maxy;
 	  aux.srid = srid;
-	  aux.xx_res = xx_res;
-	  aux.yy_res = yy_res;
+	  if (by_section)
+	    {
+		aux.by_section = 1;
+		aux.x_res = x_res;
+		aux.y_res = y_res;
+	    }
+	  else
+	    {
+		aux.by_section = 0;
+		aux.xx_res = xx_res;
+		aux.yy_res = yy_res;
+	    }
 	  aux.transparent = auxgrp->transparent;
 	  aux.opacity = opacity;
 	  aux.quality = auxgrp->quality;
@@ -1210,4 +1233,316 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
     if (group != NULL)
 	rl2_destroy_group_renderer (group);
     sqlite3_result_null (auxgrp->context);
+}
+
+static void
+do_copy_rgb (unsigned char *out, const unsigned char *in, unsigned int width,
+	     unsigned int height, unsigned int w, unsigned int h,
+	     int base_x, int base_y, unsigned char bg_red,
+	     unsigned char bg_green, unsigned char bg_blue)
+{
+/* copying RGB pixels */
+    int x;
+    int y;
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char *p_out;
+    const unsigned char *p_in = in;
+
+    for (y = 0; y < (int) h; y++)
+      {
+	  if ((base_y + y) >= (int) height)
+	      break;
+	  if ((base_y + y) < 0)
+	    {
+		p_in += w * 3;
+		continue;
+	    }
+	  for (x = 0; x < (int) w; x++)
+	    {
+		if ((base_x + x) < 0 || (base_x + x) >= (int) width)
+		  {
+		      p_in += 3;
+		      continue;
+		  }
+		p_out = out + ((base_y + y) * width * 3) + ((base_x + x) * 3);
+		r = *p_in++;
+		g = *p_in++;
+		b = *p_in++;
+		if (r == bg_red && g == bg_green && b == bg_blue)
+		  {
+		      /* transparent pixel */
+		      p_out += 3;
+		  }
+		else
+		  {
+		      /* opaque pixel */
+		      *p_out++ = r;
+		      *p_out++ = g;
+		      *p_out++ = b;
+		  }
+	    }
+      }
+}
+
+static void
+do_copy_gray (unsigned char *out, const unsigned char *in, unsigned int width,
+	      unsigned int height, unsigned int w, unsigned int h,
+	      int base_x, int base_y, unsigned char bg_gray)
+{
+/* copying Grayscale pixels */
+    int x;
+    int y;
+    unsigned char gray;
+    unsigned char *p_out;
+    const unsigned char *p_in = in;
+
+    for (y = 0; y < (int) h; y++)
+      {
+	  if ((base_y + y) >= (int) height)
+	      break;
+	  if ((base_y + y) < 0)
+	    {
+		p_in += w;
+		continue;
+	    }
+	  for (x = 0; x < (int) w; x++)
+	    {
+		if ((base_x + x) < 0 || (base_x + x) >= (int) width)
+		  {
+		      p_in++;
+		      continue;
+		  }
+		p_out = out + ((base_y + y) * width) + (base_x + x);
+		gray = *p_in++;
+		if (gray == bg_gray)
+		  {
+		      /* transparent pixel */
+		      p_out++;
+		  }
+		else
+		  {
+		      /* opaque pixel */
+		      *p_out++ = gray;
+		  }
+	    }
+      }
+}
+
+RL2_DECLARE int
+rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, rl2CoveragePtr cvg,
+					   unsigned int width,
+					   unsigned int height, double minx,
+					   double miny, double maxx,
+					   double maxy, double x_res,
+					   double y_res, unsigned char **buffer,
+					   int *buf_size,
+					   rl2PalettePtr * palette,
+					   unsigned char *out_pixel,
+					   unsigned char bg_red,
+					   unsigned char bg_green,
+					   unsigned char bg_blue,
+					   rl2RasterStylePtr style,
+					   rl2RasterStatisticsPtr stats)
+{
+/* attempting to return raw pixels from the DBMS Coverage - Mixed Resolutions */
+    int ret;
+    rl2PixelPtr no_data = NULL;
+    const char *coverage;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned char pixel = *out_pixel;
+    unsigned char *outbuf = NULL;
+    int out_size;
+    unsigned char *p;
+    unsigned int x;
+    unsigned int y;
+    rl2RasterStylePtr xstyle = style;
+    char *xsections;
+    char *xxsections;
+    char *sql;
+    sqlite3_stmt *stmt = NULL;
+
+    if (cvg == NULL || handle == NULL)
+	return RL2_ERROR;
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	return RL2_ERROR;
+    coverage = rl2_get_coverage_name (cvg);
+    if (coverage == NULL)
+	return RL2_ERROR;
+
+    *buffer = NULL;
+    *buf_size = 0;
+    if (pixel == RL2_PIXEL_GRAYSCALE && pixel_type == RL2_PIXEL_DATAGRID)
+      {
+	  if (rl2_has_styled_rgb_colors (style))
+	    {
+		/* RGB RasterSymbolizer: promoting to RGB */
+		pixel = RL2_PIXEL_RGB;
+	    }
+      }
+    if (pixel == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* GRAYSCALE */
+	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_GRAYSCALE_BAND, bg_red);
+      }
+    else if (pixel == RL2_PIXEL_RGB)
+      {
+	  /* RGB */
+	  *out_pixel = RL2_PIXEL_RGB;
+	  no_data = rl2_create_pixel (RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_RED_BAND, bg_red);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_GREEN_BAND, bg_green);
+	  rl2_set_pixel_sample_uint8 (no_data, RL2_BLUE_BAND, bg_blue);
+      }
+    else
+	return RL2_ERROR;
+    if (pixel_type == RL2_PIXEL_MONOCHROME)
+	xstyle = NULL;
+
+/* preparing the "sections" SQL query */
+    xsections = sqlite3_mprintf ("%s_sections", coverage);
+    xxsections = rl2_double_quoted_sql (xsections);
+    sql =
+	sqlite3_mprintf
+	("SELECT section_id, MbrMinX(geometry), MbrMinY(geometry), "
+	 "MbrMaxX(geometry), MbrMaxY(geometry) "
+	 "FROM \"%s\" WHERE ROWID IN ( "
+	 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxsections, xsections);
+    sqlite3_free (xsections);
+    free (xxsections);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT mixed-res Sections SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* allocating the output buffer */
+    if (*out_pixel == RL2_PIXEL_RGB)
+	out_size = width * height * 3;
+    else
+	out_size = width * height;
+    outbuf = malloc (out_size);
+    p = outbuf;
+    for (y = 0; y < height; y++)
+      {
+	  /* priming the background color */
+	  for (x = 0; x < width; x++)
+	    {
+		if (*out_pixel == RL2_PIXEL_RGB)
+		  {
+		      *p++ = bg_red;
+		      *p++ = bg_green;
+		      *p++ = bg_blue;
+		  }
+		else
+		    *p++ = bg_red;
+	    }
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, minx);
+    sqlite3_bind_double (stmt, 2, miny);
+    sqlite3_bind_double (stmt, 3, maxx);
+    sqlite3_bind_double (stmt, 4, maxy);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		sqlite3_int64 section_id = sqlite3_column_int64 (stmt, 0);
+		double section_minx = sqlite3_column_double (stmt, 1);
+		double section_miny = sqlite3_column_double (stmt, 2);
+		double section_maxx = sqlite3_column_double (stmt, 3);
+		double section_maxy = sqlite3_column_double (stmt, 4);
+		double xx_res;
+		double yy_res;
+		int level_id;
+		int scale;
+		int xscale;
+		unsigned int w;
+		unsigned int h;
+		int base_x;
+		int base_y;
+		unsigned char *bufpix = NULL;
+		int bufpix_size;
+		double img_res_x = (maxx - minx) / (double) width;
+		double img_res_y = (maxy - miny) / (double) height;
+		double mnx = minx;
+		double mny = miny;
+		double mxx = maxx;
+		double mxy = maxy;
+		if (section_id > 3)
+		    continue;
+		/* normalizing the visible portion of the Section */
+		if (mnx < section_minx)
+		    mnx = section_minx;
+		if (mny < section_miny)
+		    mny = section_miny;
+		if (mxx > section_maxx)
+		    mxx = section_maxx;
+		if (mxy > section_maxy)
+		    mxy = section_maxy;
+		/* retrieving the optimal resolution level */
+		if (!rl2_find_best_resolution_level
+		    (handle, coverage, 1, section_id, x_res, y_res, &level_id,
+		     &scale, &xscale, &xx_res, &yy_res))
+		    goto error;
+		w = (unsigned int) ((mxx - mnx) / xx_res);
+		if (((double) w * xx_res) < (mxx - mnx))
+		    w++;
+		h = (unsigned int) ((mxy - mny) / yy_res);
+		if (((double) h * yy_res) < (mxy - mny))
+		    h++;
+		base_x = (int) ((mnx - minx) / img_res_x);
+		base_y = (int) ((maxy - mxy) / img_res_y);
+		if (rl2_get_raw_raster_data_common
+		    (handle, cvg, 1, section_id, w, h, mnx, mny, mxx, mxy,
+		     xx_res, yy_res, &bufpix, &bufpix_size, palette, *out_pixel,
+		     no_data, xstyle, stats) != RL2_OK)
+		    goto error;
+		if (*out_pixel == RL2_PIXEL_RGB)
+		    do_copy_rgb (outbuf, bufpix, width, height, w, h, base_x,
+				 base_y, bg_red, bg_green, bg_blue);
+		else
+		    do_copy_gray (outbuf, bufpix, width, height, w, h, base_x,
+				  base_y, bg_red);
+		free (bufpix);
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+
+    *buffer = outbuf;
+    *buf_size = out_size;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    if (outbuf != NULL)
+	free (outbuf);
+    return RL2_ERROR;
 }

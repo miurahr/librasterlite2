@@ -759,6 +759,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "ERROR: unable to clone a palette\n");
 	  return 51;
       }
+    rl2_destroy_palette (plt2);
     if (rl2_serialize_dbms_palette (NULL, &blob, &blob_size) == RL2_OK)
       {
 	  fprintf (stderr, "ERROR: unexpected NULL palette serialization\n");

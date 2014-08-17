@@ -87,7 +87,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample, int tile_sz,
     const char *coverage = NULL;
     const char *sample_name = NULL;
     const char *pixel_name = NULL;
-    unsigned char num_bands = 1; 
+    unsigned char num_bands = 1;
     const char *compression_name = NULL;
     int qlty = 100;
     char *sql;

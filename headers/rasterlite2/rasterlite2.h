@@ -70,13 +70,7 @@ extern "C"
 {
 #endif
 
-#ifdef SPATIALITE_AMALGAMATION
-#include <spatialite/sqlite3.h>
-#else
-#include <sqlite3.h>
-#endif
-
-#include <spatialite/gaiageo.h>
+#include "rasterlite2/sqlite.h"
 
 /** RasterLite2 flag: FALSE */
 #define RL2_FALSE			0
@@ -1741,18 +1735,6 @@ extern "C"
 					   double *maxX, double *maxY);
 
 /**
- Retrieving the bounding box from a Raster Object
-
- \param rst pointer to the Raster Object.
- 
- \return a Geometry Object (rectangle) corresponding to the Raster's BBox; 
-	NULL if any error is encountered or if the Raster doesn't support any GeoReferencing.
-
- \sa rl2_create_raster
- */
-    RL2_DECLARE gaiaGeomCollPtr rl2_get_raster_bbox (rl2RasterPtr rst);
-
-/**
  Creates a new Pixel Object suitable for a given Raster Object
 
  \param rst pointer to the Raster Object.
@@ -2934,6 +2916,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
+				      int by_section, sqlite3_int64 section_id,
 				      double *x_res, double *y_res,
 				      unsigned char *level,
 				      unsigned char *scale);
@@ -3029,6 +3012,25 @@ extern "C"
 					 unsigned char bg_blue,
 					 rl2RasterStylePtr style,
 					 rl2RasterStatisticsPtr stats);
+
+    RL2_DECLARE int
+	rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle,
+						   rl2CoveragePtr cvg,
+						   unsigned int width,
+						   unsigned int height,
+						   double minx, double miny,
+						   double maxx, double maxy,
+						   double x_res, double y_res,
+						   unsigned char **buffer,
+						   int *buf_size,
+						   rl2PalettePtr * palette,
+						   unsigned char *out_pixel,
+						   unsigned char bg_red,
+						   unsigned char bg_green,
+						   unsigned char bg_blue,
+						   rl2RasterStylePtr style,
+						   rl2RasterStatisticsPtr
+						   stats);
 
     RL2_DECLARE int
 	rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
@@ -4015,6 +4017,12 @@ extern "C"
 
     RL2_DECLARE char *rl2_build_worldfile_path (const char *path,
 						const char *suffix);
+
+    RL2_DECLARE char *rl2_compute_file_md5_checksum (const char *src_path);
+
+    RL2_DECLARE int rl2_get_jpeg_infos (const char *path, unsigned int *width,
+					unsigned int *height,
+					unsigned char *pixel_type);
 
 #ifdef __cplusplus
 }

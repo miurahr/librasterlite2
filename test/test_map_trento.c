@@ -343,8 +343,8 @@ do_export_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
 }
 
 static int
-do_export_section_jpeg (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
-		int scale)
+do_export_section_jpeg (sqlite3 * sqlite, const char *coverage,
+			gaiaGeomCollPtr geom, int scale)
 {
 /* exporting a JPEG [no Worldfile] - Section */
     char *sql;
@@ -373,7 +373,7 @@ do_export_section_jpeg (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr 
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
     sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, 1);
+    sqlite3_bind_int (stmt, 2, 1);
     sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
     sqlite3_bind_int (stmt, 4, 1024);
     sqlite3_bind_int (stmt, 5, 1024);
@@ -398,7 +398,7 @@ do_export_section_jpeg (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr 
 
 static int
 do_export_section_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
-		    gaiaGeomCollPtr geom, int scale)
+			    gaiaGeomCollPtr geom, int scale)
 {
 /* exporting a JPEG + Worldfile - Section */
     char *sql;
@@ -427,7 +427,7 @@ do_export_section_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
     sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, 1);
+    sqlite3_bind_int (stmt, 2, 1);
     sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
     sqlite3_bind_int (stmt, 4, 1024);
     sqlite3_bind_int (stmt, 5, 1024);
@@ -570,6 +570,10 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     char *sql;
     int tile_size = 256;
     gaiaGeomCollPtr geom;
+    unsigned int width;
+    unsigned int height;
+    unsigned char pixel_type;
+    char *md5;
 
     if (!type)
       {
@@ -909,6 +913,102 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -35;
 	  return 0;
       }
+
+/* testing GetJpegInfos */
+    if (rl2_get_jpeg_infos
+	("./map_samples/trento-gray/trento-gray1.jpg", &width, &height,
+	 &pixel_type) != RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to GetJpegInfos from \"trento-gray1.jpg\"\n");
+	  *retcode += -36;
+	  return 0;
+      }
+    if (width != 600)
+      {
+	  fprintf (stderr, "Unexpected Width from \"trento-gray1.jpg\" %u\n",
+		   width);
+	  *retcode += -37;
+	  return 0;
+      }
+    if (height != 600)
+      {
+	  fprintf (stderr, "Unexpected Height from \"trento-gray1.jpg\" %u\n",
+		   height);
+	  *retcode += -38;
+	  return 0;
+      }
+    if (pixel_type != RL2_PIXEL_GRAYSCALE)
+      {
+	  fprintf (stderr,
+		   "Unexpected PixelType from \"trento-gray1.jpg\" %02x\n",
+		   pixel_type);
+	  *retcode += -39;
+	  return 0;
+      }
+    if (rl2_get_jpeg_infos
+	("./map_samples/trento-rgb/trento-rgb1.jpg", &width, &height,
+	 &pixel_type) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to GetJpegInfos from \"trento-rgb1.jpg\"\n");
+	  *retcode += -40;
+	  return 0;
+      }
+    if (width != 600)
+      {
+	  fprintf (stderr, "Unexpected Width from \"trento-rgb1.jpg\" %u\n",
+		   width);
+	  *retcode += -41;
+	  return 0;
+      }
+    if (height != 600)
+      {
+	  fprintf (stderr, "Unexpected Height from \"trento-rgb1.jpg\" %u\n",
+		   height);
+	  *retcode += -42;
+	  return 0;
+      }
+    if (pixel_type != RL2_PIXEL_RGB)
+      {
+	  fprintf (stderr,
+		   "Unexpected PixelType from \"trento-rgb1.jpg\" %02x\n",
+		   pixel_type);
+	  *retcode += -43;
+	  return 0;
+      }
+/* testing MD5 Checksum */
+    md5 =
+	rl2_compute_file_md5_checksum
+	("./map_samples/trento-gray/trento-gray1.jpg");
+    if (md5 == NULL)
+      {
+	  fprintf (stderr, "Unable to GetMD5 from \"trento-gray1.jpg\"\n");
+	  *retcode += -44;
+	  return 0;
+      }
+    if (strcmp (md5, "6750bf6f168200dab2c741017af82f1d") != 0)
+      {
+	  fprintf (stderr, "Unexpected MD5 for \"trento-gray1.jpg\" %s\n", md5);
+	  *retcode += -45;
+	  return 0;
+      }
+    free (md5);
+    md5 =
+	rl2_compute_file_md5_checksum
+	("./map_samples/trento-rgb/trento-rgb1.jpg");
+    if (md5 == NULL)
+      {
+	  fprintf (stderr, "Unable to GetMD5 from \"trento-rgb1.jpg\"\n");
+	  *retcode += -46;
+	  return 0;
+      }
+    if (strcmp (md5, "8f0903be04e7ff3a2cb6188d52034502") != 0)
+      {
+	  fprintf (stderr, "Unexpected MD5 for \"trento-rgb1.jpg\" %s\n", md5);
+	  *retcode += -47;
+	  return 0;
+      }
+    free (md5);
 
     return 1;
 }

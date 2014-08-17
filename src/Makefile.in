@@ -79,6 +79,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@MINGW_TRUE@am__append_1 = -lm
+@MINGW_FALSE@am__append_2 = -lpthread -lm
+@MINGW_TRUE@am__append_3 = -lm
+@MINGW_FALSE@am__append_4 = -lpthread -lm
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(noinst_HEADERS)
@@ -122,7 +126,9 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
-librasterlite2_la_DEPENDENCIES =
+am__DEPENDENCIES_1 =
+librasterlite2_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 am_librasterlite2_la_OBJECTS = rasterlite2.lo rl2raw.lo rl2codec.lo \
 	rl2jpeg.lo rl2png.lo rl2gif.lo rl2webp.lo rl2tiff.lo rl2wms.lo \
 	rl2ascii.lo rl2paint.lo rl2dbms.lo rl2import.lo rl2pyramid.lo \
@@ -138,7 +144,8 @@ librasterlite2_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(AM_CFLAGS) $(CFLAGS) $(librasterlite2_la_LDFLAGS) $(LDFLAGS) \
 	-o $@
-mod_rasterlite2_la_DEPENDENCIES =
+mod_rasterlite2_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 am_mod_rasterlite2_la_OBJECTS = mod_rasterlite2_la-rasterlite2.lo \
 	mod_rasterlite2_la-rl2raw.lo mod_rasterlite2_la-rl2codec.lo \
 	mod_rasterlite2_la-rl2jpeg.lo mod_rasterlite2_la-rl2png.lo \
@@ -362,8 +369,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CFLAGS = @LIBPNG_CFLAGS@ @LIBWEBP_CFLAGS@ @LIBLZMA_CFLAGS@ \
-	@LIBSPATIALITE_CFLAGS@ @LIBCAIRO_CFLAGS@ @LIBCURL_CFLAGS@ \
-	@LIBXML2_CFLAGS@ 
+	@LIBCAIRO_CFLAGS@ @LIBCURL_CFLAGS@ @LIBXML2_CFLAGS@ 
 
 AM_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers
 noinst_HEADERS = md5.h
@@ -375,12 +381,11 @@ librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2svgaux.c rl2symbolizer.c rl2rastersym.c rl2version.c \
 	rl2md5.c md5.c
 
+librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
+	@LIBCAIRO_LIBS@ @LIBCURL_LIBS@ @LIBXML2_LIBS@ $(am__append_1) \
+	$(am__append_2)
 @MINGW_FALSE@librasterlite2_la_LDFLAGS = -version-info 1:0:0
 @MINGW_TRUE@librasterlite2_la_LDFLAGS = -avoid-version -no-undefined
-librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
-	@LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ \
-	@LIBCURL_LIBS@ @LIBXML2_LIBS@
-
 mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
 	rl2ascii.c rl2paint.c rl2dbms.c rl2import.c rl2pyramid.c \
@@ -389,9 +394,8 @@ mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2md5.c md5.c
 
 mod_rasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
-	@LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ @LIBCAIRO_LIBS@ \
-	@LIBCURL_LIBS@ @LIBXML2_LIBS@
-
+	@LIBLZMA_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ @LIBXML2_LIBS@ \
+	$(am__append_3) $(am__append_4)
 mod_rasterlite2_la_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers -I. \
 	-DLOADABLE_EXTENSION
 mod_rasterlite2_la_LIBTOOLFLAGS = --tag=disable-static

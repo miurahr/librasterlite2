@@ -889,6 +889,7 @@ main (int argc, char *argv[])
 	  return -28;
       }
     free (blob_odd_png);
+    free (blob_odd_fax);
 
     unlink ("./monochrome_1_1_png.png");
 

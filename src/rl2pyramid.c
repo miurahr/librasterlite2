@@ -20,7 +20,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -64,8 +64,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2tiff.h"
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
-
-#include <spatialite/gaiaaux.h>
 
 /* 64 bit integer: portable format for printf() */
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -151,9 +149,6 @@ do_insert_pyramid_tile (sqlite3 * handle, unsigned char *blob_odd,
 /* INSERTing a Pyramid tile */
     int ret;
     sqlite3_int64 tile_id;
-    unsigned char *blob;
-    int blob_size;
-    gaiaGeomCollPtr geom;
 
     sqlite3_reset (stmt_tils);
     sqlite3_clear_bindings (stmt_tils);
@@ -162,10 +157,11 @@ do_insert_pyramid_tile (sqlite3 * handle, unsigned char *blob_odd,
 	sqlite3_bind_null (stmt_tils, 2);
     else
 	sqlite3_bind_int64 (stmt_tils, 2, section_id);
-    geom = build_extent (srid, minx, miny, maxx, maxy);
-    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
-    gaiaFreeGeomColl (geom);
-    sqlite3_bind_blob (stmt_tils, 3, blob, blob_size, free);
+    sqlite3_bind_double (stmt_tils, 3, minx);
+    sqlite3_bind_double (stmt_tils, 4, miny);
+    sqlite3_bind_double (stmt_tils, 5, maxx);
+    sqlite3_bind_double (stmt_tils, 6, maxy);
+    sqlite3_bind_int (stmt_tils, 7, srid);
     ret = sqlite3_step (stmt_tils);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	;
@@ -220,7 +216,7 @@ delete_section_pyramid (sqlite3 * handle, const char *coverage,
 #endif
 
     table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -259,7 +255,7 @@ check_section_pyramid (sqlite3 * handle, const char *coverage,
 #endif
 
     table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf ("SELECT Count(*) FROM \"%s\" "
@@ -309,7 +305,7 @@ get_section_infos (sqlite3 * handle, const char *coverage,
 
 /* Section infos */
     table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf ("SELECT width, height, MbrMinX(geometry), "
@@ -4357,7 +4353,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
     *xstmt_data = NULL;
 
     table_tile_data = sqlite3_mprintf ("%s_tile_data", coverage);
-    xtable_tile_data = gaiaDoubleQuotedSql (table_tile_data);
+    xtable_tile_data = rl2_double_quoted_sql (table_tile_data);
     sqlite3_free (table_tile_data);
     sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
 			   "FROM \"%s\" WHERE tile_id = ?", xtable_tile_data);
@@ -4373,7 +4369,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
       {
 	  /* mixed resolution Coverage */
 	  table = sqlite3_mprintf ("%s_section_levels", coverage);
-	  xtable = gaiaDoubleQuotedSql (table);
+	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
@@ -4387,7 +4383,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
       {
 	  /* ordinary Coverage */
 	  table = sqlite3_mprintf ("%s_levels", coverage);
-	  xtable = gaiaDoubleQuotedSql (table);
+	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
@@ -4408,12 +4404,13 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
       }
 
     table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
 	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, ?, ?, ?)", xtable);
+	 "VALUES (NULL, ?, ?, BuildMBR(?, ?, ?, ?, BuildMBR(?, ?, ?, ?, ?)))",
+	 xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
     sqlite3_free (sql);
@@ -4424,7 +4421,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
       }
 
     table = sqlite3_mprintf ("%s_tile_data", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
@@ -4516,10 +4513,10 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	      table_levels = sqlite3_mprintf ("%s_section_levels", coverage);
 	  else
 	      table_levels = sqlite3_mprintf ("%s_levels", coverage);
-	  xtable_levels = gaiaDoubleQuotedSql (table_levels);
+	  xtable_levels = rl2_double_quoted_sql (table_levels);
 	  sqlite3_free (table_levels);
 	  table_tiles = sqlite3_mprintf ("%s_tiles", coverage);
-	  xtable_tiles = gaiaDoubleQuotedSql (table_tiles);
+	  xtable_tiles = rl2_double_quoted_sql (table_tiles);
 	  sqlite3_free (table_tiles);
 	  if (mixed_resolutions)
 	    {
@@ -4829,7 +4826,7 @@ find_base_resolution (sqlite3 * handle, const char *coverage,
     sqlite3_stmt *stmt = NULL;
 
     xcoverage = sqlite3_mprintf ("%s_levels", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
+    xxcoverage = rl2_double_quoted_sql (xcoverage);
     sqlite3_free (xcoverage);
     sql =
 	sqlite3_mprintf ("SELECT x_resolution_1_1, y_resolution_1_1 "
@@ -4898,7 +4895,7 @@ find_section_base_resolution (sqlite3 * handle, const char *coverage,
     sqlite3_stmt *stmt = NULL;
 
     xcoverage = sqlite3_mprintf ("%s_section_levels", coverage);
-    xxcoverage = gaiaDoubleQuotedSql (xcoverage);
+    xxcoverage = rl2_double_quoted_sql (xcoverage);
     sqlite3_free (xcoverage);
     sql =
 	sqlite3_mprintf ("SELECT x_resolution_1_1, y_resolution_1_1 "
@@ -5002,7 +4999,7 @@ get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
 
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
-    xxtiles = gaiaDoubleQuotedSql (xtiles);
+    xxtiles = rl2_double_quoted_sql (xtiles);
     sql =
 	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
 			 "FROM \"%s\" "
@@ -5020,7 +5017,7 @@ get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
 
 /* preparing the data SQL query - both ODD and EVEN */
     xdata = sqlite3_mprintf ("%s_tile_data", coverage);
-    xxdata = gaiaDoubleQuotedSql (xdata);
+    xxdata = rl2_double_quoted_sql (xdata);
     sqlite3_free (xdata);
     sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
 			   "FROM \"%s\" WHERE tile_id = ?", xxdata);
@@ -5040,7 +5037,7 @@ get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
     else
 	void_raw_buffer (bufpix, width, height, sample_type, num_bands,
 			 no_data);
-    if (!load_dbms_tiles_section
+    if (!rl2_load_dbms_tiles_section
 	(handle, sect_id, stmt_tiles, stmt_data, bufpix, width, height,
 	 sample_type, num_bands, x_res, y_res, minx, maxy, RL2_SCALE_1, palette,
 	 no_data))
@@ -6086,7 +6083,7 @@ rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
     char *sql;
 
     table = sqlite3_mprintf ("%s_sections", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql = sqlite3_mprintf ("SELECT section_id FROM \"%s\"", xtable);
     free (xtable);
@@ -6204,7 +6201,7 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
-    xxtiles = gaiaDoubleQuotedSql (xtiles);
+    xxtiles = rl2_double_quoted_sql (xtiles);
     sql =
 	sqlite3_mprintf
 	("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) FROM \"%s\" "
@@ -6653,7 +6650,7 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
 	return RL2_ERROR;
 
     table = sqlite3_mprintf ("%s_tiles", coverage);
-    xtable = gaiaDoubleQuotedSql (table);
+    xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0", xtable);
@@ -6672,7 +6669,7 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
       {
 	  /* Mixed Resolution Coverage */
 	  table = sqlite3_mprintf ("%s_section_levels", coverage);
-	  xtable = gaiaDoubleQuotedSql (table);
+	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0",
@@ -6693,7 +6690,7 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
       {
 	  /* ordinary Coverage */
 	  table = sqlite3_mprintf ("%s_levels", coverage);
-	  xtable = gaiaDoubleQuotedSql (table);
+	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0",

@@ -18,7 +18,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_noref test_map_trento \
 	test_map_trieste test_map_infrared \
 	test_map_orbetello test_raster_symbolizer \
-	test_svg
+	test_svg test_raw
 
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \

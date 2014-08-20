@@ -5966,7 +5966,8 @@ get_background_color (sqlite3 * handle, rl2CoveragePtr coverage,
 
 RL2_DECLARE int
 rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
-			   sqlite3_int64 section_id, int forced_rebuild)
+			   sqlite3_int64 section_id, int forced_rebuild,
+			   int verbose)
 {
 /* (re)building section-level pyramid for a single Section */
     rl2CoveragePtr cvg = NULL;
@@ -6052,14 +6053,19 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		     srid, tileWidth, tileHeight))
 		    goto error;
 	    }
-	  printf ("  ----------\n");
+	  if (verbose)
+	    {
+		printf ("  ----------\n");
 #if defined(_WIN32) && !defined(__MINGW32__)
-	  printf ("    Pyramid levels successfully built for Section %I64d\n",
-		  section_id);
+		printf
+		    ("    Pyramid levels successfully built for Section %I64d\n",
+		     section_id);
 #else
-	  printf ("    Pyramid levels successfully built for Section %lld\n",
-		  section_id);
+		printf
+		    ("    Pyramid levels successfully built for Section %lld\n",
+		     section_id);
 #endif
+	    }
       }
     rl2_destroy_coverage (cvg);
 
@@ -6073,7 +6079,7 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 
 RL2_DECLARE int
 rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
-				int forced_rebuild)
+				int forced_rebuild, int verbose)
 {
 /* (re)building section-level pyramids for a whole Coverage */
     char *table;
@@ -6100,7 +6106,8 @@ rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
 	    {
 		sqlite3_int64 section_id = sqlite3_column_int64 (stmt, 0);
 		if (rl2_build_section_pyramid
-		    (handle, coverage, section_id, forced_rebuild) != RL2_OK)
+		    (handle, coverage, section_id, forced_rebuild,
+		     verbose) != RL2_OK)
 		    goto error;
 	    }
 	  else
@@ -6139,7 +6146,7 @@ is_full_mask (const unsigned char *mask, int mask_size)
 
 RL2_DECLARE int
 rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
-			      int virt_levels)
+			      int virt_levels, int verbose)
 {
 /* (re)building monolithic pyramid for a whole coverage */
     rl2CoveragePtr cvg = NULL;
@@ -6563,10 +6570,13 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 		  }
 		tile_maxy = tile_miny;
 		row++;
-		printf ("  ----------\n");
-		printf
-		    ("    %s: Monolithic Pyramid Level %d - Row %d of %d  successfully built\n",
-		     coverage, id_level + 1, row, tot_rows);
+		if (verbose)
+		  {
+		      printf ("  ----------\n");
+		      printf
+			  ("    %s: Monolithic Pyramid Level %d - Row %d of %d  successfully built\n",
+			   coverage, id_level + 1, row, tot_rows);
+		  }
 	    }
 	  if (stop)
 	      break;
@@ -6601,9 +6611,12 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
     sqlite3_finalize (stmt_levl);
     sqlite3_finalize (stmt_tils);
     sqlite3_finalize (stmt_data);
-    printf ("  ----------\n");
-    printf ("    Monolithic Pyramid levels successfully built for: %s\n",
-	    coverage);
+    if (verbose)
+      {
+	  printf ("  ----------\n");
+	  printf ("    Monolithic Pyramid levels successfully built for: %s\n",
+		  coverage);
+      }
     free (buffer);
     free (mask);
     rl2_destroy_coverage (cvg);

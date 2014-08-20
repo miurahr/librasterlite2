@@ -2921,6 +2921,12 @@ extern "C"
 				      unsigned char *level,
 				      unsigned char *scale);
 
+    RL2_DECLARE int rl2_load_raw_raster_into_dbms (sqlite3 * sqlite,
+						   rl2CoveragePtr cvg,
+						   const char *sctn_name,
+						   rl2RasterPtr rst,
+						   int pyramidize);
+
     RL2_DECLARE int
 	rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 				 unsigned int width, unsigned int height,
@@ -3063,6 +3069,14 @@ extern "C"
 					    double *maxx, double *maxy,
 					    unsigned int *width,
 					    unsigned int *height);
+
+    RL2_DECLARE int
+	rl2_resolve_base_resolution_from_dbms (sqlite3 * handle,
+					       const char *coverage,
+					       int by_section,
+					       sqlite3_int64
+					       section_id,
+					       double *x_res, double *y_res);
 
     RL2_DECLARE int
 	rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage);
@@ -3577,17 +3591,39 @@ extern "C"
 					   int with_worldfile);
 
     RL2_DECLARE int
+	rl2_export_raw_pixels_from_dbms (sqlite3 * handle,
+					 rl2CoveragePtr coverage, double x_res,
+					 double y_res, double minx, double miny,
+					 double maxx, double maxy,
+					 unsigned int width,
+					 unsigned int height, int big_endian,
+					 unsigned char **blob, int *blob_size);
+
+    RL2_DECLARE int
+	rl2_export_section_raw_pixels_from_dbms (sqlite3 * handle,
+						 rl2CoveragePtr coverage,
+						 sqlite3_int64 section_id,
+						 double x_res, double y_res,
+						 double minx, double miny,
+						 double maxx, double maxy,
+						 unsigned int width,
+						 unsigned int height,
+						 int big_endian,
+						 unsigned char **blob,
+						 int *blob_size);
+
+    RL2_DECLARE int
 	rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 				   sqlite3_int64 section_id,
-				   int forced_rebuild);
+				   int forced_rebuild, int verbose);
 
     RL2_DECLARE int
 	rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
-				      int virtual_levels);
+				      int virtual_levels, int verbose);
 
     RL2_DECLARE int
 	rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
-					int forced_rebuild);
+					int forced_rebuild, int verbose);
 
     RL2_DECLARE int
 	rl2_delete_section_pyramid (sqlite3 * handle, const char *coverage,
@@ -4023,6 +4059,13 @@ extern "C"
     RL2_DECLARE int rl2_get_jpeg_infos (const char *path, unsigned int *width,
 					unsigned int *height,
 					unsigned char *pixel_type);
+
+    RL2_DECLARE char *rl2_build_raw_pixels_xml_summary (rl2RasterPtr rst);
+
+    RL2_DECLARE rl2RasterPtr
+	rl2_get_tile_from_raw_pixels (rl2CoveragePtr cvg, rl2RasterPtr rst,
+				      unsigned int startRow,
+				      unsigned int startCol);
 
 #ifdef __cplusplus
 }

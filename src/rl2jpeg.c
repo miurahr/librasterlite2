@@ -1320,7 +1320,7 @@ eval_jpeg_origin_compatibility (rl2PrivCoveragePtr coverage,
       }
     if (verbose)
 	fprintf (stderr, "Mismatching JPEG colorspace !!!\n");
-    return RL2_FALSE;
+    return 0;
 }
 
 RL2_DECLARE rl2RasterPtr

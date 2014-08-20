@@ -594,6 +594,76 @@ rl2_parse_bbox (sqlite3 * handle, const unsigned char *blob, int blob_sz,
 }
 
 RL2_PRIVATE int
+rl2_parse_bbox_srid (sqlite3 * handle, const unsigned char *blob, int blob_sz,
+		     int *srid, double *minx, double *miny, double *maxx,
+		     double *maxy)
+{
+/* attempts the get the BBOX and SRID from a BLOB geometry request */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int srd;
+    double mnx;
+    double mny;
+    double mxx;
+    double mxy;
+    int count = 0;
+
+    sql = "SELECT ST_Srid(?), MBRMinX(?), MBRMinY(?), MBRMaxX(?), MBRMaxY(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT rl2_parse_bbox SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 3, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 4, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 5, blob, blob_sz, SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		srd = sqlite3_column_int (stmt, 0);
+		mnx = sqlite3_column_double (stmt, 1);
+		mny = sqlite3_column_double (stmt, 2);
+		mxx = sqlite3_column_double (stmt, 3);
+		mxy = sqlite3_column_double (stmt, 4);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT rl2_parse_bbox; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return RL2_ERROR;
+    *srid = srd;
+    *minx = mnx;
+    *miny = mny;
+    *maxx = mxx;
+    *maxy = mxy;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_PRIVATE int
 rl2_build_bbox (sqlite3 * handle, int srid, double minx, double miny,
 		double maxx, double maxy, unsigned char **blob, int *blob_sz)
 {

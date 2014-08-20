@@ -98,7 +98,7 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_noref$(EXEEXT) test_map_trento$(EXEEXT) \
 	test_map_trieste$(EXEEXT) test_map_infrared$(EXEEXT) \
 	test_map_orbetello$(EXEEXT) test_raster_symbolizer$(EXEEXT) \
-	test_svg$(EXEEXT)
+	test_svg$(EXEEXT) test_raw$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -258,6 +258,9 @@ test_raster_LDADD = $(LDADD)
 test_raster_symbolizer_SOURCES = test_raster_symbolizer.c
 test_raster_symbolizer_OBJECTS = test_raster_symbolizer.$(OBJEXT)
 test_raster_symbolizer_LDADD = $(LDADD)
+test_raw_SOURCES = test_raw.c
+test_raw_OBJECTS = test_raw.$(OBJEXT)
+test_raw_LDADD = $(LDADD)
 test_section_SOURCES = test_section.c
 test_section_OBJECTS = test_section.$(OBJEXT)
 test_section_LDADD = $(LDADD)
@@ -324,7 +327,7 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
 	test_map_srtm.c test_map_trento.c test_map_trieste.c \
 	test_mask.c test_paint.c test_palette.c test_raster.c \
-	test_raster_symbolizer.c test_section.c test_svg.c \
+	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
 	test_tifin.c test_webp.c test_wms1.c test_wms2.c \
 	test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
@@ -338,7 +341,7 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
 	test_map_srtm.c test_map_trento.c test_map_trieste.c \
 	test_mask.c test_paint.c test_palette.c test_raster.c \
-	test_raster_symbolizer.c test_section.c test_svg.c \
+	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
 	test_tifin.c test_webp.c test_wms1.c test_wms2.c \
 	test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
@@ -1062,6 +1065,10 @@ test_raster_symbolizer$(EXEEXT): $(test_raster_symbolizer_OBJECTS) $(test_raster
 	@rm -f test_raster_symbolizer$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_raster_symbolizer_OBJECTS) $(test_raster_symbolizer_LDADD) $(LIBS)
 
+test_raw$(EXEEXT): $(test_raw_OBJECTS) $(test_raw_DEPENDENCIES) $(EXTRA_test_raw_DEPENDENCIES) 
+	@rm -f test_raw$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_raw_OBJECTS) $(test_raw_LDADD) $(LIBS)
+
 test_section$(EXEEXT): $(test_section_OBJECTS) $(test_section_DEPENDENCIES) $(EXTRA_test_section_DEPENDENCIES) 
 	@rm -f test_section$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_section_OBJECTS) $(test_section_LDADD) $(LIBS)
@@ -1143,6 +1150,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_palette.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster_symbolizer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raw.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_section.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_svg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tifin.Po@am__quote@
@@ -1792,6 +1800,13 @@ test_raster_symbolizer.log: test_raster_symbolizer$(EXEEXT)
 test_svg.log: test_svg$(EXEEXT)
 	@p='test_svg$(EXEEXT)'; \
 	b='test_svg'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_raw.log: test_raw$(EXEEXT)
+	@p='test_raw$(EXEEXT)'; \
+	b='test_raw'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

@@ -1288,6 +1288,17 @@ extern "C"
 					 rl2RasterStylePtr style,
 					 rl2RasterStatisticsPtr stats);
 
+    RL2_PRIVATE unsigned char *rl2_copy_endian_raw_pixels (const unsigned char
+							   *pixels,
+							   int pixels_sz,
+							   unsigned int width,
+							   unsigned int height,
+							   unsigned char
+							   sample_type,
+							   unsigned char
+							   num_bands,
+							   int big_endian);
+
     RL2_PRIVATE int rl2_build_shaded_relief_mask (sqlite3 * handle,
 						  rl2CoveragePtr cvg,
 						  double relief_factor,
@@ -1367,6 +1378,11 @@ extern "C"
     RL2_PRIVATE int rl2_parse_point_generic (sqlite3 * sqlite,
 					     const unsigned char *blob,
 					     int blob_sz, double *x, double *y);
+
+    RL2_PRIVATE int rl2_parse_bbox_srid (sqlite3 * sqlite,
+					 const unsigned char *blob, int blob_sz,
+					 int *srid, double *minx, double *miny,
+					 double *maxx, double *maxy);
 
     RL2_PRIVATE int rl2_parse_bbox (sqlite3 * sqlite, const unsigned char *blob,
 				    int blob_sz, double *minx, double *miny,

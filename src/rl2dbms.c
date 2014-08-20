@@ -936,6 +936,140 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
     return RL2_ERROR;
 }
 
+static int
+resolve_base_resolution_section (sqlite3 * handle, const char *coverage,
+				 sqlite3_int64 section_id, double *x_res,
+				 double *y_res)
+{
+/* resolving the Base Resolution - Mixed Resolutions */
+    int ret;
+    char *sql;
+    char *table;
+    char *xtable;
+    double xres;
+    double yres;
+    int count = 0;
+    sqlite3_stmt *stmt = NULL;
+
+    table = sqlite3_mprintf ("%s_section_levels", coverage);
+    xtable = rl2_double_quoted_sql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf ("SELECT x_resolution_1_1, y_resolution_1_1 "
+			 "FROM \"%s\" WHERE pyramid_level = 0 AND section_id = ?",
+			 xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT base_resolution SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* querying the section */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int64 (stmt, 1, section_id);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		xres = sqlite3_column_double (stmt, 0);
+		yres = sqlite3_column_double (stmt, 1);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT base_resolution; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (count == 1)
+      {
+	  *x_res = xres;
+	  *y_res = yres;
+	  return RL2_OK;
+      }
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_resolve_base_resolution_from_dbms (sqlite3 * handle, const char *coverage,
+				       int by_section, sqlite3_int64 section_id,
+				       double *x_res, double *y_res)
+{
+/* resolving the Base Resolution */
+    int ret;
+    char *sql;
+    double xres;
+    double yres;
+    int count = 0;
+    sqlite3_stmt *stmt = NULL;
+
+    if (rl2_is_mixed_resolutions_coverage (handle, coverage) > 0 && by_section)
+	return resolve_base_resolution_section (handle, coverage, section_id,
+						x_res, y_res);
+
+    sql =
+	sqlite3_mprintf ("SELECT horz_resolution, vert_resolution "
+			 "FROM raster_coverages WHERE coverage_name = Lower(%Q)",
+			 coverage);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT base_resolution SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		xres = sqlite3_column_double (stmt, 0);
+		yres = sqlite3_column_double (stmt, 1);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT base_resolution; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (count == 1)
+      {
+	  *x_res = xres;
+	  *y_res = yres;
+	  return RL2_OK;
+      }
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
 RL2_DECLARE int
 rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
 				    sqlite3_int64 section_id, double x_res,
@@ -943,7 +1077,7 @@ rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
 				    double *maxX, double *maxY,
 				    unsigned int *Width, unsigned int *Height)
 {
-/* resolving a Full Section Extent and related Width and Heigh */
+/* resolving a Full Section Extent and related Width and Height */
     rl2CoveragePtr cvg;
     double xx_res = x_res;
     double yy_res = y_res;

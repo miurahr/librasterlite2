@@ -324,6 +324,11 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	createcov_err10.testcase \
 	createcov_err11.testcase \
 	createcov_err12.testcase \
+	createcov_err13.testcase \
+	createcov_err14.testcase \
+	createcov_err15.testcase \
+	createcov_err16.testcase \
+	createcov_err17.testcase \
 	createcov_float_grid1.testcase \
 	createcov_float_grid_deflate.testcase \
 	createcov_float_grid_lzma.testcase \
@@ -544,6 +549,33 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getrasterstats24.testcase \
 	getrasterstats25.testcase \
 	getrasterstats26.testcase \
+	exportraw1.testcase \
+	exportraw2.testcase \
+	exportraw3.testcase \
+	exportraw4.testcase \
+	exportraw5.testcase \
+	exportraw6.testcase \
+	exportraw7.testcase \
+	exportraw8.testcase \
+	exportsectraw1.testcase \
+	exportsectraw2.testcase \
+	exportsectraw3.testcase \
+	exportsectraw4.testcase \
+	exportsectraw5.testcase \
+	exportsectraw6.testcase \
+	exportsectraw7.testcase \
+	exportsectraw8.testcase \
+	exportsectraw9.testcase \
+	importraw1.testcase \
+	importraw2.testcase \
+	importraw3.testcase \
+	importraw4.testcase \
+	importraw5.testcase \
+	importraw6.testcase \
+	importraw7.testcase \
+	importraw8.testcase \
+	importraw9.testcase \
+	importraw10.testcase \
 	ispixelopaque1.testcase \
 	ispixelopaque2.testcase \
 	ispixelopaque3.testcase \
@@ -637,6 +669,9 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	pyramidize14.testcase \
 	pyramidize15.testcase \
 	pyramidize16.testcase \
+	pyramidize17.testcase \
+	pyramidize18.testcase \
+	pyramidize19.testcase \
 	setcoverageinfos1.testcase \
 	setcoverageinfos2.testcase \
 	setcoverageinfos3.testcase \

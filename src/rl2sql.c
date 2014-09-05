@@ -400,6 +400,7 @@ fnct_IsValidRasterTile (sqlite3_context * context, int argc,
 	  blob_even = sqlite3_value_blob (argv[3]);
 	  blob_even_sz = sqlite3_value_bytes (argv[3]);
       }
+
     if (!get_coverage_defs
 	(sqlite, coverage, &tile_width, &tile_height, &sample_type, &pixel_type,
 	 &num_bands, &compression))
@@ -2086,6 +2087,8 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	compr = RL2_COMPRESSION_NONE;
     if (strcasecmp (compression, "DEFLATE") == 0)
 	compr = RL2_COMPRESSION_DEFLATE;
+    if (strcasecmp (compression, "LZO") == 0)
+	compr = RL2_COMPRESSION_DEFLATE;
     if (strcasecmp (compression, "LZMA") == 0)
 	compr = RL2_COMPRESSION_LZMA;
     if (strcasecmp (compression, "PNG") == 0)
@@ -3079,7 +3082,7 @@ fnct_LoadRasterFromWMS (sqlite3_context * context, int argc,
     sql =
 	sqlite3_mprintf
 	("SELECT strict_resolution, mixed_resolutions, section_paths, "
-	 "section_md5, section_summary FROM coverage_policies "
+	 "section_md5, section_summary FROM raster_coverages "
 	 "WHERE coverage_name = Lower(%Q)", coverage);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt_policies, NULL);
     sqlite3_free (sql);

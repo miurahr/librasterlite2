@@ -1956,6 +1956,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     unsigned char *save_mask = NULL;
     uLong crc;
     int endian_arch = endianArch ();
+    int delta_dist;
 
     *blob_odd = NULL;
     *blob_odd_sz = 0;
@@ -1967,6 +1968,55 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     if (!check_encode_self_consistency
 	(raster->sampleType, raster->pixelType, raster->nBands, compression))
 	return RL2_ERROR;
+
+    switch (raster->pixelType)
+      {
+      case RL2_PIXEL_RGB:
+	  switch (raster->sampleType)
+	    {
+	    case RL2_SAMPLE_UINT16:
+		delta_dist = 6;
+		break;
+	    default:
+		delta_dist = 3;
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_MULTIBAND:
+	  switch (raster->sampleType)
+	    {
+	    case RL2_SAMPLE_UINT16:
+		delta_dist = raster->nBands * 2;
+		break;
+	    default:
+		delta_dist = raster->nBands;
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  switch (raster->sampleType)
+	    {
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+		delta_dist = 2;
+		break;
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+	    case RL2_SAMPLE_FLOAT:
+		delta_dist = 4;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		delta_dist = 8;
+		break;
+	    default:
+		delta_dist = 1;
+		break;
+	    };
+	  break;
+      default:
+	  delta_dist = 1;
+	  break;
+      };
 
     if (compression == RL2_COMPRESSION_NONE
 	|| compression == RL2_COMPRESSION_DEFLATE
@@ -2065,6 +2115,8 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	  unsigned char *zip_buf = malloc (zLen);
 	  if (zip_buf == NULL)
 	      goto error;
+	  if (rl2_delta_encode (pixels_odd, size_odd, delta_dist) != RL2_OK)
+	      goto error;
 	  ret =
 	      compress (zip_buf, &zLen, (const Bytef *) pixels_odd,
 			(uLong) size_odd);
@@ -2079,6 +2131,9 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	  else if (ret == Z_BUF_ERROR)
 	    {
 		/* ZIP compression actually causes inflation: saving uncompressed data */
+		if (rl2_delta_decode (pixels_odd, size_odd, delta_dist) !=
+		    RL2_OK)
+		    goto error;
 		uncompressed = size_odd;
 		compressed = size_odd;
 		compr_data = pixels_odd;
@@ -2111,54 +2166,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	  if (lzma_buf == NULL)
 	      goto error;
 	  opt_delta.type = LZMA_DELTA_TYPE_BYTE;
-	  switch (raster->pixelType)
-	    {
-	    case RL2_PIXEL_RGB:
-		switch (raster->sampleType)
-		  {
-		  case RL2_SAMPLE_UINT16:
-		      opt_delta.dist = 6;
-		      break;
-		  default:
-		      opt_delta.dist = 3;
-		      break;
-		  };
-		break;
-	    case RL2_PIXEL_MULTIBAND:
-		switch (raster->sampleType)
-		  {
-		  case RL2_SAMPLE_UINT16:
-		      opt_delta.dist = raster->nBands * 2;
-		      break;
-		  default:
-		      opt_delta.dist = raster->nBands;
-		      break;
-		  };
-		break;
-	    case RL2_PIXEL_DATAGRID:
-		switch (raster->sampleType)
-		  {
-		  case RL2_SAMPLE_INT16:
-		  case RL2_SAMPLE_UINT16:
-		      opt_delta.dist = 2;
-		      break;
-		  case RL2_SAMPLE_INT32:
-		  case RL2_SAMPLE_UINT32:
-		  case RL2_SAMPLE_FLOAT:
-		      opt_delta.dist = 4;
-		      break;
-		  case RL2_SAMPLE_DOUBLE:
-		      opt_delta.dist = 8;
-		      break;
-		  default:
-		      opt_delta.dist = 1;
-		      break;
-		  };
-		break;
-	    default:
-		opt_delta.dist = 1;
-		break;
-	    };
+	  opt_delta.dist = delta_dist;
 	  lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 	  filters[0].id = LZMA_FILTER_DELTA;
 	  filters[0].options = &opt_delta;
@@ -2394,6 +2402,9 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		unsigned char *zip_buf = malloc (zLen);
 		if (zip_buf == NULL)
 		    goto error;
+		if (rl2_delta_encode (pixels_even, size_even, delta_dist) !=
+		    RL2_OK)
+		    goto error;
 		ret =
 		    compress (zip_buf, &zLen, (const Bytef *) pixels_even,
 			      (uLong) size_even);
@@ -2408,6 +2419,9 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		else if (ret == Z_BUF_ERROR)
 		  {
 		      /* ZIP compression actually causes inflation: saving uncompressed data */
+		      if (rl2_delta_decode (pixels_even, size_even, delta_dist)
+			  != RL2_OK)
+			  goto error;
 		      uncompressed = size_even;
 		      compressed = size_even;
 		      compr_data = pixels_even;
@@ -2435,54 +2449,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		    goto error;
 		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 		opt_delta.type = LZMA_DELTA_TYPE_BYTE;
-		switch (raster->pixelType)
-		  {
-		  case RL2_PIXEL_RGB:
-		      switch (raster->sampleType)
-			{
-			case RL2_SAMPLE_UINT16:
-			    opt_delta.dist = 6;
-			    break;
-			default:
-			    opt_delta.dist = 3;
-			    break;
-			};
-		      break;
-		  case RL2_PIXEL_MULTIBAND:
-		      switch (raster->sampleType)
-			{
-			case RL2_SAMPLE_UINT16:
-			    opt_delta.dist = raster->nBands * 2;
-			    break;
-			default:
-			    opt_delta.dist = raster->nBands;
-			    break;
-			};
-		      break;
-		  case RL2_PIXEL_DATAGRID:
-		      switch (raster->sampleType)
-			{
-			case RL2_SAMPLE_INT16:
-			case RL2_SAMPLE_UINT16:
-			    opt_delta.dist = 2;
-			    break;
-			case RL2_SAMPLE_INT32:
-			case RL2_SAMPLE_UINT32:
-			case RL2_SAMPLE_FLOAT:
-			    opt_delta.dist = 4;
-			    break;
-			case RL2_SAMPLE_DOUBLE:
-			    opt_delta.dist = 8;
-			    break;
-			default:
-			    opt_delta.dist = 1;
-			    break;
-			};
-		      break;
-		  default:
-		      opt_delta.dist = 1;
-		      break;
-		  };
+		opt_delta.dist = delta_dist;
 		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 		filters[0].id = LZMA_FILTER_DELTA;
 		filters[0].options = &opt_delta;
@@ -4648,6 +4615,8 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     int swap;
     int endian;
     int endian_arch = endianArch ();
+    int delta_dist;
+
     if (blob_odd == NULL)
 	return NULL;
     if (!check_blob_odd
@@ -4663,6 +4632,55 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
       }
     if (!check_scale (scale, sample_type, compression, blob_even))
 	return NULL;
+
+    switch (pixel_type)
+      {
+      case RL2_PIXEL_RGB:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_UINT16:
+		delta_dist = 6;
+		break;
+	    default:
+		delta_dist = 3;
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_MULTIBAND:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_UINT16:
+		delta_dist = num_bands * 2;
+		break;
+	    default:
+		delta_dist = num_bands;
+		break;
+	    };
+	  break;
+      case RL2_PIXEL_DATAGRID:
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+		delta_dist = 2;
+		break;
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+	    case RL2_SAMPLE_FLOAT:
+		delta_dist = 4;
+		break;
+	    case RL2_SAMPLE_DOUBLE:
+		delta_dist = 8;
+		break;
+	    default:
+		delta_dist = 1;
+		break;
+	    };
+	  break;
+      default:
+	  delta_dist = 1;
+	  break;
+      };
 
     endian = *(blob_odd + 2);
     num_bands = *(blob_odd + 6);
@@ -4729,6 +4747,9 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	      goto error;
 	  if (uncompress (odd_data, &refLen, in, compressed_odd) != Z_OK)
 	      goto error;
+	  if (rl2_delta_decode (odd_data, uncompressed_odd, delta_dist) !=
+	      RL2_OK)
+	      goto error;
 	  pixels_odd = odd_data;
 	  if (pixels_even != NULL && uncompressed_even != compressed_even)
 	    {
@@ -4740,6 +4761,9 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    goto error;
 		if (uncompress (even_data, &refLen, in, compressed_even) !=
 		    Z_OK)
+		    goto error;
+		if (rl2_delta_decode (even_data, uncompressed_even, delta_dist)
+		    != RL2_OK)
 		    goto error;
 		pixels_even = even_data;
 	    }
@@ -4759,54 +4783,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	      goto error;
 	  lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 	  opt_delta.type = LZMA_DELTA_TYPE_BYTE;
-	  switch (pixel_type)
-	    {
-	    case RL2_PIXEL_RGB:
-		switch (sample_type)
-		  {
-		  case RL2_SAMPLE_UINT16:
-		      opt_delta.dist = 6;
-		      break;
-		  default:
-		      opt_delta.dist = 3;
-		      break;
-		  };
-		break;
-	    case RL2_PIXEL_MULTIBAND:
-		switch (sample_type)
-		  {
-		  case RL2_SAMPLE_UINT16:
-		      opt_delta.dist = num_bands * 2;
-		      break;
-		  default:
-		      opt_delta.dist = num_bands;
-		      break;
-		  };
-		break;
-	    case RL2_PIXEL_DATAGRID:
-		switch (sample_type)
-		  {
-		  case RL2_SAMPLE_INT16:
-		  case RL2_SAMPLE_UINT16:
-		      opt_delta.dist = 2;
-		      break;
-		  case RL2_SAMPLE_INT32:
-		  case RL2_SAMPLE_UINT32:
-		  case RL2_SAMPLE_FLOAT:
-		      opt_delta.dist = 4;
-		      break;
-		  case RL2_SAMPLE_DOUBLE:
-		      opt_delta.dist = 8;
-		      break;
-		  default:
-		      opt_delta.dist = 1;
-		      break;
-		  };
-		break;
-	    default:
-		opt_delta.dist = 1;
-		break;
-	    };
+	  opt_delta.dist = delta_dist;
 	  lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 	  filters[0].id = LZMA_FILTER_DELTA;
 	  filters[0].options = &opt_delta;
@@ -4833,54 +4810,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    goto error;
 		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 		opt_delta.type = LZMA_DELTA_TYPE_BYTE;
-		switch (pixel_type)
-		  {
-		  case RL2_PIXEL_RGB:
-		      switch (sample_type)
-			{
-			case RL2_SAMPLE_UINT16:
-			    opt_delta.dist = 6;
-			    break;
-			default:
-			    opt_delta.dist = 3;
-			    break;
-			};
-		      break;
-		  case RL2_PIXEL_MULTIBAND:
-		      switch (sample_type)
-			{
-			case RL2_SAMPLE_UINT16:
-			    opt_delta.dist = num_bands * 2;
-			    break;
-			default:
-			    opt_delta.dist = num_bands;
-			    break;
-			};
-		      break;
-		  case RL2_PIXEL_DATAGRID:
-		      switch (sample_type)
-			{
-			case RL2_SAMPLE_INT16:
-			case RL2_SAMPLE_UINT16:
-			    opt_delta.dist = 2;
-			    break;
-			case RL2_SAMPLE_INT32:
-			case RL2_SAMPLE_UINT32:
-			case RL2_SAMPLE_FLOAT:
-			    opt_delta.dist = 4;
-			    break;
-			case RL2_SAMPLE_DOUBLE:
-			    opt_delta.dist = 8;
-			    break;
-			default:
-			    opt_delta.dist = 1;
-			    break;
-			};
-		      break;
-		  default:
-		      opt_delta.dist = 1;
-		      break;
-		  };
+		opt_delta.dist = delta_dist;
 		lzma_lzma_preset (&opt_lzma2, LZMA_PRESET_DEFAULT);
 		filters[0].id = LZMA_FILTER_DELTA;
 		filters[0].options = &opt_delta;
@@ -7345,4 +7275,342 @@ rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size)
     if (pixel != NULL)
 	rl2_destroy_pixel (pixel);
     return NULL;
+}
+
+static void
+delta_encode_1 (unsigned char *buffer, int size)
+{
+/* Delta encoding - distance 1 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history = *p++;
+    for (i = 1; i < size; i++)
+      {
+	  /* computing Deltas */
+	  unsigned char tmp = *p - history;
+	  history = *p;
+	  *p++ = tmp;
+      }
+}
+
+static void
+delta_encode_2 (unsigned char *buffer, int size)
+{
+/* Delta encoding - distance 2 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[2];
+/* saving the first component */
+    memcpy (history, p, 2);
+    p += 2;
+    for (i = 2; i < size; i += 2)
+      {
+	  /* computing Deltas */
+	  unsigned char tmp[2];
+	  tmp[0] = *(p + 0) - history[0];
+	  tmp[1] = *(p + 1) - history[1];
+	  memcpy (history, p, 2);
+	  memcpy (p, tmp, 2);
+	  p += 2;
+      }
+}
+
+static void
+delta_encode_3 (unsigned char *buffer, int size)
+{
+/* Delta encoding - distance 3 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[3];
+/* saving the first component */
+    memcpy (history, p, 3);
+    p += 3;
+    for (i = 3; i < size; i += 3)
+      {
+	  /* computing Deltas */
+	  unsigned char tmp[3];
+	  tmp[0] = *(p + 0) - history[0];
+	  tmp[1] = *(p + 1) - history[1];
+	  tmp[2] = *(p + 2) - history[2];
+	  memcpy (history, p, 3);
+	  memcpy (p, tmp, 3);
+	  p += 3;
+      }
+}
+
+static void
+delta_encode_4 (unsigned char *buffer, int size)
+{
+/* Delta encoding - distance 4 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[4];
+/* saving the first component */
+    memcpy (history, p, 4);
+    p += 4;
+    for (i = 4; i < size; i += 4)
+      {
+	  /* computing Deltas */
+	  unsigned char tmp[4];
+	  tmp[0] = *(p + 0) - history[0];
+	  tmp[1] = *(p + 1) - history[1];
+	  tmp[2] = *(p + 2) - history[2];
+	  tmp[3] = *(p + 3) - history[3];
+	  memcpy (history, p, 4);
+	  memcpy (p, tmp, 4);
+	  p += 4;
+      }
+}
+
+static void
+delta_encode_6 (unsigned char *buffer, int size)
+{
+/* Delta encoding - distance 6 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[6];
+/* saving the first component */
+    memcpy (history, p, 6);
+    p += 6;
+    for (i = 6; i < size; i += 6)
+      {
+	  /* computing Deltas */
+	  unsigned char tmp[6];
+	  tmp[0] = *(p + 0) - history[0];
+	  tmp[1] = *(p + 1) - history[1];
+	  tmp[2] = *(p + 2) - history[2];
+	  tmp[3] = *(p + 3) - history[3];
+	  tmp[4] = *(p + 4) - history[4];
+	  tmp[5] = *(p + 5) - history[5];
+	  memcpy (history, p, 6);
+	  memcpy (p, tmp, 6);
+	  p += 6;
+      }
+}
+
+static void
+delta_encode_8 (unsigned char *buffer, int size)
+{
+/* Delta encoding - distance 8 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[8];
+/* saving the first component */
+    memcpy (history, p, 8);
+    p += 8;
+    for (i = 8; i < size; i += 8)
+      {
+	  /* computing Deltas */
+	  unsigned char tmp[8];
+	  tmp[0] = *(p + 0) - history[0];
+	  tmp[1] = *(p + 1) - history[1];
+	  tmp[2] = *(p + 2) - history[2];
+	  tmp[3] = *(p + 3) - history[3];
+	  tmp[4] = *(p + 4) - history[4];
+	  tmp[5] = *(p + 5) - history[5];
+	  tmp[6] = *(p + 6) - history[6];
+	  tmp[7] = *(p + 7) - history[7];
+	  memcpy (history, p, 8);
+	  memcpy (p, tmp, 8);
+	  p += 8;
+      }
+}
+
+RL2_PRIVATE int
+rl2_delta_encode (unsigned char *buffer, int size, int distance)
+{
+/* Delta encoding */
+    if ((size % distance) != 0)
+	return RL2_ERROR;
+    switch (distance)
+      {
+      case 1:
+	  delta_encode_1 (buffer, size);
+	  return RL2_OK;
+      case 2:
+	  delta_encode_2 (buffer, size);
+	  return RL2_OK;
+      case 3:
+	  delta_encode_3 (buffer, size);
+	  return RL2_OK;
+      case 4:
+	  delta_encode_4 (buffer, size);
+	  return RL2_OK;
+      case 6:
+	  delta_encode_6 (buffer, size);
+	  return RL2_OK;
+      case 8:
+	  delta_encode_8 (buffer, size);
+	  return RL2_OK;
+      };
+    return RL2_ERROR;
+}
+
+static void
+delta_decode_1 (unsigned char *buffer, int size)
+{
+/* Delta decoding - distance 1 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history = *p++;
+    for (i = 1; i < size; i++)
+      {
+	  /* restoring Deltas */
+	  unsigned char tmp = history + *p;
+	  *p = tmp;
+	  history = *p++;
+      }
+}
+
+static void
+delta_decode_2 (unsigned char *buffer, int size)
+{
+/* Delta decoding - distance 2 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[2];
+/* saving the first component */
+    memcpy (history, p, 2);
+    p += 2;
+    for (i = 2; i < size; i += 2)
+      {
+	  /* restoring Deltas */
+	  unsigned char tmp[2];
+	  tmp[0] = history[0] + *(p + 0);
+	  tmp[1] = history[1] + *(p + 1);
+	  memcpy (p, tmp, 2);
+	  memcpy (history, p, 2);
+	  p += 2;
+      }
+}
+
+static void
+delta_decode_3 (unsigned char *buffer, int size)
+{
+/* Delta decoding - distance 3 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[3];
+/* saving the first component */
+    memcpy (history, p, 3);
+    p += 3;
+    for (i = 3; i < size; i += 3)
+      {
+	  /* restoring Deltas */
+	  unsigned char tmp[3];
+	  tmp[0] = history[0] + *(p + 0);
+	  tmp[1] = history[1] + *(p + 1);
+	  tmp[2] = history[2] + *(p + 2);
+	  memcpy (p, tmp, 3);
+	  memcpy (history, p, 3);
+	  p += 3;
+      }
+}
+
+static void
+delta_decode_4 (unsigned char *buffer, int size)
+{
+/* Delta decoding - distance 4 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[4];
+/* saving the first component */
+    memcpy (history, p, 4);
+    p += 4;
+    for (i = 4; i < size; i += 4)
+      {
+	  /* restoring Deltas */
+	  unsigned char tmp[4];
+	  tmp[0] = history[0] + *(p + 0);
+	  tmp[1] = history[1] + *(p + 1);
+	  tmp[2] = history[2] + *(p + 2);
+	  tmp[3] = history[3] + *(p + 3);
+	  memcpy (p, tmp, 4);
+	  memcpy (history, p, 4);
+	  p += 4;
+      }
+}
+
+static void
+delta_decode_6 (unsigned char *buffer, int size)
+{
+/* Delta decoding - distance 6 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[6];
+/* saving the first component */
+    memcpy (history, p, 6);
+    p += 6;
+    for (i = 6; i < size; i += 6)
+      {
+	  /* restoring Deltas */
+	  unsigned char tmp[6];
+	  tmp[0] = history[0] + *(p + 0);
+	  tmp[1] = history[1] + *(p + 1);
+	  tmp[2] = history[2] + *(p + 2);
+	  tmp[3] = history[3] + *(p + 3);
+	  tmp[4] = history[4] + *(p + 4);
+	  tmp[5] = history[5] + *(p + 5);
+	  memcpy (p, tmp, 6);
+	  memcpy (history, p, 6);
+	  p += 6;
+      }
+}
+
+static void
+delta_decode_8 (unsigned char *buffer, int size)
+{
+/* Delta decoding - distance 8 */
+    int i;
+    unsigned char *p = buffer;
+    unsigned char history[8];
+/* saving the first component */
+    memcpy (history, p, 8);
+    p += 8;
+    for (i = 8; i < size; i += 8)
+      {
+	  /* restoring Deltas */
+	  unsigned char tmp[8];
+	  tmp[0] = history[0] + *(p + 0);
+	  tmp[1] = history[1] + *(p + 1);
+	  tmp[2] = history[2] + *(p + 2);
+	  tmp[3] = history[3] + *(p + 3);
+	  tmp[4] = history[4] + *(p + 4);
+	  tmp[5] = history[5] + *(p + 5);
+	  tmp[6] = history[6] + *(p + 6);
+	  tmp[7] = history[7] + *(p + 7);
+	  memcpy (p, tmp, 8);
+	  memcpy (history, p, 8);
+	  p += 8;
+      }
+}
+
+RL2_PRIVATE int
+rl2_delta_decode (unsigned char *buffer, int size, int distance)
+{
+/* Delta decoding */
+    if ((size % distance) != 0)
+	return RL2_ERROR;
+    switch (distance)
+      {
+      case 1:
+	  delta_decode_1 (buffer, size);
+	  return RL2_OK;
+      case 2:
+	  delta_decode_2 (buffer, size);
+	  return RL2_OK;
+      case 3:
+	  delta_decode_3 (buffer, size);
+	  return RL2_OK;
+      case 4:
+	  delta_decode_4 (buffer, size);
+	  return RL2_OK;
+      case 6:
+	  delta_decode_6 (buffer, size);
+	  return RL2_OK;
+      case 8:
+	  delta_decode_8 (buffer, size);
+	  return RL2_OK;
+      };
+    return RL2_ERROR;
 }

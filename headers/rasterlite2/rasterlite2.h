@@ -154,6 +154,8 @@ extern "C"
 #define RL2_COMPRESSION_CCITTFAX4	0x30
 /** RasterLite2 constant: Compression LZW */
 #define RL2_COMPRESSION_LZW		0x31
+/** RasterLite2 constant: Compression CHARLS */
+#define RL2_COMPRESSION_CHARLS		0x32
 
 /** RasterLite2 constant: UNKNOWN number of Bands */
 #define RL2_BANDS_UNKNOWN		0x00
@@ -1038,10 +1040,7 @@ extern "C"
  \param pixel_type one of RL2_PIXEL_MONOCHROME, RL2_PIXEL_PALETTE, RL2_PIXEL_GRAYSCALE,
 		RL2_PIXEL_RGB, RL2_PIXEL_MULTIBAND, RL2_PIXEL_DATAGRID.
  \param num_samples number of samples per pixel (aka Bands)
- \param compression one of RL2_COMPRESSION_NONE, RL2_COMPRESSION_DEFLATE,
-		RL2_COMPRESSION_LZMA, RL2_COMPRESSION_GIF, RL2_COMPRESSION_PNG,
-		RL2_COMPRESSION_JPEG, RL2_COMPRESSION_LOSSY_WEBP or
- 		RL2_COMPRESSION_LOSSLESS_WEBP
+ \param compression e.g. RL2_COMPRESSION_NONE or RL2_COMPRESSION_DEFLATE
  \param quality compression quality factor (0-100); only meaningfull for
 		JPEG or WEBP lossy compressions, ignored in any other case.
  \param tile_width the individual tile width in pixels.
@@ -1306,10 +1305,7 @@ extern "C"
  Allocates and initializes a new Section object
 
  \param name a text string intended to be the symbolic Section name.
- \param compression one of RL2_COMPRESSION_NONE, RL2_COMPRESSION_DEFLATE,
-		RL2_COMPRESSION_LZMA, RL2_COMPRESSION_GIF, RL2_COMPRESSION_PNG,
-		RL2_COMPRESSION_JPEG, RL2_COMPRESSION_LOSSY_WEBP or
- 		RL2_COMPRESSION_LOSSLESS_WEBP
+ \param compression e.g. RL2_COMPRESSION_NONE or RL2_COMPRESSION_DEFLATE
  \param tile_width the individual tile width in pixels.
  \param tile_height the individual tile height in pixels.
  \param rst pointer to a Raster Object.
@@ -1923,10 +1919,7 @@ extern "C"
  Encodes a Raster Object into the corresponding BLOB serialized format
 
  \param rst pointer to the Raster Object.
- \param compression one of RL2_COMPRESSION_NONE, RL2_COMPRESSION_DEFLATE,
-		RL2_COMPRESSION_LZMA, RL2_COMPRESSION_GIF, RL2_COMPRESSION_PNG,
-		RL2_COMPRESSION_JPEG, RL2_COMPRESSION_LOSSY_WEBP or
- 		RL2_COMPRESSION_LOSSLESS_WEBP
+ \param compression e.g. RL2_COMPRESSION_NONE or RL2_COMPRESSION_DEFLATE
  \param blob_odd on completion will point to the created encoded BLOB ("odd" half).
  \param blob_odd_sz on completion the variable referenced by this
  pointer will contain the size (in bytes) of the "odd" BLOB.

@@ -216,8 +216,6 @@ get_coverage_defs (sqlite3 * sqlite, const char *coverage,
 		    xcompression = RL2_COMPRESSION_DEFLATE;
 		if (strcmp (compr, "LZMA") == 0)
 		    xcompression = RL2_COMPRESSION_LZMA;
-		if (strcmp (compr, "GIF") == 0)
-		    xcompression = RL2_COMPRESSION_GIF;
 		if (strcmp (compr, "PNG") == 0)
 		    xcompression = RL2_COMPRESSION_PNG;
 		if (strcmp (compr, "JPEG") == 0)
@@ -4827,7 +4825,7 @@ rl2_is_mixed_resolutions_coverage (sqlite3 * handle, const char *coverage)
     int value = -1;
     sql =
 	"SELECT mixed_resolutions "
-	"FROM coverage_policies WHERE Lower(coverage_name) = Lower(?)";
+	"FROM raster_coverages WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {

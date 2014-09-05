@@ -428,7 +428,11 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
 		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
 		     NULL, no_data, stmt_tils, stmt_data, section_stats))
-		    goto error;
+		  {
+		      blob_odd = NULL;
+		      blob_even = NULL;
+		      goto error;
+		  }
 		blob_odd = NULL;
 		blob_even = NULL;
 		rl2_destroy_raster (raster);
@@ -882,7 +886,11 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
 		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
 		     NULL, no_data, stmt_tils, stmt_data, section_stats))
-		    goto error;
+		  {
+		      blob_odd = NULL;
+		      blob_even = NULL;
+		      goto error;
+		  }
 		blob_odd = NULL;
 		blob_even = NULL;
 		rl2_destroy_raster (raster);
@@ -1229,7 +1237,11 @@ do_import_file (sqlite3 * handle, const char *src_path,
 		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
 		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
 		     aux_palette, no_data, stmt_tils, stmt_data, section_stats))
-		    goto error;
+		  {
+		      blob_odd = NULL;
+		      blob_even = NULL;
+		      goto error;
+		  }
 		blob_odd = NULL;
 		blob_even = NULL;
 		rl2_destroy_raster (raster);
@@ -4451,7 +4463,11 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
 		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
 		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
 		     aux_palette, no_data, stmt_tils, stmt_data, section_stats))
-		    goto error;
+		  {
+		      blob_odd = NULL;
+		      blob_even = NULL;
+		      goto error;
+		  }
 		blob_odd = NULL;
 		blob_even = NULL;
 		rl2_destroy_raster (raster);

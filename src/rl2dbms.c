@@ -69,9 +69,10 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned char compression, int quality,
 			      unsigned int tile_width,
 			      unsigned int tile_height, int srid,
-			      int mixed_resolutions, double x_res, double y_res,
+			      double x_res, double y_res,
 			      unsigned char *blob, int blob_sz,
-			      unsigned char *blob_no_data, int blob_no_data_sz)
+			      unsigned char *blob_no_data, int blob_no_data_sz, int strict_resolution, int mixed_resolutions,
+			      int section_paths, int section_md5, int section_summary)
 {
 /* inserting into "raster_coverages" */
     int ret;
@@ -84,7 +85,9 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     sql = "INSERT INTO raster_coverages (coverage_name, sample_type, "
 	"pixel_type, num_bands, compression, quality, tile_width, "
 	"tile_height, horz_resolution, vert_resolution, srid, "
-	"nodata_pixel, palette) VALUES (Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"nodata_pixel, palette, strict_resolution, mixed_resolutions, "
+	"section_paths, section_md5, section_summary) VALUES "
+	"(Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -174,6 +177,9 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
       case RL2_COMPRESSION_CCITTFAX4:
 	  xcompression = "CCITTFAX4";
 	  break;
+      case RL2_COMPRESSION_CHARLS:
+	  xcompression = "CHARLS";
+	  break;
       };
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
@@ -207,6 +213,11 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 	sqlite3_bind_null (stmt, 13);
     else
 	sqlite3_bind_blob (stmt, 13, blob, blob_sz, free);
+	sqlite3_bind_int(stmt, 14, strict_resolution);
+	sqlite3_bind_int(stmt, 15, mixed_resolutions);
+	sqlite3_bind_int(stmt, 16, section_paths);
+	sqlite3_bind_int(stmt, 17, section_md5);
+	sqlite3_bind_int(stmt, 18, section_summary);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	goto coverage_registered;
@@ -217,151 +228,6 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     return 0;
   coverage_registered:
     sqlite3_finalize (stmt);
-    return 1;
-}
-
-static int
-insert_default_policies (sqlite3 * handle, const char *coverage,
-			 int strict_resolution, int mixed_resolutions,
-			 int section_paths, int section_md5,
-			 int section_summary)
-{
-/* inserting default Coverage Policies */
-    int ret;
-    char *sql;
-    sqlite3_stmt *stmt;
-
-/* normalizeing Boolean flags to 1/0 */
-    if (strict_resolution)
-	strict_resolution = 1;
-    if (mixed_resolutions)
-      {
-	  mixed_resolutions = 1;
-	  strict_resolution = 0;
-      }
-    if (section_paths)
-	section_paths = 1;
-    if (section_md5)
-	section_md5 = 1;
-    if (section_summary)
-	section_summary = 1;
-
-    sql = "INSERT INTO coverage_policies (coverage_name, strict_resolution, "
-	"mixed_resolutions, section_paths, section_md5, section_summary) VALUES "
-	"(Lower(?), ?, ?, ?, ?, ?)";
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
-	  return 0;
-      }
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
-    sqlite3_bind_int (stmt, 2, strict_resolution);
-    sqlite3_bind_int (stmt, 3, mixed_resolutions);
-    sqlite3_bind_int (stmt, 4, section_paths);
-    sqlite3_bind_int (stmt, 5, section_md5);
-    sqlite3_bind_int (stmt, 6, section_summary);
-    ret = sqlite3_step (stmt);
-    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	goto coverage_registered;
-    fprintf (stderr,
-	     "sqlite3_step() error: INSERT INTO coverage_policies \"%s\"\n",
-	     sqlite3_errmsg (handle));
-    sqlite3_finalize (stmt);
-    return 0;
-  coverage_registered:
-    sqlite3_finalize (stmt);
-    return 1;
-}
-
-static int
-create_policies (sqlite3 * handle)
-{
-/* creating the COVERAGE_POLICIES table (if not exists) */
-    int ret;
-    char *sql;
-    char *sql_err = NULL;
-
-    sql = "CREATE TABLE IF NOT EXISTS coverage_policies ("
-	"\tcoverage_name TEXT NOT NULL PRIMARY KEY,\n"
-	"\tstrict_resolution INTEGER NOT NULL,\n"
-	"\tmixed_resolutions INTEGER NOT NULL,\n"
-	"\tsection_paths INTEGER NOT NULL,\n"
-	"\tsection_md5 INTEGER NOT NULL,\n"
-	"\tsection_summary INTEGER NOT NULL,\n"
-	"CONSTRAINT fk_rc_policies FOREIGN KEY (coverage_name) "
-	"REFERENCES raster_coverages (coverage_name))";
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "CREATE TABLE 'coverage_policies' error: %s\n",
-		   sql_err);
-	  sqlite3_free (sql_err);
-	  return 0;
-      }
-/* creating the raster_coverages triggers */
-    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_name_insert\n"
-	"BEFORE INSERT ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
-	"SELECT RAISE(ABORT,'insert on coverage_policies violates constraint: "
-	"coverage_name value must not contain a single quote')\n"
-	"WHERE NEW.coverage_name LIKE ('%''%');\n"
-	"SELECT RAISE(ABORT,'insert on coverage_policies violates constraint: "
-	"coverage_name value must not contain a double quote')\n"
-	"WHERE NEW.coverage_name LIKE ('%\"%');\n"
-	"SELECT RAISE(ABORT,'insert on raster_policies violates constraint: "
-	"coverage_name value must be lower case')\n"
-	"WHERE NEW.coverage_name <> lower(NEW.coverage_name);\nEND";
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n", sql_err);
-	  sqlite3_free (sql_err);
-	  return 0;
-      }
-    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_name_update\n"
-	"BEFORE UPDATE OF 'coverage_name' ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
-	"SELECT RAISE(ABORT,'update on coverage_policies violates constraint: "
-	"coverage_name value must not contain a single quote')\n"
-	"WHERE NEW.coverage_name LIKE ('%''%');\n"
-	"SELECT RAISE(ABORT,'update on coverage_policis violates constraint: "
-	"coverage_name value must not contain a double quote')\n"
-	"WHERE NEW.coverage_name LIKE ('%\"%');\n"
-	"SELECT RAISE(ABORT,'update on coverage_policies violates constraint: "
-	"coverage_name value must be lower case')\n"
-	"WHERE NEW.coverage_name <> lower(NEW.coverage_name);\nEND";
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n", sql_err);
-	  sqlite3_free (sql_err);
-	  return 0;
-      }
-    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_update\n"
-	"BEFORE UPDATE ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
-	"SELECT RAISE(ABORT, 'update on coverage_policies violates constraint: "
-	"attempting to change the definition of an already populated Coverage')\n"
-	"WHERE IsPopulatedCoverage(OLD.coverage_name) = 1;\nEND";
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n", sql_err);
-	  sqlite3_free (sql_err);
-	  return 0;
-      }
-    sql = "CREATE TRIGGER IF NOT EXISTS coverage_policies_delete\n"
-	"BEFORE DELETE ON 'coverage_policies'\nFOR EACH ROW BEGIN\n"
-	"SELECT RAISE(ABORT, 'delete on coverage_policies violates constraint: "
-	"attempting to delete the definition of an already populated Coverage')\n"
-	"WHERE IsPopulatedCoverage(OLD.coverage_name) = 1;\nEND";
-    ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "SQL error: %s\n", sql_err);
-	  sqlite3_free (sql_err);
-	  return 0;
-      }
     return 1;
 }
 
@@ -906,15 +772,10 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 	      (no_data, &blob_no_data, &blob_no_data_sz) != RL2_OK)
 	      goto error;
       }
-    if (!create_policies (handle))
-	goto error;
     if (!insert_into_raster_coverages
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
-	 tile_width, tile_height, srid, mixed_resolutions, x_res, y_res, blob,
-	 blob_size, blob_no_data, blob_no_data_sz))
-	goto error;
-    if (!insert_default_policies
-	(handle, coverage, strict_resolution, mixed_resolutions, section_paths,
+	 tile_width, tile_height, srid, x_res, y_res, blob,
+	 blob_size, blob_no_data, blob_no_data_sz, strict_resolution, mixed_resolutions, section_paths,
 	 section_md5, section_summary))
 	goto error;
     if (mixed_resolutions)
@@ -1881,7 +1742,9 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 /* querying the Coverage metadata defs */
     sql =
 	"SELECT sample_type, pixel_type, num_bands, compression, quality, tile_width, "
-	"tile_height, horz_resolution, vert_resolution, srid, nodata_pixel "
+	"tile_height, horz_resolution, vert_resolution, srid, nodata_pixel, "
+	"strict_resolution, mixed_resolutions, section_paths, "
+	"section_md5, section_summary "
 	"FROM raster_coverages WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -1911,6 +1774,11 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 		int ok_y_res = 0;
 		int ok_srid = 0;
 		int ok_nodata = 1;
+		int ok_strict = 0;
+		int ok_mixed = 0;
+		int ok_paths = 0;
+		int ok_md5 = 0;
+		int ok_summary = 0;
 		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
 		  {
 		      value = (const char *) sqlite3_column_text (stmt, 0);
@@ -2052,6 +1920,11 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 			    ok_compression = 1;
 			    compression = RL2_COMPRESSION_CCITTFAX4;
 			}
+		      if (strcasecmp (value, "CHARLS") == 0)
+			{
+			    ok_compression = 1;
+			    compression = RL2_COMPRESSION_CHARLS;
+			}
 		  }
 		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
 		  {
@@ -2092,9 +1965,34 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 		      if (no_data == NULL)
 			  ok_nodata = 0;
 		  }
+		if (sqlite3_column_type (stmt, 11) == SQLITE_INTEGER)
+		  {
+		      strict_resolution = sqlite3_column_int (stmt, 11);
+		      ok_strict = 1;
+		  }
+		if (sqlite3_column_type (stmt, 12) == SQLITE_INTEGER)
+		  {
+		      mixed_resolutions = sqlite3_column_int (stmt, 12);
+		      ok_mixed = 1;
+		  }
+		if (sqlite3_column_type (stmt, 13) == SQLITE_INTEGER)
+		  {
+		      section_paths = sqlite3_column_int (stmt, 13);
+		      ok_paths = 1;
+		  }
+		if (sqlite3_column_type (stmt, 14) == SQLITE_INTEGER)
+		  {
+		      section_md5 = sqlite3_column_int (stmt, 14);
+		      ok_md5 = 1;
+		  }
+		if (sqlite3_column_type (stmt, 15) == SQLITE_INTEGER)
+		  {
+		      section_summary = sqlite3_column_int (stmt, 15);
+		      ok_summary = 1;
+		  }
 		if (ok_sample && ok_pixel && ok_num_bands && ok_compression
 		    && ok_quality && ok_tile_width && ok_tile_height && ok_x_res
-		    && ok_y_res && ok_srid && ok_nodata)
+		    && ok_y_res && ok_srid && ok_nodata && ok_strict && ok_mixed && ok_paths && ok_md5 && ok_summary)
 		    ok = 1;
 	    }
       }
@@ -2106,73 +2004,6 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 		   coverage);
 	  return NULL;
       }
-
-/* querying the Coverage Policies */
-    sql =
-	"SELECT strict_resolution, mixed_resolutions, section_paths, "
-	"section_md5, section_summary "
-	"FROM coverage_policies WHERE Lower(coverage_name) = Lower(?)";
-    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    if (ret != SQLITE_OK)
-	goto skip_policies;
-    sqlite3_reset (stmt);
-    sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
-    while (1)
-      {
-	  /* scrolling the result set rows */
-	  ret = sqlite3_step (stmt);
-	  if (ret == SQLITE_DONE)
-	      break;		/* end of result set */
-	  if (ret == SQLITE_ROW)
-	    {
-		int ok_strict = 0;
-		int ok_mixed = 0;
-		int ok_paths = 0;
-		int ok_md5 = 0;
-		int ok_summary = 0;
-		int strict = 0;
-		int mixed = 0;
-		int paths = 0;
-		int md5 = 0;
-		int summary = 1;
-		if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
-		  {
-		      strict = sqlite3_column_int (stmt, 0);
-		      ok_strict = 1;
-		  }
-		if (sqlite3_column_type (stmt, 1) == SQLITE_INTEGER)
-		  {
-		      mixed = sqlite3_column_int (stmt, 1);
-		      ok_mixed = 1;
-		  }
-		if (sqlite3_column_type (stmt, 2) == SQLITE_INTEGER)
-		  {
-		      paths = sqlite3_column_int (stmt, 2);
-		      ok_paths = 1;
-		  }
-		if (sqlite3_column_type (stmt, 3) == SQLITE_INTEGER)
-		  {
-		      md5 = sqlite3_column_int (stmt, 3);
-		      ok_md5 = 1;
-		  }
-		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
-		  {
-		      summary = sqlite3_column_int (stmt, 4);
-		      ok_summary = 1;
-		  }
-		if (ok_strict && ok_mixed && ok_paths && ok_md5 && ok_summary)
-		  {
-		      strict_resolution = strict;
-		      mixed_resolutions = mixed;
-		      section_paths = paths;
-		      section_md5 = md5;
-		      section_summary = summary;
-		  }
-	    }
-      }
-    sqlite3_finalize (stmt);
-  skip_policies:
 
     cvg =
 	rl2_create_coverage (coverage, sample, pixel, num_bands, compression,

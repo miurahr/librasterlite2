@@ -1392,6 +1392,12 @@ extern "C"
 				    double miny, double maxx, double maxy,
 				    unsigned char **blob, int *blob_sz);
 
+    RL2_PRIVATE int rl2_delta_encode (unsigned char *buffer, int size,
+				      int distance);
+
+    RL2_PRIVATE int rl2_delta_decode (unsigned char *buffer, int size,
+				      int distance);
+
 #ifdef __cplusplus
 }
 #endif

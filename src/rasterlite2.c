@@ -103,7 +103,6 @@ is_valid_compression (unsigned char compression)
       case RL2_COMPRESSION_NONE:
       case RL2_COMPRESSION_DEFLATE:
       case RL2_COMPRESSION_LZMA:
-      case RL2_COMPRESSION_GIF:
       case RL2_COMPRESSION_PNG:
       case RL2_COMPRESSION_JPEG:
       case RL2_COMPRESSION_LOSSY_WEBP:
@@ -176,7 +175,6 @@ check_coverage_self_consistency (unsigned char sample_type,
 	    case RL2_COMPRESSION_NONE:
 	    case RL2_COMPRESSION_DEFLATE:
 	    case RL2_COMPRESSION_LZMA:
-	    case RL2_COMPRESSION_GIF:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_JPEG:
 	    case RL2_COMPRESSION_LOSSY_WEBP:
@@ -587,7 +585,6 @@ rl2_is_coverage_compression_lossless (rl2CoveragePtr ptr, int *is_lossless)
       {
       case RL2_COMPRESSION_DEFLATE:
       case RL2_COMPRESSION_LZMA:
-      case RL2_COMPRESSION_GIF:
       case RL2_COMPRESSION_PNG:
 	  *is_lossless = RL2_TRUE;
 	  break;
@@ -779,7 +776,6 @@ rl2_is_section_compression_lossless (rl2SectionPtr ptr, int *is_lossless)
       {
       case RL2_COMPRESSION_DEFLATE:
       case RL2_COMPRESSION_LZMA:
-      case RL2_COMPRESSION_GIF:
       case RL2_COMPRESSION_PNG:
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  *is_lossless = RL2_TRUE;

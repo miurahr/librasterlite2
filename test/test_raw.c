@@ -962,6 +962,8 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
     unsigned char *big_blob;
     int blob_sz;
     int ok = -1;
+    double x_res;
+    double y_res;
 
 /* setting the coverage name */
     switch (sample)
@@ -1205,21 +1207,21 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
 			    fprintf (stderr,
 				     "Unexpected ExportSection RAW (little) size: %d\n",
 				     blob_sz);
-			    *retcode += -20;
+			    *retcode += -9;
 			    goto error;
 			}
 		      if (!check_grid_odd
 			  (width, 101, 101, blob, sample, 0,
 			   "ExportSection RAW (little)"))
 			{
-			    *retcode += -21;
+			    *retcode += -10;
 			    goto error;
 			}
 		      if (!check_grid_even
 			  (width, 101, 102, blob, sample, 0,
 			   "ExportSection RAW (little)"))
 			{
-			    *retcode += -22;
+			    *retcode += -11;
 			    goto error;
 			}
 		  }
@@ -1229,7 +1231,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
 		fprintf (stderr,
 			 "ExportSection RAW (little); sqlite3_step() error: %s\n",
 			 sqlite3_errmsg (sqlite));
-		*retcode += -9;
+		*retcode += -12;
 		goto error;
 	    }
       }
@@ -1239,7 +1241,78 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
       {
 	  fprintf (stderr, "ERROR: ExportSection RAW (little) \"%s\"\n",
 		   coverage);
-	  *retcode += -10;
+	  *retcode += -13;
+	  goto error;
+      }
+
+    blob = NULL;
+    blob_sz = 0;
+/* Checking RAW pixels - big endian buffer / Coverage */
+    sql = sqlite3_mprintf ("SELECT RL2_ExportRawPixels("
+			   "%Q, %d, %d, MakePoint(?, ?, %d), 0.01, 0.01, 1)",
+			   coverage, width, height, 4326);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "Export RAW \"%s\" (big) error: %s\n",
+		   coverage, sqlite3_errmsg (sqlite));
+	  *retcode += -14;
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, (-1.0 * (double) width / 100.0) / 2.0);
+    sqlite3_bind_double (stmt, 2, (-1.0 * (double) height / 100.0) / 2.0);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      blob = (unsigned char *) sqlite3_column_blob (stmt, 0);
+		      blob_sz = sqlite3_column_bytes (stmt, 0);
+		      if (blob_sz != check_grid_size (width, height, sample))
+			{
+			    fprintf (stderr,
+				     "Unexpected Export RAW (big) size: %d\n",
+				     blob_sz);
+			    *retcode += -15;
+			    goto error;
+			}
+		      if (!check_grid_odd
+			  (width, 101, 101, blob, sample, 1, "Export RAW (big)"))
+			{
+			    *retcode += -16;
+			    goto error;
+			}
+		      if (!check_grid_even
+			  (width, 101, 102, blob, sample, 1,
+			   "ExportSection RAW (big)"))
+			{
+			    *retcode += -17;
+			    goto error;
+			}
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "Export RAW (big); sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (sqlite));
+		*retcode += -18;
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (ok <= 0)
+      {
+	  fprintf (stderr, "ERROR: Export RAW (big) \"%s\"\n", coverage);
+	  *retcode += -19;
 	  goto error;
       }
 
@@ -1255,7 +1328,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
       {
 	  fprintf (stderr, "ExportSection RAW \"%s\" (big) error: %s\n",
 		   coverage, sqlite3_errmsg (sqlite));
-	  *retcode += -11;
+	  *retcode += -20;
 	  goto error;
       }
     sqlite3_reset (stmt);
@@ -1278,21 +1351,21 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
 			    fprintf (stderr,
 				     "Unexpected ExportSection RAW (big) size: %d\n",
 				     blob_sz);
-			    *retcode += -25;
+			    *retcode += -21;
 			    goto error;
 			}
 		      if (!check_grid_odd
 			  (width, 101, 101, blob, sample, 1,
 			   "ExportSection RAW (big)"))
 			{
-			    *retcode += -26;
+			    *retcode += -22;
 			    goto error;
 			}
 		      if (!check_grid_even
 			  (width, 101, 102, blob, sample, 1,
 			   "ExportSection RAW (big)"))
 			{
-			    *retcode += -27;
+			    *retcode += -23;
 			    goto error;
 			}
 		  }
@@ -1302,7 +1375,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
 		fprintf (stderr,
 			 "ExportSection RAW (big); sqlite3_step() error: %s\n",
 			 sqlite3_errmsg (sqlite));
-		*retcode += -11;
+		*retcode += -24;
 		goto error;
 	    }
       }
@@ -1311,9 +1384,48 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
     if (ok <= 0)
       {
 	  fprintf (stderr, "ERROR: ExportSection RAW (big) \"%s\"\n", coverage);
-	  *retcode += -12;
+	  *retcode += -25;
 	  goto error;
       }
+
+/* testing base-resolution - Coverage */
+	if (rl2_resolve_base_resolution_from_dbms (sqlite, coverage, 0, 0, &x_res, &y_res) != RL2_OK)
+	{
+		fprintf(stderr, "ERROR: unable to get BaseResolution (Coverage)\n");
+		*retcode += -26;
+		goto error;
+	}
+	if (x_res != 0.01)
+	{
+		fprintf(stderr, "Unexpected BaseResolution (Coverage, horz): %1.6f\n", x_res);
+		*retcode += -27;
+		goto error;
+	}
+	if (y_res != 0.01)
+	{
+		fprintf(stderr, "Unexpected BaseResolution (Coverage, vert): %1.6f\n", y_res);
+		*retcode += -28;
+		goto error;
+	}
+/* testing base-resolution - Section */
+	if (rl2_resolve_base_resolution_from_dbms (sqlite, coverage, 1, 2, &x_res, &y_res) != RL2_OK)
+	{
+		fprintf(stderr, "ERROR: unable to get BaseResolution (Section)\n");
+		*retcode += -29;
+		goto error;
+	}
+	if (x_res != 0.01)
+	{
+		fprintf(stderr, "Unexpected BaseResolution (Section, horz): %1.6f\n", x_res);
+		*retcode += -30;
+		goto error;
+	}
+	if (y_res != 0.01)
+	{
+		fprintf(stderr, "Unexpected BaseResolution (Sectuib, vert): %1.6f\n", y_res);
+		*retcode += -31;
+		goto error;
+	}
 
     return 1;
 

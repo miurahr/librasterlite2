@@ -1500,6 +1500,8 @@ exec_catalog (sqlite3 * handle)
 		    printf ("          Compression: WEBP, lossless\n");
 		else if (strcmp (compression, "FAX4") == 0)
 		    printf ("          Compression: CCITT-FAX4 lossless\n");
+		else if (strcmp (compression, "CHARLS") == 0)
+		    printf ("          Compression: CHARLS, lossless\n");
 		if (strcmp (compression, "JPEG") == 0
 		    || strcmp (compression, "WEBP") == 0)
 		    printf ("  Compression Quality: %d\n", quality);
@@ -2891,6 +2893,10 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  printf ("          Compression: CCITT FAX4, lossless\n");
 	  *quality = 100;
 	  break;
+      case RL2_COMPRESSION_CHARLS:
+	  printf ("          Compression: CHARLS, lossless\n");
+	  *quality = 100;
+	  break;
       default:
 	  fprintf (stderr, "*** ERROR *** unknown compression\n");
 	  err = 1;
@@ -4191,7 +4197,7 @@ do_help (int mode)
 	  fprintf (stderr, "Compression Keywords:\n");
 	  fprintf (stderr, "----------------------------------\n");
 	  fprintf (stderr,
-		   "NONE DEFLATE LZMA GIF PNG JPEG WEBP LL_WEBP FAX4\n\n");
+		   "NONE DEFLATE LZMA PNG JPEG WEBP LL_WEBP FAX4 CHARLS\n\n");
 	  fprintf (stderr,
 		   "-strict or --strict-resolution  Enables Strict Resolution\n");
 	  fprintf (stderr,
@@ -4704,6 +4710,8 @@ main (int argc, char *argv[])
 			  compression = RL2_COMPRESSION_CCITTFAX3;
 		      if (strcasecmp (argv[i], "FAX4") == 0)
 			  compression = RL2_COMPRESSION_CCITTFAX4;
+		      if (strcasecmp (argv[i], "CHARLS") == 0)
+			  compression = RL2_COMPRESSION_CHARLS;
 		      break;
 		  case ARG_QUALITY:
 		      quality = atoi (argv[i]);

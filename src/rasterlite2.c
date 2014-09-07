@@ -202,6 +202,7 @@ check_coverage_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
 		      break;
 		  default:
 		      return 0;
@@ -235,15 +236,31 @@ check_coverage_self_consistency (unsigned char sample_type,
 	    };
 	  if (num_samples < 2)
 	      return 0;
-	  switch (compression)
+	  if (num_samples == 3 || num_samples == 4)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       case RL2_PIXEL_DATAGRID:
 	  switch (sample_type)
@@ -262,15 +279,32 @@ check_coverage_self_consistency (unsigned char sample_type,
 	    };
 	  if (num_samples != 1)
 	      return 0;
-	  switch (compression)
+	  if (sample_type == RL2_SAMPLE_UINT8
+	      || sample_type == RL2_SAMPLE_UINT16)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       };
     return 1;

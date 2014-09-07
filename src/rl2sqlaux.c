@@ -3892,8 +3892,6 @@ get_payload_from_gray_rgba_opaque (unsigned int width, unsigned int height,
 		p_in += 2;
 	    }
       }
-    free (rgb);
-    rgb = NULL;
     if (format == RL2_OUTPUT_FORMAT_JPEG)
       {
 	  if (rl2_gray_to_jpeg (width, height, gray, quality, image, image_sz)
@@ -3936,7 +3934,6 @@ get_payload_from_gray_rgba_opaque (unsigned int width, unsigned int height,
     free (gray);
     return 1;
   error:
-    free (rgb);
     if (gray != NULL)
 	free (gray);
     if (rgba != NULL)
@@ -3985,10 +3982,6 @@ get_payload_from_gray_rgba_transparent (unsigned int width,
 		    *p_msk++ = 0;	/* Transparent */
 	    }
       }
-    free (rgb);
-    rgb = NULL;
-    free (alpha);
-    alpha = NULL;
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
 	  if (rl2_gray_alpha_to_png
@@ -4001,7 +3994,6 @@ get_payload_from_gray_rgba_transparent (unsigned int width,
     free (mask);
     return 1;
   error:
-    free (rgb);
     if (gray != NULL)
 	free (gray);
     if (mask != NULL)
@@ -4060,10 +4052,8 @@ get_payload_from_rgb_rgba_opaque (unsigned int width, unsigned int height,
       }
     else
 	goto error;
-    free (rgb);
     return 1;
   error:
-    free (rgb);
     if (rgba != NULL)
 	free (rgba);
     return 0;
@@ -4100,8 +4090,6 @@ get_payload_from_rgb_rgba_transparent (unsigned int width,
 		    *p_msk++ = 0;	/* Transparent */
 	    }
       }
-    free (alpha);
-    alpha = NULL;
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
 	  if (rl2_rgb_alpha_to_png
@@ -4110,11 +4098,9 @@ get_payload_from_rgb_rgba_transparent (unsigned int width,
       }
     else
 	goto error;
-    free (rgb);
     free (mask);
     return 1;
   error:
-    free (rgb);
     if (mask != NULL)
 	free (mask);
     return 0;
@@ -4717,7 +4703,7 @@ get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
       }
     if (rl2_data_to_png
 	(raster, NULL, 1.0, NULL, width, height, RL2_SAMPLE_UINT8,
-	 RL2_PIXEL_GRAYSCALE, image, image_sz) == RL2_OK)
+	 RL2_PIXEL_GRAYSCALE, 1, image, image_sz) == RL2_OK)
       {
 	  free (raster);
 	  return RL2_OK;

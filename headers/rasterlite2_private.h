@@ -813,7 +813,8 @@ extern "C"
 			 double opacity, rl2PalettePtr plt,
 			 unsigned int width, unsigned int height,
 			 unsigned char sample_type, unsigned char pixel_type,
-			 unsigned char **compr_data, int *compressed_size);
+			 unsigned char num_bands, unsigned char **compr_data,
+			 int *compressed_size);
 
     RL2_PRIVATE int
 	rl2_decode_png (const unsigned char *png, int png_sz,

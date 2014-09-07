@@ -871,6 +871,8 @@ check_encode_self_consistency (unsigned char sample_type,
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_LZMA:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_JPEG:
 	    case RL2_COMPRESSION_LOSSY_WEBP:
@@ -898,6 +900,7 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
 		      break;
 		  default:
 		      return 0;
@@ -908,6 +911,8 @@ check_encode_self_consistency (unsigned char sample_type,
 		switch (compression)
 		  {
 		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
 		  case RL2_COMPRESSION_PNG:
 		  case RL2_COMPRESSION_JPEG:
 		  case RL2_COMPRESSION_LOSSY_WEBP:
@@ -929,15 +934,31 @@ check_encode_self_consistency (unsigned char sample_type,
 	    };
 	  if (num_samples < 2)
 	      return 0;
-	  switch (compression)
+	  if (num_samples == 3 || num_samples == 4)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       case RL2_PIXEL_DATAGRID:
 	  switch (sample_type)
@@ -956,15 +977,32 @@ check_encode_self_consistency (unsigned char sample_type,
 	    };
 	  if (num_samples != 1)
 	      return 0;
-	  switch (compression)
+	  if (sample_type == RL2_SAMPLE_UINT8
+	      || sample_type == RL2_SAMPLE_UINT16)
 	    {
-	    case RL2_COMPRESSION_NONE:
-	    case RL2_COMPRESSION_DEFLATE:
-	    case RL2_COMPRESSION_LZMA:
-		break;
-	    default:
-		return 0;
-	    };
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_PNG:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
+	  else
+	    {
+		switch (compression)
+		  {
+		  case RL2_COMPRESSION_NONE:
+		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_LZMA:
+		      break;
+		  default:
+		      return 0;
+		  };
+	    }
 	  break;
       };
     return 1;
@@ -1957,7 +1995,6 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     uLong crc;
     int endian_arch = endianArch ();
     int delta_dist;
-
     *blob_odd = NULL;
     *blob_odd_sz = 0;
     *blob_even = NULL;
@@ -2299,7 +2336,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		if (rl2_data_to_png
 		    (pixels_odd, NULL, 1.0, plt, raster->width,
 		     odd_rows, raster->sampleType, raster->pixelType,
-		     &compr_data, &compressed) == RL2_OK)
+		     raster->nBands, &compr_data, &compressed) == RL2_OK)
 		  {
 		      /* ok, PNG compression was successful */
 		      uncompressed = size_odd;
@@ -2500,7 +2537,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      if (rl2_data_to_png
 			  (pixels_even, NULL, 1.0, plt, raster->width,
 			   even_rows, raster->sampleType, raster->pixelType,
-			   &compr_data, &compressed) == RL2_OK)
+			   raster->nBands, &compr_data, &compressed) == RL2_OK)
 			{
 			    /* ok, PNG compression was successful */
 			    uncompressed = size_even;

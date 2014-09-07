@@ -71,8 +71,10 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned int tile_height, int srid,
 			      double x_res, double y_res,
 			      unsigned char *blob, int blob_sz,
-			      unsigned char *blob_no_data, int blob_no_data_sz, int strict_resolution, int mixed_resolutions,
-			      int section_paths, int section_md5, int section_summary)
+			      unsigned char *blob_no_data, int blob_no_data_sz,
+			      int strict_resolution, int mixed_resolutions,
+			      int section_paths, int section_md5,
+			      int section_summary)
 {
 /* inserting into "raster_coverages" */
     int ret;
@@ -213,11 +215,11 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 	sqlite3_bind_null (stmt, 13);
     else
 	sqlite3_bind_blob (stmt, 13, blob, blob_sz, free);
-	sqlite3_bind_int(stmt, 14, strict_resolution);
-	sqlite3_bind_int(stmt, 15, mixed_resolutions);
-	sqlite3_bind_int(stmt, 16, section_paths);
-	sqlite3_bind_int(stmt, 17, section_md5);
-	sqlite3_bind_int(stmt, 18, section_summary);
+    sqlite3_bind_int (stmt, 14, strict_resolution);
+    sqlite3_bind_int (stmt, 15, mixed_resolutions);
+    sqlite3_bind_int (stmt, 16, section_paths);
+    sqlite3_bind_int (stmt, 17, section_md5);
+    sqlite3_bind_int (stmt, 18, section_summary);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	goto coverage_registered;
@@ -775,8 +777,8 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
     if (!insert_into_raster_coverages
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
 	 tile_width, tile_height, srid, x_res, y_res, blob,
-	 blob_size, blob_no_data, blob_no_data_sz, strict_resolution, mixed_resolutions, section_paths,
-	 section_md5, section_summary))
+	 blob_size, blob_no_data, blob_no_data_sz, strict_resolution,
+	 mixed_resolutions, section_paths, section_md5, section_summary))
 	goto error;
     if (mixed_resolutions)
       {
@@ -1992,7 +1994,8 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 		  }
 		if (ok_sample && ok_pixel && ok_num_bands && ok_compression
 		    && ok_quality && ok_tile_width && ok_tile_height && ok_x_res
-		    && ok_y_res && ok_srid && ok_nodata && ok_strict && ok_mixed && ok_paths && ok_md5 && ok_summary)
+		    && ok_y_res && ok_srid && ok_nodata && ok_strict && ok_mixed
+		    && ok_paths && ok_md5 && ok_summary)
 		    ok = 1;
 	    }
       }

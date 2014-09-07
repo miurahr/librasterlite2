@@ -1284,7 +1284,8 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
 			    goto error;
 			}
 		      if (!check_grid_odd
-			  (width, 101, 101, blob, sample, 1, "Export RAW (big)"))
+			  (width, 101, 101, blob, sample, 1,
+			   "Export RAW (big)"))
 			{
 			    *retcode += -16;
 			    goto error;
@@ -1389,43 +1390,51 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
       }
 
 /* testing base-resolution - Coverage */
-	if (rl2_resolve_base_resolution_from_dbms (sqlite, coverage, 0, 0, &x_res, &y_res) != RL2_OK)
-	{
-		fprintf(stderr, "ERROR: unable to get BaseResolution (Coverage)\n");
-		*retcode += -26;
-		goto error;
-	}
-	if (x_res != 0.01)
-	{
-		fprintf(stderr, "Unexpected BaseResolution (Coverage, horz): %1.6f\n", x_res);
-		*retcode += -27;
-		goto error;
-	}
-	if (y_res != 0.01)
-	{
-		fprintf(stderr, "Unexpected BaseResolution (Coverage, vert): %1.6f\n", y_res);
-		*retcode += -28;
-		goto error;
-	}
+    if (rl2_resolve_base_resolution_from_dbms
+	(sqlite, coverage, 0, 0, &x_res, &y_res) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to get BaseResolution (Coverage)\n");
+	  *retcode += -26;
+	  goto error;
+      }
+    if (x_res != 0.01)
+      {
+	  fprintf (stderr,
+		   "Unexpected BaseResolution (Coverage, horz): %1.6f\n",
+		   x_res);
+	  *retcode += -27;
+	  goto error;
+      }
+    if (y_res != 0.01)
+      {
+	  fprintf (stderr,
+		   "Unexpected BaseResolution (Coverage, vert): %1.6f\n",
+		   y_res);
+	  *retcode += -28;
+	  goto error;
+      }
 /* testing base-resolution - Section */
-	if (rl2_resolve_base_resolution_from_dbms (sqlite, coverage, 1, 2, &x_res, &y_res) != RL2_OK)
-	{
-		fprintf(stderr, "ERROR: unable to get BaseResolution (Section)\n");
-		*retcode += -29;
-		goto error;
-	}
-	if (x_res != 0.01)
-	{
-		fprintf(stderr, "Unexpected BaseResolution (Section, horz): %1.6f\n", x_res);
-		*retcode += -30;
-		goto error;
-	}
-	if (y_res != 0.01)
-	{
-		fprintf(stderr, "Unexpected BaseResolution (Sectuib, vert): %1.6f\n", y_res);
-		*retcode += -31;
-		goto error;
-	}
+    if (rl2_resolve_base_resolution_from_dbms
+	(sqlite, coverage, 1, 2, &x_res, &y_res) != RL2_OK)
+      {
+	  fprintf (stderr, "ERROR: unable to get BaseResolution (Section)\n");
+	  *retcode += -29;
+	  goto error;
+      }
+    if (x_res != 0.01)
+      {
+	  fprintf (stderr, "Unexpected BaseResolution (Section, horz): %1.6f\n",
+		   x_res);
+	  *retcode += -30;
+	  goto error;
+      }
+    if (y_res != 0.01)
+      {
+	  fprintf (stderr, "Unexpected BaseResolution (Sectuib, vert): %1.6f\n",
+		   y_res);
+	  *retcode += -31;
+	  goto error;
+      }
 
     return 1;
 

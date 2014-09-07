@@ -889,17 +889,17 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 		break;
 	    };
 	  break;
-      case RL2_COMPRESSION_LZMA:
+      case RL2_COMPRESSION_PNG:
 	  switch (tile_sz)
 	    {
 	    case TILE_256:
-		coverage = "orbetello_lzma_256";
+		coverage = "orbetello_png_256";
 		break;
 	    case TILE_512:
-		coverage = "orbetello_lzma_512";
+		coverage = "orbetello_png_512";
 		break;
 	    case TILE_1024:
-		coverage = "orbetello_lzma_1024";
+		coverage = "orbetello_png_1024";
 		break;
 	    };
 	  break;
@@ -919,8 +919,8 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  compression_name = "DEFLATE";
 	  qlty = 100;
 	  break;
-      case RL2_COMPRESSION_LZMA:
-	  compression_name = "LZMA";
+      case RL2_COMPRESSION_PNG:
+	  compression_name = "PNG";
 	  qlty = 100;
 	  break;
       };
@@ -1795,17 +1795,17 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 		break;
 	    };
 	  break;
-      case RL2_COMPRESSION_LZMA:
+      case RL2_COMPRESSION_PNG:
 	  switch (tile_sz)
 	    {
 	    case TILE_256:
-		coverage = "orbetello_lzma_256";
+		coverage = "orbetello_png_256";
 		break;
 	    case TILE_512:
-		coverage = "orbetello_lzma_512";
+		coverage = "orbetello_png_512";
 		break;
 	    case TILE_1024:
-		coverage = "orbetello_lzma_1024";
+		coverage = "orbetello_png_1024";
 		break;
 	    };
 	  break;
@@ -1921,13 +1921,13 @@ main (int argc, char *argv[])
     if (!test_coverage (db_handle, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
     ret = -300;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -320;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
     ret = -340;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
 
 /* dropping all Coverages */
@@ -1950,13 +1950,13 @@ main (int argc, char *argv[])
     if (!drop_coverage (db_handle, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
     ret = -370;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -380;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
     ret = -390;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
 
 /* closing the DB */

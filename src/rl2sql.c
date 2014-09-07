@@ -7215,6 +7215,10 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     rl2_destroy_coverage (coverage);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
     return;
 
   error:
@@ -7482,6 +7486,10 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
     stmt = NULL;
 
     rl2_destroy_coverage (coverage);
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
     return 1;
 
   error:

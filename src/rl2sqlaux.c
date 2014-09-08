@@ -226,6 +226,8 @@ get_coverage_defs (sqlite3 * sqlite, const char *coverage,
 		    xcompression = RL2_COMPRESSION_LOSSLESS_WEBP;
 		if (strcmp (compr, "CCITTFAX4") == 0)
 		    xcompression = RL2_COMPRESSION_CCITTFAX4;
+		if (strcmp (compr, "CHARLS") == 0)
+		    xcompression = RL2_COMPRESSION_CHARLS;
 		xtile_width = atoi (results[(i * columns) + 4]);
 		xtile_height = atoi (results[(i * columns) + 5]);
 	    }

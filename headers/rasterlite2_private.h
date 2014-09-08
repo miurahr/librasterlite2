@@ -122,6 +122,8 @@ extern "C"
 #define RL2_NO_DATA_END				0x23
 #define RL2_SAMPLE_START			0x06
 #define RL2_SAMPLE_END				0x26
+#define RL2_CHARLS_START			0x35
+#define RL2_CHARLS_END				0x79
 
 /* internal ColorSpace forced conversions */
 #define RL2_CONVERT_NO				0x00
@@ -823,6 +825,19 @@ extern "C"
 			unsigned char *num_bands, unsigned char **pixels,
 			int *pixels_sz, unsigned char **mask, int *mask_sz,
 			rl2PalettePtr * palette);
+
+    RL2_PRIVATE int
+	rl2_data_to_charls (const unsigned char *pixels, unsigned int width,
+			    unsigned int height, unsigned char sample_type,
+			    unsigned char pixel_type, unsigned char num_bands,
+			    unsigned char **compr_data, int *compressed_size);
+
+    RL2_PRIVATE int
+	rl2_decode_charls (const unsigned char *charls, int charls_sz,
+			   unsigned int *width, unsigned int *height,
+			   unsigned char *sample_type,
+			   unsigned char *pixel_type, unsigned char *num_bands,
+			   unsigned char **pixels, int *pixels_sz);
 
     RL2_PRIVATE int
 	rl2_data_to_gif (const unsigned char *pixels,

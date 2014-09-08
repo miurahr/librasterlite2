@@ -860,18 +860,18 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 /* setting the coverage name */
     switch (compression)
       {
-      case RL2_COMPRESSION_NONE:
+      case RL2_COMPRESSION_CHARLS:
 	  switch (tile_sz)
 	    {
 	    case TILE_256:
-		coverage = "orbetello_none_256";
+		coverage = "orbetello_charls_256";
 		test_map_image = 1;
 		break;
 	    case TILE_512:
-		coverage = "orbetello_none_512";
+		coverage = "orbetello_charls_512";
 		break;
 	    case TILE_1024:
-		coverage = "orbetello_none_1024";
+		coverage = "orbetello_charls_1024";
 		break;
 	    };
 	  break;
@@ -911,8 +911,8 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
     num_bands = 4;
     switch (compression)
       {
-      case RL2_COMPRESSION_NONE:
-	  compression_name = "NONE";
+      case RL2_COMPRESSION_CHARLS:
+	  compression_name = "CHARLS";
 	  qlty = 100;
 	  break;
       case RL2_COMPRESSION_DEFLATE:
@@ -1714,7 +1714,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  return 0;
       }
 
-    if (compression == RL2_COMPRESSION_NONE && tile_sz == TILE_256)
+    if (compression == RL2_COMPRESSION_CHARLS && tile_sz == TILE_256)
       {
 	  /* testing a Monolithic Pyramid */
 	  geom = get_center_point (sqlite, coverage);
@@ -1767,17 +1767,17 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 /* setting the coverage name */
     switch (compression)
       {
-      case RL2_COMPRESSION_NONE:
+      case RL2_COMPRESSION_CHARLS:
 	  switch (tile_sz)
 	    {
 	    case TILE_256:
-		coverage = "orbetello_none_256";
+		coverage = "orbetello_charls_256";
 		break;
 	    case TILE_512:
-		coverage = "orbetello_none_512";
+		coverage = "orbetello_charls_512";
 		break;
 	    case TILE_1024:
-		coverage = "orbetello_none_1024";
+		coverage = "orbetello_charls_1024";
 		break;
 	    };
 	  break;
@@ -1903,13 +1903,13 @@ main (int argc, char *argv[])
 
 /* tests */
     ret = -100;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_256, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
     ret = -120;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_512, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
 	return ret;
     ret = -140;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
     ret = -200;
     if (!test_coverage (db_handle, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
@@ -1932,13 +1932,13 @@ main (int argc, char *argv[])
 
 /* dropping all Coverages */
     ret = -170;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_256, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
     ret = -180;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_512, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
 	return ret;
     ret = -190;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
     ret = -270;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))

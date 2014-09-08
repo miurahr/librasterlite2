@@ -4563,6 +4563,20 @@ fi
 
 done
 
+for ac_header in CharLS/interface.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "CharLS/interface.h" "ac_cv_header_CharLS_interface_h" "$ac_includes_default"
+if test "x$ac_cv_header_CharLS_interface_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_CHARLS_INTERFACE_H 1
+_ACEOF
+
+else
+  as_fn_error $? "cannot find CharLS/interface.h, bailing out" "$LINENO" 5
+fi
+
+done
+
 for ac_header in jerror.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "jerror.h" "ac_cv_header_jerror_h" "$ac_includes_default"
@@ -17341,6 +17355,53 @@ _ACEOF
 
 else
   as_fn_error $? "'libjpeg' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for JpegLsEncode in -lCharLS" >&5
+$as_echo_n "checking for JpegLsEncode in -lCharLS... " >&6; }
+if ${ac_cv_lib_CharLS_JpegLsEncode+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lCharLS -lm $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char JpegLsEncode ();
+int
+main ()
+{
+return JpegLsEncode ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_CharLS_JpegLsEncode=yes
+else
+  ac_cv_lib_CharLS_JpegLsEncode=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_CharLS_JpegLsEncode" >&5
+$as_echo "$ac_cv_lib_CharLS_JpegLsEncode" >&6; }
+if test "x$ac_cv_lib_CharLS_JpegLsEncode" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBCHARLS 1
+_ACEOF
+
+  LIBS="-lCharLS $LIBS"
+
+else
+  as_fn_error $? "'libCharLS' is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for DGifSlurp in -lgif" >&5

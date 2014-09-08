@@ -487,17 +487,17 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       case RL2_PIXEL_GRAYSCALE:
 	  switch (compression)
 	    {
-	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_CHARLS:
 		switch (tile_sz)
 		  {
 		  case TILE_256:
-		      coverage = "gray_none_256";
+		      coverage = "gray_charls_256";
 		      break;
 		  case TILE_512:
-		      coverage = "gray_none_512";
+		      coverage = "gray_charls_512";
 		      break;
 		  case TILE_1024:
-		      coverage = "gray_none_1024";
+		      coverage = "gray_charls_1024";
 		      break;
 		  };
 		break;
@@ -525,8 +525,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
     num_bands = 1;
     switch (compression)
       {
-      case RL2_COMPRESSION_NONE:
-	  compression_name = "NONE";
+      case RL2_COMPRESSION_CHARLS:
+	  compression_name = "CHARLS";
 	  qlty = 100;
 	  break;
       case RL2_COMPRESSION_PNG:
@@ -553,6 +553,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 			   coverage, sample_name, pixel_name, num_bands,
 			   compression_name, qlty, tile_size, tile_size, 32633,
 			   1.01, 1.01);
+fprintf(stderr, "%s\n", sql);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -722,17 +723,17 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 /* setting the coverage name */
     switch (compression)
       {
-      case RL2_COMPRESSION_NONE:
+      case RL2_COMPRESSION_CHARLS:
 	  switch (tile_sz)
 	    {
 	    case TILE_256:
-		coverage = "gray_none_256";
+		coverage = "gray_charls_256";
 		break;
 	    case TILE_512:
-		coverage = "gray_none_512";
+		coverage = "gray_charls_512";
 		break;
 	    case TILE_1024:
-		coverage = "gray_none_1024";
+		coverage = "gray_charls_1024";
 		break;
 	    };
 	  break;
@@ -821,15 +822,15 @@ main (int argc, char *argv[])
 /* GRAYSCALE tests */
     ret = -100;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
     ret = -120;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
 	return ret;
     ret = -140;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
     ret = -200;
     if (!test_coverage
@@ -849,13 +850,13 @@ main (int argc, char *argv[])
 
 /* dropping all GRAYSCALE Coverages */
     ret = -170;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_256, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
     ret = -180;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_512, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
 	return ret;
     ret = -190;
-    if (!drop_coverage (db_handle, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+    if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
     ret = -270;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))

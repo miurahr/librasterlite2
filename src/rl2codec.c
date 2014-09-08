@@ -877,6 +877,7 @@ check_encode_self_consistency (unsigned char sample_type,
 	    case RL2_COMPRESSION_JPEG:
 	    case RL2_COMPRESSION_LOSSY_WEBP:
 	    case RL2_COMPRESSION_LOSSLESS_WEBP:
+	    case RL2_COMPRESSION_CHARLS:
 		break;
 	    default:
 		return 0;
@@ -901,6 +902,7 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_DEFLATE:
 		  case RL2_COMPRESSION_LZMA:
 		  case RL2_COMPRESSION_PNG:
+		  case RL2_COMPRESSION_CHARLS:
 		      break;
 		  default:
 		      return 0;
@@ -917,6 +919,7 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_JPEG:
 		  case RL2_COMPRESSION_LOSSY_WEBP:
 		  case RL2_COMPRESSION_LOSSLESS_WEBP:
+		  case RL2_COMPRESSION_CHARLS:
 		      break;
 		  default:
 		      return 0;
@@ -942,6 +945,7 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_DEFLATE:
 		  case RL2_COMPRESSION_LZMA:
 		  case RL2_COMPRESSION_PNG:
+		  case RL2_COMPRESSION_CHARLS:
 		      break;
 		  default:
 		      return 0;
@@ -986,6 +990,7 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_DEFLATE:
 		  case RL2_COMPRESSION_LZMA:
 		  case RL2_COMPRESSION_PNG:
+		  case RL2_COMPRESSION_CHARLS:
 		      break;
 		  default:
 		      return 0;
@@ -2113,6 +2118,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		    return RL2_ERROR;
 	    }
       }
+    else if (compression == RL2_COMPRESSION_CHARLS)
+      {
+	  /* Odd/Even raster */
+	  if (!odd_even_rows
+	      (raster, &odd_rows, &row_stride_odd, &pixels_odd, &size_odd,
+	       &even_rows, &row_stride_even, &pixels_even, &size_even,
+	       little_endian))
+	      return RL2_ERROR;
+      }
     else if (compression == RL2_COMPRESSION_JPEG
 	     || compression == RL2_COMPRESSION_LOSSY_WEBP
 	     || compression == RL2_COMPRESSION_LOSSLESS_WEBP
@@ -2352,6 +2366,27 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		    goto error;
 	    }
       }
+    else if (compression == RL2_COMPRESSION_CHARLS)
+      {
+	  /* compressing as CHARLS */
+	  if (rl2_data_to_charls
+	      (pixels_odd, raster->width,
+	       odd_rows, raster->sampleType, raster->pixelType,
+	       raster->nBands, &compr_data, &compressed) == RL2_OK)
+	    {
+		/* ok, CHARLS compression was successful */
+		uncompressed = size_odd;
+		to_clean1 = compr_data;
+		if (mask_pix == NULL)
+		    uncompressed_mask = 0;
+		else
+		    uncompressed_mask = raster->width * raster->height;
+		compressed_mask = mask_pix_size;
+		compr_mask = mask_pix;
+	    }
+	  else
+	      goto error;
+      }
     else if (compression == RL2_COMPRESSION_CCITTFAX4)
       {
 	  /* compressing as TIFF FAX4 */
@@ -2547,6 +2582,21 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 			  goto error;
 		  }
 	    }
+	  else if (compression == RL2_COMPRESSION_CHARLS)
+	    {
+		/* compressing as CHARLS */
+		if (rl2_data_to_charls
+		    (pixels_even, raster->width,
+		     even_rows, raster->sampleType, raster->pixelType,
+		     raster->nBands, &compr_data, &compressed) == RL2_OK)
+		  {
+		      /* ok, CHARLS compression was successful */
+		      uncompressed = size_even;
+		      to_clean2 = compr_data;
+		  }
+		else
+		    goto error;
+	    }
 	  block_even_size = 32 + compressed;
 	  block_even = malloc (block_even_size);
 	  if (block_even == NULL)
@@ -2666,6 +2716,7 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned int *xwidth,
       case RL2_COMPRESSION_LOSSY_WEBP:
       case RL2_COMPRESSION_LOSSLESS_WEBP:
       case RL2_COMPRESSION_CCITTFAX4:
+      case RL2_COMPRESSION_CHARLS:
 	  break;
       default:
 	  return 0;
@@ -4985,6 +5036,28 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    free (even_mask);
 		goto merge;
 	    }
+      }
+    if (compression == RL2_COMPRESSION_CHARLS)
+      {
+	  /* decompressing from CHARLS */
+	  int ret = rl2_decode_charls (pixels_odd, compressed_odd,
+				       &width, &odd_rows, &sample_type,
+				       &pixel_type, &num_bands, &odd_data,
+				       &pixels_sz);
+	  if (ret != RL2_OK)
+	      goto error;
+	  pixels_odd = odd_data;
+	  if (scale == RL2_SCALE_1)
+	    {
+		ret = rl2_decode_charls (pixels_even, compressed_even,
+					 &width, &even_rows, &sample_type,
+					 &pixel_type, &num_bands, &even_data,
+					 &pixels_sz);
+		if (ret != RL2_OK)
+		    goto error;
+	    }
+	  pixels_even = even_data;
+	  goto merge;
       }
     if (compression == RL2_COMPRESSION_CCITTFAX4)
       {

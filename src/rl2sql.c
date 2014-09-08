@@ -2103,6 +2103,8 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	compr = RL2_COMPRESSION_LOSSLESS_WEBP;
     if (strcasecmp (compression, "FAX4") == 0)
 	compr = RL2_COMPRESSION_CCITTFAX4;
+    if (strcasecmp (compression, "CHARLS") == 0)
+	compr = RL2_COMPRESSION_CHARLS;
 
     if (no_data == NULL)
       {

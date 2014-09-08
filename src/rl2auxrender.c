@@ -647,7 +647,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 		      if (!get_payload_from_gray_rgba_transparent
 			  (aux->width, aux->height, rgb, alpha, aux->format_id,
 			   aux->quality, &image, &image_size, aux->opacity))
-			    goto error;
+			  goto error;
 		  }
 		else
 		  {
@@ -658,7 +658,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 			  (aux->width, aux->height, aux->sqlite, aux->minx,
 			   aux->miny, aux->maxx, aux->maxy, aux->srid, rgb,
 			   aux->format_id, aux->quality, &image, &image_size))
-			    goto error;
+			  goto error;
 		  }
 	    }
 	  else
@@ -671,7 +671,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 		      if (!get_payload_from_rgb_rgba_transparent
 			  (aux->width, aux->height, rgb, alpha, aux->format_id,
 			   aux->quality, &image, &image_size, aux->opacity))
-			    goto error;
+			  goto error;
 		  }
 		else
 		  {
@@ -682,7 +682,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 			  (aux->width, aux->height, aux->sqlite, aux->minx,
 			   aux->miny, aux->maxx, aux->maxy, aux->srid, rgb,
 			   aux->format_id, aux->quality, &image, &image_size))
-			    goto error;
+			  goto error;
 		  }
 	    }
 	  *ximage = image;

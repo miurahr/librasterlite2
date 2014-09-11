@@ -1130,6 +1130,7 @@ build_wms_tile (rl2CoveragePtr coverage, const unsigned char *rgba_tile)
 		      unsigned char red = *p_in++;
 		      unsigned char green = *p_in++;
 		      unsigned char blue = *p_in++;
+		      p_in++;
 		      *p_out++ = red;
 		      *p_out++ = green;
 		      *p_out++ = blue;

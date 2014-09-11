@@ -1417,6 +1417,7 @@ update_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     int pixel_sz = 1;
     int out_sz;
     int mask_sz = 0;
+    unsigned char compression;
 
     if (pyr == NULL)
 	goto error;
@@ -1424,6 +1425,7 @@ update_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     tic_y = tileHeight / pyr->scale;
     geo_x = (double) tic_x *pyr->res_x;
     geo_y = (double) tic_y *pyr->res_y;
+    compression = pyr->compression;
 
     switch (sample_type)
       {
@@ -1537,7 +1539,7 @@ update_sect_pyramid_grid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		goto error;
 	    }
 	  if (rl2_raster_encode
-	      (raster_out, RL2_COMPRESSION_DEFLATE, &blob_odd, &blob_odd_sz,
+	      (raster_out, compression, &blob_odd, &blob_odd_sz,
 	       &blob_even, &blob_even_sz, 100, 1) != RL2_OK)
 	    {
 		fprintf (stderr, "ERROR: unable to encode a Pyramid tile\n");
@@ -1804,6 +1806,7 @@ update_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     int pixel_sz = 1;
     int out_sz;
     int mask_sz = 0;
+    unsigned char compression;
 
     if (pyr == NULL)
 	goto error;
@@ -1811,6 +1814,7 @@ update_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     tic_y = tileHeight / pyr->scale;
     geo_x = (double) tic_x *pyr->res_x;
     geo_y = (double) tic_y *pyr->res_y;
+    compression = pyr->compression;
 
     switch (sample_type)
       {
@@ -1916,7 +1920,7 @@ update_sect_pyramid_multiband (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		goto error;
 	    }
 	  if (rl2_raster_encode
-	      (raster_out, RL2_COMPRESSION_DEFLATE, &blob_odd, &blob_odd_sz,
+	      (raster_out, compression, &blob_odd, &blob_odd_sz,
 	       &blob_even, &blob_even_sz, 100, 1) != RL2_OK)
 	    {
 		fprintf (stderr, "ERROR: unable to encode a Pyramid tile\n");
@@ -1981,7 +1985,7 @@ update_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     unsigned char *blob_even;
     int blob_even_sz;
     unsigned char *p;
-    unsigned char compression = RL2_COMPRESSION_NONE;
+    unsigned char compression;
 
     if (pyr == NULL)
 	goto error;
@@ -1989,6 +1993,7 @@ update_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     tic_y = tileHeight / pyr->scale;
     geo_x = (double) tic_x *pyr->res_x;
     geo_y = (double) tic_y *pyr->res_y;
+    compression = pyr->compression;
 
     tile_out = pyr->first_out;
     while (tile_out != NULL)
@@ -2114,10 +2119,7 @@ update_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 		      compression = RL2_COMPRESSION_PNG;
 		  }
 		else
-		  {
-		      nd = rl2_clone_pixel (no_data);
-		      compression = RL2_COMPRESSION_JPEG;
-		  }
+		    nd = rl2_clone_pixel (no_data);
 		raster =
 		    rl2_create_raster (tileWidth, tileHeight, RL2_SAMPLE_UINT8,
 				       RL2_PIXEL_GRAYSCALE, 1, gray,
@@ -2133,7 +2135,6 @@ update_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 				       RL2_PIXEL_RGB, 3, rgb,
 				       tileWidth * tileHeight * 3, NULL, alpha,
 				       tileWidth * tileHeight, nd);
-		compression = RL2_COMPRESSION_JPEG;
 	    }
 	  if (raster == NULL)
 	    {
@@ -4409,8 +4410,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
     sql =
 	sqlite3_mprintf
 	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
-	 "VALUES (NULL, ?, ?, BuildMBR(?, ?, ?, ?, BuildMBR(?, ?, ?, ?, ?)))",
-	 xtable);
+	 "VALUES (NULL, ?, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
     sqlite3_free (sql);
@@ -5804,7 +5804,7 @@ do_build_palette_section_pyramid (sqlite3 * handle, const char *coverage,
 			    goto error;
 			}
 		      if (rl2_raster_encode
-			  (raster, RL2_COMPRESSION_JPEG, &blob_odd,
+			  (raster, RL2_COMPRESSION_PNG, &blob_odd,
 			   &blob_odd_sz, &blob_even, &blob_even_sz, 100,
 			   1) != RL2_OK)
 			{
@@ -6258,14 +6258,13 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
     if (sample_type == RL2_SAMPLE_1_BIT
 	&& pixel_type == RL2_PIXEL_MONOCHROME && num_bands == 1)
       {
-	  /* monochrome: output colorspace is Grayscale */
+	  /* monochrome: output colorspace is Grayscale compression PNG */
 	  out_sample_type = RL2_SAMPLE_UINT8;
 	  out_pixel_type = RL2_PIXEL_GRAYSCALE;
 	  out_num_bands = 1;
 	  out_compression = RL2_COMPRESSION_PNG;
 	  out_quality = 100;
-	  factor = 2;
-	  resize_factor = 2;
+	  virt_levels = 1;
       }
     else if ((sample_type == RL2_SAMPLE_1_BIT
 	      && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
@@ -6273,24 +6272,23 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 		 && pixel_type == RL2_PIXEL_PALETTE && num_bands == 1)
 	     || (sample_type == RL2_SAMPLE_4_BIT))
       {
-	  /* palette 1,2,4: output colorspace is RGB */
+	  /* palette 1,2,4: output colorspace is RGB compression PNG */
 	  out_sample_type = RL2_SAMPLE_UINT8;
 	  out_pixel_type = RL2_PIXEL_RGB;
 	  out_num_bands = 3;
 	  out_compression = RL2_COMPRESSION_PNG;
 	  out_quality = 100;
-	  factor = 2;
-	  resize_factor = 2;
+	  virt_levels = 1;
       }
     else if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_PALETTE
 	     && num_bands == 1)
       {
-	  /* palette 8: RGB JPEG pyramid level */
+	  /* palette 8: output colorspace is RGB compression PNG */
 	  out_sample_type = RL2_SAMPLE_UINT8;
 	  out_pixel_type = RL2_PIXEL_RGB;
 	  out_num_bands = 3;
-	  out_compression = RL2_COMPRESSION_JPEG;
-	  out_quality = 80;
+	  out_compression = RL2_COMPRESSION_PNG;
+	  out_quality = 100;
       }
     else
       {
@@ -6298,36 +6296,27 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 	  out_sample_type = sample_type;
 	  out_pixel_type = pixel_type;
 	  out_num_bands = num_bands;
-	  if (sample_type == RL2_SAMPLE_UINT8
-	      && ((pixel_type == RL2_PIXEL_RGB && num_bands == 3)
-		  || (pixel_type == RL2_PIXEL_GRAYSCALE && num_bands == 1)))
-	    {
-		out_compression = RL2_COMPRESSION_JPEG;
-		out_quality = quality;
-	    }
-	  else
-	    {
-		out_compression = RL2_COMPRESSION_DEFLATE;
-		out_quality = 100;
-	    }
-	  /* setting the requested virt_levels */
-	  switch (virt_levels)
-	    {
-	    case 1:		/* separating each physical level */
-		resize_factor = 2;
-		break;
-	    case 2:		/* one physical + one virtual */
-		resize_factor = 4;
-		break;
-	    case 3:		/* one physical + two virtuals */
-		resize_factor = 8;
-		break;
-	    default:
-		resize_factor = 8;
-		break;
-	    };
-	  factor = resize_factor;
+	  out_compression = compression;
+	  out_quality = quality;
       }
+
+    /* setting the requested virt_levels */
+    switch (virt_levels)
+      {
+      case 1:			/* separating each physical level */
+	  resize_factor = 2;
+	  break;
+      case 2:			/* one physical + one virtual */
+	  resize_factor = 4;
+	  break;
+      case 3:			/* one physical + two virtuals */
+	  resize_factor = 8;
+	  break;
+      default:
+	  resize_factor = 8;
+	  break;
+      };
+    factor = resize_factor;
 
 /* computing output tile buffers */
     switch (out_sample_type)

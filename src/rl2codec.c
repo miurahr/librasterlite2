@@ -4611,15 +4611,11 @@ rl2_is_valid_dbms_raster_tile (unsigned short level, unsigned int tile_width,
 		    && xcompression == RL2_COMPRESSION_PNG)
 		    return RL2_OK;
 	    }
-	  if (sample_type == RL2_SAMPLE_UINT8 && pixel_type == RL2_PIXEL_RGB
-	      && num_bands == 3)
-	    {
-		/* any other: expecting unchanged params */
-		if (xsample_type == sample_type
-		    && xpixel_type == pixel_type && xnum_bands == num_bands
-		    && xcompression == compression)
-		    return RL2_OK;
-	    }
+	  /* any other: expecting unchanged params */
+	  if (xsample_type == sample_type
+	      && xpixel_type == pixel_type && xnum_bands == num_bands
+	      && xcompression == compression)
+	      return RL2_OK;
       }
     return RL2_ERROR;
 }

@@ -2268,7 +2268,7 @@ rescale_monolithic_rgba (int id_level,
 			{
 			    /* skipping a transparent pixel */
 			    p_in += 3;
-			    p_out += 3;
+			    p_out++;
 			}
 		      else
 			{
@@ -6385,10 +6385,12 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 		      buffer = malloc (buf_size);
 		      if (buffer == NULL)
 			  goto error;
+		      memset (buffer, 0, buf_size);
 		      mask_size = tileWidth * tileHeight;
 		      mask = malloc (mask_size);
 		      if (mask == NULL)
 			  goto error;
+		      memset (mask, 0, mask_size);
 		      end_x = tile_maxx;
 		      if (tile_maxx > maxx)
 			  end_x = maxx;

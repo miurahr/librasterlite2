@@ -1152,7 +1152,7 @@ rl2_raster_from_png (const unsigned char *blob, int blob_size)
     unsigned int width;
     unsigned int height;
     unsigned char sample_type;
-    unsigned char pixel_type;
+    unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
     unsigned char nBands;
     unsigned char *data = NULL;
     int data_size;

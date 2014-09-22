@@ -658,6 +658,21 @@ test_rgb_jpeg (const char *path)
       }
     unlink ("./from_rgb_jpeg.webp");
 
+    if (rl2_section_to_lossy_jpeg2000 (img, "./from_rgb_jpeg_10.jp2", 10) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to write: from_rgb_jpeg_10.jp2\n");
+	  return 0;
+      }
+    unlink ("./from_rgb_jpeg_10.jp2");
+
+    if (rl2_section_to_lossless_jpeg2000 (img, "./from_rgb_jpeg.jp2") != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to write: from_rgb_jpeg.jp2\n");
+	  return 0;
+      }
+    unlink ("./from_rgb_jpeg.jp2");
+
     rl2_destroy_section (img);
     return 1;
 }

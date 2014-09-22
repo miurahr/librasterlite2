@@ -811,6 +811,15 @@ extern "C"
 				unsigned char **mask, int *mask_sz);
 
     RL2_PRIVATE int
+	rl2_decode_jpeg2000_scaled (int scale, const unsigned char *jpeg2000,
+				    int jpeg2000_sz, unsigned int *width,
+				    unsigned int *height,
+				    unsigned char sample_type,
+				    unsigned char pixel_type,
+				    unsigned char num_bands,
+				    unsigned char **pixels, int *pixels_sz);
+
+    RL2_PRIVATE int
 	rl2_data_to_png (const unsigned char *pixels, const unsigned char *mask,
 			 double opacity, rl2PalettePtr plt,
 			 unsigned int width, unsigned int height,
@@ -1195,6 +1204,15 @@ extern "C"
 						 unsigned char *mask,
 						 rl2PrivPixelPtr no_made,
 						 unsigned char *rgba);
+
+    RL2_PRIVATE int get_rgba_from_multiband_mask (unsigned int width,
+						  unsigned int height,
+						  unsigned char sample_type,
+						  unsigned char num_bands,
+						  void *pixels,
+						  unsigned char *mask,
+						  rl2PrivPixelPtr no_made,
+						  unsigned char *rgba);
 
     RL2_PRIVATE int get_payload_from_gray_rgba_opaque (unsigned int width,
 						       unsigned int height,

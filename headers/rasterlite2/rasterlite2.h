@@ -156,6 +156,10 @@ extern "C"
 #define RL2_COMPRESSION_LZW		0x31
 /** RasterLite2 constant: Compression CHARLS */
 #define RL2_COMPRESSION_CHARLS		0x32
+/** RasterLite2 constant: Compression JPEG2000 (lossy mode) */
+#define RL2_COMPRESSION_LOSSY_JP2	0x33
+/** RasterLite2 constant: Compression JPEG2000 (lossless mode) */
+#define RL2_COMPRESSION_LOSSLESS_JP2	0x34
 
 /** RasterLite2 constant: UNKNOWN number of Bands */
 #define RL2_BANDS_UNKNOWN		0x00
@@ -1387,6 +1391,32 @@ extern "C"
     RL2_DECLARE rl2SectionPtr rl2_section_from_webp (const char *path);
 
 /**
+ Allocates and initializes a new Section object from an external 
+ Jpeg2000 image
+
+ \param path pathname leading to the external Jpeg2000 image.
+ \param sample_type one of RL2_SAMPLE_UINT8 or RL2_SAMPLE_INT16.
+ \param pixel_type one of RL2_PIXEL_GRAYSCALE, RL2_PIXEL_RGB, 
+ RL2_PIXEL_MULTIBAND, RL2_PIXEL_DATAGRID.
+ \param num_samples number of samples per pixel (aka Bands).
+ 
+ \return the pointer to newly created Section Object: NULL on failure.
+ 
+ \sa rl2_destroy_section, rl2_create_section, rl2_section_to_lossy_jpeg2000,
+	rl2_section_to_lossless_jpeg2000
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Section object.
+ */
+    RL2_DECLARE rl2SectionPtr rl2_section_from_jpeg2000 (const char *path,
+							 unsigned char
+							 sample_type,
+							 unsigned char
+							 pixel_type,
+							 unsigned char
+							 num_samples);
+
+/**
  Exports a Section object as an external GIF image
 
  \param scn pointer to the Section Object.
@@ -1428,7 +1458,7 @@ extern "C"
  Exports a Section object as an external WEBP (lossy) image
 
  \param scn pointer to the Section Object.
- \param path pathname leading to the external JPEG image.
+ \param path pathname leading to the external WEBP image.
  \param quality compression quality factor (0-100).
  
  \return RL2_OK on success: RL2_ERROR on failure.
@@ -1450,6 +1480,34 @@ extern "C"
  */
     RL2_DECLARE int rl2_section_to_lossless_webp (rl2SectionPtr scn,
 						  const char *path);
+
+/**
+ Exports a Section object as an external Jpeg2000 (lossy) image
+
+ \param scn pointer to the Section Object.
+ \param path pathname leading to the external Jpeg2000 image.
+ \param quality compression quality factor (0-100).
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_section, rl2_section_from_jpeg
+ */
+    RL2_DECLARE int rl2_section_to_lossy_jpeg2000 (rl2SectionPtr scn,
+						   const char *path,
+						   int quality);
+
+/**
+ Exports a Section object as an external Jpeg2000 (lossless) image
+
+ \param scn pointer to the Section Object.
+ \param path pathname leading to the external Jpeg2000 image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_section, rl2_section_from_webp
+ */
+    RL2_DECLARE int rl2_section_to_lossless_jpeg2000 (rl2SectionPtr scn,
+						      const char *path);
 
 /**
  Destroys a Section Object
@@ -2836,8 +2894,8 @@ extern "C"
  Exports a Raster object as an in-memory stored WEBP image (lossy compressed)
 
  \param rst pointer to the Raster Object.
- \param buffer on completion will point to the memory block storing the created WEBP image.
- \param buf_size on completion the variable referenced by this
+ \param webp on completion will point to the memory block storing the created WEBP image.
+ \param webp_size on completion the variable referenced by this
  pointer will contain the size (in bytes) of the WEBP image.
  \param quality compression quality factor (0-100)
  
@@ -2853,8 +2911,8 @@ extern "C"
  Exports a Raster object as an in-memory stored WEBP image (lossless compressed)
 
  \param rst pointer to the Raster Object.
- \param buffer on completion will point to the memory block storing the created WEBP image.
- \param buf_size on completion the variable referenced by this
+ \param webp on completion will point to the memory block storing the created WEBP image.
+ \param webp_size on completion the variable referenced by this
  pointer will contain the size (in bytes) of the WEBP image.
  
  \return RL2_OK on success: RL2_ERROR on failure.
@@ -2881,6 +2939,68 @@ extern "C"
  */
     RL2_DECLARE rl2RasterPtr
 	rl2_raster_from_webp (const unsigned char *webp, int webp_size);
+
+/**
+ Exports a Raster object as an in-memory stored Jpeg2000 image (lossy compressed)
+
+ \param rst pointer to the Raster Object.
+ \param jpeg2000 on completion will point to the memory block storing the created
+ Jpeg2000 image.
+ \param jpeg2000_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the Jpeg2000 image.
+ \param quality compression quality factor (0-100)
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_raster, rl2_raster_from_jpeg2000, rl2_raster_to_lossless_jpeg2000
+ */
+    RL2_DECLARE int
+	rl2_raster_to_lossy_jpeg2000 (rl2RasterPtr rst,
+				      unsigned char **jpeg2000,
+				      int *jpeg2000_size, int quality);
+
+/**
+ Exports a Raster object as an in-memory stored Jpeg2000 image (lossless compressed)
+
+ \param rst pointer to the Raster Object.
+ \param jpeg2000 on completion will point to the memory block storing the created
+ Jpeg2000 image.
+ \param jpeg2000_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the WEBP image.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_raster, rl2_raster_from_jpeg2000, rl2_raster_to_lossy_jpeg2000
+ */
+    RL2_DECLARE int
+	rl2_raster_to_lossless_jpeg2000 (rl2RasterPtr rst,
+					 unsigned char **jpeg2000,
+					 int *jpeg20000_size);
+
+/**
+ Allocates and initializes a new Raster object from an in-memory stored
+ Jpeg2000 image
+
+ \param jpeg2000 pointer to the memory block storing the input Jpeg2000 image.
+ \param jpeg2000_size size (in bytes) of the Jpeg2000 image.
+ \param sample_type one of RL2_SAMPLE_UINT8 or RL2_SAMPLE_INT16.
+ \param pixel_type one of RL2_PIXEL_GRAYSCALE, RL2_PIXEL_RGB, 
+ RL2_PIXEL_MULTIBAND, RL2_PIXEL_DATAGRID.
+ \param num_samples number of samples per pixel (aka Bands).
+ 
+ \return the pointer to newly created Raster Object: NULL on failure.
+ 
+ \sa rl2_destroy_raster, rl2_create_raster, rl2_raster_to_lossy_jpeg2000,
+	rl2_raster_to_lossless_jpeg2000
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster object.
+ */
+    RL2_DECLARE rl2RasterPtr
+	rl2_raster_from_jpeg2000 (const unsigned char *jpeg2000,
+				  int jpeg2000_size, unsigned char sample_type,
+				  unsigned char pixel_type,
+				  unsigned char num_samples);
 
 /**
  Allocates and initializes a new Raster object from an in-memory stored TIFF image
@@ -3226,6 +3346,26 @@ extern "C"
 						  double res_x, double res_y,
 						  double minx, double miny,
 						  double maxx, double maxy);
+
+    RL2_DECLARE rl2RasterPtr
+	rl2_get_tile_from_jpeg2000_origin (rl2CoveragePtr cvg, rl2RasterPtr rst,
+					   unsigned int startRow,
+					   unsigned int startCol,
+					   unsigned char forced_conversion,
+					   int verbose);
+
+    RL2_DECLARE char *rl2_build_jpeg2000_xml_summary (unsigned int width,
+						      unsigned int height,
+						      unsigned char sample_type,
+						      unsigned char pixel_type,
+						      unsigned char num_bands,
+						      int is_georeferenced,
+						      double res_x,
+						      double res_y, double minx,
+						      double miny, double maxx,
+						      double maxy,
+						      unsigned int tile_width,
+						      unsigned int tile_height);
 
     RL2_DECLARE int
 	rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
@@ -4052,6 +4192,16 @@ extern "C"
     RL2_DECLARE int rl2_get_jpeg_infos (const char *path, unsigned int *width,
 					unsigned int *height,
 					unsigned char *pixel_type);
+
+    RL2_DECLARE int rl2_get_jpeg2000_infos (const char *path,
+					    unsigned int *width,
+					    unsigned int *height,
+					    unsigned char *sample_type,
+					    unsigned char *pixel_type,
+					    unsigned char *num_bands,
+					    unsigned int *tile_width,
+					    unsigned int *tile_height,
+					    unsigned char *num_levels);
 
     RL2_DECLARE char *rl2_build_raw_pixels_xml_summary (rl2RasterPtr rst);
 

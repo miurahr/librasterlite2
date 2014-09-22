@@ -4577,6 +4577,20 @@ fi
 
 done
 
+for ac_header in openjpeg-2.0/openjpeg.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "openjpeg-2.0/openjpeg.h" "ac_cv_header_openjpeg_2_0_openjpeg_h" "$ac_includes_default"
+if test "x$ac_cv_header_openjpeg_2_0_openjpeg_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_OPENJPEG_2_0_OPENJPEG_H 1
+_ACEOF
+
+else
+  as_fn_error $? "cannot find openjpeg-2.0/openjpeg.h, bailing out" "$LINENO" 5
+fi
+
+done
+
 for ac_header in jerror.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "jerror.h" "ac_cv_header_jerror_h" "$ac_includes_default"
@@ -17402,6 +17416,53 @@ _ACEOF
 
 else
   as_fn_error $? "'libCharLS' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for opj_create_decompress in -lopenjp2" >&5
+$as_echo_n "checking for opj_create_decompress in -lopenjp2... " >&6; }
+if ${ac_cv_lib_openjp2_opj_create_decompress+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lopenjp2 -lm $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char opj_create_decompress ();
+int
+main ()
+{
+return opj_create_decompress ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_openjp2_opj_create_decompress=yes
+else
+  ac_cv_lib_openjp2_opj_create_decompress=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_openjp2_opj_create_decompress" >&5
+$as_echo "$ac_cv_lib_openjp2_opj_create_decompress" >&6; }
+if test "x$ac_cv_lib_openjp2_opj_create_decompress" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBOPENJP2 1
+_ACEOF
+
+  LIBS="-lopenjp2 $LIBS"
+
+else
+  as_fn_error $? "'libopenjp2' is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for DGifSlurp in -lgif" >&5

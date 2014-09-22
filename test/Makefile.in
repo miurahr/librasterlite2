@@ -98,7 +98,7 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_noref$(EXEEXT) test_map_trento$(EXEEXT) \
 	test_map_trieste$(EXEEXT) test_map_infrared$(EXEEXT) \
 	test_map_orbetello$(EXEEXT) test_raster_symbolizer$(EXEEXT) \
-	test_svg$(EXEEXT) test_raw$(EXEEXT)
+	test_svg$(EXEEXT) test_raw$(EXEEXT) test_openjpeg$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -246,6 +246,9 @@ test_map_trieste_LDADD = $(LDADD)
 test_mask_SOURCES = test_mask.c
 test_mask_OBJECTS = test_mask.$(OBJEXT)
 test_mask_LDADD = $(LDADD)
+test_openjpeg_SOURCES = test_openjpeg.c
+test_openjpeg_OBJECTS = test_openjpeg.$(OBJEXT)
+test_openjpeg_LDADD = $(LDADD)
 test_paint_SOURCES = test_paint.c
 test_paint_OBJECTS = test_paint.$(OBJEXT)
 test_paint_LDADD = $(LDADD)
@@ -326,10 +329,10 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_map_nile_u16.c test_map_nile_u32.c test_map_nile_u8.c \
 	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
 	test_map_srtm.c test_map_trento.c test_map_trieste.c \
-	test_mask.c test_paint.c test_palette.c test_raster.c \
-	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
-	test_tifin.c test_webp.c test_wms1.c test_wms2.c \
-	test_wr_tiff.c
+	test_mask.c test_openjpeg.c test_paint.c test_palette.c \
+	test_raster.c test_raster_symbolizer.c test_raw.c \
+	test_section.c test_svg.c test_tifin.c test_webp.c test_wms1.c \
+	test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
@@ -340,10 +343,10 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_map_nile_u16.c test_map_nile_u32.c test_map_nile_u8.c \
 	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
 	test_map_srtm.c test_map_trento.c test_map_trieste.c \
-	test_mask.c test_paint.c test_palette.c test_raster.c \
-	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
-	test_tifin.c test_webp.c test_wms1.c test_wms2.c \
-	test_wr_tiff.c
+	test_mask.c test_openjpeg.c test_paint.c test_palette.c \
+	test_raster.c test_raster_symbolizer.c test_raw.c \
+	test_section.c test_svg.c test_tifin.c test_webp.c test_wms1.c \
+	test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -830,7 +833,7 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	Roundel_of_the_Royal_Canadian_Air_Force_(1946-1965).svg \
 	Roundel_of_the_Syrian_Air_Force.svg \
 	Royal_Coat_of_Arms_of_the_United_Kingdom.svg \
-	supermarket.svg tobacco.svg
+	supermarket.svg tobacco.svg Cevennes2.jp2
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 all: all-recursive
@@ -1049,6 +1052,10 @@ test_mask$(EXEEXT): $(test_mask_OBJECTS) $(test_mask_DEPENDENCIES) $(EXTRA_test_
 	@rm -f test_mask$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_mask_OBJECTS) $(test_mask_LDADD) $(LIBS)
 
+test_openjpeg$(EXEEXT): $(test_openjpeg_OBJECTS) $(test_openjpeg_DEPENDENCIES) $(EXTRA_test_openjpeg_DEPENDENCIES) 
+	@rm -f test_openjpeg$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_openjpeg_OBJECTS) $(test_openjpeg_LDADD) $(LIBS)
+
 test_paint$(EXEEXT): $(test_paint_OBJECTS) $(test_paint_DEPENDENCIES) $(EXTRA_test_paint_DEPENDENCIES) 
 	@rm -f test_paint$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_paint_OBJECTS) $(test_paint_LDADD) $(LIBS)
@@ -1146,6 +1153,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_trento.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_trieste.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_mask.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_openjpeg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_paint.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_palette.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster.Po@am__quote@
@@ -1807,6 +1815,13 @@ test_svg.log: test_svg$(EXEEXT)
 test_raw.log: test_raw$(EXEEXT)
 	@p='test_raw$(EXEEXT)'; \
 	b='test_raw'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_openjpeg.log: test_openjpeg$(EXEEXT)
+	@p='test_openjpeg$(EXEEXT)'; \
+	b='test_openjpeg'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

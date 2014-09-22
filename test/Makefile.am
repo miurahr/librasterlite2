@@ -18,7 +18,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_noref test_map_trento \
 	test_map_trieste test_map_infrared \
 	test_map_orbetello test_raster_symbolizer \
-	test_svg test_raw
+	test_svg test_raw test_openjpeg
 
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
@@ -100,7 +100,7 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	Roundel_of_the_Royal_Canadian_Air_Force_(1946-1965).svg \
 	Roundel_of_the_Syrian_Air_Force.svg \
 	Royal_Coat_of_Arms_of_the_United_Kingdom.svg \
-	supermarket.svg tobacco.svg
+	supermarket.svg tobacco.svg Cevennes2.jp2
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

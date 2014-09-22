@@ -1634,6 +1634,14 @@ main (int argc, char *argv[])
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
 
+    if (getenv ("ENABLE_RL2_WEB_TESTS") == NULL)
+      {
+	  fprintf (stderr, "this testcase has been skipped !!!\n\n"
+		   "you can enable all testcases requiring an Internet connection\n"
+		   "by setting the environment variable \"ENABLE_RL2_WEB_TESTS=1\"\n");
+	  return 0;
+      }
+
 /* creating a WMS-Cache */
     cache = create_wms_cache ();
     if (cache == NULL)

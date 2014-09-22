@@ -515,6 +515,20 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 		      break;
 		  };
 		break;
+	    case RL2_COMPRESSION_LOSSLESS_JP2:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "gray_jp2_256";
+		      break;
+		  case TILE_512:
+		      coverage = "gray_jp2_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "gray_jp2_1024";
+		      break;
+		  };
+		break;
 	    };
 	  break;
       };
@@ -532,6 +546,10 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       case RL2_COMPRESSION_PNG:
 	  compression_name = "PNG";
 	  qlty = 100;
+	  break;
+      case RL2_COMPRESSION_LOSSLESS_JP2:
+	  compression_name = "LL_JP2";
+	  qlty = 10;
 	  break;
       };
     switch (tile_sz)
@@ -553,7 +571,6 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 			   coverage, sample_name, pixel_name, num_bands,
 			   compression_name, qlty, tile_size, tile_size, 32633,
 			   1.01, 1.01);
-fprintf(stderr, "%s\n", sql);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -751,6 +768,20 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 		break;
 	    };
 	  break;
+      case RL2_COMPRESSION_LOSSLESS_JP2:
+	  switch (tile_sz)
+	    {
+	    case TILE_256:
+		coverage = "gray_jp2_256";
+		break;
+	    case TILE_512:
+		coverage = "gray_jp2_512";
+		break;
+	    case TILE_1024:
+		coverage = "gray_jp2_1024";
+		break;
+	    };
+	  break;
       };
 
 /* dropping the DBMS Coverage */
@@ -822,30 +853,45 @@ main (int argc, char *argv[])
 /* GRAYSCALE tests */
     ret = -100;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_256,
+	 &ret))
 	return ret;
     ret = -120;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_512,
+	 &ret))
 	return ret;
     ret = -140;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_1024,
+	 &ret))
 	return ret;
     ret = -200;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256,
-	 &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -220;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_512,
-	 &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
     ret = -240;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024,
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
+	return ret;
+    ret = -300;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_JP2, TILE_256,
 	 &ret))
+	return ret;
+    ret = -320;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_JP2, TILE_512,
+	 &ret))
+	return ret;
+    ret = -340;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_JP2,
+	 TILE_1024, &ret))
 	return ret;
 
 /* dropping all GRAYSCALE Coverages */
@@ -866,6 +912,18 @@ main (int argc, char *argv[])
 	return ret;
     ret = -290;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
+	return ret;
+    ret = -370;
+    if (!drop_coverage
+	(db_handle, RL2_COMPRESSION_LOSSLESS_JP2, TILE_256, &ret))
+	return ret;
+    ret = -380;
+    if (!drop_coverage
+	(db_handle, RL2_COMPRESSION_LOSSLESS_JP2, TILE_512, &ret))
+	return ret;
+    ret = -390;
+    if (!drop_coverage
+	(db_handle, RL2_COMPRESSION_LOSSLESS_JP2, TILE_1024, &ret))
 	return ret;
 
 /* closing the DB */

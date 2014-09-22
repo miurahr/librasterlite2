@@ -187,6 +187,7 @@ rl2_data_to_charls (const unsigned char *pixels, unsigned int width,
     if (sample_type == RL2_SAMPLE_UINT16)
 	sample_sz = 2;
 /* initializing CharLS params */
+    memset (&params, 0, sizeof (params));
     params.width = width;
     params.height = height;
     if (sample_type == RL2_SAMPLE_UINT16)
@@ -409,6 +410,7 @@ rl2_decode_charls (const unsigned char *charls_buf, int charls_sz,
     if (*sample_type == RL2_SAMPLE_UINT16)
 	sample_sz = 2;
 /* initializing CharLS params */
+    memset (&params, 0, sizeof (params));
     params.width = *width;
     params.height = *height;
     if (*sample_type == RL2_SAMPLE_UINT16)

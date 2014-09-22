@@ -68,7 +68,7 @@ test_group_renderer (sqlite3 * sqlite, rl2GroupStylePtr style, int ind,
 }
 
 static int
-test_group_style (sqlite3 * db_handle, int *retcode)
+test_group_style (sqlite3 * db_handle, int no_web_connection, int *retcode)
 {
 /* loading and testing Group Styles */
     char *sql;
@@ -84,7 +84,10 @@ test_group_style (sqlite3 * db_handle, int *retcode)
     int count;
 
 /* loading the Group Stles */
-    sql = "SELECT RegisterGroupStyle(?, XB_Create(XB_LoadXML(?), 1, 1))";
+    if (no_web_connection)
+	sql = "SELECT RegisterGroupStyle(?, XB_Create(XB_LoadXML(?), 1))";
+    else
+	sql = "SELECT RegisterGroupStyle(?, XB_Create(XB_LoadXML(?), 1, 1))";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -400,7 +403,7 @@ test_group_style (sqlite3 * db_handle, int *retcode)
 
 static int
 load_symbolizer (sqlite3 * db_handle, const char *coverage, const char *path,
-		 int *retcode)
+		 int no_web_connection, int *retcode)
 {
 /* loading a RasterSymbolizer as a RasterStyle */
     char *sql;
@@ -408,7 +411,12 @@ load_symbolizer (sqlite3 * db_handle, const char *coverage, const char *path,
     int xret = 0;
     sqlite3_stmt *stmt;
 
-    sql = "SELECT RegisterRasterStyledLayer(?, XB_Create(XB_LoadXML(?), 1, 1))";
+    if (no_web_connection)
+	sql =
+	    "SELECT RegisterRasterStyledLayer(?, XB_Create(XB_LoadXML(?), 1))";
+    else
+	sql =
+	    "SELECT RegisterRasterStyledLayer(?, XB_Create(XB_LoadXML(?), 1, 1))";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -1463,6 +1471,7 @@ test_symbolizer_null (int *retcode)
 int
 main (int argc, char *argv[])
 {
+    int no_web_connection = 0;
     int result = 0;
     int ret;
     char *err_msg = NULL;
@@ -1472,6 +1481,16 @@ main (int argc, char *argv[])
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
+
+    if (getenv ("ENABLE_RL2_WEB_TESTS") == NULL)
+      {
+	  fprintf (stderr,
+		   "this testcase has been executed with several limitations\n"
+		   "because it was not enabled to access the Web.\n\n"
+		   "you can enable all testcases requiring an Internet connection\n"
+		   "by setting the environment variable \"ENABLE_RL2_WEB_TESTS=1\"\n\n");
+	  no_web_connection = 1;
+      }
 
     old_SPATIALITE_SECURITY_ENV = getenv ("SPATIALITE_SECURITY");
 #ifdef _WIN32
@@ -1540,9 +1559,14 @@ main (int argc, char *argv[])
 	  sqlite3_free (err_msg);
 	  return -6;
       }
-    ret =
-	sqlite3_exec (db_handle, "SELECT CreateStylingTables()", NULL,
-		      NULL, &err_msg);
+    if (no_web_connection)
+	ret =
+	    sqlite3_exec (db_handle, "SELECT CreateStylingTables(1)", NULL,
+			  NULL, &err_msg);
+    else
+	ret =
+	    sqlite3_exec (db_handle, "SELECT CreateStylingTables()", NULL,
+			  NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "CreateStylingTables() error: %s\n", err_msg);
@@ -1572,25 +1596,38 @@ main (int argc, char *argv[])
 
 /* tests */
     ret = -100;
-    if (!load_symbolizer (db_handle, "dumb1", "raster_symbolizer_1.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb1", "raster_symbolizer_1.xml", no_web_connection,
+	 &ret))
 	return ret;
     ret = -200;
-    if (!load_symbolizer (db_handle, "dumb1", "raster_symbolizer_2.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb1", "raster_symbolizer_2.xml", no_web_connection,
+	 &ret))
 	return ret;
     ret = -300;
-    if (!load_symbolizer (db_handle, "dumb1", "raster_symbolizer_3.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb1", "raster_symbolizer_3.xml", no_web_connection,
+	 &ret))
 	return ret;
     ret = -400;
-    if (!load_symbolizer (db_handle, "dumb2", "raster_symbolizer_4.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb2", "raster_symbolizer_4.xml", no_web_connection,
+	 &ret))
 	return ret;
     ret = -500;
-    if (!load_symbolizer (db_handle, "dumb2", "raster_symbolizer_5.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb2", "raster_symbolizer_5.xml", no_web_connection,
+	 &ret))
 	return ret;
     ret = -600;
-    if (!load_symbolizer (db_handle, "dumb2", "raster_symbolizer_6.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb2", "raster_symbolizer_6.xml", no_web_connection,
+	 &ret))
 	return ret;
     ret = -800;
-    if (!load_symbolizer (db_handle, "dumb_dem", "srtm_brightness.xml", &ret))
+    if (!load_symbolizer
+	(db_handle, "dumb_dem", "srtm_brightness.xml", no_web_connection, &ret))
 	return ret;
     ret = -110;
     if (!test_symbolizer_1 (db_handle, "dumb1", "style1", &ret))
@@ -1614,7 +1651,7 @@ main (int argc, char *argv[])
     if (!test_symbolizer_null (&ret))
 	return ret;
     ret = -810;
-    if (!test_group_style (db_handle, &ret))
+    if (!test_group_style (db_handle, no_web_connection, &ret))
 	return -ret;
 
 /* closing the DB */

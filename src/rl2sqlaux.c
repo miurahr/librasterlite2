@@ -228,6 +228,10 @@ get_coverage_defs (sqlite3 * sqlite, const char *coverage,
 		    xcompression = RL2_COMPRESSION_CCITTFAX4;
 		if (strcmp (compr, "CHARLS") == 0)
 		    xcompression = RL2_COMPRESSION_CHARLS;
+		if (strcmp (compr, "LOSSY_JP2") == 0)
+		    xcompression = RL2_COMPRESSION_LOSSY_JP2;
+		if (strcmp (compr, "LOSSLESS_JP2") == 0)
+		    xcompression = RL2_COMPRESSION_LOSSLESS_JP2;
 		xtile_width = atoi (results[(i * columns) + 4]);
 		xtile_height = atoi (results[(i * columns) + 5]);
 	    }
@@ -2290,9 +2294,30 @@ get_payload_from_rgb_transparent (unsigned int width, unsigned int height,
 }
 
 static int
-test_no_data_8 (rl2PrivPixelPtr no_data, unsigned char *p_in)
+test_no_data_8 (rl2PrivPixelPtr no_data, char *p_in)
 {
-/* testing for NO-DATA */
+/* testing for NO-DATA - INT8 */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->int8)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_u8 (rl2PrivPixelPtr no_data, unsigned char *p_in)
+{
+/* testing for NO-DATA - UINT8 */
     if (no_data != NULL)
       {
 	  unsigned char band;
@@ -2302,6 +2327,132 @@ test_no_data_8 (rl2PrivPixelPtr no_data, unsigned char *p_in)
 	    {
 		sample = no_data->Samples + band;
 		if (*(p_in + band) == sample->uint8)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_16 (rl2PrivPixelPtr no_data, short *p_in)
+{
+/* testing for NO-DATA - INT16 */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->int16)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_u16 (rl2PrivPixelPtr no_data, unsigned short *p_in)
+{
+/* testing for NO-DATA - UINT16 */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->uint16)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_32 (rl2PrivPixelPtr no_data, int *p_in)
+{
+/* testing for NO-DATA - INT32 */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->int32)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_u32 (rl2PrivPixelPtr no_data, unsigned int *p_in)
+{
+/* testing for NO-DATA - UINT32 */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->uint32)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_flt (rl2PrivPixelPtr no_data, float *p_in)
+{
+/* testing for NO-DATA - FLOAT */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->float32)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+test_no_data_dbl (rl2PrivPixelPtr no_data, double *p_in)
+{
+/* testing for NO-DATA - DOUBLE */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->float64)
 		    match++;
 	    }
 	  if (match == no_data->nBands)
@@ -2338,7 +2489,7 @@ get_rgba_from_monochrome_mask (unsigned int width, unsigned int height,
 			  transparent = 1;
 		  }
 		if (!transparent)
-		    transparent = test_no_data_8 (no_data, p_in);
+		    transparent = test_no_data_u8 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_out += 4;
@@ -2472,7 +2623,7 @@ get_rgba_from_palette_mask (unsigned int width, unsigned int height,
 				transparent = 1;
 			}
 		      if (!transparent)
-			  transparent = test_no_data_8 (no_data, p_in);
+			  transparent = test_no_data_u8 (no_data, p_in);
 		      if (transparent)
 			{
 			    p_out += 4;
@@ -2722,7 +2873,7 @@ get_rgba_from_grayscale_mask (unsigned int width, unsigned int height,
 			  transparent = 1;
 		  }
 		if (!transparent)
-		    transparent = test_no_data_8 (no_data, p_in);
+		    transparent = test_no_data_u8 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_out += 4;
@@ -2830,7 +2981,7 @@ get_rgba_from_rgb_mask (unsigned int width, unsigned int height,
 			  transparent = 1;
 		  }
 		if (!transparent)
-		    transparent = test_no_data_8 (no_data, p_in);
+		    transparent = test_no_data_u8 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_out += 4;
@@ -2913,7 +3064,8 @@ get_rgba_from_rgb_transparent (unsigned int width, unsigned int height,
 
 RL2_PRIVATE int
 rgba_from_int8 (unsigned int width, unsigned int height,
-		char *pixels, unsigned char *mask, unsigned char *rgba)
+		char *pixels, unsigned char *mask, rl2PrivPixelPtr no_data,
+		unsigned char *rgba)
 {
 /* input: DataGrid INT8   output: Grayscale */
     char *p_in;
@@ -2930,6 +3082,7 @@ rgba_from_int8 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		char *p_sv = p_in;
 		char gray = 128 + *p_in++;
 		transparent = 0;
 		if (p_msk != NULL)
@@ -2937,6 +3090,8 @@ rgba_from_int8 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_8 (no_data, p_sv);
 		if (transparent)
 		    p_out += 4;
 		else
@@ -2957,7 +3112,7 @@ rgba_from_int8 (unsigned int width, unsigned int height,
 RL2_PRIVATE int
 rgba_from_uint8 (unsigned int width, unsigned int height,
 		 unsigned char *pixels, unsigned char *mask,
-		 unsigned char *rgba)
+		 rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: DataGrid UINT8   output: Grayscale */
     unsigned char *p_in;
@@ -2974,6 +3129,7 @@ rgba_from_uint8 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		unsigned char *p_sv = p_in;
 		unsigned char gray = *p_in++;
 		transparent = 0;
 		if (p_msk != NULL)
@@ -2981,6 +3137,8 @@ rgba_from_uint8 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_u8 (no_data, p_sv);
 		if (transparent)
 		    p_out += 4;
 		else
@@ -3000,7 +3158,8 @@ rgba_from_uint8 (unsigned int width, unsigned int height,
 
 RL2_PRIVATE int
 rgba_from_int16 (unsigned int width, unsigned int height,
-		 short *pixels, unsigned char *mask, unsigned char *rgba)
+		 short *pixels, unsigned char *mask, rl2PrivPixelPtr no_data,
+		 unsigned char *rgba)
 {
 /* input: DataGrid INT16   output: Grayscale */
     short *p_in;
@@ -3029,12 +3188,15 @@ rgba_from_int16 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		short *p_sv = p_in;
 		short gray = *p_in++;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_16 (no_data, p_sv))
+		    continue;
 		if (min > gray)
 		    min = gray;
 		if (max < gray)
@@ -3054,12 +3216,15 @@ rgba_from_int16 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		short *p_sv = p_in;
 		double gray = (double) (*p_in++ - min) / tic;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_16 (no_data, p_sv))
+		    continue;
 		if (gray < 0.0)
 		    gray = 0.0;
 		if (gray > 1023.0)
@@ -3103,6 +3268,8 @@ rgba_from_int16 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_16 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_in++;
@@ -3138,7 +3305,7 @@ rgba_from_int16 (unsigned int width, unsigned int height,
 RL2_PRIVATE int
 rgba_from_uint16 (unsigned int width, unsigned int height,
 		  unsigned short *pixels, unsigned char *mask,
-		  unsigned char *rgba)
+		  rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: DataGrid UINT16   output: Grayscale */
     unsigned short *p_in;
@@ -3167,12 +3334,15 @@ rgba_from_uint16 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		unsigned short *p_sv = p_in;
 		unsigned short gray = *p_in++;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_u16 (no_data, p_sv))
+		    continue;
 		if (min > gray)
 		    min = gray;
 		if (max < gray)
@@ -3192,12 +3362,15 @@ rgba_from_uint16 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		unsigned short *p_sv = p_in;
 		double gray = (double) (*p_in++ - min) / tic;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_u16 (no_data, p_sv))
+		    continue;
 		if (gray < 0.0)
 		    gray = 0.0;
 		if (gray > 1023.0)
@@ -3241,6 +3414,8 @@ rgba_from_uint16 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_u16 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_in++;
@@ -3275,7 +3450,8 @@ rgba_from_uint16 (unsigned int width, unsigned int height,
 
 RL2_PRIVATE int
 rgba_from_int32 (unsigned int width, unsigned int height,
-		 int *pixels, unsigned char *mask, unsigned char *rgba)
+		 int *pixels, unsigned char *mask, rl2PrivPixelPtr no_data,
+		 unsigned char *rgba)
 {
 /* input: DataGrid INT32   output: Grayscale */
     int *p_in;
@@ -3304,12 +3480,15 @@ rgba_from_int32 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		int *p_sv = p_in;
 		int gray = *p_in++;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_32 (no_data, p_sv))
+		    continue;
 		if (min > gray)
 		    min = gray;
 		if (max < gray)
@@ -3329,12 +3508,15 @@ rgba_from_int32 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		int *p_sv = p_in;
 		double gray = (double) (*p_in++ - min) / tic;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_32 (no_data, p_sv))
+		    continue;
 		if (gray < 0.0)
 		    gray = 0.0;
 		if (gray > 1023.0)
@@ -3378,6 +3560,8 @@ rgba_from_int32 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_32 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_in++;
@@ -3413,7 +3597,7 @@ rgba_from_int32 (unsigned int width, unsigned int height,
 RL2_PRIVATE int
 rgba_from_uint32 (unsigned int width, unsigned int height,
 		  unsigned int *pixels, unsigned char *mask,
-		  unsigned char *rgba)
+		  rl2PrivPixelPtr no_data, unsigned char *rgba)
 {
 /* input: DataGrid UINT32   output: Grayscale */
     unsigned int *p_in;
@@ -3442,12 +3626,15 @@ rgba_from_uint32 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		unsigned int *p_sv = p_in;
 		unsigned int gray = *p_in++;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_u32 (no_data, p_sv))
+		    continue;
 		if (min > gray)
 		    min = gray;
 		if (max < gray)
@@ -3467,12 +3654,15 @@ rgba_from_uint32 (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		unsigned int *p_sv = p_in;
 		double gray = (double) (*p_in++ - min) / tic;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_u32 (no_data, p_sv))
+		    continue;
 		if (gray < 0.0)
 		    gray = 0.0;
 		if (gray > 1023.0)
@@ -3516,6 +3706,8 @@ rgba_from_uint32 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_u32 (no_data, p_in);
 		if (transparent)
 		  {
 		      p_in++;
@@ -3550,7 +3742,8 @@ rgba_from_uint32 (unsigned int width, unsigned int height,
 
 RL2_PRIVATE int
 rgba_from_float (unsigned int width, unsigned int height,
-		 float *pixels, unsigned char *mask, unsigned char *rgba)
+		 float *pixels, unsigned char *mask, rl2PrivPixelPtr no_data,
+		 unsigned char *rgba)
 {
 /* input: DataGrid FLOAT   output: Grayscale */
     float *p_in;
@@ -3579,12 +3772,15 @@ rgba_from_float (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		float *p_sv = p_in;
 		float gray = *p_in++;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_flt (no_data, p_sv))
+		    continue;
 		if (min > gray)
 		    min = gray;
 		if (max < gray)
@@ -3604,12 +3800,15 @@ rgba_from_float (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		float *p_sv = p_in;
 		double gray = (double) (*p_in++ - min) / tic;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_flt (no_data, p_sv))
+		    continue;
 		if (gray < 0.0)
 		    gray = 0.0;
 		if (gray > 1023.0)
@@ -3653,6 +3852,8 @@ rgba_from_float (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_flt (no_data, p_in);
 		if (transparent)
 		  {
 		      p_in++;
@@ -3687,7 +3888,8 @@ rgba_from_float (unsigned int width, unsigned int height,
 
 RL2_PRIVATE int
 rgba_from_double (unsigned int width, unsigned int height,
-		  double *pixels, unsigned char *mask, unsigned char *rgba)
+		  double *pixels, unsigned char *mask, rl2PrivPixelPtr no_data,
+		  unsigned char *rgba)
 {
 /* input: DataGrid DOUBLE   output: Grayscale */
     double *p_in;
@@ -3716,12 +3918,15 @@ rgba_from_double (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		double *p_sv = p_in;
 		double gray = *p_in++;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_dbl (no_data, p_sv))
+		    continue;
 		if (min > gray)
 		    min = gray;
 		if (max < gray)
@@ -3741,12 +3946,15 @@ rgba_from_double (unsigned int width, unsigned int height,
       {
 	  for (col = 0; col < width; col++)
 	    {
+		double *p_sv = p_in;
 		double gray = (double) (*p_in++ - min) / tic;
 		if (p_msk != NULL)
 		  {
 		      if (*p_msk++ == 0)
 			  continue;
 		  }
+		if (test_no_data_dbl (no_data, p_sv))
+		    continue;
 		if (gray < 0.0)
 		    gray = 0.0;
 		if (gray > 1023.0)
@@ -3790,6 +3998,8 @@ rgba_from_double (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
+		if (!transparent)
+		    transparent = test_no_data_dbl (no_data, p_in);
 		if (transparent)
 		  {
 		      p_in++;
@@ -3833,34 +4043,270 @@ get_rgba_from_datagrid_mask (unsigned int width, unsigned int height,
     switch (sample_type)
       {
       case RL2_SAMPLE_INT8:
-	  ret = rgba_from_int8 (width, height, (char *) pixels, mask, rgba);
+	  ret =
+	      rgba_from_int8 (width, height, (char *) pixels, mask, no_data,
+			      rgba);
 	  break;
       case RL2_SAMPLE_UINT8:
 	  ret =
 	      rgba_from_uint8 (width, height, (unsigned char *) pixels, mask,
-			       rgba);
+			       no_data, rgba);
 	  break;
       case RL2_SAMPLE_INT16:
-	  ret = rgba_from_int16 (width, height, (short *) pixels, mask, rgba);
+	  ret =
+	      rgba_from_int16 (width, height, (short *) pixels, mask, no_data,
+			       rgba);
 	  break;
       case RL2_SAMPLE_UINT16:
 	  ret =
 	      rgba_from_uint16 (width, height, (unsigned short *) pixels, mask,
-				rgba);
+				no_data, rgba);
 	  break;
       case RL2_SAMPLE_INT32:
-	  ret = rgba_from_int32 (width, height, (int *) pixels, mask, rgba);
+	  ret =
+	      rgba_from_int32 (width, height, (int *) pixels, mask, no_data,
+			       rgba);
 	  break;
       case RL2_SAMPLE_UINT32:
 	  ret =
 	      rgba_from_uint32 (width, height, (unsigned int *) pixels, mask,
-				rgba);
+				no_data, rgba);
 	  break;
       case RL2_SAMPLE_FLOAT:
-	  ret = rgba_from_float (width, height, (float *) pixels, mask, rgba);
+	  ret =
+	      rgba_from_float (width, height, (float *) pixels, mask, no_data,
+			       rgba);
 	  break;
       case RL2_SAMPLE_DOUBLE:
-	  ret = rgba_from_double (width, height, (double *) pixels, mask, rgba);
+	  ret =
+	      rgba_from_double (width, height, (double *) pixels, mask, no_data,
+				rgba);
+	  break;
+      };
+    return ret;
+}
+
+RL2_PRIVATE int
+rgba_from_multi_uint8 (unsigned int width, unsigned int height,
+		       unsigned char num_bands, unsigned char *pixels,
+		       unsigned char *mask, rl2PrivPixelPtr no_data,
+		       unsigned char *rgba)
+{
+/* input: MultiBand UINT8   output: Grayscale */
+    unsigned char *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned int row;
+    unsigned int col;
+    int transparent;
+
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned char *p_sv = p_in;
+		unsigned char gray = *p_in;	/* considering only Band #0 */
+		p_in += num_bands;
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (!transparent)
+		    transparent = test_no_data_u8 (no_data, p_sv);
+		if (transparent)
+		    p_out += 4;
+		else
+		  {
+		      *p_out++ = gray;	/* red */
+		      *p_out++ = gray;	/* green */
+		      *p_out++ = gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+rgba_from_multi_uint16 (unsigned int width, unsigned int height,
+			unsigned char num_bands, unsigned short *pixels,
+			unsigned char *mask, rl2PrivPixelPtr no_data,
+			unsigned char *rgba)
+{
+/* input: MultiBand UINT16   output: Grayscale */
+    unsigned short *p_in;
+    unsigned char *p_out;
+    unsigned char *p_msk;
+    unsigned int row;
+    unsigned int col;
+    unsigned short min = USHRT_MAX;
+    unsigned short max = 0;
+    double min2 = 0.0;
+    double max2 = 0.0;
+    double tic;
+    double tic2;
+    int transparent;
+    int i;
+    int sum;
+    int total;
+    double percentile2;
+    int histogram[1024];
+
+/* identifying Min/Max values */
+    total = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned short *p_sv = p_in;
+		unsigned short gray = *p_in;	/* considering only Band #0 */
+		p_in += num_bands;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (test_no_data_u16 (no_data, p_sv))
+		    continue;
+		if (min > gray)
+		    min = gray;
+		if (max < gray)
+		    max = gray;
+		total++;
+	    }
+      }
+    tic = (double) (max - min) / 1024.0;
+    percentile2 = ((double) total / 100.0) * 2.0;
+
+/* building an histogram */
+    for (i = 0; i < 1024; i++)
+	histogram[i] = 0;
+    p_in = pixels;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		unsigned short *p_sv = p_in;
+		double gray = (double) (*p_in - min) / tic;
+		p_in += num_bands;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  continue;
+		  }
+		if (test_no_data_u16 (no_data, p_sv))
+		    continue;
+		if (gray < 0.0)
+		    gray = 0.0;
+		if (gray > 1023.0)
+		    gray = 1023.0;
+		histogram[(int) gray] += 1;
+	    }
+      }
+    sum = 0;
+    for (i = 0; i < 1024; i++)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		min2 = (double) min + ((double) i * tic);
+		break;
+	    }
+      }
+    sum = 0;
+    for (i = 1023; i >= 0; i--)
+      {
+	  sum += histogram[i];
+	  if (sum >= percentile2)
+	    {
+		max2 = (double) min + ((double) (i + 1) * tic);
+		break;
+	    }
+      }
+    tic2 = (double) (max2 - min2) / 254.0;
+
+/* rescaling gray-values 0-255 */
+    p_in = pixels;
+    p_out = rgba;
+    p_msk = mask;
+    for (row = 0; row < height; row++)
+      {
+	  for (col = 0; col < width; col++)
+	    {
+		transparent = 0;
+		if (p_msk != NULL)
+		  {
+		      if (*p_msk++ == 0)
+			  transparent = 1;
+		  }
+		if (!transparent)
+		    transparent = test_no_data_u16 (no_data, p_in);
+		if (transparent)
+		  {
+		      p_in += num_bands;
+		      p_out += 4;
+		  }
+		else
+		  {
+		      double gray;
+		      unsigned short val = *p_in;
+		      p_in += num_bands;	/* considering only Band #0 */
+		      if (val <= min2)
+			  gray = 0.0;
+		      else if (val >= max2)
+			  gray = 255.0;
+		      else
+			  gray = 1.0 + (((double) val - min2) / tic2);
+		      if (gray < 0.0)
+			  gray = 0.0;
+		      if (gray > 255.0)
+			  gray = 255.0;
+		      *p_out++ = (unsigned char) gray;	/* red */
+		      *p_out++ = (unsigned char) gray;	/* green */
+		      *p_out++ = (unsigned char) gray;	/* blue */
+		      *p_out++ = 255;	/* opaque */
+		  }
+	    }
+      }
+    free (pixels);
+    if (mask != NULL)
+	free (mask);
+    return 1;
+}
+
+RL2_PRIVATE int
+get_rgba_from_multiband_mask (unsigned int width, unsigned int height,
+			      unsigned char sample_type,
+			      unsigned char num_bands, void *pixels,
+			      unsigned char *mask, rl2PrivPixelPtr no_data,
+			      unsigned char *rgba)
+{
+/* input: MultiBand    output: Grayscale */
+    int ret = 0;
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_UINT8:
+	  ret =
+	      rgba_from_multi_uint8 (width, height, num_bands,
+				     (unsigned char *) pixels, mask, no_data,
+				     rgba);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  ret =
+	      rgba_from_multi_uint16 (width, height, num_bands,
+				      (unsigned short *) pixels, mask, no_data,
+				      rgba);
 	  break;
       };
     return ret;
@@ -4240,27 +4686,6 @@ get_rgba_from_multiband8 (unsigned int width, unsigned int height,
     return 1;
 }
 
-static int
-test_no_data_16 (rl2PrivPixelPtr no_data, unsigned short *p_in)
-{
-/* testing for NO-DATA */
-    if (no_data != NULL)
-      {
-	  unsigned char band;
-	  int match = 0;
-	  rl2PrivSamplePtr sample;
-	  for (band = 0; band < no_data->nBands; band++)
-	    {
-		sample = no_data->Samples + band;
-		if (*(p_in + band) == sample->uint16)
-		    match++;
-	    }
-	  if (match == no_data->nBands)
-	      return 1;
-      }
-    return 0;
-}
-
 RL2_PRIVATE int
 get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			   unsigned char red_band, unsigned char green_band,
@@ -4310,7 +4735,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			    continue;
 			}
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		  {
 		      p_in += num_bands;
 		      continue;
@@ -4348,7 +4773,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			    continue;
 			}
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		  {
 		      p_in += num_bands;
 		      continue;
@@ -4404,7 +4829,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			    continue;
 			}
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		  {
 		      p_in += num_bands;
 		      continue;
@@ -4442,7 +4867,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			    continue;
 			}
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		  {
 		      p_in += num_bands;
 		      continue;
@@ -4498,7 +4923,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			    continue;
 			}
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		  {
 		      p_in += num_bands;
 		      continue;
@@ -4536,7 +4961,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 			    continue;
 			}
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		  {
 		      p_in += num_bands;
 		      continue;
@@ -4590,7 +5015,7 @@ get_rgba_from_multiband16 (unsigned int width, unsigned int height,
 		      if (*p_msk++ == 0)
 			  transparent = 1;
 		  }
-		if (test_no_data_16 (no_data, p_in))
+		if (test_no_data_u16 (no_data, p_in))
 		    transparent = 1;
 		if (transparent)
 		  {

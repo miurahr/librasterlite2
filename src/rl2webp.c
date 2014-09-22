@@ -78,6 +78,7 @@ check_webp_compatibility (unsigned char sample_type, unsigned char pixel_type,
       case RL2_PIXEL_PALETTE:
       case RL2_PIXEL_GRAYSCALE:
       case RL2_PIXEL_RGB:
+      case RL2_PIXEL_MULTIBAND:
 	  break;
       default:
 	  return RL2_ERROR;
@@ -136,6 +137,140 @@ check_webp_compatibility (unsigned char sample_type, unsigned char pixel_type,
 	  if (num_samples != 3)
 	      return RL2_ERROR;
       }
+    if (pixel_type == RL2_PIXEL_MULTIBAND)
+      {
+	  switch (sample_type)
+	    {
+	    case RL2_SAMPLE_UINT8:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  if (num_samples == 3 || num_samples == 4)
+	      ;
+	  else
+	      return RL2_ERROR;
+      }
+    return RL2_OK;
+}
+
+static void
+copy_pixels (unsigned char *out, const unsigned char *in, int width, int height,
+	     int num_bands)
+{
+/* copying pixels */
+    int x;
+    int y;
+    int ib;
+    const unsigned char *p_in = in;
+    unsigned char *p_out = out;
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		for (ib = 0; ib < num_bands; ib++)
+		    *p_out++ = *p_in++;
+	    }
+      }
+}
+
+static int
+compress_lossy_3bands_webp (rl2PrivRasterPtr rst, unsigned char **webp,
+			    int *webp_size, int quality)
+{
+/* compressing a WebP (lossy) image (MULTIBAND 3-bands) */
+    int size;
+    unsigned char *output;
+    unsigned char *buf = malloc (rst->width * rst->height * 3);
+
+    *webp = NULL;
+    *webp_size = 0;
+    copy_pixels (buf, rst->rasterBuffer, rst->width, rst->height, rst->nBands);
+    if (quality > 100)
+	quality = 100;
+    if (quality < 0)
+	quality = 75;
+    size =
+	WebPEncodeRGB (buf, rst->width, rst->height, rst->width * 3, quality,
+		       &output);
+    free (buf);
+    if (size == 0)
+	return RL2_ERROR;
+    *webp = output;
+    *webp_size = size;
+    return RL2_OK;
+}
+
+static int
+compress_lossy_4bands_webp (rl2PrivRasterPtr rst, unsigned char **webp,
+			    int *webp_size, int quality)
+{
+/* compressing a WebP (lossy) image (MULTIBAND 4-bands) */
+    int size;
+    unsigned char *output;
+    unsigned char *buf = malloc (rst->width * rst->height * 4);
+
+    *webp = NULL;
+    *webp_size = 0;
+    copy_pixels (buf, rst->rasterBuffer, rst->width, rst->height, rst->nBands);
+    if (quality > 100)
+	quality = 100;
+    if (quality < 0)
+	quality = 75;
+    size =
+	WebPEncodeRGBA (buf, rst->width, rst->height, rst->width * 4, quality,
+			&output);
+    free (buf);
+    if (size == 0)
+	return RL2_ERROR;
+    *webp = output;
+    *webp_size = size;
+    return RL2_OK;
+}
+
+static int
+compress_lossless_3bands_webp (rl2PrivRasterPtr rst, unsigned char **webp,
+			       int *webp_size)
+{
+/* compressing a WebP (lossless) image (MULTIBAND 3-bands) */
+    int size;
+    unsigned char *output;
+    unsigned char *buf = malloc (rst->width * rst->height * 3);
+
+    *webp = NULL;
+    *webp_size = 0;
+    copy_pixels (buf, rst->rasterBuffer, rst->width, rst->height, rst->nBands);
+    size =
+	WebPEncodeLosslessRGB (buf, rst->width, rst->height, rst->width * 3,
+			       &output);
+    free (buf);
+    if (size == 0)
+	return RL2_ERROR;
+    *webp = output;
+    *webp_size = size;
+    return RL2_OK;
+}
+
+static int
+compress_lossless_4bands_webp (rl2PrivRasterPtr rst, unsigned char **webp,
+			       int *webp_size)
+{
+/* compressing a WebP (lossless) image (MULTIBAND 4-bands) */
+    int size;
+    unsigned char *output;
+    unsigned char *buf = malloc (rst->width * rst->height * 4);
+
+    *webp = NULL;
+    *webp_size = 0;
+    copy_pixels (buf, rst->rasterBuffer, rst->width, rst->height, rst->nBands);
+    size =
+	WebPEncodeLosslessRGBA (buf, rst->width, rst->height, rst->width * 4,
+				&output);
+    free (buf);
+    if (size == 0)
+	return RL2_ERROR;
+    *webp = output;
+    *webp_size = size;
     return RL2_OK;
 }
 
@@ -179,6 +314,14 @@ compress_lossy_webp (rl2RasterPtr ptr, unsigned char **webp, int *webp_size,
     int rgb_size;
     unsigned char *rgb;
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
+    if (rst->pixelType == RL2_PIXEL_MULTIBAND)
+      {
+	  if (rst->nBands == 3)
+	      return compress_lossy_3bands_webp (rst, webp, webp_size, quality);
+	  if (rst->nBands == 4)
+	      return compress_lossy_4bands_webp (rst, webp, webp_size, quality);
+	  return RL2_ERROR;
+      }
     if (rst->maskBuffer != NULL || rst->noData != NULL)
 	return compress_lossy_alpha_webp (rst, webp, webp_size, quality);
 
@@ -237,6 +380,14 @@ compress_lossless_webp (rl2RasterPtr ptr, unsigned char **webp, int *webp_size)
     int rgb_size;
     unsigned char *rgb;
     rl2PrivRasterPtr rst = (rl2PrivRasterPtr) ptr;
+    if (rst->pixelType == RL2_PIXEL_MULTIBAND)
+      {
+	  if (rst->nBands == 3)
+	      return compress_lossless_3bands_webp (rst, webp, webp_size);
+	  if (rst->nBands == 4)
+	      return compress_lossless_4bands_webp (rst, webp, webp_size);
+	  return RL2_ERROR;
+      }
     if (rst->maskBuffer != NULL || rst->noData != NULL)
 	return compress_lossless_alpha_webp (rst, webp, webp_size);
 
@@ -305,7 +456,6 @@ rl2_raster_to_lossy_webp (rl2RasterPtr rst, unsigned char **webp,
     *webp_size = blob_size;
     return RL2_OK;
 }
-
 
 RL2_DECLARE int
 rl2_section_to_lossless_webp (rl2SectionPtr scn, const char *path)
@@ -485,38 +635,48 @@ rl2_decode_webp_scaled (int scale, const unsigned char *webp, int webp_size,
 	  config.output.is_external_memory = 1;
       }
 
-    if (features.has_alpha)
-      {
-	  if (WebPDecode (webp, webp_size, &config) != VP8_STATUS_OK)
-	      goto error;
-	  buf_size = width * height * 3;
-	  mask_size = width * height;
-	  mask = malloc (mask_size);
-	  if (mask == NULL)
-	      goto error;
-	  p_mask = mask;
-	  p_in = buf;
-	  p_out = buf;
-	  for (row = 0; row < height; row++)
-	    {
-		for (col = 0; col < width; col++)
-		  {
-		      *p_out++ = *p_in++;
-		      *p_out++ = *p_in++;
-		      *p_out++ = *p_in++;
-		      if (*p_in++ < 128)
-			  *p_mask++ = 0;
-		      else
-			  *p_mask++ = 1;
-		  }
-	    }
-      }
-    else
+    if (pixel_type == RL2_PIXEL_MULTIBAND)
       {
 	  if (WebPDecode (webp, webp_size, &config) != VP8_STATUS_OK)
 	      goto error;
 	  mask = NULL;
 	  mask_size = 0;
+      }
+    else
+      {
+	  if (features.has_alpha)
+	    {
+		if (WebPDecode (webp, webp_size, &config) != VP8_STATUS_OK)
+		    goto error;
+		buf_size = width * height * 3;
+		mask_size = width * height;
+		mask = malloc (mask_size);
+		if (mask == NULL)
+		    goto error;
+		p_mask = mask;
+		p_in = buf;
+		p_out = buf;
+		for (row = 0; row < height; row++)
+		  {
+		      for (col = 0; col < width; col++)
+			{
+			    *p_out++ = *p_in++;
+			    *p_out++ = *p_in++;
+			    *p_out++ = *p_in++;
+			    if (*p_in++ < 128)
+				*p_mask++ = 0;
+			    else
+				*p_mask++ = 1;
+			}
+		  }
+	    }
+	  else
+	    {
+		if (WebPDecode (webp, webp_size, &config) != VP8_STATUS_OK)
+		    goto error;
+		mask = NULL;
+		mask_size = 0;
+	    }
       }
 
     if (pixel_type == RL2_PIXEL_GRAYSCALE)

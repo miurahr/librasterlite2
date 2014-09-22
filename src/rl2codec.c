@@ -878,6 +878,8 @@ check_encode_self_consistency (unsigned char sample_type,
 	    case RL2_COMPRESSION_LOSSY_WEBP:
 	    case RL2_COMPRESSION_LOSSLESS_WEBP:
 	    case RL2_COMPRESSION_CHARLS:
+	    case RL2_COMPRESSION_LOSSY_JP2:
+	    case RL2_COMPRESSION_LOSSLESS_JP2:
 		break;
 	    default:
 		return 0;
@@ -903,6 +905,8 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_LZMA:
 		  case RL2_COMPRESSION_PNG:
 		  case RL2_COMPRESSION_CHARLS:
+		  case RL2_COMPRESSION_LOSSY_JP2:
+		  case RL2_COMPRESSION_LOSSLESS_JP2:
 		      break;
 		  default:
 		      return 0;
@@ -920,6 +924,8 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_LOSSY_WEBP:
 		  case RL2_COMPRESSION_LOSSLESS_WEBP:
 		  case RL2_COMPRESSION_CHARLS:
+		  case RL2_COMPRESSION_LOSSY_JP2:
+		  case RL2_COMPRESSION_LOSSLESS_JP2:
 		      break;
 		  default:
 		      return 0;
@@ -939,17 +945,40 @@ check_encode_self_consistency (unsigned char sample_type,
 	      return 0;
 	  if (num_samples == 3 || num_samples == 4)
 	    {
-		switch (compression)
+		if (sample_type == RL2_SAMPLE_UINT16)
 		  {
-		  case RL2_COMPRESSION_NONE:
-		  case RL2_COMPRESSION_DEFLATE:
-		  case RL2_COMPRESSION_LZMA:
-		  case RL2_COMPRESSION_PNG:
-		  case RL2_COMPRESSION_CHARLS:
-		      break;
-		  default:
-		      return 0;
-		  };
+		      switch (compression)
+			{
+			case RL2_COMPRESSION_NONE:
+			case RL2_COMPRESSION_DEFLATE:
+			case RL2_COMPRESSION_LZMA:
+			case RL2_COMPRESSION_PNG:
+			case RL2_COMPRESSION_CHARLS:
+			case RL2_COMPRESSION_LOSSY_JP2:
+			case RL2_COMPRESSION_LOSSLESS_JP2:
+			    break;
+			default:
+			    return 0;
+			};
+		  }
+		else
+		  {
+		      switch (compression)
+			{
+			case RL2_COMPRESSION_NONE:
+			case RL2_COMPRESSION_DEFLATE:
+			case RL2_COMPRESSION_LZMA:
+			case RL2_COMPRESSION_PNG:
+			case RL2_COMPRESSION_LOSSY_WEBP:
+			case RL2_COMPRESSION_LOSSLESS_WEBP:
+			case RL2_COMPRESSION_CHARLS:
+			case RL2_COMPRESSION_LOSSY_JP2:
+			case RL2_COMPRESSION_LOSSLESS_JP2:
+			    break;
+			default:
+			    return 0;
+			};
+		  }
 	    }
 	  else
 	    {
@@ -991,6 +1020,8 @@ check_encode_self_consistency (unsigned char sample_type,
 		  case RL2_COMPRESSION_LZMA:
 		  case RL2_COMPRESSION_PNG:
 		  case RL2_COMPRESSION_CHARLS:
+		  case RL2_COMPRESSION_LOSSY_JP2:
+		  case RL2_COMPRESSION_LOSSLESS_JP2:
 		      break;
 		  default:
 		      return 0;
@@ -2130,7 +2161,9 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
     else if (compression == RL2_COMPRESSION_JPEG
 	     || compression == RL2_COMPRESSION_LOSSY_WEBP
 	     || compression == RL2_COMPRESSION_LOSSLESS_WEBP
-	     || compression == RL2_COMPRESSION_CCITTFAX4)
+	     || compression == RL2_COMPRESSION_CCITTFAX4
+	     || compression == RL2_COMPRESSION_LOSSY_JP2
+	     || compression == RL2_COMPRESSION_LOSSLESS_JP2)
       {
 	  /* no special action is required */
       }
@@ -2406,6 +2439,46 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    }
 	  else
 	      goto error;
+      }
+    else if (compression == RL2_COMPRESSION_LOSSLESS_JP2)
+      {
+	  /* compressing as lossless Jpeg2000 */
+	  if (rl2_raster_to_lossless_jpeg2000 (rst, &compr_data, &compressed) ==
+	      RL2_OK)
+	    {
+		/* ok, lossless Jpeg2000 compression was successful */
+		uncompressed = raster->width * raster->height * raster->nBands;
+		to_clean1 = compr_data;
+	    }
+	  else
+	      goto error;
+	  odd_rows = raster->height;
+	  if (mask_pix == NULL)
+	      uncompressed_mask = 0;
+	  else
+	      uncompressed_mask = raster->width * raster->height;
+	  compressed_mask = mask_pix_size;
+	  compr_mask = mask_pix;
+      }
+    else if (compression == RL2_COMPRESSION_LOSSY_JP2)
+      {
+	  /* compressing as lossy Jpeg2000 */
+	  if (rl2_raster_to_lossy_jpeg2000
+	      (rst, &compr_data, &compressed, quality) == RL2_OK)
+	    {
+		/* ok, lossy Jpeg2000 compression was successful */
+		uncompressed = raster->width * raster->height * raster->nBands;
+		to_clean1 = compr_data;
+	    }
+	  else
+	      goto error;
+	  odd_rows = raster->height;
+	  if (mask_pix == NULL)
+	      uncompressed_mask = 0;
+	  else
+	      uncompressed_mask = raster->width * raster->height;
+	  compressed_mask = mask_pix_size;
+	  compr_mask = mask_pix;
       }
 
 /* preparing the OddBlock */
@@ -2717,6 +2790,8 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned int *xwidth,
       case RL2_COMPRESSION_LOSSLESS_WEBP:
       case RL2_COMPRESSION_CCITTFAX4:
       case RL2_COMPRESSION_CHARLS:
+      case RL2_COMPRESSION_LOSSY_JP2:
+      case RL2_COMPRESSION_LOSSLESS_JP2:
 	  break;
       default:
 	  return 0;
@@ -2735,6 +2810,8 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned int *xwidth,
       case RL2_SAMPLE_UINT32:
       case RL2_SAMPLE_FLOAT:
       case RL2_SAMPLE_DOUBLE:
+      case RL2_COMPRESSION_LOSSY_JP2:
+      case RL2_COMPRESSION_LOSSLESS_JP2:
 	  break;
       default:
 	  return 0;
@@ -2887,7 +2964,9 @@ check_scale (int scale, unsigned char sample_type, unsigned char compression,
 	  else if (compression == RL2_COMPRESSION_JPEG
 		   || compression == RL2_COMPRESSION_LOSSY_WEBP
 		   || compression == RL2_COMPRESSION_LOSSLESS_WEBP
-		   || compression == RL2_COMPRESSION_CCITTFAX4)
+		   || compression == RL2_COMPRESSION_CCITTFAX4
+		   || compression == RL2_COMPRESSION_LOSSY_JP2
+		   || compression == RL2_COMPRESSION_LOSSLESS_JP2)
 	    {
 		if (blob_even != NULL)
 		    return 0;
@@ -5036,6 +5115,46 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	  sample_type = RL2_SAMPLE_1_BIT;
 	  pixel_type = RL2_PIXEL_MONOCHROME;
 	  num_bands = 1;
+	  goto done;
+      }
+    if (compression == RL2_COMPRESSION_LOSSY_JP2
+	|| compression == RL2_COMPRESSION_LOSSLESS_JP2)
+      {
+	  /* decompressing from Jpeg2000 - always on the ODD Block */
+	  int ret = RL2_ERROR;
+	  switch (scale)
+	    {
+	    case RL2_SCALE_1:
+		ret =
+		    rl2_decode_jpeg2000_scaled (1, pixels_odd, compressed_odd,
+						&width, &height, sample_type,
+						pixel_type, num_bands, &pixels,
+						&pixels_sz);
+		break;
+	    case RL2_SCALE_2:
+		ret =
+		    rl2_decode_jpeg2000_scaled (2, pixels_odd, compressed_odd,
+						&width, &height, sample_type,
+						pixel_type, num_bands, &pixels,
+						&pixels_sz);
+		break;
+	    case RL2_SCALE_4:
+		ret =
+		    rl2_decode_jpeg2000_scaled (4, pixels_odd, compressed_odd,
+						&width, &height, sample_type,
+						pixel_type, num_bands, &pixels,
+						&pixels_sz);
+		break;
+	    case RL2_SCALE_8:
+		ret =
+		    rl2_decode_jpeg2000_scaled (8, pixels_odd, compressed_odd,
+						&width, &height, sample_type,
+						pixel_type, num_bands, &pixels,
+						&pixels_sz);
+		break;
+	    };
+	  if (ret != RL2_OK)
+	      goto error;
 	  goto done;
       }
 

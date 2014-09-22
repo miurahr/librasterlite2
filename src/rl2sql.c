@@ -2105,6 +2105,10 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	compr = RL2_COMPRESSION_CCITTFAX4;
     if (strcasecmp (compression, "CHARLS") == 0)
 	compr = RL2_COMPRESSION_CHARLS;
+    if (strcasecmp (compression, "JP2") == 0)
+	compr = RL2_COMPRESSION_LOSSY_JP2;
+    if (strcasecmp (compression, "LL_JP2") == 0)
+	compr = RL2_COMPRESSION_LOSSLESS_JP2;
 
     if (no_data == NULL)
       {
@@ -6867,6 +6871,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     unsigned char *alpha = NULL;
     unsigned char sample_type;
     unsigned char pixel_type;
+    unsigned char num_bands;
     rl2PrivPixelPtr no_data = NULL;
     double opacity = 1.0;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
@@ -6913,6 +6918,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
       case RL2_PIXEL_GRAYSCALE:
       case RL2_PIXEL_RGB:
       case RL2_PIXEL_DATAGRID:
+      case RL2_PIXEL_MULTIBAND:
 	  break;
       default:
 	  unsupported_tile = 1;
@@ -6994,6 +7000,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 		height = rst->height;
 		sample_type = rst->sampleType;
 		pixel_type = rst->pixelType;
+		num_bands = rst->nBands;
 		buffer = rst->rasterBuffer;
 		mask = rst->maskBuffer;
 		palette = (rl2PalettePtr) (rst->Palette);
@@ -7195,6 +7202,42 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    free (alpha);
 			    alpha = NULL;
 			    if (!get_payload_from_rgb_rgba_opaque
+				(width, height, sqlite, 0, 0, 0, 0, -1,
+				 rgb, RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size))
+				goto error;
+			}
+		      sqlite3_result_blob (context, image, image_size, free);
+		      break;
+		  case RL2_PIXEL_MULTIBAND:
+		      ret =
+			  get_rgba_from_multiband_mask (width, height,
+							sample_type, num_bands,
+							buffer, mask, no_data,
+							rgba);
+		      buffer = NULL;
+		      mask = NULL;
+		      if (!ret)
+			  goto error;
+		      if (!build_rgb_alpha
+			  (width, height, rgba, &rgb, &alpha, bg_red, bg_green,
+			   bg_blue))
+			  goto error;
+		      free (rgba);
+		      rgba = NULL;
+		      if (transparent)
+			{
+			    if (!get_payload_from_gray_rgba_transparent
+				(width, height, rgb, alpha,
+				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
+				 &image_size, opacity))
+				goto error;
+			}
+		      else
+			{
+			    free (alpha);
+			    alpha = NULL;
+			    if (!get_payload_from_gray_rgba_opaque
 				(width, height, sqlite, 0, 0, 0, 0, -1,
 				 rgb, RL2_OUTPUT_FORMAT_PNG, 100, &image,
 				 &image_size))

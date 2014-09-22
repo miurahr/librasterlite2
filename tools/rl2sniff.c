@@ -281,6 +281,19 @@ is_jpeg_image (const char *path)
     return 0;
 }
 
+static int
+is_jpeg2000_image (const char *path)
+{
+/* testing for a Jpeg2000 image */
+    int len = strlen (path);
+    if (len > 4)
+      {
+	  if (strcasecmp (path + len - 4, ".jp2") == 0)
+	      return 1;
+      }
+    return 0;
+}
+
 static void
 do_sniff_ascii_grid (const char *src_path, int with_md5)
 {
@@ -537,13 +550,89 @@ do_sniff_jpeg_image (const char *src_path, int worldfile, int with_md5)
 		pixel, bands, "JPEG");
 }
 
+static void
+do_sniff_jpeg2000_image (const char *src_path, int worldfile, int with_md5)
+{
+/* sniffing a Jpeg2000 image */
+    unsigned int width;
+    unsigned int height;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    int is_geo = 0;
+    double minX;
+    double minY;
+    double maxX;
+    double maxY;
+    double x_res;
+    double y_res;
+    const char *pixel = "UNKNOWN";
+    const char *sample = "UNKNOWN";
+    char *j2w_path = NULL;
+    char *md5 = NULL;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned char num_levels;
+
+    if (rl2_get_jpeg2000_infos
+	(src_path, &width, &height, &sample_type, &pixel_type, &num_bands,
+	 &tile_width, &tile_height, &num_levels) != RL2_OK)
+	return;
+    if (pixel_type == RL2_PIXEL_GRAYSCALE)
+	pixel = "GRAYSCALE";
+    if (pixel_type == RL2_PIXEL_DATAGRID)
+	pixel = "DATAGRID";
+    if (pixel_type == RL2_PIXEL_MULTIBAND)
+	pixel = "MULTIBAND";
+    if (pixel_type == RL2_PIXEL_RGB)
+	pixel = "RGB";
+    if (sample_type == RL2_SAMPLE_UINT8)
+	sample = "UINT8";
+    if (sample_type == RL2_SAMPLE_UINT16)
+	sample = "UINT16";
+    if (worldfile)
+      {
+	  j2w_path = rl2_build_worldfile_path (src_path, ".j2w");
+	  if (j2w_path != NULL)
+	    {
+		is_geo =
+		    parse_worldfile (j2w_path, width, height, &minX, &minY,
+				     &maxX, &maxY, &x_res, &y_res);
+		free (j2w_path);
+	    }
+	  if (!is_geo)
+	    {
+		j2w_path = rl2_build_worldfile_path (src_path, ".wld");
+		if (j2w_path != NULL)
+		  {
+		      is_geo =
+			  parse_worldfile (j2w_path, width, height, &minX,
+					   &minY, &maxX, &maxY, &x_res, &y_res);
+		      free (j2w_path);
+		  }
+	    }
+      }
+
+    if (with_md5)
+	md5 = rl2_compute_file_md5_checksum (src_path);
+    if (is_geo)
+	printf
+	    ("Jpeg2000+J2W\t%s\t%s\t%u\t%u\t%s\t%s\t%u\t\t%s\t%d\t%1.12f\t%1.12f\t%1.8f\t%1.8f\t%1.8f\t%1.8f\n",
+	     (md5 == NULL) ? "" : md5, src_path, width, height, sample, pixel,
+	     num_bands, "Jpeg2000", -1, x_res, y_res, minX, minY, maxX, maxY);
+    else
+	printf ("JPEG\t%s\t%s\t%u\t%u\t%s\t%s\t%u\t\t%s\n",
+		(md5 == NULL) ? "" : md5, src_path, width, height, sample,
+		pixel, num_bands, "Jpeg2000");
+}
+
 static int
 recover_incomplete_geotiff (TIFF * in, uint32 width, uint32 height,
 			    double *minX, double *minY, double *maxX,
 			    double *maxY, double *hResolution,
 			    double *vResolution)
 {
-/* final desperate attempt to recover an imcomplete GeoTIFF */
+/* final desperate attempt to recover an incomplete GeoTIFF */
     double *tie_points;
     double *scale;
     uint16 count;
@@ -1046,6 +1135,8 @@ do_sniff_file (const char *src_path, int worldfile, int with_md5)
 	do_sniff_ascii_grid (src_path, with_md5);
     if (is_jpeg_image (src_path))
 	do_sniff_jpeg_image (src_path, worldfile, with_md5);
+    if (is_jpeg2000_image (src_path))
+	do_sniff_jpeg2000_image (src_path, worldfile, with_md5);
 
     if (worldfile)
 	do_sniff_tiff_image (src_path, with_md5);

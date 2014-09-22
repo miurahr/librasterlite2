@@ -13,7 +13,7 @@ librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2ascii.c rl2paint.c rl2dbms.c rl2import.c rl2pyramid.c \
 	rl2sql.c rl2sqlaux.c rl2auxrender.c rl2svg.c rl2svgxml.c \
 	rl2svgaux.c rl2symbolizer.c rl2rastersym.c rl2version.c \
-	rl2md5.c md5.c rl2charls.c
+	rl2md5.c md5.c rl2charls.c rl2openjpeg.c
 
 librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
 	@LIBLZMA_LIBS@ @LIBCAIRO_LIBS@	@LIBCURL_LIBS@ \
@@ -32,7 +32,7 @@ mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2ascii.c rl2paint.c rl2dbms.c rl2import.c rl2pyramid.c \
 	rl2sql.c rl2sqlaux.c rl2auxrender.c rl2svg.c rl2svgxml.c \
 	rl2svgaux.c rl2symbolizer.c rl2rastersym.c rl2version.c \
-	rl2md5.c md5.c rl2charls.c
+	rl2md5.c md5.c rl2charls.c rl2openjpeg.c
 
 mod_rasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
 	@LIBLZMA_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ \

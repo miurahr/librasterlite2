@@ -383,7 +383,8 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 
 static int
 test_coverage (sqlite3 * sqlite, unsigned char sample,
-	       unsigned char compression, int tile_sz, int *retcode)
+	       unsigned char compression, int tile_sz, int no_web_connection,
+	       int *retcode)
 {
 /* testing some DBMS Coverage */
     int ret;
@@ -905,9 +906,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
       }
 
 /* loading the RasterSymbolizers */
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "srtm_categ.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "srtm_categ.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "srtm_categ.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -918,9 +924,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -19;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "srtm_interp.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "srtm_interp.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "srtm_interp.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -931,9 +942,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -20;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "gray_gamma.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "gray_gamma.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "gray_gamma.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -944,9 +960,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -21;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "gray_histogram.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "gray_histogram.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "gray_histogram.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -957,9 +978,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -22;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "gray_normalize.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "gray_normalize.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "gray_normalize.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -970,9 +996,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -23;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "srtm_relief_25.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "srtm_relief_25.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "srtm_relief_25.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -983,9 +1014,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -24;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "srtm_relief_75.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "srtm_relief_75.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "srtm_relief_75.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -996,9 +1032,14 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  *retcode += -25;
 	  return 0;
       }
-    sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			   "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			   "srtm_brightness.xml");
+    if (no_web_connection)
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
+			       "srtm_brightness.xml");
+    else
+	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
+			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
+			       "srtm_brightness.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1551,6 +1592,7 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
 int
 main (int argc, char *argv[])
 {
+    int no_web_connection = 0;
     int result = 0;
     int ret;
     char *err_msg = NULL;
@@ -1560,6 +1602,16 @@ main (int argc, char *argv[])
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
+
+    if (getenv ("ENABLE_RL2_WEB_TESTS") == NULL)
+      {
+	  fprintf (stderr,
+		   "this testcase has been executed with several limitations\n"
+		   "because it was not enabled to access the Web.\n\n"
+		   "you can enable all testcases requiring an Internet connection\n"
+		   "by setting the environment variable \"ENABLE_RL2_WEB_TESTS=1\"\n\n");
+	  no_web_connection = 1;
+      }
 
     old_SPATIALITE_SECURITY_ENV = getenv ("SPATIALITE_SECURITY");
 #ifdef _WIN32
@@ -1597,9 +1649,14 @@ main (int argc, char *argv[])
 	  sqlite3_free (err_msg);
 	  return -3;
       }
-    ret =
-	sqlite3_exec (db_handle, "SELECT CreateStylingTables()", NULL,
-		      NULL, &err_msg);
+    if (no_web_connection)
+	ret =
+	    sqlite3_exec (db_handle, "SELECT CreateStylingTables(1)", NULL,
+			  NULL, &err_msg);
+    else
+	ret =
+	    sqlite3_exec (db_handle, "SELECT CreateStylingTables()", NULL,
+			  NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "CreateStylingTables() error: %s\n", err_msg);
@@ -1610,212 +1667,257 @@ main (int argc, char *argv[])
 /* SRTM (GRID) tests */
     ret = -100;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -120;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -200;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -220;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -300;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -320;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* UINT16 tests */
     ret = -150;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -170;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -250;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -270;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	 no_web_connection, &ret))
 	return ret;
     ret = -350;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -370;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* INT32 tests */
     ret = -400;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -420;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -500;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -520;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -600;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -620;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* UINT32 tests */
     ret = -450;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -470;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -550;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -570;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	 no_web_connection, &ret))
 	return ret;
     ret = -650;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -670;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* FLOAT tests */
     ret = -700;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -720;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -800;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -820;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -900;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -920;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* INT8 tests */
     ret = -750;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -770;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -850;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -870;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -950;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -970;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* DOUBLE tests */
     ret = -1000;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1020;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1100;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1120;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_1024,
-	 &ret))
+	 no_web_connection, &ret))
 	return ret;
     ret = -1200;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1220;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* UINT8 tests */
     ret = -1050;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1070;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_NONE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1150;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1170;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1250;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_256,
+	 no_web_connection, &ret))
 	return ret;
     ret = -1270;
     if (!test_coverage
-	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024,
+	 no_web_connection, &ret))
 	return ret;
 
 /* dropping all SRTM INT16 Coverages */

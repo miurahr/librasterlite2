@@ -545,6 +545,124 @@ check_jpeg_origin_compatibility (rl2RasterPtr raster, rl2CoveragePtr coverage,
     return 0;
 }
 
+static int
+check_jpeg2000_origin_compatibility (rl2RasterPtr raster,
+				     rl2CoveragePtr coverage,
+				     unsigned int *width, unsigned int *height,
+				     unsigned char *forced_conversion)
+{
+/* checking if the Jpeg2000 and the Coverage are mutually compatible */
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+    if (rst == NULL || cvg == NULL)
+	return 0;
+    if (rst->sampleType == RL2_SAMPLE_UINT8
+	&& rst->pixelType == RL2_PIXEL_GRAYSCALE && rst->nBands == 1)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_GRAYSCALE_TO_RGB;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT8 && rst->pixelType == RL2_PIXEL_RGB
+	&& rst->nBands == 3)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_RGB_TO_GRAYSCALE;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT8
+	&& rst->pixelType == RL2_PIXEL_MULTIBAND && (rst->nBands == 3
+						     || rst->nBands == 4))
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_MULTIBAND
+	      && cvg->nBands == rst->nBands)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT8
+	&& rst->pixelType == RL2_PIXEL_DATAGRID && rst->nBands == 1)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT8
+	      && cvg->pixelType == RL2_PIXEL_DATAGRID && cvg->nBands == 1)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT16
+	&& rst->pixelType == RL2_PIXEL_DATAGRID && rst->nBands == 1)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT16
+	      && cvg->pixelType == RL2_PIXEL_DATAGRID && cvg->nBands == 1)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT16 && rst->pixelType == RL2_PIXEL_RGB
+	&& rst->nBands == 3)
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT16
+	      && cvg->pixelType == RL2_PIXEL_RGB && cvg->nBands == 3)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+      }
+    if (rst->sampleType == RL2_SAMPLE_UINT16
+	&& rst->pixelType == RL2_PIXEL_MULTIBAND && (rst->nBands == 3
+						     || rst->nBands == 4))
+      {
+	  if (cvg->sampleType == RL2_SAMPLE_UINT16
+	      && cvg->pixelType == RL2_PIXEL_MULTIBAND
+	      && cvg->nBands == rst->nBands)
+	    {
+		*width = rst->width;
+		*height = rst->height;
+		*forced_conversion = RL2_CONVERT_NO;
+		return 1;
+	    }
+      }
+    return 0;
+}
+
 RL2_DECLARE char *
 rl2_build_worldfile_path (const char *path, const char *suffix)
 {
@@ -951,6 +1069,363 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 }
 
 static int
+read_j2w_worldfile (const char *src_path, double *minx, double *maxy,
+		    double *pres_x, double *pres_y)
+{
+/* attempting to retrieve georeferencing from a Jpeg2000+J2W origin */
+    FILE *j2w = NULL;
+    double res_x;
+    double res_y;
+    double x;
+    double y;
+    char *j2w_path = NULL;
+
+    j2w_path = rl2_build_worldfile_path (src_path, ".j2w");
+    if (j2w_path == NULL)
+	goto error;
+    j2w = fopen (j2w_path, "r");
+    free (j2w_path);
+    j2w_path = NULL;
+    if (j2w == NULL)
+      {
+	  /* trying the ".wld" suffix */
+	  j2w_path = rl2_build_worldfile_path (src_path, ".wld");
+	  if (j2w_path == NULL)
+	      goto error;
+	  j2w = fopen (j2w_path, "r");
+	  free (j2w_path);
+      }
+    if (j2w == NULL)
+	goto error;
+    if (!parse_worldfile (j2w, &x, &y, &res_x, &res_y))
+	goto error;
+    fclose (j2w);
+    *pres_x = res_x;
+    *pres_y = res_y;
+    *minx = x;
+    *maxy = y;
+    return 1;
+
+  error:
+    if (j2w_path != NULL)
+	free (j2w_path);
+    if (j2w != NULL)
+	fclose (j2w);
+    return 0;
+}
+
+static int
+do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
+			  rl2CoveragePtr cvg, const char *section, int srid,
+			  unsigned int tile_w, unsigned int tile_h,
+			  int pyramidize, unsigned char sample_type,
+			  unsigned char num_bands, unsigned char compression,
+			  sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
+			  sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
+			  sqlite3_stmt * stmt_upd_sect, int verbose,
+			  int current, int total)
+{
+/* importing a Jpeg2000 image file [with optional WorldFile */
+    rl2PrivCoveragePtr p_coverage = (rl2PrivCoveragePtr) cvg;
+    rl2SectionPtr origin = NULL;
+    rl2RasterPtr rst_in;
+    rl2PrivRasterPtr raster_in;
+    rl2RasterPtr raster = NULL;
+    rl2RasterStatisticsPtr section_stats = NULL;
+    rl2PixelPtr no_data = NULL;
+    unsigned int row;
+    unsigned int col;
+    unsigned int width;
+    unsigned int height;
+    unsigned char *blob_odd = NULL;
+    unsigned char *blob_even = NULL;
+    int blob_odd_sz;
+    int blob_even_sz;
+    double tile_minx;
+    double tile_miny;
+    double tile_maxx;
+    double tile_maxy;
+    double minx;
+    double miny;
+    double maxx;
+    double maxy;
+    double res_x;
+    double res_y;
+    int is_georeferenced = 0;
+    char *dumb1;
+    char *dumb2;
+    sqlite3_int64 section_id;
+    unsigned char forced_conversion = RL2_CONVERT_NO;
+    double base_res_x;
+    double base_res_y;
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
+    double confidence;
+    time_t start;
+    time_t now;
+    time_t diff;
+    int mins;
+    int secs;
+    unsigned char xsample_type;
+    unsigned char pixel_type;
+    unsigned char xnum_bands;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned char num_levels;
+    char *xml_summary = NULL;
+
+    if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
+      {
+	  if (verbose)
+	      fprintf (stderr, "Unknown Coverage Resolution\n");
+	  goto error;
+      }
+    origin =
+	rl2_section_from_jpeg2000 (src_path, p_coverage->sampleType,
+				   p_coverage->pixelType, p_coverage->nBands);
+    if (origin == NULL)
+      {
+	  if (verbose)
+	      fprintf (stderr, "Invalid Jpeg2000 Origin: %s\n", src_path);
+	  goto error;
+      }
+    if (rl2_get_jpeg2000_infos
+	(src_path, &width, &height, &xsample_type, &pixel_type, &xnum_bands,
+	 &tile_width, &tile_height, &num_levels) != RL2_OK)
+      {
+	  if (verbose)
+	      fprintf (stderr, "Invalid Jpeg2000 Origin: %s\n", src_path);
+	  goto error;
+      }
+    time (&start);
+    rst_in = rl2_get_section_raster (origin);
+    if (!check_jpeg2000_origin_compatibility
+	(rst_in, cvg, &width, &height, &forced_conversion))
+	goto error;
+    if (read_j2w_worldfile (src_path, &minx, &maxy, &res_x, &res_y))
+      {
+	  /* georeferenced Jpeg2000 */
+	  maxx = minx + ((double) width * res_x);
+	  miny = maxy - ((double) height * res_y);
+	  is_georeferenced = 1;
+      }
+    else
+      {
+	  /* not georeferenced Jpeg2000 */
+	  if (srid != -1)
+	      goto error;
+	  minx = 0.0;
+	  miny = 0.0;
+	  maxx = width - 1.0;
+	  maxy = height - 1.0;
+	  res_x = 1.0;
+	  res_y = 1.0;
+      }
+    raster_in = (rl2PrivRasterPtr) rst_in;
+    xml_summary =
+	rl2_build_jpeg2000_xml_summary (width, height, raster_in->sampleType,
+					raster_in->pixelType, raster_in->nBands,
+					is_georeferenced, res_x, res_y, minx,
+					miny, maxx, maxy, tile_width,
+					tile_height);
+
+    printf ("------------------\n");
+    if (total > 1)
+	printf ("%d/%d) Importing: %s\n", current, total, src_path);
+    else
+	printf ("Importing: %s\n", src_path);
+    printf ("    Image Size (pixels): %d x %d\n", width, height);
+    printf ("                   SRID: %d\n", srid);
+    dumb1 = formatLong (minx);
+    dumb2 = formatLat (miny);
+    printf ("       LowerLeft Corner: X=%s Y=%s\n", dumb1, dumb2);
+    sqlite3_free (dumb1);
+    sqlite3_free (dumb2);
+    dumb1 = formatLong (maxx);
+    dumb2 = formatLat (maxy);
+    printf ("      UpperRight Corner: X=%s Y=%s\n", dumb1, dumb2);
+    sqlite3_free (dumb1);
+    sqlite3_free (dumb2);
+    dumb1 = formatFloat (res_x);
+    dumb2 = formatFloat (res_y);
+    printf ("       Pixel resolution: X=%s Y=%s\n", dumb1, dumb2);
+    sqlite3_free (dumb1);
+    sqlite3_free (dumb2);
+    if (coverage->Srid != srid)
+      {
+	  if (verbose)
+	      fprintf (stderr, "Mismatching SRID !!!\n");
+	  goto error;
+      }
+    if (coverage->mixedResolutions)
+      {
+	  /* accepting any resolution */
+      }
+    else if (coverage->strictResolution)
+      {
+	  /* enforcing Strict Resolution check */
+	  if (res_x != coverage->hResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Strict) !!!\n");
+		goto error;
+	    }
+	  if (res_y != coverage->vResolution)
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution (Strict) !!!\n");
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* permissive Resolution check */
+	  confidence = coverage->hResolution / 100.0;
+	  if (res_x < (coverage->hResolution - confidence)
+	      || res_x > (coverage->hResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Horizontal Resolution (Permissive) !!!\n");
+		goto error;
+	    }
+	  confidence = coverage->vResolution / 100.0;
+	  if (res_y < (coverage->vResolution - confidence)
+	      || res_y > (coverage->vResolution + confidence))
+	    {
+		if (verbose)
+		    fprintf (stderr,
+			     "Mismatching Vertical Resolution !(Permissive) !!\n");
+		goto error;
+	    }
+      }
+
+    no_data = rl2_get_coverage_no_data (cvg);
+
+/* INSERTing the section */
+    if (!rl2_do_insert_section
+	(handle, src_path, section, srid, width, height, minx, miny, maxx, maxy,
+	 xml_summary, coverage->sectionPaths, coverage->sectionMD5,
+	 coverage->sectionSummary, stmt_sect, &section_id))
+	goto error;
+    section_stats = rl2_create_raster_statistics (sample_type, num_bands);
+    if (section_stats == NULL)
+	goto error;
+/* INSERTing the base-levels */
+    if (coverage->mixedResolutions)
+      {
+	  /* multiple resolutions Coverage */
+	  if (!rl2_do_insert_section_levels
+	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  if (!rl2_do_insert_levels
+	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+
+    tile_maxy = maxy;
+    for (row = 0; row < height; row += tile_h)
+      {
+	  tile_minx = minx;
+	  for (col = 0; col < width; col += tile_w)
+	    {
+		raster =
+		    rl2_get_tile_from_jpeg2000_origin (cvg, rst_in, row, col,
+						       forced_conversion,
+						       verbose);
+		if (raster == NULL)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      goto error;
+		  }
+		if (rl2_raster_encode
+		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
+		     &blob_even_sz, 100, 1) != RL2_OK)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      goto error;
+		  }
+
+		/* INSERTing the tile */
+		if (!do_insert_tile
+		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
+		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
+		     NULL, no_data, stmt_tils, stmt_data, section_stats))
+		  {
+		      blob_odd = NULL;
+		      blob_even = NULL;
+		      goto error;
+		  }
+		blob_odd = NULL;
+		blob_even = NULL;
+		rl2_destroy_raster (raster);
+		raster = NULL;
+		tile_minx += (double) tile_w *res_x;
+	    }
+	  tile_maxy -= (double) tile_h *res_y;
+	  if (verbose && isatty (STDOUT_FILENO))
+	    {
+		printf (">> Imported row %u of %u\r", row + tile_h, height);
+	    }
+      }
+
+/* updating the Section's Statistics */
+    compute_aggregate_sq_diff (section_stats);
+    if (!rl2_do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+	goto error;
+
+    rl2_destroy_section (origin);
+    rl2_destroy_raster_statistics (section_stats);
+    origin = NULL;
+    section_stats = NULL;
+    time (&now);
+    diff = now - start;
+    mins = diff / 60;
+    secs = diff - (mins * 60);
+    printf (">> Image successfully imported in: %d mins %02d secs\n", mins,
+	    secs);
+
+    if (pyramidize)
+      {
+	  /* immediately building the Section's Pyramid */
+	  const char *coverage_name = rl2_get_coverage_name (cvg);
+	  if (coverage_name == NULL)
+	      goto error;
+	  if (rl2_build_section_pyramid
+	      (handle, coverage_name, section_id, 1, verbose) != RL2_OK)
+	    {
+		fprintf (stderr, "unable to build the Section's Pyramid\n");
+		goto error;
+	    }
+      }
+
+    return 1;
+
+  error:
+    if (blob_odd != NULL)
+	free (blob_odd);
+    if (blob_even != NULL)
+	free (blob_even);
+    if (origin != NULL)
+	rl2_destroy_section (origin);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    if (section_stats != NULL)
+	rl2_destroy_raster_statistics (section_stats);
+    return 0;
+}
+
+static int
 is_ascii_grid (const char *path)
 {
 /* testing for an ASCII Grid */
@@ -971,6 +1446,19 @@ is_jpeg_image (const char *path)
     if (len > 4)
       {
 	  if (strcasecmp (path + len - 4, ".jpg") == 0)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+is_jpeg2000_image (const char *path)
+{
+/* testing for a Jpeg2000 image */
+    int len = strlen (path);
+    if (len > 4)
+      {
+	  if (strcasecmp (path + len - 4, ".jp2") == 0)
 	      return 1;
       }
     return 0;
@@ -1042,6 +1530,14 @@ do_import_file (sqlite3 * handle, const char *src_path,
 				     num_bands, compression, stmt_data,
 				     stmt_tils, stmt_sect, stmt_levl,
 				     stmt_upd_sect, verbose, current, total);
+
+    if (is_jpeg2000_image (src_path))
+	return do_import_jpeg2000_image (handle, src_path, cvg, section,
+					 force_srid, tile_w, tile_h, pyramidize,
+					 sample_type, num_bands, compression,
+					 stmt_data, stmt_tils, stmt_sect,
+					 stmt_levl, stmt_upd_sect, verbose,
+					 current, total);
 
     time (&start);
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)

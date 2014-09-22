@@ -1502,8 +1502,13 @@ exec_catalog (sqlite3 * handle)
 		    printf ("          Compression: CCITT-FAX4 lossless\n");
 		else if (strcmp (compression, "CHARLS") == 0)
 		    printf ("          Compression: CHARLS, lossless\n");
+		else if (strcmp (compression, "JP2") == 0)
+		    printf ("          Compression: Jpeg2000 (lossy)\n");
+		else if (strcmp (compression, "LL_JP2") == 0)
+		    printf ("          Compression: Jpeg20000, lossless\n");
 		if (strcmp (compression, "JPEG") == 0
-		    || strcmp (compression, "WEBP") == 0)
+		    || strcmp (compression, "WEBP") == 0
+		    || strcmp (compression, "JP2") == 0)
 		    printf ("  Compression Quality: %d\n", quality);
 		printf ("   Tile Size (pixels): %d x %d\n", tileW, tileH);
 		hres = formatFloat (x_res);
@@ -2897,6 +2902,18 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  printf ("          Compression: CHARLS, lossless\n");
 	  *quality = 100;
 	  break;
+      case RL2_COMPRESSION_LOSSY_JP2:
+	  printf ("          Compression: JP2 (lossy)\n");
+	  if (*quality < 0)
+	      *quality = 80;
+	  if (*quality > 100)
+	      *quality = 100;
+	  printf ("  Compression Quality: %d\n", *quality);
+	  break;
+      case RL2_COMPRESSION_LOSSLESS_JP2:
+	  printf ("          Compression: JP2, lossless\n");
+	  *quality = 100;
+	  break;
       default:
 	  fprintf (stderr, "*** ERROR *** unknown compression\n");
 	  err = 1;
@@ -4197,7 +4214,7 @@ do_help (int mode)
 	  fprintf (stderr, "Compression Keywords:\n");
 	  fprintf (stderr, "----------------------------------\n");
 	  fprintf (stderr,
-		   "NONE DEFLATE LZMA PNG JPEG WEBP LL_WEBP FAX4 CHARLS\n\n");
+		   "NONE DEFLATE LZMA PNG JPEG WEBP LL_WEBP FAX4 CHARLS JP2 LL_JP2\n\n");
 	  fprintf (stderr,
 		   "-strict or --strict-resolution  Enables Strict Resolution\n");
 	  fprintf (stderr,
@@ -4712,6 +4729,10 @@ main (int argc, char *argv[])
 			  compression = RL2_COMPRESSION_CCITTFAX4;
 		      if (strcasecmp (argv[i], "CHARLS") == 0)
 			  compression = RL2_COMPRESSION_CHARLS;
+		      if (strcasecmp (argv[i], "JP2") == 0)
+			  compression = RL2_COMPRESSION_LOSSY_JP2;
+		      if (strcasecmp (argv[i], "LL_JP2") == 0)
+			  compression = RL2_COMPRESSION_LOSSLESS_JP2;
 		      break;
 		  case ARG_QUALITY:
 		      quality = atoi (argv[i]);

@@ -29,6 +29,7 @@ all: ./static_bin/rl2sniff.exe ./static_bin/rl2tool.exe \
 	/usr/local/lib/libtiff.a \
 	/usr/local/lib/libpng.a \
 	/usr/local/lib/libCharLS.a \
+	/usr/local/lib/libopenjp2.a \
 	/usr/local/lib/libcurl.a \
 	/usr/local/lib/libssl.a \
 	/usr/local/lib/libcrypto.a \
@@ -61,6 +62,7 @@ all: ./static_bin/rl2sniff.exe ./static_bin/rl2tool.exe \
 	/usr/local/lib/libtiff.a \
 	/usr/local/lib/libpng.a \
 	/usr/local/lib/libCharLS.a \
+	/usr/local/lib/libopenjp2.a \
 	/usr/local/lib/libcurl.a \
 	/usr/local/lib/libssl.a \
 	/usr/local/lib/libcrypto.a \
@@ -93,6 +95,7 @@ all: ./static_bin/rl2sniff.exe ./static_bin/rl2tool.exe \
 	/usr/local/lib/libtiff.a \
 	/usr/local/lib/libpng.a \
 	/usr/local/lib/libCharLS.a \
+	/usr/local/lib/libopenjp2.a \
 	/usr/local/lib/libcurl.a \
 	/usr/local/lib/libssl.a \
 	/usr/local/lib/libcrypto.a \

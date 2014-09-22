@@ -182,6 +182,12 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
       case RL2_COMPRESSION_CHARLS:
 	  xcompression = "CHARLS";
 	  break;
+      case RL2_COMPRESSION_LOSSY_JP2:
+	  xcompression = "LOSSY_JP2";
+	  break;
+      case RL2_COMPRESSION_LOSSLESS_JP2:
+	  xcompression = "LOSSLESS_JP2";
+	  break;
       };
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
@@ -1926,6 +1932,16 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 			{
 			    ok_compression = 1;
 			    compression = RL2_COMPRESSION_CHARLS;
+			}
+		      if (strcasecmp (value, "LOSSY_JP2") == 0)
+			{
+			    ok_compression = 1;
+			    compression = RL2_COMPRESSION_LOSSY_JP2;
+			}
+		      if (strcasecmp (value, "LOSSLESS_JP2") == 0)
+			{
+			    ok_compression = 1;
+			    compression = RL2_COMPRESSION_LOSSLESS_JP2;
 			}
 		  }
 		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)

@@ -4203,6 +4203,12 @@ extern "C"
 					    unsigned int *tile_height,
 					    unsigned char *num_levels);
 
+    RL2_DECLARE int rl2_get_jpeg2000_blob_type (const unsigned char *blob,
+						int blob_size,
+						unsigned char *sample_type,
+						unsigned char *pixel_type,
+						unsigned char *num_bands);
+
     RL2_DECLARE char *rl2_build_raw_pixels_xml_summary (rl2RasterPtr rst);
 
     RL2_DECLARE rl2RasterPtr

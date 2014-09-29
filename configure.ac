@@ -28,6 +28,8 @@ AH_TEMPLATE([NDEBUG],
 AC_DEFINE(NDEBUG)
 AH_TEMPLATE([TARGET_CPU],
             [Should contain a text-string describing the intended target CPU])
+AH_TEMPLATE([OPENJPEG_2_1],
+            [testing for OpenJpeg 2.1])
 
 
 # Checks for header files.
@@ -39,7 +41,6 @@ AC_CHECK_HEADERS(math.h,,[AC_MSG_ERROR([cannot find math.h, bailing out])])
 AC_CHECK_HEADERS(float.h,,[AC_MSG_ERROR([cannot find float.h, bailing out])])
 AC_CHECK_HEADERS(jpeglib.h,, [AC_MSG_ERROR([cannot find jpeglib.h, bailing out])])
 AC_CHECK_HEADERS(CharLS/interface.h,, [AC_MSG_ERROR([cannot find CharLS/interface.h, bailing out])])
-AC_CHECK_HEADERS(openjpeg-2.0/openjpeg.h,, [AC_MSG_ERROR([cannot find openjpeg-2.0/openjpeg.h, bailing out])])
 AC_CHECK_HEADERS(jerror.h,, [AC_MSG_ERROR([cannot find jerror.h, bailing out])])
 AC_CHECK_HEADERS(png.h,, [AC_MSG_ERROR([cannot find png.h, bailing out])])
 AC_CHECK_HEADERS(sqlite3.h,, [AC_MSG_ERROR([cannot find sqlite3.h, bailing out])])
@@ -47,6 +48,19 @@ AC_CHECK_HEADERS(sqlite3ext.h,, [AC_MSG_ERROR([cannot find sqlite3ext.h, bailing
 AC_CHECK_HEADERS(zlib.h,, [AC_MSG_ERROR([cannot find zlib.h, bailing out])])
 AC_CHECK_HEADERS(gif_lib.h,, [AC_MSG_ERROR([cannot find gif_lib.h, bailing out])])
 AC_CHECK_HEADERS(lzma.h,, [AC_MSG_ERROR([cannot find lzma.h, bailing out])])
+
+#
+# testing OpenJpeg-2 headers
+# they could be either on -/include/openjpeg-2.0
+#                   or on -/include/openjpeg-2.1
+#
+AC_CHECK_HEADERS(openjpeg-2.0/openjpeg.h)
+AC_CHECK_HEADERS(openjpeg-2.1/openjpeg.h)
+if test x"$ac_cv_header_openjpeg_2_0_openjpeg_h" != x"yes" &&
+    test x"$ac_cv_header_openjpeg_2_1_openjpeg_h" != x"yes";
+then
+    AC_MSG_ERROR(['OpenJpeg-2' is required but the header (openjpeg.h) doesn't seem to be installed on this system])
+fi 
 
 #
 # testing GeoTiff headers
@@ -122,11 +136,25 @@ AC_CHECK_LIB(sqlite3,sqlite3_prepare_v2,,AC_MSG_ERROR(['libsqlite3' is required 
 AC_CHECK_LIB(z,inflateInit_,,AC_MSG_ERROR(['libz' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(jpeg,jpeg_start_compress,,AC_MSG_ERROR(['libjpeg' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(CharLS,JpegLsEncode,,AC_MSG_ERROR(['libCharLS' is required but it doesn't seems to be installed on this system.]),-lm)
-AC_CHECK_LIB(openjp2,opj_create_decompress,,AC_MSG_ERROR(['libopenjp2' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(gif,DGifSlurp,,AC_MSG_ERROR(['libpng' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(tiff,TIFFClientOpen,,AC_MSG_ERROR(['libtiff' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(geotiff,GTIFSetFromProj4,,AC_MSG_ERROR(['libgeotiff' [>= v.1.2.5] is required but it doesn't seems to be installed on this system.]),-lm)
 
+AC_CHECK_LIB(openjp2,opj_create_decompress,,AC_MSG_ERROR(['libopenjp2' is required but it doesn't seems to be installed on this system.]),-lm)
+
+# testing for OpenJpeg 2.0 or 2.1
+AC_COMPILE_IFELSE(  [AC_LANG_PROGRAM([[#ifdef HAVE_OPENJPEG_2_1_OPENJPEG_H
+                                       #include <openjpeg-2.1/openjpeg.h>
+                                       #else
+                                       #include <openjpeg-2.0/openjpeg.h>
+                                       #endif]],
+                                     [[void *d; opj_stream_t *s; opj_stream_set_user_data (s, &d, NULL);]])],
+                    [
+                      AC_MSG_RESULT([yes])
+                      AC_DEFINE(OPENJPEG_2_1)
+                    ],
+                    [AC_MSG_RESULT([no])]
+                 )
 
 PKG_CHECK_MODULES([LIBPNG], [libpng], , AC_MSG_ERROR(['libpng' is required but it doesn't seems to be installed on this system.]))
 AC_SUBST(LIBPNG_CFLAGS)

@@ -631,6 +631,133 @@ test_no_alpha_openjpeg (const char *path)
     return 1;
 }
 
+static int
+test_infos_openjpeg (const char *path)
+{
+    unsigned int width;
+    unsigned int height;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned int tile_width;
+    unsigned int tile_height;
+    unsigned char num_levels;
+
+    if (rl2_get_jpeg2000_infos
+	(path, &width, &height, &sample_type, &pixel_type, &num_bands,
+	 &tile_width, &tile_height, &num_levels) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to read: %s\n", path);
+	  return 0;
+      }
+    if (width != 640)
+      {
+	  fprintf (stderr, "Unexpected Width: %u\n", width);
+	  return 0;
+      }
+    if (height != 480)
+      {
+	  fprintf (stderr, "Unexpected Height: %u\n", height);
+	  return 0;
+      }
+    if (sample_type != RL2_SAMPLE_UINT8)
+      {
+	  fprintf (stderr, "Unexpected SampleType: %02x\n", sample_type);
+	  return 0;
+      }
+    if (pixel_type != RL2_PIXEL_RGB)
+      {
+	  fprintf (stderr, "Unexpected PixelType: %02x\n", pixel_type);
+	  return 0;
+      }
+    if (num_bands != 3)
+      {
+	  fprintf (stderr, "Unexpected Bands: %u\n", num_bands);
+	  return 0;
+      }
+    if (tile_width != 640)
+      {
+	  fprintf (stderr, "Unexpected TileWidth: %u\n", tile_width);
+	  return 0;
+      }
+    if (tile_height != 480)
+      {
+	  fprintf (stderr, "Unexpected TileHeight: %u\n", tile_height);
+	  return 0;
+      }
+    if (num_levels != 6)
+      {
+	  fprintf (stderr, "Unexpected Levels: %u\n", num_levels);
+	  return 0;
+      }
+
+    return 1;
+}
+
+static int
+test_blob_infos_openjpeg (const char *path)
+{
+    unsigned char *p_blob = NULL;
+    int n_bytes;
+    int rd;
+    FILE *in = NULL;
+    char *msg;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+
+/* loading the image in-memory */
+    msg = sqlite3_mprintf ("Unable to load \"%s\" in-memory\n", path);
+    in = fopen (path, "rb");
+    if (in == NULL)
+	goto error;
+    if (fseek (in, 0, SEEK_END) < 0)
+	goto error;
+    n_bytes = ftell (in);
+    rewind (in);
+    p_blob = malloc (n_bytes);
+    rd = fread (p_blob, 1, n_bytes, in);
+    fclose (in);
+    in = NULL;
+    if (rd != n_bytes)
+	goto error;
+
+    if (rl2_get_jpeg2000_blob_type
+	(p_blob, n_bytes, &sample_type, &pixel_type, &num_bands) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to read: %s\n", path);
+	  goto error;
+      }
+    if (sample_type != RL2_SAMPLE_UINT8)
+      {
+	  fprintf (stderr, "Unexpected SampleType: %02x\n", sample_type);
+	  goto error;
+      }
+    if (pixel_type != RL2_PIXEL_RGB)
+      {
+	  fprintf (stderr, "Unexpected PixelType: %02x\n", pixel_type);
+	  goto error;
+      }
+    if (num_bands != 3)
+      {
+	  fprintf (stderr, "Unexpected Bands: %u\n", num_bands);
+	  goto error;
+      }
+
+    free (p_blob);
+    sqlite3_free (msg);
+    return 1;
+
+  error:
+    if (p_blob != NULL)
+	free (p_blob);
+    if (in != NULL)
+	fclose (in);
+    fprintf (stderr, "%s", msg);
+    sqlite3_free (msg);
+    return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -638,6 +765,10 @@ main (int argc, char *argv[])
 	argc = 1;		/* silencing stupid compiler warnings */
 
     if (!test_no_alpha_openjpeg ("./Cevennes2.jp2"))
+	return -1;
+    if (!test_infos_openjpeg ("./Cevennes2.jp2"))
+	return -1;
+    if (!test_blob_infos_openjpeg ("./Cevennes2.jp2"))
 	return -1;
 
     return 0;

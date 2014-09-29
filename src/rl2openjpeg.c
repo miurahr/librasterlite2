@@ -45,9 +45,13 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
-#include <openjpeg-2.0/openjpeg.h>
-
 #include "config.h"
+
+#ifdef HAVE_OPENJPEG_2_1_OPENJPEG_H 
+#include <openjpeg-2.1/openjpeg.h>
+#else
+#include <openjpeg-2.0/openjpeg.h>
+#endif
 
 #ifdef LOADABLE_EXTENSION
 #include "rasterlite2/sqlite.h"
@@ -390,7 +394,11 @@ compress_jpeg2000 (rl2RasterPtr ptr, unsigned char **jpeg2000,
     opj_stream_set_write_function (stream, write_callback);
     opj_stream_set_seek_function (stream, seek_callback);
     opj_stream_set_skip_function (stream, skip_callback);
+#ifdef OPENJPEG_2_1
+    opj_stream_set_user_data (stream, &clientdata, NULL);
+#else
     opj_stream_set_user_data (stream, &clientdata);
+#endif
 
     if (!opj_start_compress (codec, image, stream))
       {
@@ -745,7 +753,11 @@ rl2_decode_jpeg2000_scaled (int scale, const unsigned char *jpeg2000,
     clientdata.size = jpeg2000_sz;
     clientdata.eof = jpeg2000_sz;
     clientdata.current = 0;
+#ifdef OPENJPEG_2_1
+    opj_stream_set_user_data (stream, &clientdata, NULL);
+#else
     opj_stream_set_user_data (stream, &clientdata);
+#endif
     if (!opj_read_header (stream, codec, &image))
       {
 	  fprintf (stderr, "OpenJpeg Error: opj_read_header() failed\n");
@@ -1310,7 +1322,11 @@ rl2_get_jpeg2000_infos (const char *path, unsigned int *xwidth,
     clientdata.size = jpeg2000_sz;
     clientdata.eof = jpeg2000_sz;
     clientdata.current = 0;
+#ifdef OPENJPEG_2_1
+    opj_stream_set_user_data (stream, &clientdata, NULL);
+#else
     opj_stream_set_user_data (stream, &clientdata);
+#endif
     if (!opj_read_header (stream, codec, &image))
       {
 	  fprintf (stderr, "OpenJpeg Error: opj_read_header() failed\n");
@@ -1366,6 +1382,89 @@ rl2_get_jpeg2000_infos (const char *path, unsigned int *xwidth,
     opj_image_destroy (image);
     if (jpeg2000 != NULL)
 	free (jpeg2000);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_get_jpeg2000_blob_type (const unsigned char *jpeg2000, int jpeg2000_sz, unsigned char *xsample_type,
+			unsigned char *xpixel_type, unsigned char *xnum_bands)
+{
+/* attempting to retrieve the basic infos about some Jpeg2000 - BLOB version */
+    unsigned char sample_type = RL2_SAMPLE_UNKNOWN;
+    unsigned char pixel_type = RL2_PIXEL_UNKNOWN;
+    struct jp2_memfile clientdata;
+    opj_codec_t *codec;
+    opj_dparameters_t parameters;
+    opj_stream_t *stream;
+    opj_image_t *image = NULL;
+    opj_codestream_info_v2_t *code_stream_info;
+    OPJ_UINT32 nComponents;
+
+/* creating and initializing the Jpeg2000 decoder */
+    codec = opj_create_decompress (OPJ_CODEC_JP2);
+    opj_set_info_handler (codec, info_callback, NULL);
+    opj_set_warning_handler (codec, warning_callback, NULL);
+    opj_set_error_handler (codec, error_callback, NULL);
+    opj_set_default_decoder_parameters (&parameters);
+    if (!opj_setup_decoder (codec, &parameters))
+	return RL2_ERROR;
+
+/* preparing the input stream */
+    stream = opj_stream_create (1024, 1);
+    opj_stream_set_user_data_length (stream, jpeg2000_sz);
+    opj_stream_set_read_function (stream, read_callback);
+    opj_stream_set_seek_function (stream, seek_callback);
+    opj_stream_set_skip_function (stream, skip_callback);
+/* initializing the memory Read struct */
+    clientdata.buffer = (unsigned char *) jpeg2000;
+    clientdata.malloc_block = 1024;
+    clientdata.size = jpeg2000_sz;
+    clientdata.eof = jpeg2000_sz;
+    clientdata.current = 0;
+#ifdef OPENJPEG_2_1
+    opj_stream_set_user_data (stream, &clientdata, NULL);
+#else
+    opj_stream_set_user_data (stream, &clientdata);
+#endif
+    if (!opj_read_header (stream, codec, &image))
+      {
+	  fprintf (stderr, "OpenJpeg Error: opj_read_header() failed\n");
+	  goto error;
+      }
+    code_stream_info = opj_get_cstr_info (codec);
+    nComponents = code_stream_info->nbcomps;
+    opj_destroy_cstr_info (&code_stream_info);
+    if (image == NULL)
+	goto error;
+    if (image->comps[0].prec == 16 && image->comps[0].sgnd == 0)
+	sample_type = RL2_SAMPLE_UINT16;
+    if (image->comps[0].prec == 8 && image->comps[0].sgnd == 0)
+	sample_type = RL2_SAMPLE_UINT8;
+    if (nComponents == 1)
+      {
+	  if (sample_type == RL2_SAMPLE_UINT16)
+	      pixel_type = RL2_PIXEL_DATAGRID;
+	  if (sample_type == RL2_SAMPLE_UINT8)
+	      pixel_type = RL2_PIXEL_GRAYSCALE;
+      }
+    if (nComponents == 3)
+	pixel_type = RL2_PIXEL_RGB;
+    if (nComponents == 4)
+	pixel_type = RL2_PIXEL_MULTIBAND;
+
+    opj_destroy_codec (codec);
+    opj_stream_destroy (stream);
+    opj_image_destroy (image);
+
+    *xsample_type = sample_type;
+    *xpixel_type = pixel_type;
+    *xnum_bands = nComponents;
+    return RL2_OK;
+
+  error:
+    opj_destroy_codec (codec);
+    opj_stream_destroy (stream);
+    opj_image_destroy (image);
     return RL2_ERROR;
 }
 

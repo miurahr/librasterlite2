@@ -5151,9 +5151,9 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
     int exists = 0;
     int retval = 0;
 
-    /* checking if the Group already exists */
+/* checking if the Coverage already exists */
     sql = "SELECT coverage_name FROM raster_coverages "
-	"WHERE coverage_name = Lower(?)";
+	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -5178,9 +5178,9 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
 
     if (!exists)
 	return 0;
-    /* update Coverage */
-    sql =
-	"UPDATE raster_coverages SET title = ?, abstract = ? WHERE coverage_name = ?";
+/* updating the Coverage */
+    sql = "UPDATE raster_coverages SET title = ?, abstract = ? "
+	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {

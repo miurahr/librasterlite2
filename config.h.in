@@ -70,6 +70,9 @@
 /* Define to 1 if you have the <openjpeg-2.0/openjpeg.h> header file. */
 #undef HAVE_OPENJPEG_2_0_OPENJPEG_H
 
+/* Define to 1 if you have the <openjpeg-2.1/openjpeg.h> header file. */
+#undef HAVE_OPENJPEG_2_1_OPENJPEG_H
+
 /* Define to 1 if you have the <png.h> header file. */
 #undef HAVE_PNG_H
 
@@ -138,6 +141,9 @@
 
 /* Must be defined in order to disable debug mode. */
 #undef NDEBUG
+
+/* testing for OpenJpeg 2.1 */
+#undef OPENJPEG_2_1
 
 /* Name of package */
 #undef PACKAGE

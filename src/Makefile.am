@@ -23,7 +23,7 @@ if MINGW
 librasterlite2_la_LDFLAGS = -avoid-version -no-undefined
 librasterlite2_la_LIBADD += -lm
 else
-librasterlite2_la_LDFLAGS = -version-info 1:0:0
+librasterlite2_la_LDFLAGS = -version-info 0:0:0
 librasterlite2_la_LIBADD += -lpthread -lm
 endif
 
@@ -47,7 +47,7 @@ if MINGW
 mod_rasterlite2_la_LDFLAGS = -module -avoid-version -no-undefined
 mod_rasterlite2_la_LIBADD += -lm
 else
-mod_rasterlite2_la_LDFLAGS = -module -version-info 1:0:0
+mod_rasterlite2_la_LDFLAGS = -module -version-info 0:0:0
 mod_rasterlite2_la_LIBADD += -lpthread -lm
 endif
 

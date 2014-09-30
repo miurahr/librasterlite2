@@ -385,7 +385,7 @@ librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
 	@LIBCAIRO_LIBS@ @LIBCURL_LIBS@ @LIBXML2_LIBS@ $(am__append_1) \
 	$(am__append_2)
-@MINGW_FALSE@librasterlite2_la_LDFLAGS = -version-info 1:0:0
+@MINGW_FALSE@librasterlite2_la_LDFLAGS = -version-info 0:0:0
 @MINGW_TRUE@librasterlite2_la_LDFLAGS = -avoid-version -no-undefined
 mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
@@ -400,7 +400,7 @@ mod_rasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
 mod_rasterlite2_la_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers -I. \
 	-DLOADABLE_EXTENSION
 mod_rasterlite2_la_LIBTOOLFLAGS = --tag=disable-static
-@MINGW_FALSE@mod_rasterlite2_la_LDFLAGS = -module -version-info 1:0:0
+@MINGW_FALSE@mod_rasterlite2_la_LDFLAGS = -module -version-info 0:0:0
 @MINGW_TRUE@mod_rasterlite2_la_LDFLAGS = -module -avoid-version -no-undefined
 MOSTLYCLEANFILES = *.gcna *.gcno *.gcda
 all: all-am

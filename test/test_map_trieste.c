@@ -326,7 +326,7 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
 	  return 0;
       }
     intval = atoi (string);
-    if (intval != 719998)
+    if (intval != 719996)
       {
 	  fprintf (stderr, "Unexpected ValidPixelsCount: %d\n", intval);
 	  *retcode += -6;
@@ -402,7 +402,7 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
 	  return 0;
       }
     intval = atoi (string);
-    if (intval != 30)
+    if (intval != 6)
       {
 	  fprintf (stderr, "Unexpected Band Min: %d\n", intval);
 	  *retcode += -13;
@@ -434,7 +434,7 @@ test_statistics (sqlite3 * sqlite, const char *coverage, int *retcode)
 	  return 0;
       }
     intval = atoi (string);
-    if (intval != 184)
+    if (intval != 183)
       {
 	  fprintf (stderr, "Unexpected Band Avg: %d\n", intval);
 	  *retcode += -17;
@@ -609,46 +609,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -3;
 	  return 0;
       }
-
-/* deleting the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_DeleteSection(%Q, 1, 1)", coverage);
-    ret = execute_check (sqlite, sql);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "DeleteSection \"%s\" error: %s\n", coverage,
-		   err_msg);
-	  sqlite3_free (err_msg);
-	  *retcode += -4;
-	  return 0;
-      }
-
-/* re-loading yet again the first section */
-    sql = sqlite3_mprintf ("SELECT RL2_LoadRaster(%Q, %Q, 0, 32633, 0, 1)",
-			   coverage,
-			   "map_samples/orbview3-trieste/trieste1.tif");
-    ret = execute_check (sqlite, sql);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "LoadRaster \"%s\" error: %s\n", coverage, err_msg);
-	  sqlite3_free (err_msg);
-	  *retcode += -5;
-	  return 0;
-      }
-
-/* building the Pyramid Levels */
-    sql = sqlite3_mprintf ("SELECT RL2_Pyramidize(%Q, 2, 1, 1)", coverage);
-    ret = execute_check (sqlite, sql);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "Pyramidize \"%s\" error: %s\n", coverage, err_msg);
-	  sqlite3_free (err_msg);
-	  *retcode += -6;
-	  return 0;
-      }
-
+      
 /* destroying the Pyramid Levels */
     sql = sqlite3_mprintf ("SELECT RL2_DePyramidize(%Q, NULL, 1)", coverage);
     ret = execute_check (sqlite, sql);

@@ -2239,7 +2239,7 @@ build_http_error (int http_status, gaiaOutBufferPtr xml_response, int port_no)
 }
 
 static void
-build_get_capabilities (struct wms_list *list, char **cached, int *cached_len)
+build_get_capabilities (struct wms_list *list, char **cached, int *cached_len, int port_no)
 {
 /* preparing the WMS GetCapabilities XML document */
     struct wms_layer *lyr;
@@ -2264,8 +2264,9 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len)
 			   "<Abstract>A simple light-weight WMS server for testing RasterLite2 Coverages.</Abstract>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
 			   "<KeywordList>\r\n<Keyword>maps</Keyword>\r\n</KeywordList>\r\n");
-    gaiaAppendToOutBuffer (&xml_text,
-			   "<OnlineResource xlink:href=\"http://127.0.0.1:8080/wmslite?\" ");
+	dummy = sqlite3_mprintf("<OnlineResource xlink:href=\"http://127.0.0.1:%d/wmslite?\" ", port_no);
+    gaiaAppendToOutBuffer (&xml_text,dummy);
+    sqlite3_free(dummy);
     gaiaAppendToOutBuffer (&xml_text,
 			   "xlink:type=\"simple\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"/>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
@@ -2299,8 +2300,9 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len)
 			   "<Capability>\r\n<Request>\r\n<GetCapabilities>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
 			   "<Format>text/xml</Format>\r\n<DCPType>\r\n<HTTP>\r\n");
-    gaiaAppendToOutBuffer (&xml_text,
-			   "<Get><OnlineResource xlink:href=\"http://127.0.0.1:8080/wmslite?\" ");
+	dummy = sqlite3_mprintf("<Get><OnlineResource xlink:href=\"http://127.0.0.1:%d/wmslite?\" ", port_no);
+    gaiaAppendToOutBuffer (&xml_text, dummy);
+    sqlite3_free(dummy);
     gaiaAppendToOutBuffer (&xml_text,
 			   "xlink:type=\"simple\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"/></Get>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
@@ -2311,8 +2313,9 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len)
     gaiaAppendToOutBuffer (&xml_text, "<Format>application/x-pdf</Format>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "<Format>image/tiff</Format>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "<DCPType>\r\n<HTTP>\r\n<Get>");
-    gaiaAppendToOutBuffer (&xml_text,
-			   "<OnlineResource xlink:href=\"http://127.0.0.1:8080/wmslite?\" ");
+    dummy = sqlite3_mprintf("<OnlineResource xlink:href=\"http://127.0.0.1:%d/wmslite?\" ", port_no);
+    gaiaAppendToOutBuffer (&xml_text, dummy);
+    sqlite3_free(dummy);
     gaiaAppendToOutBuffer (&xml_text,
 			   "xlink:type=\"simple\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"/></Get>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
@@ -4149,7 +4152,7 @@ main (int argc, char *argv[])
     glob.list = list;
     compute_geographic_extents (handle, list);
     build_get_capabilities (list, &cached_capabilities,
-			    &cached_capabilities_len);
+			    &cached_capabilities_len, port_no);
     glob.cached_capabilities = cached_capabilities;
 
 /* creating the read connections pool */

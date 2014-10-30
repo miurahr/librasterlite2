@@ -1790,7 +1790,7 @@ main (int argc, char *argv[])
 	  return -91;
       }
     val = get_wms_cache_current_size (cache);
-    if (val != 4526)
+    if (val != 3395)
       {
 	  fprintf (stderr, "GetWmsCacheCurrentSize: unexpected result %d\n",
 		   val);
@@ -1816,7 +1816,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
     dblval = get_wms_total_download_size (cache);
-    if (dblval != 50030.00)
+    if (dblval != 48899.00)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n",
 		   dblval);

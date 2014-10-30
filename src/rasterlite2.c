@@ -102,7 +102,9 @@ is_valid_compression (unsigned char compression)
       {
       case RL2_COMPRESSION_NONE:
       case RL2_COMPRESSION_DEFLATE:
+      case RL2_COMPRESSION_DEFLATE_NO:
       case RL2_COMPRESSION_LZMA:
+      case RL2_COMPRESSION_LZMA_NO:
       case RL2_COMPRESSION_PNG:
       case RL2_COMPRESSION_JPEG:
       case RL2_COMPRESSION_LOSSY_WEBP:
@@ -177,7 +179,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 	    {
 	    case RL2_COMPRESSION_NONE:
 	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
 	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_JPEG:
 	    case RL2_COMPRESSION_LOSSY_WEBP:
@@ -207,7 +211,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 		  {
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_DEFLATE_NO:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZMA_NO:
 		  case RL2_COMPRESSION_PNG:
 		  case RL2_COMPRESSION_CHARLS:
 		  case RL2_COMPRESSION_LOSSY_JP2:
@@ -223,7 +229,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 		  {
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_DEFLATE_NO:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZMA_NO:
 		  case RL2_COMPRESSION_PNG:
 		  case RL2_COMPRESSION_JPEG:
 		  case RL2_COMPRESSION_LOSSY_WEBP:
@@ -256,7 +264,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 			{
 			case RL2_COMPRESSION_NONE:
 			case RL2_COMPRESSION_DEFLATE:
+			case RL2_COMPRESSION_DEFLATE_NO:
 			case RL2_COMPRESSION_LZMA:
+			case RL2_COMPRESSION_LZMA_NO:
 			case RL2_COMPRESSION_PNG:
 			case RL2_COMPRESSION_CHARLS:
 			case RL2_COMPRESSION_LOSSY_JP2:
@@ -272,7 +282,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 			{
 			case RL2_COMPRESSION_NONE:
 			case RL2_COMPRESSION_DEFLATE:
+			case RL2_COMPRESSION_DEFLATE_NO:
 			case RL2_COMPRESSION_LZMA:
+			case RL2_COMPRESSION_LZMA_NO:
 			case RL2_COMPRESSION_PNG:
 			case RL2_COMPRESSION_LOSSY_WEBP:
 			case RL2_COMPRESSION_LOSSLESS_WEBP:
@@ -291,7 +303,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 		  {
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_DEFLATE_NO:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZMA_NO:
 		      break;
 		  default:
 		      return 0;
@@ -322,7 +336,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 		  {
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_DEFLATE_NO:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZMA_NO:
 		  case RL2_COMPRESSION_PNG:
 		  case RL2_COMPRESSION_CHARLS:
 		  case RL2_COMPRESSION_LOSSY_JP2:
@@ -338,7 +354,9 @@ check_coverage_self_consistency (unsigned char sample_type,
 		  {
 		  case RL2_COMPRESSION_NONE:
 		  case RL2_COMPRESSION_DEFLATE:
+		  case RL2_COMPRESSION_DEFLATE_NO:
 		  case RL2_COMPRESSION_LZMA:
+		  case RL2_COMPRESSION_LZMA_NO:
 		      break;
 		  default:
 		      return 0;
@@ -657,7 +675,9 @@ rl2_is_coverage_compression_lossless (rl2CoveragePtr ptr, int *is_lossless)
     switch (cvg->Compression)
       {
       case RL2_COMPRESSION_DEFLATE:
+      case RL2_COMPRESSION_DEFLATE_NO:
       case RL2_COMPRESSION_LZMA:
+      case RL2_COMPRESSION_LZMA_NO:
       case RL2_COMPRESSION_PNG:
       case RL2_COMPRESSION_LOSSLESS_WEBP:
       case RL2_COMPRESSION_CHARLS:
@@ -852,7 +872,9 @@ rl2_is_section_compression_lossless (rl2SectionPtr ptr, int *is_lossless)
     switch (scn->Compression)
       {
       case RL2_COMPRESSION_DEFLATE:
+      case RL2_COMPRESSION_DEFLATE_NO:
       case RL2_COMPRESSION_LZMA:
+      case RL2_COMPRESSION_LZMA_NO:
       case RL2_COMPRESSION_PNG:
       case RL2_COMPRESSION_LOSSLESS_WEBP:
 	  *is_lossless = RL2_TRUE;

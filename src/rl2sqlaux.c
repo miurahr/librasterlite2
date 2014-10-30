@@ -214,8 +214,12 @@ get_coverage_defs (sqlite3 * sqlite, const char *coverage,
 		    xcompression = RL2_COMPRESSION_NONE;
 		if (strcmp (compr, "DEFLATE") == 0)
 		    xcompression = RL2_COMPRESSION_DEFLATE;
+		if (strcmp (compr, "DEFLATE_NO") == 0)
+		    xcompression = RL2_COMPRESSION_DEFLATE_NO;
 		if (strcmp (compr, "LZMA") == 0)
 		    xcompression = RL2_COMPRESSION_LZMA;
+		if (strcmp (compr, "LZMA_NO") == 0)
+		    xcompression = RL2_COMPRESSION_LZMA_NO;
 		if (strcmp (compr, "PNG") == 0)
 		    xcompression = RL2_COMPRESSION_PNG;
 		if (strcmp (compr, "JPEG") == 0)

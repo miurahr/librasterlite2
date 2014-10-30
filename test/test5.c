@@ -739,11 +739,27 @@ main (int argc, char *argv[])
       }
 
     if (rl2_raster_encode
+	(raster, RL2_COMPRESSION_DEFLATE_NO, &blob_odd_zip, &blob_odd_sz_zip,
+	 &blob_even_zip, &blob_even_sz_zip, 0, endian) == RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected result - compressed DEFLATE_NO\n");
+	  return -109;
+      }
+
+    if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LZMA, &blob_odd_lzma, &blob_odd_sz_lzma,
 	 &blob_even_lzma, &blob_even_sz_lzma, 0, endian) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected result - compressed LZMA\n");
 	  return -10;
+      }
+
+    if (rl2_raster_encode
+	(raster, RL2_COMPRESSION_LZMA_NO, &blob_odd_lzma, &blob_odd_sz_lzma,
+	 &blob_even_lzma, &blob_even_sz_lzma, 0, endian) == RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected result - compressed LZMA_NO\n");
+	  return -110;
       }
 
     if (rl2_raster_encode

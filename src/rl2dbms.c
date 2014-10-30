@@ -161,8 +161,14 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
       case RL2_COMPRESSION_DEFLATE:
 	  xcompression = "DEFLATE";
 	  break;
+      case RL2_COMPRESSION_DEFLATE_NO:
+	  xcompression = "DEFLATE_NO";
+	  break;
       case RL2_COMPRESSION_LZMA:
 	  xcompression = "LZMA";
+	  break;
+      case RL2_COMPRESSION_LZMA_NO:
+	  xcompression = "LZMA_NO";
 	  break;
       case RL2_COMPRESSION_PNG:
 	  xcompression = "PNG";
@@ -1898,10 +1904,20 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 			    ok_compression = 1;
 			    compression = RL2_COMPRESSION_DEFLATE;
 			}
+		      if (strcasecmp (value, "DEFLATE_NO") == 0)
+			{
+			    ok_compression = 1;
+			    compression = RL2_COMPRESSION_DEFLATE_NO;
+			}
 		      if (strcasecmp (value, "LZMA") == 0)
 			{
 			    ok_compression = 1;
 			    compression = RL2_COMPRESSION_LZMA;
+			}
+		      if (strcasecmp (value, "LZMA_NO") == 0)
+			{
+			    ok_compression = 1;
+			    compression = RL2_COMPRESSION_LZMA_NO;
 			}
 		      if (strcasecmp (value, "PNG") == 0)
 			{

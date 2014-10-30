@@ -134,10 +134,14 @@ extern "C"
 #define RL2_COMPRESSION_UNKNOWN		0x20
 /** RasterLite2 constant: Compression None */
 #define RL2_COMPRESSION_NONE		0x21
-/** RasterLite2 constant: Compression Deflate (zip) */
+/** RasterLite2 constant: Compression Deflate Delta (zip) */
 #define RL2_COMPRESSION_DEFLATE		0x22
-/** RasterLite2 constant: Compression LZMA */
+/** RasterLite2 constant: Compression Deflate noDelta (zip) */
+#define RL2_COMPRESSION_DEFLATE_NO	0xd2
+/** RasterLite2 constant: Compression LZMA Delta */
 #define RL2_COMPRESSION_LZMA		0x23
+/** RasterLite2 constant: Compression LZMA noDelta */
+#define RL2_COMPRESSION_LZMA_NO		0xd3
 /** RasterLite2 constant: Compression GIF */
 #define RL2_COMPRESSION_GIF		0x24
 /** RasterLite2 constant: Compression PNG */

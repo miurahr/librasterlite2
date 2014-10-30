@@ -2087,10 +2087,12 @@ fnct_CreateCoverage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 	compr = RL2_COMPRESSION_NONE;
     if (strcasecmp (compression, "DEFLATE") == 0)
 	compr = RL2_COMPRESSION_DEFLATE;
-    if (strcasecmp (compression, "LZO") == 0)
-	compr = RL2_COMPRESSION_DEFLATE;
+    if (strcasecmp (compression, "DEFLATE_NO") == 0)
+	compr = RL2_COMPRESSION_DEFLATE_NO;
     if (strcasecmp (compression, "LZMA") == 0)
 	compr = RL2_COMPRESSION_LZMA;
+    if (strcasecmp (compression, "LZMA_NO") == 0)
+	compr = RL2_COMPRESSION_LZMA_NO;
     if (strcasecmp (compression, "PNG") == 0)
 	compr = RL2_COMPRESSION_PNG;
     if (strcasecmp (compression, "GIF") == 0)

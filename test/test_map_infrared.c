@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 #include "spatialite/gaiaaux.h"
@@ -146,7 +148,7 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
 
 static int
 do_export_tile_image3 (sqlite3 * sqlite, const char *coverage, int tile_id,
-		      int band_mix)
+		       int band_mix)
 {
 /* attempting to export a visible Tile - triple band */
     char *sql;
@@ -2133,6 +2135,7 @@ main (int argc, char *argv[])
       }
 
 /* tests */
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -100;
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_CHARLS, TILE_256, no_web_connection, &ret))
@@ -2145,6 +2148,9 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, no_web_connection, &ret))
 	return ret;
+#endif /* end CharLS conditional */
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -200;
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, no_web_connection,
@@ -2160,6 +2166,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, no_web_connection,
 	 &ret))
 	return ret;
+#endif /* end OpenJpeg conditional */
+
     ret = -300;
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_PNG, TILE_256, no_web_connection, &ret))
@@ -2174,6 +2182,7 @@ main (int argc, char *argv[])
 	return ret;
 
 /* dropping all Coverages */
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -170;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
@@ -2183,6 +2192,9 @@ main (int argc, char *argv[])
     ret = -190;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
+#endif /* end CharLS conditional */
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -270;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, &ret))
 	return ret;
@@ -2192,6 +2204,8 @@ main (int argc, char *argv[])
     ret = -290;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, &ret))
 	return ret;
+#endif /* end OpenJpeg conditional */
+
     ret = -370;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;

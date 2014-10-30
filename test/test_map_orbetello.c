@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 #include "spatialite/gaiaaux.h"
@@ -55,6 +57,24 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define TILE_256	256
 #define TILE_512	512
 #define TILE_1024	1024
+
+static int
+execute_with_retval (sqlite3 * sqlite, const char *sql)
+{
+/* executing an SQL statement then returning an INT result */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = -1;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return SQLITE_ERROR;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	  retcode = sqlite3_column_int (stmt, 0);
+    sqlite3_finalize (stmt);
+    return retcode;
+}
 
 static int
 execute_check (sqlite3 * sqlite, const char *sql)
@@ -143,7 +163,7 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
     char *path;
     int ret;
     int transparent = 1;
-    
+
     if (tile_id > 10)
 	transparent = 0;
     if (tile_id < 0)
@@ -169,7 +189,7 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
 
 static int
 do_export_tile_image3 (sqlite3 * sqlite, const char *coverage, int tile_id,
-		      int band_mix)
+		       int band_mix)
 {
 /* attempting to export a visible Tile - triple band */
     char *sql;
@@ -1761,7 +1781,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
       }
   skip:
     gaiaFreeGeomColl (geom);
-    
+
 /* testing GetTileImage() - basic */
     if (!do_export_tile_image (sqlite, coverage, 1))
       {
@@ -2022,6 +2042,7 @@ main (int argc, char *argv[])
       }
 
 /* tests */
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -100;
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_CHARLS, TILE_256, no_web_connection, &ret))
@@ -2034,6 +2055,9 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, no_web_connection, &ret))
 	return ret;
+#endif /* end CharLS conditional */
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -200;
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, no_web_connection,
@@ -2049,6 +2073,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, no_web_connection,
 	 &ret))
 	return ret;
+#endif /* end OpenJpeg conditional */
+
     ret = -300;
     if (!test_coverage
 	(db_handle, RL2_COMPRESSION_PNG, TILE_256, no_web_connection, &ret))
@@ -2063,6 +2089,7 @@ main (int argc, char *argv[])
 	return ret;
 
 /* dropping all Coverages */
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -170;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
@@ -2072,6 +2099,9 @@ main (int argc, char *argv[])
     ret = -190;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
+#endif /* end CharLS conditional */
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -270;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, &ret))
 	return ret;
@@ -2081,6 +2111,8 @@ main (int argc, char *argv[])
     ret = -290;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, &ret))
 	return ret;
+#endif /* end OpenJpeg conditional */
+
     ret = -370;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
@@ -2090,6 +2122,110 @@ main (int argc, char *argv[])
     ret = -390;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
+	
+/* testing HasCodec functions */
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_none()");
+	if (ret != 1)
+	{
+	  fprintf (stderr, "rl2_has_codec_none() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_deflate()");
+	if (ret != 1)
+	{
+	  fprintf (stderr, "rl2_has_codec_deflate() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_deflate_no()");
+	if (ret != 1)
+	{
+	  fprintf (stderr, "rl2_has_codec_deflate_no() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_png()");
+	if (ret != 1)
+	{
+	  fprintf (stderr, "rl2_has_codec_png() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_jpeg()");
+	if (ret != 1)
+	{
+	  fprintf (stderr, "rl2_has_codec_jpeg() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_fax4()");
+	if (ret != 1)
+	{
+	  fprintf (stderr, "rl2_has_codec_fax4() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	
+#ifndef OMIT_LZMA
+	result = 1;
+#else
+	result = 0;
+#endif;
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_lzma()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_lzma() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_lzma_no()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_lzma_no() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	
+#ifndef OMIT_CHARLS
+	result = 1;
+#else
+	result = 0;
+#endif;
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_charls()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_charls() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	
+#ifndef OMIT_WEBP
+	result = 1;
+#else
+	result = 0;
+#endif;
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_webp()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_webp() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_ll_webp()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_ll_webp() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	
+#ifndef OMIT_OPENJPEG
+	result = 1;
+#else
+	result = 0;
+#endif;
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_jp2()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_jp2() unexpected result: %d\n", ret);
+	  return -1;
+	}
+	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_ll_jp2()");
+	if (ret != result)
+	{
+	  fprintf (stderr, "rl2_has_codec_ll_jp2() unexpected result: %d\n", ret);
+	  return -1;
+	}
 
 /* closing the DB */
     sqlite3_close (db_handle);

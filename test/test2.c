@@ -43,6 +43,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <unistd.h>
 #include <stdio.h>
 
+#include "config.h"
+
 #include "rasterlite2/rasterlite2.h"
 
 static int
@@ -255,22 +257,10 @@ main (int argc, char *argv[])
     int blob_odd_sz_zip;
     unsigned char *blob_even_zip;
     int blob_even_sz_zip;
-    unsigned char *blob_odd_lzma;
-    int blob_odd_sz_lzma;
-    unsigned char *blob_even_lzma;
-    int blob_even_sz_lzma;
     unsigned char *blob_odd_jpeg;
     int blob_odd_sz_jpeg;
     unsigned char *blob_even_jpeg;
     int blob_even_sz_jpeg;
-    unsigned char *blob_odd_lossy_webp;
-    int blob_odd_sz_lossy_webp;
-    unsigned char *blob_even_lossy_webp;
-    int blob_even_sz_lossy_webp;
-    unsigned char *blob_odd_lossless_webp;
-    int blob_odd_sz_lossless_webp;
-    unsigned char *blob_even_lossless_webp;
-    int blob_even_sz_lossless_webp;
     unsigned char *blob_odd_png;
     int blob_odd_sz_png;
     unsigned char *blob_even_png;
@@ -281,6 +271,25 @@ main (int argc, char *argv[])
     int blob_even_sz_gif;
     unsigned char *blob_stat;
     int blob_stat_size;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
+    unsigned char *blob_odd_lzma;
+    int blob_odd_sz_lzma;
+    unsigned char *blob_even_lzma;
+    int blob_even_sz_lzma;
+#endif /* end LZMA conditional */
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
+    unsigned char *blob_odd_lossy_webp;
+    int blob_odd_sz_lossy_webp;
+    unsigned char *blob_even_lossy_webp;
+    int blob_even_sz_lossy_webp;
+    unsigned char *blob_odd_lossless_webp;
+    int blob_odd_sz_lossless_webp;
+    unsigned char *blob_even_lossless_webp;
+    int blob_even_sz_lossless_webp;
+#endif /* end WebP conditional */
+
     int anti_endian = antiEndian ();
 
     if (argc > 1 || argv[0] == NULL)
@@ -357,6 +366,7 @@ main (int argc, char *argv[])
 	  return -9;
       }
 
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LZMA, &blob_odd_lzma, &blob_odd_sz_lzma,
 	 &blob_even_lzma, &blob_even_sz_lzma, 0, anti_endian) != RL2_OK)
@@ -372,6 +382,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unexpected result - LZMA_NO compressed\n");
 	  return -11;
       }
+#endif /* end LZMA conditional */
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_JPEG, &blob_odd_jpeg, &blob_odd_sz_jpeg,
@@ -406,6 +417,7 @@ main (int argc, char *argv[])
     free (blob_stat);
     rl2_destroy_raster_statistics (stats);
 
+#ifndef OMIT_WEBP		/* only if WebP is defined */
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LOSSY_WEBP, &blob_odd_lossy_webp,
 	 &blob_odd_sz_lossy_webp, &blob_even_lossy_webp,
@@ -423,6 +435,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "Unable to Encode - lossless WEBP compressed\n");
 	  return -12;
       }
+#endif /* end of WebP conditional */
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_PNG, &blob_odd_png, &blob_odd_sz_png,
@@ -662,6 +675,7 @@ main (int argc, char *argv[])
 
     unlink ("./rainbow_1_8_jpeg.png");
 
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_lossy_webp,
 			   blob_odd_sz_lossy_webp, blob_even_lossy_webp,
@@ -889,6 +903,7 @@ main (int argc, char *argv[])
     free (blob_even_lossless_webp);
 
     unlink ("./rainbow_1_8_lossless_webp.png");
+#endif /* end WebP conditional */
 
     raster =
 	rl2_raster_decode (RL2_SCALE_1, blob_odd_png, blob_odd_sz_png,

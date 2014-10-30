@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 
@@ -1217,6 +1219,8 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -400;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
@@ -1247,6 +1251,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
 	 TILE_1024, &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* PALETTE tests */
     ret = -600;
@@ -1311,6 +1316,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -470;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
@@ -1341,6 +1348,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
 	 TILE_1024, &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* dropping all PALETTE Coverages */
     ret = -670;

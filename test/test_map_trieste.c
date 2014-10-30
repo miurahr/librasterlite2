@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 #include "spatialite/gaiaaux.h"
@@ -609,7 +611,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -3;
 	  return 0;
       }
-      
+
 /* destroying the Pyramid Levels */
     sql = sqlite3_mprintf ("SELECT RL2_DePyramidize(%Q, NULL, 1)", coverage);
     ret = execute_check (sqlite, sql);
@@ -812,6 +814,7 @@ main (int argc, char *argv[])
       }
 
 /* GRAYSCALE tests */
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -100;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_256,
@@ -827,6 +830,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_CHARLS, TILE_1024,
 	 &ret))
 	return ret;
+#endif /* end CharLS conditional */
+
     ret = -200;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_256, &ret))
@@ -839,6 +844,8 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -300;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_JP2, TILE_256,
@@ -854,8 +861,10 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_JP2,
 	 TILE_1024, &ret))
 	return ret;
+#endif /* end OpenJpeg conditional */
 
 /* dropping all GRAYSCALE Coverages */
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -170;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
@@ -865,6 +874,8 @@ main (int argc, char *argv[])
     ret = -190;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
+#endif /* end CharLS conditional */
+
     ret = -270;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
@@ -874,6 +885,8 @@ main (int argc, char *argv[])
     ret = -290;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -370;
     if (!drop_coverage
 	(db_handle, RL2_COMPRESSION_LOSSLESS_JP2, TILE_256, &ret))
@@ -886,6 +899,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_COMPRESSION_LOSSLESS_JP2, TILE_1024, &ret))
 	return ret;
+#endif /* end OpenJpeg conditional */
 
 /* closing the DB */
     sqlite3_close (db_handle);

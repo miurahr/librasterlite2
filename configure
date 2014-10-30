@@ -791,6 +791,10 @@ with_gnu_ld
 with_sysroot
 enable_libtool_lock
 enable_gcov
+enable_openjpeg
+enable_webp
+enable_lzma
+enable_charls
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1455,6 +1459,10 @@ Optional Features:
                           optimize for fast installation [default=yes]
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --enable-gcov           turn on code coverage analysis tools
+  --enable-openjpeg       enables OpenJpeg inclusion [default=yes]
+  --enable-webp           enables WebP inclusion [default=yes]
+  --enable-lzma           enables LZMA inclusion [default=yes]
+  --enable-charls         enables CharLS inclusion [default=yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -3086,6 +3094,11 @@ $as_echo "#define NDEBUG 1" >>confdefs.h
 
 
 
+# config depending options
+
+
+
+
 
 # Checks for header files.
 DEPDIR="${am__leading_dot}deps"
@@ -4560,20 +4573,6 @@ _ACEOF
 
 else
   as_fn_error $? "cannot find jpeglib.h, bailing out" "$LINENO" 5
-fi
-
-done
-
-for ac_header in CharLS/interface.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "CharLS/interface.h" "ac_cv_header_CharLS_interface_h" "$ac_includes_default"
-if test "x$ac_cv_header_CharLS_interface_h" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_CHARLS_INTERFACE_H 1
-_ACEOF
-
-else
-  as_fn_error $? "cannot find CharLS/interface.h, bailing out" "$LINENO" 5
 fi
 
 done
@@ -17393,53 +17392,6 @@ else
   as_fn_error $? "'libjpeg' is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for JpegLsEncode in -lCharLS" >&5
-$as_echo_n "checking for JpegLsEncode in -lCharLS... " >&6; }
-if ${ac_cv_lib_CharLS_JpegLsEncode+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lCharLS -lm $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char JpegLsEncode ();
-int
-main ()
-{
-return JpegLsEncode ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_CharLS_JpegLsEncode=yes
-else
-  ac_cv_lib_CharLS_JpegLsEncode=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_CharLS_JpegLsEncode" >&5
-$as_echo "$ac_cv_lib_CharLS_JpegLsEncode" >&6; }
-if test "x$ac_cv_lib_CharLS_JpegLsEncode" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBCHARLS 1
-_ACEOF
-
-  LIBS="-lCharLS $LIBS"
-
-else
-  as_fn_error $? "'libCharLS' is required but it doesn't seems to be installed on this system." "$LINENO" 5
-fi
-
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for DGifSlurp in -lgif" >&5
 $as_echo_n "checking for DGifSlurp in -lgif... " >&6; }
 if ${ac_cv_lib_gif_DGifSlurp+:} false; then :
@@ -17581,84 +17533,6 @@ else
   as_fn_error $? "'libgeotiff' >= v.1.2.5 is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for opj_create_decompress in -lopenjp2" >&5
-$as_echo_n "checking for opj_create_decompress in -lopenjp2... " >&6; }
-if ${ac_cv_lib_openjp2_opj_create_decompress+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lopenjp2 -lm $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char opj_create_decompress ();
-int
-main ()
-{
-return opj_create_decompress ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_openjp2_opj_create_decompress=yes
-else
-  ac_cv_lib_openjp2_opj_create_decompress=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_openjp2_opj_create_decompress" >&5
-$as_echo "$ac_cv_lib_openjp2_opj_create_decompress" >&6; }
-if test "x$ac_cv_lib_openjp2_opj_create_decompress" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBOPENJP2 1
-_ACEOF
-
-  LIBS="-lopenjp2 $LIBS"
-
-else
-  as_fn_error $? "'libopenjp2' is required but it doesn't seems to be installed on this system." "$LINENO" 5
-fi
-
-
-# testing for OpenJpeg 2.0 or 2.1
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#ifdef HAVE_OPENJPEG_2_1_OPENJPEG_H
-                                       #include <openjpeg-2.1/openjpeg.h>
-                                       #else
-                                       #include <openjpeg-2.0/openjpeg.h>
-                                       #endif
-int
-main ()
-{
-void *d; opj_stream_t *s; opj_stream_set_user_data (s, &d, NULL);
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-
-                      { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-                      $as_echo "#define OPENJPEG_2_1 1" >>confdefs.h
-
-
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 
 
 
@@ -17854,6 +17728,110 @@ fi
 
 
 
+#-----------------------------------------------------------------------
+#   --enable-openjpeg
+#
+# Check whether --enable-openjpeg was given.
+if test "${enable_openjpeg+set}" = set; then :
+  enableval=$enable_openjpeg;
+else
+  enable_openjpeg=yes
+fi
+
+if test x"$enable_openjpeg" != "xno"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for opj_create_decompress in -lopenjp2" >&5
+$as_echo_n "checking for opj_create_decompress in -lopenjp2... " >&6; }
+if ${ac_cv_lib_openjp2_opj_create_decompress+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lopenjp2 -lm $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char opj_create_decompress ();
+int
+main ()
+{
+return opj_create_decompress ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_openjp2_opj_create_decompress=yes
+else
+  ac_cv_lib_openjp2_opj_create_decompress=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_openjp2_opj_create_decompress" >&5
+$as_echo "$ac_cv_lib_openjp2_opj_create_decompress" >&6; }
+if test "x$ac_cv_lib_openjp2_opj_create_decompress" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBOPENJP2 1
+_ACEOF
+
+  LIBS="-lopenjp2 $LIBS"
+
+else
+  as_fn_error $? "'libopenjp2' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+fi
+
+    # testing for OpenJpeg 2.0 or 2.1
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#ifdef HAVE_OPENJPEG_2_1_OPENJPEG_H
+                                       #include <openjpeg-2.1/openjpeg.h>
+                                       #else
+                                       #include <openjpeg-2.0/openjpeg.h>
+                                       #endif
+int
+main ()
+{
+void *d; opj_stream_t *s; opj_stream_set_user_data (s, &d, NULL);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+
+                      { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+                      $as_echo "#define OPENJPEG_2_1 1" >>confdefs.h
+
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+else
+  $as_echo "#define OMIT_OPENJPEG 1" >>confdefs.h
+
+fi
+#-----------------------------------------------------------------------
+
+#-----------------------------------------------------------------------
+#   --enable-webp
+#
+# Check whether --enable-webp was given.
+if test "${enable_webp+set}" = set; then :
+  enableval=$enable_webp;
+else
+  enable_webp=yes
+fi
+
+if test x"$enable_webp" != "xno"; then
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for LIBWEBP" >&5
@@ -17927,7 +17905,23 @@ $as_echo "yes" >&6; }
 fi
 
 
+else
+  $as_echo "#define OMIT_WEBP 1" >>confdefs.h
 
+fi
+#-----------------------------------------------------------------------
+
+#-----------------------------------------------------------------------
+#   --enable-lzma
+#
+# Check whether --enable-lzma was given.
+if test "${enable_lzma+set}" = set; then :
+  enableval=$enable_lzma;
+else
+  enable_lzma=yes
+fi
+
+if test x"$enable_lzma" != "xno"; then
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for LIBLZMA" >&5
@@ -18001,6 +17995,89 @@ $as_echo "yes" >&6; }
 fi
 
 
+else
+  $as_echo "#define OMIT_LZMA 1" >>confdefs.h
+
+fi
+#-----------------------------------------------------------------------
+
+#-----------------------------------------------------------------------
+#   --enable-charls
+#
+# Check whether --enable-charls was given.
+if test "${enable_charls+set}" = set; then :
+  enableval=$enable_charls;
+else
+  enable_charls=yes
+fi
+
+if test x"$enable_charls" != "xno"; then
+    for ac_header in CharLS/interface.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "CharLS/interface.h" "ac_cv_header_CharLS_interface_h" "$ac_includes_default"
+if test "x$ac_cv_header_CharLS_interface_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_CHARLS_INTERFACE_H 1
+_ACEOF
+
+else
+  as_fn_error $? "cannot find CharLS/interface.h, bailing out" "$LINENO" 5
+fi
+
+done
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for JpegLsEncode in -lCharLS" >&5
+$as_echo_n "checking for JpegLsEncode in -lCharLS... " >&6; }
+if ${ac_cv_lib_CharLS_JpegLsEncode+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lCharLS -lm $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char JpegLsEncode ();
+int
+main ()
+{
+return JpegLsEncode ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_CharLS_JpegLsEncode=yes
+else
+  ac_cv_lib_CharLS_JpegLsEncode=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_CharLS_JpegLsEncode" >&5
+$as_echo "$ac_cv_lib_CharLS_JpegLsEncode" >&6; }
+if test "x$ac_cv_lib_CharLS_JpegLsEncode" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBCHARLS 1
+_ACEOF
+
+  LIBS="-lCharLS $LIBS"
+
+else
+  as_fn_error $? "'libCharLS' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+fi
+
+else
+  $as_echo "#define OMIT_CHARLS 1" >>confdefs.h
+
+fi
+#-----------------------------------------------------------------------
 
 
 pkg_failed=no

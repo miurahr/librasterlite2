@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 #include "spatialite/gaiaaux.h"
@@ -1104,6 +1106,8 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -400;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSY_WEBP, TILE_256, &ret))
@@ -1131,6 +1135,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSLESS_WEBP, TILE_1024,
 	 &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* GRAYSCALE tests */
     ret = -600;
@@ -1169,6 +1174,8 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -900;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
@@ -1199,6 +1206,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
 	 TILE_1024, &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* dropping all RGB Coverages */
     ret = -170;
@@ -1237,6 +1245,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -470;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSY_WEBP, TILE_256, &ret))
@@ -1264,6 +1274,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSLESS_WEBP, TILE_1024,
 	 &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* dropping all GRAYSCALE Coverages */
     ret = -670;
@@ -1302,6 +1313,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -970;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSY_WEBP, TILE_256,
@@ -1332,6 +1345,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_LOSSLESS_WEBP,
 	 TILE_1024, &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* closing the DB */
     sqlite3_close (db_handle);

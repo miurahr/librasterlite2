@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 
@@ -690,6 +692,8 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, "noref-rgb", RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -160;
     if (!test_coverage
 	(db_handle, "noref-rgb", RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSY_WEBP,
@@ -700,6 +704,7 @@ main (int argc, char *argv[])
 	(db_handle, "noref-rgb", RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSLESS_WEBP,
 	 &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* GRAYSCALE tests */
     ret = -300;
@@ -717,6 +722,8 @@ main (int argc, char *argv[])
 	(db_handle, "noref-gray", RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG,
 	 &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -360;
     if (!test_coverage
 	(db_handle, "noref-gray", RL2_PIXEL_GRAYSCALE,
@@ -727,6 +734,7 @@ main (int argc, char *argv[])
 	(db_handle, "noref-gray", RL2_PIXEL_GRAYSCALE,
 	 RL2_COMPRESSION_LOSSLESS_WEBP, &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* MONOCHROME tests */
     ret = -500;
@@ -768,6 +776,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, "noref-rgb", RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -230;
     if (!drop_coverage
 	(db_handle, "noref-rgb", RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSY_WEBP,
@@ -778,6 +788,7 @@ main (int argc, char *argv[])
 	(db_handle, "noref-rgb", RL2_PIXEL_RGB, RL2_COMPRESSION_LOSSLESS_WEBP,
 	 &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* dropping all GRAYSCALE Coverages */
     ret = -400;
@@ -795,6 +806,8 @@ main (int argc, char *argv[])
 	(db_handle, "noref-gray", RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG,
 	 &ret))
 	return ret;
+
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
     ret = -430;
     if (!drop_coverage
 	(db_handle, "noref-gray", RL2_PIXEL_GRAYSCALE,
@@ -805,6 +818,7 @@ main (int argc, char *argv[])
 	(db_handle, "noref-gray", RL2_PIXEL_GRAYSCALE,
 	 RL2_COMPRESSION_LOSSLESS_WEBP, &ret))
 	return ret;
+#endif /* end WebP conditional */
 
 /* dropping all MONOCHROME Coverages */
     ret = -600;

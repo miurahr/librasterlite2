@@ -44,7 +44,11 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <memory.h>
 
+#include "config.h"
+
 #include "rasterlite2/rasterlite2.h"
+
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
 
 static int
 test_no_alpha_openjpeg (const char *path)
@@ -758,18 +762,22 @@ test_blob_infos_openjpeg (const char *path)
     return 0;
 }
 
+#endif /* end OpenJpeg conditional */
+
 int
 main (int argc, char *argv[])
 {
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
 
+#ifndef OMIT_OPENJPEG
     if (!test_no_alpha_openjpeg ("./Cevennes2.jp2"))
 	return -1;
     if (!test_infos_openjpeg ("./Cevennes2.jp2"))
 	return -1;
     if (!test_blob_infos_openjpeg ("./Cevennes2.jp2"))
 	return -1;
+#endif
 
     return 0;
 }

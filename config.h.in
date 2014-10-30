@@ -142,6 +142,18 @@
 /* Must be defined in order to disable debug mode. */
 #undef NDEBUG
 
+/* Should be defined in order to disable CharLS support. */
+#undef OMIT_CHARLS
+
+/* Should be defined in order to disable LZMA support. */
+#undef OMIT_LZMA
+
+/* Should be defined in order to disable OpenJpeg support. */
+#undef OMIT_OPENJPEG
+
+/* Should be defined in order to disable WebP support. */
+#undef OMIT_WEBP
+
 /* testing for OpenJpeg 2.1 */
 #undef OPENJPEG_2_1
 

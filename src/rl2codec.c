@@ -2298,6 +2298,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
       }
     else if (compression == RL2_COMPRESSION_LZMA)
       {
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
 	  /* compressing as LZMA DeltaFilter */
 	  lzma_options_lzma opt_lzma2;
 	  lzma_options_delta opt_delta;
@@ -2350,9 +2351,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      uncompressed_mask = raster->width * raster->height;
 	  compressed_mask = mask_pix_size;
 	  compr_mask = mask_pix;
+#else /* LZMA is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling LZMA support\n");
+	  goto error;
+#endif /* end LZMA conditional */
       }
     else if (compression == RL2_COMPRESSION_LZMA_NO)
       {
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
 	  /* compressing as LZMA noDelta */
 	  lzma_options_lzma opt_lzma2;
 	  lzma_ret ret;
@@ -2400,6 +2407,11 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      uncompressed_mask = raster->width * raster->height;
 	  compressed_mask = mask_pix_size;
 	  compr_mask = mask_pix;
+#else /* LZMA is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling LZMA support\n");
+	  goto error;
+#endif /* end LZMA conditional */
       }
     else if (compression == RL2_COMPRESSION_JPEG)
       {
@@ -2423,6 +2435,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
       }
     else if (compression == RL2_COMPRESSION_LOSSLESS_WEBP)
       {
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
 	  /* compressing as lossless WEBP */
 	  if (rl2_raster_to_lossless_webp (rst, &compr_data, &compressed) ==
 	      RL2_OK)
@@ -2440,9 +2453,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      uncompressed_mask = raster->width * raster->height;
 	  compressed_mask = mask_pix_size;
 	  compr_mask = mask_pix;
+#else /* WebP is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling WebP support\n");
+	  goto error;
+#endif /* end WebP conditional */
       }
     else if (compression == RL2_COMPRESSION_LOSSY_WEBP)
       {
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
 	  /* compressing as lossy WEBP */
 	  if (rl2_raster_to_lossy_webp (rst, &compr_data, &compressed, quality)
 	      == RL2_OK)
@@ -2460,6 +2479,11 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      uncompressed_mask = raster->width * raster->height;
 	  compressed_mask = mask_pix_size;
 	  compr_mask = mask_pix;
+#else /* WebP is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling WebP support\n");
+	  goto error;
+#endif /* end WebP conditional */
       }
     else if (compression == RL2_COMPRESSION_PNG)
       {
@@ -2510,6 +2534,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
       }
     else if (compression == RL2_COMPRESSION_CHARLS)
       {
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
 	  /* compressing as CHARLS */
 	  if (rl2_data_to_charls
 	      (pixels_odd, raster->width,
@@ -2528,6 +2553,11 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    }
 	  else
 	      goto error;
+#else /* CharLS is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling CharLS support\n");
+	  goto error;
+#endif /* end CharLS conditional */
       }
     else if (compression == RL2_COMPRESSION_CCITTFAX4)
       {
@@ -2551,6 +2581,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
       }
     else if (compression == RL2_COMPRESSION_LOSSLESS_JP2)
       {
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
 	  /* compressing as lossless Jpeg2000 */
 	  if (rl2_raster_to_lossless_jpeg2000 (rst, &compr_data, &compressed) ==
 	      RL2_OK)
@@ -2568,9 +2599,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      uncompressed_mask = raster->width * raster->height;
 	  compressed_mask = mask_pix_size;
 	  compr_mask = mask_pix;
+#else /* OpenJpeg is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling OpenJpeg support\n");
+	  goto error;
+#endif /* end OpenJpeg conditional */
       }
     else if (compression == RL2_COMPRESSION_LOSSY_JP2)
       {
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
 	  /* compressing as lossy Jpeg2000 */
 	  if (rl2_raster_to_lossy_jpeg2000
 	      (rst, &compr_data, &compressed, quality) == RL2_OK)
@@ -2588,6 +2625,11 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	      uncompressed_mask = raster->width * raster->height;
 	  compressed_mask = mask_pix_size;
 	  compr_mask = mask_pix;
+#else /* OpenJpeg is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling OpenJpeg support\n");
+	  goto error;
+#endif /* end OpenJpeg conditional */
       }
 
 /* preparing the OddBlock */
@@ -2726,6 +2768,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    }
 	  else if (compression == RL2_COMPRESSION_LZMA)
 	    {
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
 		/* compressing as LZMA DeltaFilter */
 		lzma_options_lzma opt_lzma2;
 		lzma_options_delta opt_delta;
@@ -2774,9 +2817,15 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      free (lzma_buf);
 		      goto error;
 		  }
+#else /* LZMA is disabled */
+		fprintf (stderr,
+			 "librasterlite2 was built by disabling LZMA support\n");
+		goto error;
+#endif /* end LZMA conditional */
 	    }
 	  else if (compression == RL2_COMPRESSION_LZMA_NO)
 	    {
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
 		/* compressing as LZMA noDelta */
 		lzma_options_lzma opt_lzma2;
 		lzma_ret ret;
@@ -2820,6 +2869,11 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		      free (lzma_buf);
 		      goto error;
 		  }
+#else /* LZMA is disabled */
+		fprintf (stderr,
+			 "librasterlite2 was built by disabling LZMA support\n");
+		goto error;
+#endif /* end LZMA conditional */
 	    }
 	  else if (compression == RL2_COMPRESSION_PNG)
 	    {
@@ -2847,6 +2901,7 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 	    }
 	  else if (compression == RL2_COMPRESSION_CHARLS)
 	    {
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
 		/* compressing as CHARLS */
 		if (rl2_data_to_charls
 		    (pixels_even, raster->width,
@@ -2859,6 +2914,11 @@ rl2_raster_encode (rl2RasterPtr rst, int compression, unsigned char **blob_odd,
 		  }
 		else
 		    goto error;
+#else /* CharLS is disabled */
+		fprintf (stderr,
+			 "librasterlite2 was built by disabling CharLS support\n");
+		goto error;
+#endif /* end CharLS conditional */
 	    }
 	  block_even_size = 32 + compressed;
 	  block_even = malloc (block_even_size);
@@ -5117,6 +5177,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     if (compression == RL2_COMPRESSION_LZMA
 	&& uncompressed_odd != compressed_odd)
       {
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
 	  /* decompressing from LZMA DeltaFilter - ODD Block */
 	  lzma_options_lzma opt_lzma2;
 	  lzma_options_delta opt_delta;
@@ -5170,10 +5231,16 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    goto error;
 		pixels_even = even_data;
 	    }
+#else /* LZMA is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling LZMA support\n");
+	  goto error;
+#endif /* end LZMA conditional */
       }
     if (compression == RL2_COMPRESSION_LZMA_NO
 	&& uncompressed_odd != compressed_odd)
       {
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
 	  /* decompressing from LZMA noDelta - ODD Block */
 	  lzma_options_lzma opt_lzma2;
 	  lzma_filter filters[2];
@@ -5217,6 +5284,11 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    goto error;
 		pixels_even = even_data;
 	    }
+#else /* LZMA is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling LZMA support\n");
+	  goto error;
+#endif /* end LZMA conditional */
       }
     if (compression == RL2_COMPRESSION_JPEG)
       {
@@ -5257,6 +5329,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     if (compression == RL2_COMPRESSION_LOSSY_WEBP
 	|| compression == RL2_COMPRESSION_LOSSLESS_WEBP)
       {
+#ifndef OMIT_WEBP		/* only if WebP is enabled */
 	  /* decompressing from WEBP - always on the ODD Block */
 	  int ret = RL2_ERROR;
 	  switch (scale)
@@ -5293,6 +5366,11 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	  if (ret != RL2_OK)
 	      goto error;
 	  goto done;
+#else /* WebP is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling WebP support\n");
+	  goto error;
+#endif /* end WebP conditional */
       }
     if (compression == RL2_COMPRESSION_PNG)
       {
@@ -5344,6 +5422,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
       }
     if (compression == RL2_COMPRESSION_CHARLS)
       {
+#ifndef OMIT_CHARLS		/* only if CharLS is enabled */
 	  /* decompressing from CHARLS */
 	  int ret = rl2_decode_charls (pixels_odd, compressed_odd,
 				       &width, &odd_rows, &sample_type,
@@ -5363,6 +5442,11 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	    }
 	  pixels_even = even_data;
 	  goto merge;
+#else /* CharLS is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling CharLS support\n");
+	  goto error;
+#endif /* end CharLS conditional */
       }
     if (compression == RL2_COMPRESSION_CCITTFAX4)
       {
@@ -5385,6 +5469,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
     if (compression == RL2_COMPRESSION_LOSSY_JP2
 	|| compression == RL2_COMPRESSION_LOSSLESS_JP2)
       {
+#ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
 	  /* decompressing from Jpeg2000 - always on the ODD Block */
 	  int ret = RL2_ERROR;
 	  switch (scale)
@@ -5421,6 +5506,11 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	  if (ret != RL2_OK)
 	      goto error;
 	  goto done;
+#else /* OpenJpeg is disabled */
+	  fprintf (stderr,
+		   "librasterlite2 was built by disabling OpenJpeg support\n");
+	  goto error;
+#endif /* end OpenJpeg conditional */
       }
 
     if (sample_type == RL2_SAMPLE_1_BIT)

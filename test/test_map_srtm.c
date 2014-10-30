@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 #include "spatialite/gaiaaux.h"
@@ -1685,6 +1687,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -300;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1695,6 +1699,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* UINT16 tests */
     ret = -150;
@@ -1717,6 +1722,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -350;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1727,6 +1734,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* INT32 tests */
     ret = -400;
@@ -1749,6 +1757,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -600;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1759,6 +1769,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* UINT32 tests */
     ret = -450;
@@ -1781,6 +1792,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -650;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1791,6 +1804,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* FLOAT tests */
     ret = -700;
@@ -1813,6 +1827,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -900;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1823,6 +1839,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* INT8 tests */
     ret = -750;
@@ -1845,6 +1862,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -950;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1855,6 +1874,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* DOUBLE tests */
     ret = -1000;
@@ -1877,6 +1897,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -1200;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1887,6 +1909,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* UINT8 tests */
     ret = -1050;
@@ -1909,6 +1932,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -1250;
     if (!test_coverage
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_256,
@@ -1919,6 +1944,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024,
 	 no_web_connection, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all SRTM INT16 Coverages */
     ret = -130;
@@ -1937,6 +1963,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -330;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1945,6 +1973,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all SRTM UINT16 Coverages */
     ret = -180;
@@ -1964,6 +1993,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -380;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1972,6 +2003,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT16, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all INT32 Coverages */
     ret = -430;
@@ -1990,6 +2022,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -630;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1998,6 +2032,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all UINT32 Coverages */
     ret = -480;
@@ -2017,6 +2052,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -680;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -2025,6 +2062,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT32, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all FLOAT Coverages */
     ret = -740;
@@ -2043,6 +2081,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -940;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -2051,6 +2091,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_FLOAT, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all INT8 Coverages */
     ret = -780;
@@ -2069,6 +2110,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -980;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -2077,6 +2120,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_INT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all DOUBLE Coverages */
     ret = -1030;
@@ -2096,6 +2140,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -1230;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -2104,6 +2150,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_DOUBLE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* dropping all UINT8 Coverages */
     ret = -1030;
@@ -2122,6 +2169,8 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_DEFLATE, TILE_1024, &ret))
 	return ret;
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -1230;
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -2130,6 +2179,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
+#endif /* end LZMA conditional */
 
 /* closing the DB */
     sqlite3_close (db_handle);

@@ -133,6 +133,10 @@ check_coverage_self_consistency (unsigned char sample_type,
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_CCITTFAX4:
 		break;
@@ -157,6 +161,10 @@ check_coverage_self_consistency (unsigned char sample_type,
 	    {
 	    case RL2_COMPRESSION_NONE:
 	    case RL2_COMPRESSION_GIF:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
 	    case RL2_COMPRESSION_PNG:
 		break;
 	    default:
@@ -459,6 +467,50 @@ rl2_free (void *ptr)
 /* memory cleanup - generic free */
     if (ptr != NULL)
 	free (ptr);
+}
+
+RL2_DECLARE int
+rl2_is_supported_codec (unsigned char compression)
+{
+/* Testing if a given codec/compressor is actually supported by the library */
+    switch (compression)
+      {
+      case RL2_COMPRESSION_NONE:
+      case RL2_COMPRESSION_DEFLATE:
+      case RL2_COMPRESSION_DEFLATE_NO:
+      case RL2_COMPRESSION_PNG:
+      case RL2_COMPRESSION_JPEG:
+      case RL2_COMPRESSION_CCITTFAX4:
+	  return RL2_TRUE;
+      case RL2_COMPRESSION_LZMA:
+      case RL2_COMPRESSION_LZMA_NO:
+#ifndef OMIT_LZMA
+	  return RL2_TRUE;
+#else
+	  return RL2_FALSE;
+#endif
+      case RL2_COMPRESSION_LOSSY_WEBP:
+      case RL2_COMPRESSION_LOSSLESS_WEBP:
+#ifndef OMIT_WEBP
+	  return RL2_TRUE;
+#else
+	  return RL2_FALSE;
+#endif
+      case RL2_COMPRESSION_CHARLS:
+#ifndef OMIT_CHARLS
+	  return RL2_TRUE;
+#else
+	  return RL2_FALSE;
+#endif
+      case RL2_COMPRESSION_LOSSY_JP2:
+      case RL2_COMPRESSION_LOSSLESS_JP2:
+#ifndef OMIT_OPENJPEG
+	  return RL2_TRUE;
+#else
+	  return RL2_FALSE;
+#endif
+      };
+    return RL2_ERROR;
 }
 
 static int

@@ -4,4 +4,4 @@ SELECT RL2_CreateCoverage('1bit_mono_deflateno', '1-BIT', 'MONOCHROME', 1, 'DEFL
 1 # rows (not including the header row)
 1 # columns
 RL2_CreateCoverage('1bit_mono_deflateno', '1-BIT', 'MONOCHROME', 1, 'DEFLATE_NO', 100, 512, 512, 3003, 1.0, 1.0, NULL)
-0
+1

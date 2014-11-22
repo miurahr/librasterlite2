@@ -87,187 +87,211 @@ fnct_rl2_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
-fnct_rl2_has_codec_none (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_none (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_none()
 /
 / will always return 1 (TRUE)
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_NONE);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-    sqlite3_result_int (context, 1);
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_deflate (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_deflate (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_deflate()
 /
 / will always return 1 (TRUE)
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_DEFLATE);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-    sqlite3_result_int (context, 1);
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_deflate_no (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_deflate_no (sqlite3_context * context, int argc,
+			       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_deflate_no()
 /
 / will always return 1 (TRUE)
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_DEFLATE_NO);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-    sqlite3_result_int (context, 1);
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_png (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_png (sqlite3_context * context, int argc,
+			sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_png()
 /
 / will always return 1 (TRUE)
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_PNG);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-    sqlite3_result_int (context, 1);
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_jpeg (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_jpeg (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_jpeg()
 /
 / will always return 1 (TRUE)
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_JPEG);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-    sqlite3_result_int (context, 1);
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_fax4 (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_fax4 (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_fax4()
 /
 / will always return 1 (TRUE)
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_CCITTFAX4);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-    sqlite3_result_int (context, 1);
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_lzma (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_lzma (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_lzma()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_LZMA
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_LZMA);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_LZMA
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_lzma_no (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_lzma_no (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_lzma_no()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_LZMA
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_LZMA_NO);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_LZMA
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_charls (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_charls (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_charls()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_CHARLS
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_CHARLS);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_CHARLS
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_webp (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_webp (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_webp()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_WEBP
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_LOSSY_WEBP);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_WEBP
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_ll_webp (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_ll_webp (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_ll_webp()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_WEBP
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_LOSSLESS_WEBP);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_WEBP
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_jp2 (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_jp2 (sqlite3_context * context, int argc,
+			sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_jp2()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_OPENJPEG
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_LOSSY_JP2);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_OPENJPEG
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void
-fnct_rl2_has_codec_ll_jp2 (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_has_codec_ll_jp2 (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_has_codec_ll_jp2()
 /
 / will return 1 (TRUE) or 0 (FALSE) depending of OMIT_OPENJPEG
 */
+    int ret = rl2_is_supported_codec (RL2_COMPRESSION_LOSSLESS_JP2);
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
-#ifndef OMIT_OPENJPEG
-    sqlite3_result_int (context, 1);
-#else
-    sqlite3_result_int (context, 0);
-#endif
+    if (ret < 0)
+	ret = 0;
+    sqlite3_result_int (context, ret);
 }
 
 static void

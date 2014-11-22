@@ -827,6 +827,10 @@ check_encode_self_consistency (unsigned char sample_type,
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
 	    case RL2_COMPRESSION_PNG:
 	    case RL2_COMPRESSION_CCITTFAX4:
 		break;
@@ -850,6 +854,10 @@ check_encode_self_consistency (unsigned char sample_type,
 	  switch (compression)
 	    {
 	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
 	    case RL2_COMPRESSION_PNG:
 		break;
 	    default:

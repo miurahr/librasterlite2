@@ -1487,13 +1487,17 @@ exec_catalog (sqlite3 * handle)
 		if (strcmp (compression, "NONE") == 0)
 		    printf ("          Compression: NONE (uncompressed)\n");
 		else if (strcmp (compression, "DEFLATE") == 0)
-		    printf ("          Compression: DEFLATE DeltaFilter (zip, lossless)\n");
+		    printf
+			("          Compression: DEFLATE DeltaFilter (zip, lossless)\n");
 		else if (strcmp (compression, "DEFLATE_NO") == 0)
-		    printf ("          Compression: DEFLATE noDelta (zip, lossless)\n");
+		    printf
+			("          Compression: DEFLATE noDelta (zip, lossless)\n");
 		else if (strcmp (compression, "LZMA") == 0)
-		    printf ("          Compression: LZMA DeltaFilter (7-zip, lossless)\n");
+		    printf
+			("          Compression: LZMA DeltaFilter (7-zip, lossless)\n");
 		else if (strcmp (compression, "LZMA_NO") == 0)
-		    printf ("          Compression: LZMA noDelta (7-zip, lossless)\n");
+		    printf
+			("          Compression: LZMA noDelta (7-zip, lossless)\n");
 		else if (strcmp (compression, "PNG") == 0)
 		    printf ("          Compression: PNG, lossless\n");
 		else if (strcmp (compression, "JPEG") == 0)
@@ -2856,6 +2860,41 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 		fprintf (stderr, "\n");
 	    }
       }
+    if (rl2_is_supported_codec (compression) != 1)
+      {
+	  switch (compression)
+	    {
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
+		fprintf (stderr,
+			 "*** ERROR *** librasterlite2 was built by disabling LZMA support\n");
+		err = 1;
+		break;
+	    case RL2_COMPRESSION_CHARLS:
+		fprintf (stderr,
+			 "*** ERROR *** librasterlite2 was built by disabling CharLS support\n");
+		err = 1;
+		break;
+	    case RL2_COMPRESSION_LOSSY_WEBP:
+	    case RL2_COMPRESSION_LOSSLESS_WEBP:
+		fprintf (stderr,
+			 "*** ERROR *** librasterlite2 was built by disabling WebP support\n");
+		err = 1;
+		break;
+	    case RL2_COMPRESSION_LOSSY_JP2:
+	    case RL2_COMPRESSION_LOSSLESS_JP2:
+		fprintf (stderr,
+			 "*** ERROR *** librasterlite2 was built by disabling OpenJpeg support\n");
+		err = 1;
+		break;
+	    default:
+		fprintf (stderr,
+			 "*** ERROR *** unknown codec (%02x) isn't actually supported\n",
+			 compression);
+		err = 1;
+		break;
+	    };
+      }
     switch (compression)
       {
       case RL2_COMPRESSION_NONE:
@@ -2863,7 +2902,8 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_DEFLATE:
-	  printf ("          Compression: DEFLATE DeltaFilter (zip, lossless)\n");
+	  printf
+	      ("          Compression: DEFLATE DeltaFilter (zip, lossless)\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_DEFLATE_NO:
@@ -2871,7 +2911,8 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_LZMA:
-	  printf ("          Compression: LZMA DeltaFilter (7-zip, lossless)\n");
+	  printf
+	      ("          Compression: LZMA DeltaFilter (7-zip, lossless)\n");
 	  *quality = 100;
 	  break;
       case RL2_COMPRESSION_LZMA_NO:

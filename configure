@@ -4676,40 +4676,6 @@ fi
 done
 
 
-#
-# testing OpenJpeg-2 headers
-# they could be either on -/include/openjpeg-2.0
-#                   or on -/include/openjpeg-2.1
-#
-for ac_header in openjpeg-2.0/openjpeg.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "openjpeg-2.0/openjpeg.h" "ac_cv_header_openjpeg_2_0_openjpeg_h" "$ac_includes_default"
-if test "x$ac_cv_header_openjpeg_2_0_openjpeg_h" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_OPENJPEG_2_0_OPENJPEG_H 1
-_ACEOF
-
-fi
-
-done
-
-for ac_header in openjpeg-2.1/openjpeg.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "openjpeg-2.1/openjpeg.h" "ac_cv_header_openjpeg_2_1_openjpeg_h" "$ac_includes_default"
-if test "x$ac_cv_header_openjpeg_2_1_openjpeg_h" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_OPENJPEG_2_1_OPENJPEG_H 1
-_ACEOF
-
-fi
-
-done
-
-if test x"$ac_cv_header_openjpeg_2_0_openjpeg_h" != x"yes" &&
-    test x"$ac_cv_header_openjpeg_2_1_openjpeg_h" != x"yes";
-then
-    as_fn_error $? "'OpenJpeg-2' is required but the header (openjpeg.h) doesn't seem to be installed on this system" "$LINENO" 5
-fi
 
 #
 # testing GeoTiff headers
@@ -17738,7 +17704,41 @@ else
   enable_openjpeg=yes
 fi
 
-if test x"$enable_openjpeg" != "xno"; then
+    if test x"$enable_openjpeg" != "xno"; then
+    #
+    # testing OpenJpeg-2 headers
+    # they could be either on -/include/openjpeg-2.0
+    #                   or on -/include/openjpeg-2.1
+    #
+    for ac_header in openjpeg-2.0/openjpeg.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "openjpeg-2.0/openjpeg.h" "ac_cv_header_openjpeg_2_0_openjpeg_h" "$ac_includes_default"
+if test "x$ac_cv_header_openjpeg_2_0_openjpeg_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_OPENJPEG_2_0_OPENJPEG_H 1
+_ACEOF
+
+fi
+
+done
+
+    for ac_header in openjpeg-2.1/openjpeg.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "openjpeg-2.1/openjpeg.h" "ac_cv_header_openjpeg_2_1_openjpeg_h" "$ac_includes_default"
+if test "x$ac_cv_header_openjpeg_2_1_openjpeg_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_OPENJPEG_2_1_OPENJPEG_H 1
+_ACEOF
+
+fi
+
+done
+
+    if test x"$ac_cv_header_openjpeg_2_0_openjpeg_h" != x"yes" &&
+        test x"$ac_cv_header_openjpeg_2_1_openjpeg_h" != x"yes";
+    then
+        as_fn_error $? "'OpenJpeg-2' is required but the header (openjpeg.h) doesn't seem to be installed on this system" "$LINENO" 5
+    fi
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for opj_create_decompress in -lopenjp2" >&5
 $as_echo_n "checking for opj_create_decompress in -lopenjp2... " >&6; }
 if ${ac_cv_lib_openjp2_opj_create_decompress+:} false; then :

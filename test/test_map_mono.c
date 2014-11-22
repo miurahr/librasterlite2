@@ -46,6 +46,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
+
 #include "sqlite3.h"
 #include "spatialite.h"
 #include "spatialite/gaiaaux.h"
@@ -515,6 +517,34 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel,
 		      break;
 		  };
 		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "mono_deflate_256";
+		      break;
+		  case TILE_512:
+		      coverage = "mono_deflate_256_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "mono_deflate_256_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "mono_lzma_256";
+		      break;
+		  case TILE_512:
+		      coverage = "mono_lzma_256_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "mono_lzma_256_1024";
+		      break;
+		  };
+		break;
 	    };
 	  break;
       case RL2_PIXEL_PALETTE:
@@ -548,6 +578,34 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel,
 		      break;
 		  };
 		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "plt1_deflate_256";
+		      break;
+		  case TILE_512:
+		      coverage = "plt1_deflate_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "plt1_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "plt1_lzma_256";
+		      break;
+		  case TILE_512:
+		      coverage = "plt1_lzma_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "plt1_lzma_1024";
+		      break;
+		  };
+		break;
 	    };
 	  break;
       };
@@ -568,6 +626,22 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel,
       {
       case RL2_COMPRESSION_NONE:
 	  compression_name = "NONE";
+	  qlty = 100;
+	  break;
+      case RL2_COMPRESSION_DEFLATE:
+	  compression_name = "DEFLATE";
+	  qlty = 100;
+	  break;
+      case RL2_COMPRESSION_DEFLATE_NO:
+	  compression_name = "DEFLATE_NO";
+	  qlty = 100;
+	  break;
+      case RL2_COMPRESSION_LZMA:
+	  compression_name = "LZMA";
+	  qlty = 100;
+	  break;
+      case RL2_COMPRESSION_LZMA_NO:
+	  compression_name = "LZMA_NO";
 	  qlty = 100;
 	  break;
       case RL2_COMPRESSION_PNG:
@@ -911,6 +985,34 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel,
 		      break;
 		  };
 		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "mono_deflate_256";
+		      break;
+		  case TILE_512:
+		      coverage = "mono_deflate_256_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "mono_deflate_256_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "mono_lzma_256";
+		      break;
+		  case TILE_512:
+		      coverage = "mono_lzma_256_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "mono_lzma_256_1024";
+		      break;
+		  };
+		break;
 	    };
 	  break;
       case RL2_PIXEL_PALETTE:
@@ -941,6 +1043,34 @@ drop_coverage (sqlite3 * sqlite, unsigned char pixel,
 		      break;
 		  case TILE_1024:
 		      coverage = "plt1_png_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_DEFLATE:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "plt1_deflate_256";
+		      break;
+		  case TILE_512:
+		      coverage = "plt1_deflate_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "plt1_deflate_1024";
+		      break;
+		  };
+		break;
+	    case RL2_COMPRESSION_LZMA:
+		switch (tile_sz)
+		  {
+		  case TILE_256:
+		      coverage = "plt1_lzma_256";
+		      break;
+		  case TILE_512:
+		      coverage = "plt1_lzma_512";
+		      break;
+		  case TILE_1024:
+		      coverage = "plt1_lzma_1024";
 		      break;
 		  };
 		break;
@@ -1055,6 +1185,37 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_1024,
 	 &ret))
 	return ret;
+    ret = -360;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 &ret))
+	return ret;
+    ret = -380;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_512,
+	 &ret))
+	return ret;
+    ret = -390;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
+	return ret;
+	
+#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+    ret = -410;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -420;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+	return ret;
+    ret = -420;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_1024,
+	 &ret))
+	return ret;
+#endif	/* end LZMA conditional */
 
 /* PALETTE tests */
     ret = -400;
@@ -1081,6 +1242,34 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
+    ret = -560;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -580;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
+	return ret;
+    ret = -600;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
+	return ret;
+	
+#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+    ret = -620;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -640;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+	return ret;
+    ret = -660;
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+#endif	/* end LZMA conditional */
 
 /* dropping all MONOCHROME Coverages */
     ret = -170;
@@ -1123,6 +1312,37 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_CCITTFAX4, TILE_1024,
 	 &ret))
 	return ret;
+    ret = -400;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_256,
+	 &ret))
+	return ret;
+    ret = -410;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_512,
+	 &ret))
+	return ret;
+    ret = -420;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
+	return ret;
+	
+#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+    ret = -430;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -440;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+	return ret;
+    ret = -450;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_1024,
+	 &ret))
+	return ret;
+#endif	/* end LZMA conditional */
 
 /* dropping all PALETTE Coverages */
     ret = -470;
@@ -1149,6 +1369,34 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
+    ret = -600;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_256, &ret))
+	return ret;
+    ret = -610;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_512, &ret))
+	return ret;
+    ret = -620;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_1024,
+	 &ret))
+	return ret;
+	
+#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+    ret = -630;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
+	return ret;
+    ret = -640;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_512, &ret))
+	return ret;
+    ret = -650;
+    if (!drop_coverage
+	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
+	return ret;
+#endif	/* end LZMA conditional */
 
 /* closing the DB */
     sqlite3_close (db_handle);

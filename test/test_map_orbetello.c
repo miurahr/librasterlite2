@@ -71,7 +71,7 @@ execute_with_retval (sqlite3 * sqlite, const char *sql)
 	return SQLITE_ERROR;
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	  retcode = sqlite3_column_int (stmt, 0);
+	retcode = sqlite3_column_int (stmt, 0);
     sqlite3_finalize (stmt);
     return retcode;
 }
@@ -2122,111 +2122,118 @@ main (int argc, char *argv[])
     ret = -390;
     if (!drop_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
-	
+
 /* testing HasCodec functions */
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_none()");
-	if (ret != 1)
-	{
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_none()");
+    if (ret != 1)
+      {
 	  fprintf (stderr, "rl2_has_codec_none() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_deflate()");
-	if (ret != 1)
-	{
-	  fprintf (stderr, "rl2_has_codec_deflate() unexpected result: %d\n", ret);
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_deflate()");
+    if (ret != 1)
+      {
+	  fprintf (stderr, "rl2_has_codec_deflate() unexpected result: %d\n",
+		   ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_deflate_no()");
-	if (ret != 1)
-	{
-	  fprintf (stderr, "rl2_has_codec_deflate_no() unexpected result: %d\n", ret);
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_deflate_no()");
+    if (ret != 1)
+      {
+	  fprintf (stderr, "rl2_has_codec_deflate_no() unexpected result: %d\n",
+		   ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_png()");
-	if (ret != 1)
-	{
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_png()");
+    if (ret != 1)
+      {
 	  fprintf (stderr, "rl2_has_codec_png() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_jpeg()");
-	if (ret != 1)
-	{
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_jpeg()");
+    if (ret != 1)
+      {
 	  fprintf (stderr, "rl2_has_codec_jpeg() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_fax4()");
-	if (ret != 1)
-	{
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_fax4()");
+    if (ret != 1)
+      {
 	  fprintf (stderr, "rl2_has_codec_fax4() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	
+      }
+
 #ifndef OMIT_LZMA
-	result = 1;
+    result = 1;
 #else
-	result = 0;
-#endif;
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_lzma()");
-	if (ret != result)
-	{
+    result = 0;
+#endif /* ; */
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_lzma()");
+    if (ret != result)
+      {
 	  fprintf (stderr, "rl2_has_codec_lzma() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_lzma_no()");
-	if (ret != result)
-	{
-	  fprintf (stderr, "rl2_has_codec_lzma_no() unexpected result: %d\n", ret);
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_lzma_no()");
+    if (ret != result)
+      {
+	  fprintf (stderr, "rl2_has_codec_lzma_no() unexpected result: %d\n",
+		   ret);
 	  return -1;
-	}
-	
+      }
+
 #ifndef OMIT_CHARLS
-	result = 1;
+    result = 1;
 #else
-	result = 0;
-#endif;
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_charls()");
-	if (ret != result)
-	{
-	  fprintf (stderr, "rl2_has_codec_charls() unexpected result: %d\n", ret);
+    result = 0;
+#endif /* ; */
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_charls()");
+    if (ret != result)
+      {
+	  fprintf (stderr, "rl2_has_codec_charls() unexpected result: %d\n",
+		   ret);
 	  return -1;
-	}
-	
+      }
+
 #ifndef OMIT_WEBP
-	result = 1;
+    result = 1;
 #else
-	result = 0;
-#endif;
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_webp()");
-	if (ret != result)
-	{
+    result = 0;
+#endif /* ; */
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_webp()");
+    if (ret != result)
+      {
 	  fprintf (stderr, "rl2_has_codec_webp() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_ll_webp()");
-	if (ret != result)
-	{
-	  fprintf (stderr, "rl2_has_codec_ll_webp() unexpected result: %d\n", ret);
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_ll_webp()");
+    if (ret != result)
+      {
+	  fprintf (stderr, "rl2_has_codec_ll_webp() unexpected result: %d\n",
+		   ret);
 	  return -1;
-	}
-	
+      }
+
 #ifndef OMIT_OPENJPEG
-	result = 1;
+    result = 1;
 #else
-	result = 0;
-#endif;
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_jp2()");
-	if (ret != result)
-	{
+    result = 0;
+#endif /* ; */
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_jp2()");
+    if (ret != result)
+      {
 	  fprintf (stderr, "rl2_has_codec_jp2() unexpected result: %d\n", ret);
 	  return -1;
-	}
-	ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_ll_jp2()");
-	if (ret != result)
-	{
-	  fprintf (stderr, "rl2_has_codec_ll_jp2() unexpected result: %d\n", ret);
+      }
+    ret = execute_with_retval (db_handle, "SELECT rl2_has_codec_ll_jp2()");
+    if (ret != result)
+      {
+	  fprintf (stderr, "rl2_has_codec_ll_jp2() unexpected result: %d\n",
+		   ret);
 	  return -1;
-	}
+      }
 
+    result = 0;
 /* closing the DB */
     sqlite3_close (db_handle);
     spatialite_shutdown ();

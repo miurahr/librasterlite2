@@ -3641,6 +3641,34 @@ check_geographic_srid (sqlite3 * handle, int srid)
     return 0;
 }
 
+static int
+unsupported_codec (const char *compression)
+{
+/* testing for unsupported optional codecs */
+    if (strcasecmp (compression, "LZMA") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_LZMA) != 1)
+	return 1;
+    if (strcasecmp (compression, "LZMA_NO") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_LZMA_NO) != 1)
+	return 1;
+    if (strcasecmp (compression, "CHARLS") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_CHARLS) != 1)
+	return 1;
+    if (strcasecmp (compression, "WEBP") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_LOSSY_WEBP) != 1)
+	return 1;
+    if (strcasecmp (compression, "LL_WEBP") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_LOSSLESS_WEBP) != 1)
+	return 1;
+    if (strcasecmp (compression, "JP2") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_LOSSY_JP2) != 1)
+	return 1;
+    if (strcasecmp (compression, "LL_JP2") == 0
+	&& rl2_is_supported_codec (RL2_COMPRESSION_LOSSLESS_JP2) != 1)
+	return 1;
+    return 0;
+}
+
 static struct wms_layer *
 load_layer (sqlite3 * handle, sqlite3_stmt * stmt)
 {
@@ -3657,7 +3685,10 @@ load_layer (sqlite3 * handle, sqlite3_stmt * stmt)
     double miny = sqlite3_column_double (stmt, 8);
     double maxx = sqlite3_column_double (stmt, 9);
     double maxy = sqlite3_column_double (stmt, 10);
+    const char *compression = (const char *) sqlite3_column_text (stmt, 11);
     int is_geographic = check_geographic_srid (handle, srid);
+    if (unsupported_codec (compression))
+	return NULL;
     if (strcmp (sample_type, "1-BIT") == 0
 	&& strcmp (pixel_type, "MONOCHROME") == 0 && num_bands == 1)
 	lyr =
@@ -3782,7 +3813,8 @@ get_raster_coverages (sqlite3 * handle)
 
 /* loading all layers */
     sql = "SELECT coverage_name, title, abstract, sample_type, "
-	"pixel_type, num_bands, srid, extent_minx, extent_miny, extent_maxx, extent_maxy "
+	"pixel_type, num_bands, srid, extent_minx, extent_miny, "
+	"extent_maxx, extent_maxy, compression "
 	"FROM raster_coverages "
 	"WHERE extent_minx IS NOT NULL AND extent_miny IS NOT NULL "
 	"AND extent_maxx IS NOT NULL AND extent_maxy IS NOT NULL";

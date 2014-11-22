@@ -447,6 +447,16 @@ extern "C"
     RL2_DECLARE void rl2_init (sqlite3 * db_handle, int verbose);
 
 /**
+ Testing if a given codec/compressor is actually supported by the library
+
+ \param compression e.g. RL2_COMPRESSION_NONE or RL2_COMPRESSION_DEFLATE
+ 
+ \return  RL2_TRUE or RL2_FALSE on success: RL2_ERROR on invalid/unknown
+ compriosson.
+ */
+    RL2_DECLARE int rl2_is_supported_codec (unsigned char compression);
+
+/**
  Allocates and initializes a new Pixel object
 
  \param sample_type one of RL2_SAMPLE_1_BIT, RL2_SAMPLE_2_BIT, RL2_SAMPLE_4_BIT,

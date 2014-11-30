@@ -1276,7 +1276,7 @@ insert_wms_tile (InsertWmsPtr ptr, int *first,
     if (!do_insert_wms_tile
 	(ptr->sqlite, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
 	 *section_id, ptr->srid, ptr->horz_res, ptr->vert_res, ptr->tile_width,
-	 ptr->tile_height, ptr->minx, ptr->maxy, tile_minx, tile_miny,
+	 ptr->tile_height, ptr->miny, ptr->maxx, tile_minx, tile_miny,
 	 tile_maxx, tile_maxy, NULL, ptr->no_data, ptr->stmt_tils,
 	 ptr->stmt_data, *section_stats))
 	goto error;

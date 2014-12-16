@@ -118,7 +118,6 @@ AC_CONFIG_FILES([Makefile \
 		test/sql_stmt_tests/Makefile \
 		test/sql_stmt_security_tests/Makefile \
 		tools/Makefile \
-		examples/Makefile \
 		Doxyfile \
 		rasterlite2.pc])
 
@@ -130,7 +129,7 @@ AC_DEFINE_UNQUOTED([TARGET_CPU], ["$rl2_cpu"])
 AC_CHECK_LIB(sqlite3,sqlite3_prepare_v2,,AC_MSG_ERROR(['libsqlite3' is required but it doesn't seem to be installed on this system.]),-lm)
 AC_CHECK_LIB(z,inflateInit_,,AC_MSG_ERROR(['libz' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(jpeg,jpeg_start_compress,,AC_MSG_ERROR(['libjpeg' is required but it doesn't seems to be installed on this system.]),-lm)
-AC_CHECK_LIB(gif,DGifSlurp,,AC_MSG_ERROR(['libpng' is required but it doesn't seems to be installed on this system.]),-lm)
+AC_CHECK_LIB(gif,DGifSlurp,,AC_MSG_ERROR(['libgif' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(tiff,TIFFClientOpen,,AC_MSG_ERROR(['libtiff' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(geotiff,GTIFSetFromProj4,,AC_MSG_ERROR(['libgeotiff' [>= v.1.2.5] is required but it doesn't seems to be installed on this system.]),-lm)
 

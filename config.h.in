@@ -58,9 +58,6 @@
    zero-length file name argument. */
 #undef HAVE_LSTAT_EMPTY_STRING_BUG
 
-/* Define to 1 if you have the <lzma.h> header file. */
-#undef HAVE_LZMA_H
-
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
 

@@ -4661,20 +4661,6 @@ fi
 
 done
 
-for ac_header in lzma.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "lzma.h" "ac_cv_header_lzma_h" "$ac_includes_default"
-if test "x$ac_cv_header_lzma_h" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LZMA_H 1
-_ACEOF
-
-else
-  as_fn_error $? "cannot find lzma.h, bailing out" "$LINENO" 5
-fi
-
-done
-
 
 
 #
@@ -17206,7 +17192,7 @@ if test "x$enable_gcov" = "xyes"; then
     GCOV_FLAGS="-lgcov"
 fi
 
-ac_config_files="$ac_config_files Makefile headers/Makefile src/Makefile test/Makefile test/sql_stmt_tests/Makefile test/sql_stmt_security_tests/Makefile tools/Makefile examples/Makefile Doxyfile rasterlite2.pc"
+ac_config_files="$ac_config_files Makefile headers/Makefile src/Makefile test/Makefile test/sql_stmt_tests/Makefile test/sql_stmt_security_tests/Makefile tools/Makefile Doxyfile rasterlite2.pc"
 
 
 # exporting the TARGET_CPU string
@@ -17402,7 +17388,7 @@ _ACEOF
   LIBS="-lgif $LIBS"
 
 else
-  as_fn_error $? "'libpng' is required but it doesn't seems to be installed on this system." "$LINENO" 5
+  as_fn_error $? "'libgif' is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for TIFFClientOpen in -ltiff" >&5
@@ -19512,7 +19498,6 @@ do
     "test/sql_stmt_tests/Makefile") CONFIG_FILES="$CONFIG_FILES test/sql_stmt_tests/Makefile" ;;
     "test/sql_stmt_security_tests/Makefile") CONFIG_FILES="$CONFIG_FILES test/sql_stmt_security_tests/Makefile" ;;
     "tools/Makefile") CONFIG_FILES="$CONFIG_FILES tools/Makefile" ;;
-    "examples/Makefile") CONFIG_FILES="$CONFIG_FILES examples/Makefile" ;;
     "Doxyfile") CONFIG_FILES="$CONFIG_FILES Doxyfile" ;;
     "rasterlite2.pc") CONFIG_FILES="$CONFIG_FILES rasterlite2.pc" ;;
 

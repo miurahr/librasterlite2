@@ -5346,10 +5346,12 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
     char *title = NULL;
     char *abstract = NULL;
     unsigned char *xml = NULL;
+    int done = 0;
 
-    sql = "SELECT style_name, XB_GetTitle(style), XB_GetAbstract(style), "
-	"XB_GetDocument(style) FROM SE_raster_styled_layers "
-	"WHERE Lower(coverage_name) = Lower(?) AND Lower(style_name) = Lower(?)";
+    sql = "SELECT s.style_name, XB_GetTitle(s.style), XB_GetAbstract(s.style), "
+	"XB_GetDocument(s.style) FROM SE_raster_styled_layers AS r "
+	"JOIN SE_raster_styles AS s ON (r.style_id = s.style_id) "
+	"WHERE Lower(r.coverage_name) = Lower(?) AND Lower(s.style_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -5371,33 +5373,38 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
 		int len;
 		const char *str;
 		const unsigned char *ustr;
-		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+		if (!done)
 		  {
-		      str = (const char *) sqlite3_column_text (stmt, 0);
-		      len = strlen (str);
-		      name = malloc (len + 1);
-		      strcpy (name, str);
-		  }
-		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
-		  {
-		      str = (const char *) sqlite3_column_text (stmt, 1);
-		      len = strlen (str);
-		      title = malloc (len + 1);
-		      strcpy (title, str);
-		  }
-		if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
-		  {
-		      str = (const char *) sqlite3_column_text (stmt, 2);
-		      len = strlen (str);
-		      abstract = malloc (len + 1);
-		      strcpy (abstract, str);
-		  }
-		if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
-		  {
-		      ustr = sqlite3_column_text (stmt, 3);
-		      len = strlen ((const char *) ustr);
-		      xml = malloc (len + 1);
-		      strcpy ((char *) xml, (const char *) ustr);
+		      /* reteiving just the first reference in case of duplicates */
+		      done = 1;
+		      if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+			{
+			    str = (const char *) sqlite3_column_text (stmt, 0);
+			    len = strlen (str);
+			    name = malloc (len + 1);
+			    strcpy (name, str);
+			}
+		      if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+			{
+			    str = (const char *) sqlite3_column_text (stmt, 1);
+			    len = strlen (str);
+			    title = malloc (len + 1);
+			    strcpy (title, str);
+			}
+		      if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
+			{
+			    str = (const char *) sqlite3_column_text (stmt, 2);
+			    len = strlen (str);
+			    abstract = malloc (len + 1);
+			    strcpy (abstract, str);
+			}
+		      if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
+			{
+			    ustr = sqlite3_column_text (stmt, 3);
+			    len = strlen ((const char *) ustr);
+			    xml = malloc (len + 1);
+			    strcpy ((char *) xml, (const char *) ustr);
+			}
 		  }
 	    }
 	  else
@@ -5489,9 +5496,10 @@ test_named_style (sqlite3 * handle, const char *namedLayer,
     int ok = 0;
 /* testing if the Layer Style exists */
     char *sql =
-	sqlite3_mprintf ("SELECT style_name FROM SE_raster_styled_layers "
-			 "WHERE Lower(coverage_name) = Lower(%Q) AND "
-			 "Lower(style_name) = Lower(%Q)", namedLayer,
+	sqlite3_mprintf ("SELECT style_name FROM SE_raster_styled_layers AS r "
+			 "JOIN SE_raster_styles AS s ON (r.style_id = s.style_id) "
+			 "WHERE Lower(r.coverage_name) = Lower(%Q) AND "
+			 "Lower(s.style_name) = Lower(%Q)", namedLayer,
 			 namedStyle);
     ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
     sqlite3_free (sql);
@@ -5518,10 +5526,12 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
     unsigned char *xml = NULL;
     rl2PrivGroupStylePtr grp_stl;
     rl2PrivChildStylePtr child;
+    int done = 0;
 
-    sql = "SELECT style_name, XB_GetTitle(style), XB_GetAbstract(style), "
-	"XB_GetDocument(style) FROM SE_group_styles "
-	"WHERE Lower(group_name) = Lower(?) AND Lower(style_name) = Lower(?)";
+    sql = "SELECT s.style_name, XB_GetTitle(s.style), XB_GetAbstract(s.style), "
+	"XB_GetDocument(s.style) FROM SE_styled_group_styles AS g "
+	"JOIN SE_group_styles AS s ON (g.style_id = s.style_id) "
+	"WHERE Lower(g.group_name) = Lower(?) AND Lower(s.style_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -5543,33 +5553,38 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
 		int len;
 		const char *str;
 		const unsigned char *ustr;
-		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+		if (!done)
 		  {
-		      str = (const char *) sqlite3_column_text (stmt, 0);
-		      len = strlen (str);
-		      name = malloc (len + 1);
-		      strcpy (name, str);
-		  }
-		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
-		  {
-		      str = (const char *) sqlite3_column_text (stmt, 1);
-		      len = strlen (str);
-		      title = malloc (len + 1);
-		      strcpy (title, str);
-		  }
-		if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
-		  {
-		      str = (const char *) sqlite3_column_text (stmt, 2);
-		      len = strlen (str);
-		      abstract = malloc (len + 1);
-		      strcpy (abstract, str);
-		  }
-		if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
-		  {
-		      ustr = sqlite3_column_text (stmt, 3);
-		      len = strlen ((const char *) ustr);
-		      xml = malloc (len + 1);
-		      strcpy ((char *) xml, (const char *) ustr);
+		      /* retrieving just the first reference in case of duplicates */
+		      done = 1;
+		      if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+			{
+			    str = (const char *) sqlite3_column_text (stmt, 0);
+			    len = strlen (str);
+			    name = malloc (len + 1);
+			    strcpy (name, str);
+			}
+		      if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+			{
+			    str = (const char *) sqlite3_column_text (stmt, 1);
+			    len = strlen (str);
+			    title = malloc (len + 1);
+			    strcpy (title, str);
+			}
+		      if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
+			{
+			    str = (const char *) sqlite3_column_text (stmt, 2);
+			    len = strlen (str);
+			    abstract = malloc (len + 1);
+			    strcpy (abstract, str);
+			}
+		      if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
+			{
+			    ustr = sqlite3_column_text (stmt, 3);
+			    len = strlen ((const char *) ustr);
+			    xml = malloc (len + 1);
+			    strcpy ((char *) xml, (const char *) ustr);
+			}
 		  }
 	    }
 	  else

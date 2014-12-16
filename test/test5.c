@@ -18,7 +18,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -661,13 +661,13 @@ main (int argc, char *argv[])
     int blob_odd_sz_gif;
     unsigned char *blob_even_gif;
     int blob_even_sz_gif;
-    
-#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     unsigned char *blob_odd_lzma;
     int blob_odd_sz_lzma;
     unsigned char *blob_even_lzma;
     int blob_even_sz_lzma;
-#endif	/* end LZMA conditional */
+#endif /* end LZMA conditional */
 
     int endian = naturalEndian ();
     rl2PalettePtr palette;
@@ -754,7 +754,7 @@ main (int argc, char *argv[])
       }
     free (blob_odd_zip);
 
-#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_LZMA, &blob_odd_lzma, &blob_odd_sz_lzma,
 	 &blob_even_lzma, &blob_even_sz_lzma, 0, endian) != RL2_OK)
@@ -772,7 +772,7 @@ main (int argc, char *argv[])
 	  return -110;
       }
     free (blob_odd_lzma);
-#endif	/* end LZMA conditional */
+#endif /* end LZMA conditional */
 
     if (rl2_raster_encode
 	(raster, RL2_COMPRESSION_PNG, &blob_odd_png, &blob_odd_sz_png,

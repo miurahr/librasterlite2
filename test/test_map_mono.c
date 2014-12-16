@@ -18,7 +18,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -1200,8 +1200,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
-	
-#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -410;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1215,7 +1215,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_1024,
 	 &ret))
 	return ret;
-#endif	/* end LZMA conditional */
+#endif /* end LZMA conditional */
 
 /* PALETTE tests */
     ret = -400;
@@ -1255,8 +1255,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
-	
-#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -620;
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1269,7 +1269,7 @@ main (int argc, char *argv[])
     if (!test_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
-#endif	/* end LZMA conditional */
+#endif /* end LZMA conditional */
 
 /* dropping all MONOCHROME Coverages */
     ret = -170;
@@ -1327,8 +1327,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
-	
-#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -430;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1342,7 +1342,7 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_MONOCHROME, RL2_COMPRESSION_LZMA, TILE_1024,
 	 &ret))
 	return ret;
-#endif	/* end LZMA conditional */
+#endif /* end LZMA conditional */
 
 /* dropping all PALETTE Coverages */
     ret = -470;
@@ -1382,8 +1382,8 @@ main (int argc, char *argv[])
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_DEFLATE, TILE_1024,
 	 &ret))
 	return ret;
-	
-#ifndef OMIT_LZMA	/* only if LZMA is enabled */
+
+#ifndef OMIT_LZMA		/* only if LZMA is enabled */
     ret = -630;
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_256, &ret))
@@ -1396,7 +1396,7 @@ main (int argc, char *argv[])
     if (!drop_coverage
 	(db_handle, RL2_PIXEL_PALETTE, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
-#endif	/* end LZMA conditional */
+#endif /* end LZMA conditional */
 
 /* closing the DB */
     sqlite3_close (db_handle);

@@ -18,7 +18,7 @@ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
 for the specific language governing rights and limitations under the
 License.
 
-The Original Code is the SpatiaLite library
+The Original Code is the RasterLite2 library
 
 The Initial Developer of the Original Code is Alessandro Furieri
  
@@ -893,7 +893,7 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 
 static int
 test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
-	       int no_web_connection, int *retcode)
+	       int *retcode)
 {
 /* testing some DBMS Coverage */
     int ret;
@@ -1263,14 +1263,9 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	goto skip;
 
 /* loading the RasterSymbolizers */
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "ir_false_color2.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "ir_false_color2.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 1)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1281,32 +1276,9 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  *retcode += -42;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "ir_false_color2_gamma.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "ir_false_color2_gamma.xml");
-    ret = execute_check (sqlite, sql);
-    sqlite3_free (sql);
-    if (ret != SQLITE_OK)
-      {
-	  fprintf (stderr, "RegisterRasterStyledLayer #1 \"%s\" error: %s\n",
-		   coverage, err_msg);
-	  sqlite3_free (err_msg);
-	  *retcode += -43;
-	  return 0;
-      }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "ir_gray.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "ir_gray.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 2)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1314,17 +1286,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #2 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -44;
+	  *retcode += -43;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "ir_gray_gamma.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "ir_gray_gamma.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 3)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1332,17 +1299,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #3 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -45;
+	  *retcode += -44;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "rgb_histogram.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "rgb_histogram.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 4)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1350,17 +1312,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #4 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -46;
+	  *retcode += -45;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "rgb_normalize.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "rgb_normalize.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 5)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1368,17 +1325,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #5 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -47;
+	  *retcode += -46;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "rgb_normalize2.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "rgb_normalize2.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 6)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1386,17 +1338,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #6 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -48;
+	  *retcode += -47;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "rgb_histogram2.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "rgb_histogram2.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 7)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1404,17 +1351,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #7 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -50;
+	  *retcode += -48;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "rgb_gamma.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "rgb_gamma.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 8)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1422,17 +1364,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #8 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -51;
+	  *retcode += -50;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "gray_normalize2.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "gray_normalize2.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 9)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1440,17 +1377,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #9 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -52;
+	  *retcode += -51;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "gray_histogram2.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "gray_histogram2.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 10)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1458,22 +1390,30 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "RegisterRasterStyledLayer #10 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -53;
+	  *retcode += -52;
 	  return 0;
       }
-    if (no_web_connection)
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1))", coverage,
-			       "gray_gamma2.xml");
-    else
-	sql = sqlite3_mprintf ("SELECT RegisterRasterStyledLayer(%Q, "
-			       "XB_Create(XB_LoadXML(%Q), 1, 1))", coverage,
-			       "gray_gamma2.xml");
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 11)",
+			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "RegisterRasterStyledLayer #11 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -53;
+	  return 0;
+      }
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 12)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #12 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -54;
@@ -1879,6 +1819,248 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 }
 
 static int
+register_raster_symbolizers (sqlite3 * sqlite, int no_web_connection,
+			     int *retcode)
+{
+/* loading the RasterSymbolizers */
+    int ret;
+    char *err_msg = NULL;
+    char *sql;
+
+
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "ir_false_color2.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "ir_false_color2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #1 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "ir_false_color2_gamma.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "ir_false_color2_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #2 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -2;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "ir_gray.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "ir_gray.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #3 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -3;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "ir_gray_gamma.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "ir_gray_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #4 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -4;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "rgb_histogram.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "rgb_histogram.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #5 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -5;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "rgb_normalize.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "rgb_normalize.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #6 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -6;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "rgb_normalize2.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "rgb_normalize2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #7 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -7;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "rgb_histogram2.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "rgb_histogram2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #8 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -8;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "rgb_gamma.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "rgb_gamma.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #9 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -9;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "gray_normalize2.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "gray_normalize2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #10 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -10;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "gray_histogram2.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "gray_histogram2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #11 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -11;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "gray_gamma2.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "gray_gamma2.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #12 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -12;
+	  return 0;
+      }
+
+    return 1;
+}
+
+static int
 drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	       int *retcode)
 {
@@ -2038,54 +2220,47 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr, "CreateStylingTables() error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
-	  return 4;
+	  return -4;
+      }
+    if (!register_raster_symbolizers (db_handle, no_web_connection, &ret))
+      {
+	  fprintf (stderr, "Register Raster Symbolizers error\n");
+	  return -5;
       }
 
 /* tests */
 #ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -100;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_CHARLS, TILE_256, no_web_connection, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
 	return ret;
     ret = -120;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_CHARLS, TILE_512, no_web_connection, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
 	return ret;
     ret = -140;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, no_web_connection, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
 	return ret;
 #endif /* end CharLS conditional */
 
 #ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -200;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, no_web_connection,
-	 &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, &ret))
 	return ret;
     ret = -220;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_512, no_web_connection,
-	 &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_512, &ret))
 	return ret;
     ret = -240;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, no_web_connection,
-	 &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, &ret))
 	return ret;
 #endif /* end OpenJpeg conditional */
 
     ret = -300;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_PNG, TILE_256, no_web_connection, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
 	return ret;
     ret = -320;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_PNG, TILE_512, no_web_connection, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_512, &ret))
 	return ret;
     ret = -340;
-    if (!test_coverage
-	(db_handle, RL2_COMPRESSION_PNG, TILE_1024, no_web_connection, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
 	return ret;
 
 /* dropping all Coverages */

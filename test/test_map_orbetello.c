@@ -825,7 +825,7 @@ do_export_map_image (sqlite3 * sqlite, const char *coverage,
 			 monolithic ? "mono" : "sect", style, suffix);
 
     sql =
-	"SELECT BlobToFile(RL2_GetMapImage(?, ST_Buffer(?, 2000), ?, ?, ?, ?, ?, ?), ?)";
+	"SELECT BlobToFile(RL2_GetMapImageFromRaster(?, ST_Buffer(?, 2000), ?, ?, ?, ?, ?, ?), ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -990,7 +990,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
       };
 
 /* creating the DBMS Coverage */
-    sql = sqlite3_mprintf ("SELECT RL2_CreateCoverage("
+    sql = sqlite3_mprintf ("SELECT RL2_CreateRasterCoverage("
 			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %1.2f, %1.2f)",
 			   coverage, sample_name, pixel_name, num_bands,
 			   compression_name, qlty, tile_size, tile_size, 32632,
@@ -999,7 +999,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateCoverage \"%s\" error: %s\n", coverage,
+	  fprintf (stderr, "CreateRasterCoverage \"%s\" error: %s\n", coverage,
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -1;
@@ -2119,26 +2119,26 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 
 /* setting a Title and Abstract for this DBMS Coverage */
     sql =
-	sqlite3_mprintf ("SELECT RL2_SetCoverageInfos(%Q, %Q, %Q)", coverage,
-			 "this is a tile", "this is an abstact");
+	sqlite3_mprintf ("SELECT RL2_SetRasterCoverageInfos(%Q, %Q, %Q)",
+			 coverage, "this is a tile", "this is an abstact");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "SetCoverageInfos \"%s\" error: %s\n", coverage,
-		   err_msg);
+	  fprintf (stderr, "SetRasterCoverageInfos \"%s\" error: %s\n",
+		   coverage, err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -1;
 	  return 0;
       }
 
 /* dropping the DBMS Coverage */
-    sql = sqlite3_mprintf ("SELECT RL2_DropCoverage(%Q, 1)", coverage);
+    sql = sqlite3_mprintf ("SELECT RL2_DropRasterCoverage(%Q, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "DropCoverage \"%s\" error: %s\n", coverage,
+	  fprintf (stderr, "DropRasterCoverage \"%s\" error: %s\n", coverage,
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -1;

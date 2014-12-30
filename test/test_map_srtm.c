@@ -317,7 +317,7 @@ do_export_map_image (sqlite3 * sqlite, const char *coverage,
     path = sqlite3_mprintf ("./%s_map_%s.%s", coverage, style, suffix);
 
     sql =
-	"SELECT BlobToFile(RL2_GetMapImage(?, ST_Buffer(?, 0.65), ?, ?, ?, ?, ?, ?), ?)";
+	"SELECT BlobToFile(RL2_GetMapImageFromRaster(?, ST_Buffer(?, 0.65), ?, ?, ?, ?, ?, ?), ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -774,7 +774,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
       };
 
 /* creating the DBMS Coverage */
-    sql = sqlite3_mprintf ("SELECT RL2_CreateCoverage("
+    sql = sqlite3_mprintf ("SELECT RL2_CreateRasterCoverage("
 			   "%Q, %Q, %Q, %d, %Q, %d, %d, %d, %d, %1.8f, %1.8f, "
 			   "RL2_SetPixelValue(RL2_CreatePixel(%Q, %Q, 1), 0, 0))",
 			   coverage, sample_name, pixel_name, num_bands,
@@ -785,7 +785,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateCoverage \"%s\" error: %s\n", coverage,
+	  fprintf (stderr, "CreateRasterCoverage \"%s\" error: %s\n", coverage,
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -1;
@@ -1016,11 +1016,10 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 			 coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
-    if (ret != SQLITE_OK)
+    if (ret == SQLITE_OK)
       {
 	  fprintf (stderr, "RegisterRasterStyledLayer #9 \"%s\" error: %s\n",
-		   coverage, err_msg);
-	  sqlite3_free (err_msg);
+		   "expected failure");
 	  *retcode += -26;
 	  return 0;
       }
@@ -1336,19 +1335,19 @@ register_raster_symbolizers (sqlite3 * sqlite, int no_web_connection,
     if (no_web_connection)
 	sql =
 	    sqlite3_mprintf
-	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1), 1)",
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
 	     "gray_histogram.xml");
     else
 	sql =
 	    sqlite3_mprintf
-	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1), 1)",
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
 	     "gray_histogram.xml");
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
-    if (ret != SQLITE_OK)
+    if (ret == SQLITE_OK)
       {
-	  fprintf (stderr, "RegisterRasterStyle #6 error: %s\n", err_msg);
-	  sqlite3_free (err_msg);
+	  fprintf (stderr, "RegisterRasterStyle #6 error: %s\n",
+		   "expected failure");
 	  *retcode += -6;
 	  return 0;
       }
@@ -1733,12 +1732,12 @@ drop_coverage (sqlite3 * sqlite, unsigned char sample,
       };
 
 /* dropping the DBMS Coverage */
-    sql = sqlite3_mprintf ("SELECT RL2_DropCoverage(%Q, 1)", coverage);
+    sql = sqlite3_mprintf ("SELECT RL2_DropRasterCoverage(%Q, 1)", coverage);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "DropCoverage \"%s\" error: %s\n", coverage,
+	  fprintf (stderr, "DropRasterCoverage \"%s\" error: %s\n", coverage,
 		   err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -1;

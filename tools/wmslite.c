@@ -753,7 +753,7 @@ connection_init (struct read_connection *conn, const char *path)
 
 /* creating the GetMap SQL statement */
     sql =
-	"SELECT RL2_GetMapImage(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_GetMapImageFromRaster(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -3817,7 +3817,7 @@ get_raster_coverages (sqlite3 * handle)
     sqlite3_finalize (stmt);
 
 /* loading layer groups */
-    sql = "SELECT g.group_name, g.title, g.abstract, c.coverage_name "
+    sql = "SELECT g.group_name, g.title, g.abstract, c.raster_coverage_name "
 	"FROM SE_styled_groups AS g "
 	"LEFT JOIN  SE_styled_group_refs AS c ON (g.group_name = c.group_name) "
 	"ORDER BY c.paint_order";

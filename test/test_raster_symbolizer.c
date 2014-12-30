@@ -1606,33 +1606,35 @@ main (int argc, char *argv[])
 	  return -3;
       }
     ret =
-	sqlite3_exec (db_handle, "SELECT RL2_CreateCoverage('dumb1', 'UINT8', "
+	sqlite3_exec (db_handle,
+		      "SELECT RL2_CreateRasterCoverage('dumb1', 'UINT8', "
 		      "'GRAYSCALE', 1, 'NONE', 100, 256, 256, 4326, 1.0)", NULL,
 		      NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateCoverage() error: %s\n", err_msg);
+	  fprintf (stderr, "CreateRasterCoverage() error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  return -4;
       }
     ret =
-	sqlite3_exec (db_handle, "SELECT RL2_CreateCoverage('dumb2', 'UINT8', "
+	sqlite3_exec (db_handle,
+		      "SELECT RL2_CreateRasterCoverage('dumb2', 'UINT8', "
 		      "'GRAYSCALE', 1, 'NONE', 100, 256, 256, 4326, 1.0)", NULL,
 		      NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateCoverage() error: %s\n", err_msg);
+	  fprintf (stderr, "CreateRasterCoverage() error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  return -5;
       }
     ret =
 	sqlite3_exec (db_handle,
-		      "SELECT RL2_CreateCoverage('dumb_dem', 'INT16', "
+		      "SELECT RL2_CreateRasterCoverage('dumb_dem', 'INT16', "
 		      "'DATAGRID', 1, 'NONE', 100, 256, 256, 4326, 1.0)", NULL,
 		      NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "CreateCoverage() error: %s\n", err_msg);
+	  fprintf (stderr, "CreateRasterCoverage() error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  return -6;
       }
@@ -1652,21 +1654,23 @@ main (int argc, char *argv[])
       }
     ret =
 	sqlite3_exec (db_handle,
-		      "SELECT SE_RegisterStyledGroup('my_group', 'dumb1')",
+		      "SELECT SE_RegisterStyledGroupRaster('my_group', 'dumb1')",
 		      NULL, NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "RegisterStyledGroup() #1 error: %s\n", err_msg);
+	  fprintf (stderr, "RegisterStyledGroupRaster() #1 error: %s\n",
+		   err_msg);
 	  sqlite3_free (err_msg);
 	  return -8;
       }
     ret =
 	sqlite3_exec (db_handle,
-		      "SELECT SE_RegisterStyledGroup('my_group', 'dumb_dem')",
+		      "SELECT SE_RegisterStyledGroupRaster('my_group', 'dumb_dem')",
 		      NULL, NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "RegisterStyledGroup() #2 error: %s\n", err_msg);
+	  fprintf (stderr, "RegisterStyledGroupRaster() #2 error: %s\n",
+		   err_msg);
 	  sqlite3_free (err_msg);
 	  return -9;
       }

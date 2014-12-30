@@ -770,9 +770,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign test/sql_stmt_tests/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu test/sql_stmt_tests/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign test/sql_stmt_tests/Makefile
+	  $(AUTOMAKE) --gnu test/sql_stmt_tests/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \

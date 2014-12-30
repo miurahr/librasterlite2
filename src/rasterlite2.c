@@ -821,6 +821,102 @@ rl2_get_coverage_resolution (rl2CoveragePtr ptr, double *hResolution,
     return RL2_OK;
 }
 
+RL2_DECLARE rl2VectorLayerPtr
+rl2_create_vector_layer (const char *f_table_name,
+			 const char *f_geometry_column,
+			 unsigned short geometry_type, int srid,
+			 unsigned char spatial_index)
+{
+/* allocating and initializing a Coverage object */
+    int len;
+    rl2PrivVectorLayerPtr vector = NULL;
+    if (f_table_name == NULL || f_geometry_column == NULL)
+	return NULL;
+
+    vector = malloc (sizeof (rl2PrivVectorLayer));
+    if (vector == NULL)
+	return NULL;
+    len = strlen (f_table_name);
+    vector->f_table_name = malloc (len + 1);
+    strcpy (vector->f_table_name, f_table_name);
+    len = strlen (f_geometry_column);
+    vector->f_geometry_column = malloc (len + 1);
+    strcpy (vector->f_geometry_column, f_geometry_column);
+    vector->geometry_type = geometry_type;
+    vector->srid = srid;
+    vector->spatial_index = spatial_index;
+    return (rl2VectorLayerPtr) vector;
+}
+
+RL2_DECLARE void
+rl2_destroy_vector_layer (rl2VectorLayerPtr ptr)
+{
+/* memory cleanup - destroying a Vector Layer object */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return;
+    if (vector->f_table_name != NULL)
+	free (vector->f_table_name);
+    if (vector->f_geometry_column != NULL)
+	free (vector->f_geometry_column);
+    free (vector);
+}
+
+RL2_DECLARE const char *
+rl2_get_vector_table_name (rl2VectorLayerPtr ptr)
+{
+/* return the Vector Layer Table name */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return NULL;
+    return vector->f_table_name;
+}
+
+RL2_DECLARE const char *
+rl2_get_vector_geometry_name (rl2VectorLayerPtr ptr)
+{
+/* return the Vector Layer Geometry name */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return NULL;
+    return vector->f_geometry_column;
+}
+
+RL2_DECLARE int
+rl2_get_vector_geometry_type (rl2VectorLayerPtr ptr,
+			      unsigned short *geometry_type)
+{
+/* return the Vector Layer Geometry type */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return RL2_ERROR;
+    *geometry_type = vector->geometry_type;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_vector_srid (rl2VectorLayerPtr ptr, int *srid)
+{
+/* return the Vector Layer SRID */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return RL2_ERROR;
+    *srid = vector->srid;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_get_vector_spatial_index (rl2VectorLayerPtr ptr,
+			      unsigned char *spatial_index)
+{
+/* return the Vector Layer Spatial Index type */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return RL2_ERROR;
+    *spatial_index = vector->spatial_index;
+    return RL2_OK;
+}
+
 RL2_DECLARE rl2SectionPtr
 rl2_create_section (const char *name, unsigned char compression,
 		    unsigned int tile_width, unsigned int tile_height,

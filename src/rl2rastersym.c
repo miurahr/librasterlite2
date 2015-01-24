@@ -2570,7 +2570,7 @@ compute_stretching (rl2PrivBandStatisticsPtr band, double *min, double *max,
 }
 
 static void
-build_triple_band_handling (rl2PrivRasterStylePtr style,
+build_triple_band_handling (rl2PrivRasterSymbolizerPtr style,
 			    rl2PrivRasterStatisticsPtr stats,
 			    unsigned char red_band, unsigned char green_band,
 			    unsigned char blue_band,
@@ -3075,7 +3075,7 @@ add_color_rule (rl2ColorMapItemPtr c, rl2ColorMapRefPtr col)
 }
 
 static void
-build_mono_band_handling (rl2PrivRasterStylePtr style,
+build_mono_band_handling (rl2PrivRasterSymbolizerPtr style,
 			  rl2PrivRasterStatisticsPtr stats,
 			  unsigned char mono_band,
 			  rl2BandHandlingPtr * mono_handling)
@@ -3440,7 +3440,7 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 		     unsigned char num_bands, double x_res, double y_res,
 		     double minx, double maxy, double tile_minx,
 		     double tile_maxy, rl2PixelPtr no_data,
-		     rl2RasterStylePtr style, rl2RasterStatisticsPtr stats)
+		     rl2RasterSymbolizerPtr style, rl2RasterStatisticsPtr stats)
 {
 /* copying raw pixels into the output buffer */
     unsigned int tile_width;
@@ -3453,7 +3453,7 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
       {
 	  /* attempting to apply a RasterSymbolizer */
 	  int yes_no;
-	  if (rl2_is_raster_style_triple_band_selected (style, &yes_no) ==
+	  if (rl2_is_raster_symbolizer_triple_band_selected (style, &yes_no) ==
 	      RL2_OK)
 	    {
 		if ((rst->sampleType == RL2_SAMPLE_UINT8
@@ -3468,7 +3468,7 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 		      rl2BandHandlingPtr red_handling = NULL;
 		      rl2BandHandlingPtr green_handling = NULL;
 		      rl2BandHandlingPtr blue_handling = NULL;
-		      if (rl2_get_raster_style_triple_band_selection
+		      if (rl2_get_raster_symbolizer_triple_band_selection
 			  (style, &red_band, &green_band, &blue_band) != RL2_OK)
 			  return 0;
 		      if (red_band >= rst->nBands)
@@ -3477,7 +3477,8 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			  return 0;
 		      if (blue_band >= rst->nBands)
 			  return 0;
-		      build_triple_band_handling ((rl2PrivRasterStylePtr) style,
+		      build_triple_band_handling ((rl2PrivRasterSymbolizerPtr)
+						  style,
 						  (rl2PrivRasterStatisticsPtr)
 						  stats, red_band, green_band,
 						  blue_band, &red_handling,
@@ -3550,7 +3551,8 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 			};
 		  }
 	    }
-	  if (rl2_is_raster_style_mono_band_selected (style, &yes_no) == RL2_OK)
+	  if (rl2_is_raster_symbolizer_mono_band_selected (style, &yes_no) ==
+	      RL2_OK)
 	    {
 		if (((rst->sampleType == RL2_SAMPLE_UINT8
 		      || rst->sampleType == RL2_SAMPLE_UINT16)
@@ -3559,12 +3561,13 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 		      /* mono band selection - false color Grayscale */
 		      unsigned char mono_band;
 		      rl2BandHandlingPtr mono_handling = NULL;
-		      if (rl2_get_raster_style_mono_band_selection
+		      if (rl2_get_raster_symbolizer_mono_band_selection
 			  (style, &mono_band) != RL2_OK)
 			  return 0;
 		      if (mono_band >= rst->nBands)
 			  return 0;
-		      build_mono_band_handling ((rl2PrivRasterStylePtr) style,
+		      build_mono_band_handling ((rl2PrivRasterSymbolizerPtr)
+						style,
 						(rl2PrivRasterStatisticsPtr)
 						stats, mono_band,
 						&mono_handling);

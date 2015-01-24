@@ -191,26 +191,34 @@ extern "C"
 #define RL2_CONVERT_GRID_DOUBLE_TO_INT32	0x3e
 #define RL2_CONVERT_GRID_DOUBLE_TO_FLOAT	0x3f
 
-/* internal RasterStyle constants */
+/* internal Style Rule constants */
+#define RL2_UNKNOWN_STYLE				0xf0
+#define RL2_VECTOR_STYLE				0xfa
+#define RL2_RASTER_STYLE				0xfb
+
+/* internal Graphic types */
+#define RL2_UNKNOWN_GRAPHIC		0x8a
+#define RL2_EXTERNAL_GRAPHIC	0x8c
+#define RL2_MARK_GRAPHIC		0x8d
+
+/* internal Style Rule comparison Ops */
+#define RL2_COMPARISON_NONE				0xa0
+#define RL2_COMPARISON_EQ				0xa1
+#define RL2_COMPARISON_NE				0xa2
+#define RL2_COMPARISON_LT				0xa3
+#define RL2_COMPARISON_GT				0xa4
+#define RL2_COMPARISON_LE				0xa5
+#define RL2_COMPARISON_GE				0xa6
+#define RL2_COMPARISON_LIKE				0xa7
+#define RL2_COMPARISON_NULL				0xa8
+#define RL2_COMPARISON_BETWEEN			0xa9
+
+/* internal RasterSymbolizer constants */
 #define RL2_BAND_SELECTION_TRIPLE		0xd1
 #define RL2_BAND_SELECTION_MONO			0xd2
 
-/* internal VectorStyle constants */
-#define RL2_VECTOR_STYLE_UNKNOWN		0x00
-#define RL2_VECTOR_STYLE_POINT			0x10
-#define RL2_VECTOR_STYLE_LINE			0x20
-#define RL2_VECTOR_STYLE_POLYGON		0x30
-#define RL2_VECTOR_STYLE_TEXT			0x40
-
-#define RL2_STROKE_LINEJOIN_UNKNOWN		0x50
-#define RL2_STROKE_LINEJOIN_MITRE		0x51
-#define RL2_STROKE_LINEJOIN_ROUND		0x52
-#define RL2_STROKE_LINEJOIN_BEVEL		0x53
-
-#define RL2_STROKE_LINECAP_UNKNOWN		0x60
-#define RL2_STROKE_LINECAP_BUTT			0x61
-#define RL2_STROKE_LINECAP_ROUND		0x62
-#define RL2_STROKE_LINECAP_SQUARE		0x63
+/* internal TextSymbolizer constants */
+#define RL2_MAX_FONT_FAMILIES	16
 
     typedef union rl2_priv_sample
     {
@@ -562,11 +570,8 @@ extern "C"
     } rl2PrivColorMapInterpolate;
     typedef rl2PrivColorMapInterpolate *rl2PrivColorMapInterpolatePtr;
 
-    typedef struct rl2_priv_raster_style
+    typedef struct rl2_priv_raster_symbolizer
     {
-	char *name;
-	char *title;
-	char *abstract;
 	double opacity;
 	unsigned char contrastEnhancement;
 	double gammaValue;
@@ -576,89 +581,228 @@ extern "C"
 	int shadedRelief;
 	int brightnessOnly;
 	double reliefFactor;
-    } rl2PrivRasterStyle;
-    typedef rl2PrivRasterStyle *rl2PrivRasterStylePtr;
+    } rl2PrivRasterSymbolizer;
+    typedef rl2PrivRasterSymbolizer *rl2PrivRasterSymbolizerPtr;
+
+    typedef struct rl2_priv_color_replacement
+    {
+	int index;
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+	struct rl2_priv_color_replacement *next;
+    } rl2PrivColorReplacement;
+    typedef rl2PrivColorReplacement *rl2PrivColorReplacementPtr;
+
+    typedef struct rl2_priv_external_graphic
+    {
+	char *xlink_href;
+	rl2PrivColorReplacementPtr first;
+	rl2PrivColorReplacementPtr last;
+    } rl2PrivExternalGraphic;
+    typedef rl2PrivExternalGraphic *rl2PrivExternalGraphicPtr;
+
+    typedef struct rl2_priv_mark
+    {
+	unsigned char well_known_type;
+	rl2PrivExternalGraphicPtr external_graphic;
+	struct rl2_priv_stroke *stroke;
+	struct rl2_priv_fill *fill;
+    } rl2PrivMark;
+    typedef rl2PrivMark *rl2PrivMarkPtr;
+
+    typedef struct rl2_priv_graphic_item
+    {
+	unsigned char type;
+	void *item;
+	struct rl2_priv_graphic_item *next;
+    } rl2PrivGraphicItem;
+    typedef rl2PrivGraphicItem *rl2PrivGraphicItemPtr;
+
+    typedef struct rl2_priv_graphic
+    {
+	rl2PrivGraphicItemPtr first;
+	rl2PrivGraphicItemPtr last;
+	double opacity;
+	double size;
+	double rotation;
+	double anchor_point_x;
+	double anchor_point_y;
+	double displacement_x;
+	double displacement_y;
+    } rl2PrivGraphic;
+    typedef rl2PrivGraphic *rl2PrivGraphicPtr;
+
+    typedef struct rl2_priv_stroke
+    {
+	rl2PrivGraphicPtr graphic;
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+	double opacity;
+	double width;
+	unsigned char linejoin;
+	unsigned char linecap;
+	int dash_count;
+	double *dash_list;
+	double dash_offset;
+    } rl2PrivStroke;
+    typedef rl2PrivStroke *rl2PrivStrokePtr;
+
+    typedef struct rl2_priv_fill
+    {
+	rl2PrivGraphicPtr graphic;
+	unsigned char red;
+	unsigned char green;
+	unsigned char blue;
+	double opacity;
+    } rl2PrivFill;
+    typedef rl2PrivFill *rl2PrivFillPtr;
 
     typedef struct rl2_priv_point_symbolizer
     {
-	unsigned char has_stroke;
-	unsigned char stroke_red;
-	unsigned char stroke_green;
-	unsigned char stroke_blue;
-	double stroke_opacity;
-	double stroke_width;
-	unsigned char stroke_linejoin;
-	unsigned char stroke_linecap;
-	int stroke_dash_count;
-	double *stroke_dash_list;
-	double stroke_dash_offset;
-	unsigned char has_fill;
-	unsigned char fill_red;
-	unsigned char fill_green;
-	unsigned char fill_blue;
-	double fill_opacity;
+	rl2PrivGraphicPtr graphic;
     } rl2PrivPointSymbolizer;
     typedef rl2PrivPointSymbolizer *rl2PrivPointSymbolizerPtr;
 
     typedef struct rl2_priv_line_symbolizer
     {
-	unsigned char has_stroke;
-	unsigned char stroke_red;
-	unsigned char stroke_green;
-	unsigned char stroke_blue;
-	double stroke_opacity;
-	double stroke_width;
-	unsigned char stroke_linejoin;
-	unsigned char stroke_linecap;
-	int stroke_dash_count;
-	double *stroke_dash_list;
-	double stroke_dash_offset;
+	rl2PrivStrokePtr stroke;
 	double perpendicular_offset;
     } rl2PrivLineSymbolizer;
     typedef rl2PrivLineSymbolizer *rl2PrivLineSymbolizerPtr;
 
     typedef struct rl2_priv_polygon_symbolizer
     {
-	unsigned char has_stroke;
-	unsigned char stroke_red;
-	unsigned char stroke_green;
-	unsigned char stroke_blue;
-	double stroke_opacity;
-	double stroke_width;
-	unsigned char stroke_linejoin;
-	unsigned char stroke_linecap;
-	int stroke_dash_count;
-	double *stroke_dash_list;
-	double stroke_dash_offset;
-	unsigned char has_fill;
-	unsigned char fill_red;
-	unsigned char fill_green;
-	unsigned char fill_blue;
-	double fill_opacity;
+	rl2PrivStrokePtr stroke;
+	rl2PrivFillPtr fill;
 	double displacement_x;
 	double displacement_y;
 	double perpendicular_offset;
     } rl2PrivPolygonSymbolizer;
     typedef rl2PrivPolygonSymbolizer *rl2PrivPolygonSymbolizerPtr;
 
+    typedef struct rl2_priv_point_placement
+    {
+	double anchor_point_x;
+	double anchor_point_y;
+	double displacement_x;
+	double displacement_y;
+	double rotation;
+    } rl2PrivPointPlacement;
+    typedef rl2PrivPointPlacement *rl2PrivPointPlacementPtr;
+
+    typedef struct rl2_priv_line_placement
+    {
+	double perpendicular_offset;
+	int is_repeated;
+	double initial_gap;
+	double gap;
+	int is_aligned;
+	int generalize_line;
+    } rl2PrivLinePlacement;
+    typedef rl2PrivLinePlacement *rl2PrivLinePlacementPtr;
+
+    typedef struct rl2_priv_halo
+    {
+	double radius;
+	rl2PrivFillPtr fill;
+    } rl2PrivHalo;
+    typedef rl2PrivHalo *rl2PrivHaloPtr;
+
     typedef struct rl2_priv_text_symbolizer
     {
-	unsigned char fill_red;
-	unsigned char fill_green;
-	unsigned char fill_blue;
-	double fill_opacity;
+	char *label;
+	int font_families_count;
+	char *font_families[RL2_MAX_FONT_FAMILIES];
+	unsigned char font_style;
+	unsigned char font_weight;
+	double font_size;
+	unsigned char label_placement_type;
+	void *label_placement;
+	rl2PrivHaloPtr halo;
+	rl2PrivFillPtr fill;
     } rl2PrivTextSymbolizer;
     typedef rl2PrivTextSymbolizer *rl2PrivTextSymbolizerPtr;
 
-    typedef struct rl2_priv_vector_style
+    typedef struct rl2_priv_vector_symbolizer_item
+    {
+	unsigned char symbolizer_type;
+	void *symbolizer;
+	struct rl2_priv_vector_symbolizer_item *next;
+    } rl2PrivVectorSymbolizerItem;
+    typedef rl2PrivVectorSymbolizerItem *rl2PrivVectorSymbolizerItemPtr;
+
+    typedef struct rl2_priv_vector_symbolizer
+    {
+	rl2PrivVectorSymbolizerItemPtr first;
+	rl2PrivVectorSymbolizerItemPtr last;
+    } rl2PrivVectorSymbolizer;
+    typedef rl2PrivVectorSymbolizer *rl2PrivVectorSymbolizerPtr;
+
+    typedef struct rl2_priv_rule_single_arg
+    {
+	char *value;
+    } rl2PrivRuleSingleArg;
+    typedef rl2PrivRuleSingleArg *rl2PrivRuleSingleArgPtr;
+
+    typedef struct rl2_priv_rule_like_args
+    {
+	char *wild_card;
+	char *single_char;
+	char *escape_char;
+	char *value;
+    } rl2PrivRuleLikeArgs;
+    typedef rl2PrivRuleLikeArgs *rl2PrivRuleLikeArgsPtr;
+
+    typedef struct rl2_priv_rule_between_args
+    {
+	char *lower;
+	char *upper;
+    } rl2PrivRuleBetweenArgs;
+    typedef rl2PrivRuleBetweenArgs *rl2PrivRuleBetweenArgsPtr;
+
+    typedef struct rl2_priv_variant_value
+    {
+	sqlite3_int64 int_value;
+	double dbl_value;
+	char *text_value;
+	unsigned char *blob_value;
+	int bytes;
+	int sqlite3_type;
+    } rl2PrivVariantValue;
+    typedef rl2PrivVariantValue *rl2PrivVariantValuePtr;
+
+    typedef struct rl2_priv_style_rule
+    {
+	int else_rule;
+	double min_scale;
+	double max_scale;
+	unsigned char comparison_op;
+	void *comparison_args;
+	char *column_name;
+	unsigned char style_type;
+	void *style;
+	struct rl2_priv_style_rule *next;
+    } rl2PrivStyleRule;
+    typedef rl2PrivStyleRule *rl2PrivStyleRulePtr;
+
+    typedef struct rl2_priv_coverage_style
     {
 	char *name;
-	char *title;
-	char *abstract;
-	unsigned char style_type;
-	void *symbolizer;
-    } rl2PrivVectorStyle;
-    typedef rl2PrivVectorStyle *rl2PrivVectorStylePtr;
+	rl2PrivStyleRulePtr first_rule;
+	rl2PrivStyleRulePtr last_rule;
+    } rl2PrivCoverageStyle;
+    typedef rl2PrivCoverageStyle *rl2PrivCoverageStylePtr;
+
+    typedef struct rl2_priv_feature_type_style
+    {
+	char *name;
+	rl2PrivStyleRulePtr first_rule;
+	rl2PrivStyleRulePtr last_rule;
+	rl2PrivStyleRulePtr else_rule;
+    } rl2PrivFeatureTypeStyle;
+    typedef rl2PrivFeatureTypeStyle *rl2PrivFeatureTypeStylePtr;
 
     typedef struct rl2_priv_child_style
     {
@@ -673,8 +817,6 @@ extern "C"
     typedef struct rl2_priv_group_style
     {
 	char *name;
-	char *title;
-	char *abstract;
 	rl2PrivChildStylePtr first;
 	rl2PrivChildStylePtr last;
 	int valid;
@@ -687,7 +829,7 @@ extern "C"
 	char *layer_name;
 	rl2CoveragePtr coverage;
 	sqlite3_int64 raster_style_id;
-	rl2PrivRasterStylePtr raster_symbolizer;
+	rl2PrivRasterSymbolizerPtr raster_symbolizer;
 	rl2PrivRasterStatisticsPtr raster_stats;
     } rl2PrivGroupRendererLayer;
     typedef rl2PrivGroupRendererLayer *rl2PrivGroupRendererLayerPtr;
@@ -868,7 +1010,7 @@ extern "C"
 	unsigned char bg_green;
 	unsigned char bg_blue;
 	rl2CoveragePtr coverage;
-	rl2RasterStylePtr symbolizer;
+	rl2RasterSymbolizerPtr symbolizer;
 	rl2RasterStatisticsPtr stats;
 	unsigned char *outbuf;
 	rl2PalettePtr palette;
@@ -1018,7 +1160,7 @@ extern "C"
 					 double maxx, double maxy, int level,
 					 int scale, rl2PalettePtr palette,
 					 rl2PixelPtr no_data,
-					 rl2RasterStylePtr style,
+					 rl2RasterSymbolizerPtr style,
 					 rl2RasterStatisticsPtr stats);
 
     RL2_PRIVATE int rl2_load_dbms_tiles_section (sqlite3 * handle,
@@ -1403,22 +1545,124 @@ extern "C"
     RL2_PRIVATE int parse_worldfile (FILE * in, double *px, double *py,
 				     double *pres_x, double *pres_y);
 
-    RL2_PRIVATE rl2RasterStylePtr raster_style_from_sld_se_xml (char *name,
-								char *title,
-								char *abstract,
-								unsigned char
-								*xml);
+    RL2_PRIVATE rl2CoverageStylePtr coverage_style_from_xml (char *name,
+							     unsigned char
+							     *xml);
 
-    RL2_PRIVATE rl2VectorStylePtr vector_style_from_sld_se_xml (char *name,
-								char *title,
-								char *abstract,
-								unsigned char
-								*xml);
+    RL2_PRIVATE rl2FeatureTypeStylePtr feature_type_style_from_xml (char *name,
+								    unsigned
+								    char *xml);
 
     RL2_PRIVATE rl2GroupStylePtr group_style_from_sld_xml (char *name,
-							   char *title,
-							   char *abstract,
 							   unsigned char *xml);
+
+    RL2_PRIVATE rl2PrivCoverageStylePtr
+	rl2_create_default_coverage_style (void);
+
+    RL2_PRIVATE rl2PrivRasterSymbolizerPtr
+	rl2_create_default_raster_symbolizer (void);
+
+    RL2_PRIVATE rl2PrivVectorSymbolizerPtr
+	rl2_create_default_vector_symbolizer (void);
+
+    RL2_PRIVATE rl2PrivStrokePtr rl2_create_default_stroke (void);
+
+    RL2_PRIVATE rl2PrivFillPtr rl2_create_default_fill (void);
+
+    RL2_PRIVATE rl2PrivColorReplacementPtr
+	rl2_create_default_color_replacement (void);
+
+    RL2_PRIVATE rl2PrivGraphicItemPtr
+	rl2_create_default_external_graphic (void);
+
+    RL2_PRIVATE rl2PrivGraphicItemPtr rl2_create_default_mark (void);
+
+    RL2_PRIVATE rl2PrivGraphicPtr rl2_create_default_graphic (void);
+
+    RL2_PRIVATE rl2PrivPointPlacementPtr
+	rl2_create_default_point_placement (void);
+
+    RL2_PRIVATE rl2PrivLinePlacementPtr
+	rl2_create_default_line_placement (void);
+
+    RL2_PRIVATE rl2PrivHaloPtr rl2_create_default_halo (void);
+
+    RL2_PRIVATE rl2PrivVectorSymbolizerItemPtr
+	rl2_create_default_point_symbolizer (void);
+
+    RL2_PRIVATE rl2PrivVectorSymbolizerItemPtr
+	rl2_create_default_line_symbolizer (void);
+
+    RL2_PRIVATE rl2PrivVectorSymbolizerItemPtr
+	rl2_create_default_polygon_symbolizer (void);
+
+    RL2_PRIVATE rl2PrivVectorSymbolizerItemPtr
+	rl2_create_default_text_symbolizer (void);
+
+    RL2_PRIVATE void rl2_destroy_raster_symbolizer (rl2PrivRasterSymbolizerPtr
+						    symbolizer);
+
+    RL2_PRIVATE void rl2_destroy_vector_symbolizer (rl2PrivVectorSymbolizerPtr
+						    symbolizer);
+
+    RL2_PRIVATE void
+	rl2_destroy_vector_symbolizer_item (rl2PrivVectorSymbolizerItemPtr
+					    item);
+
+    RL2_PRIVATE void rl2_destroy_stroke (rl2PrivStrokePtr stroke);
+
+    RL2_PRIVATE void rl2_destroy_fill (rl2PrivFillPtr fill);
+
+    RL2_PRIVATE void rl2_destroy_color_replacement (rl2PrivColorReplacementPtr
+						    repl);
+
+    RL2_PRIVATE void rl2_destroy_external_graphic (rl2PrivExternalGraphicPtr
+						   ext);
+
+    RL2_PRIVATE void rl2_destroy_mark (rl2PrivMarkPtr mark);
+
+    RL2_PRIVATE void rl2_destroy_graphic_item (rl2PrivGraphicItemPtr item);
+
+    RL2_PRIVATE void rl2_destroy_graphic (rl2PrivGraphicPtr graphic);
+
+    RL2_PRIVATE void rl2_destroy_point_placement (rl2PrivPointPlacementPtr
+						  place);
+
+    RL2_PRIVATE void rl2_destroy_line_placement (rl2PrivLinePlacementPtr place);
+
+    RL2_PRIVATE void rl2_destroy_halo (rl2PrivHaloPtr halo);
+
+    RL2_PRIVATE void rl2_destroy_point_symbolizer (rl2PrivPointSymbolizerPtr
+						   symbolizer);
+
+    RL2_PRIVATE void rl2_destroy_line_symbolizer (rl2PrivLineSymbolizerPtr
+						  symbolizer);
+
+    RL2_PRIVATE void rl2_destroy_polygon_symbolizer (rl2PrivPolygonSymbolizerPtr
+						     symbolizer);
+
+    RL2_PRIVATE void rl2_destroy_text_symbolizer (rl2PrivTextSymbolizerPtr
+						  symbolizer);
+
+    RL2_PRIVATE rl2PrivRuleSingleArgPtr
+	rl2_create_default_rule_single_arg (void);
+
+    RL2_PRIVATE rl2PrivRuleLikeArgsPtr rl2_create_default_rule_like_args (void);
+
+    RL2_PRIVATE rl2PrivRuleBetweenArgsPtr
+	rl2_create_default_rule_between_args (void);
+
+    RL2_PRIVATE rl2PrivStyleRulePtr rl2_create_default_style_rule (void);
+
+    RL2_PRIVATE void rl2_destroy_style_rule (rl2PrivStyleRulePtr rule);
+
+    RL2_PRIVATE void rl2_destroy_rule_like_args (rl2PrivRuleLikeArgsPtr like);
+
+    RL2_PRIVATE void rl2_destroy_rule_between_args (rl2PrivRuleBetweenArgsPtr
+						    between);
+
+    RL2_PRIVATE void rl2_destroy_rule_single_arg (rl2PrivRuleSingleArgPtr
+						  single);
 
     RL2_PRIVATE int get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
 					       unsigned char **image,
@@ -1433,7 +1677,7 @@ extern "C"
 					 double y_res, double minx, double maxy,
 					 double tile_minx, double tile_maxy,
 					 rl2PixelPtr no_data,
-					 rl2RasterStylePtr style,
+					 rl2RasterSymbolizerPtr style,
 					 rl2RasterStatisticsPtr stats);
 
     RL2_PRIVATE unsigned char *rl2_copy_endian_raw_pixels (const unsigned char
@@ -1497,7 +1741,7 @@ extern "C"
     RL2_PRIVATE int rl2_is_mixed_resolutions_coverage (sqlite3 * handle,
 						       const char *coverage);
 
-    RL2_PRIVATE int rl2_has_styled_rgb_colors (rl2RasterStylePtr style);
+    RL2_PRIVATE int rl2_has_styled_rgb_colors (rl2RasterSymbolizerPtr style);
 
     RL2_PRIVATE int rl2_get_raw_raster_data_common (sqlite3 * handle,
 						    rl2CoveragePtr cvg,
@@ -1513,7 +1757,8 @@ extern "C"
 						    rl2PalettePtr * palette,
 						    unsigned char out_pixel,
 						    rl2PixelPtr bgcolor,
-						    rl2RasterStylePtr style,
+						    rl2RasterSymbolizerPtr
+						    style,
 						    rl2RasterStatisticsPtr
 						    stats);
 

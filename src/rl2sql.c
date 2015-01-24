@@ -6641,7 +6641,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
     double confidence;
     unsigned char format_id = RL2_OUTPUT_FORMAT_UNKNOWN;
     unsigned char out_pixel = RL2_PIXEL_UNKNOWN;
-    rl2RasterStylePtr symbolizer = NULL;
+    rl2CoverageStylePtr cvg_stl = NULL;
+    rl2RasterSymbolizerPtr symbolizer = NULL;
     rl2RasterStatisticsPtr stats = NULL;
     double opacity = 1.0;
     struct aux_renderer aux;
@@ -6770,9 +6771,12 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	ok_style = 1;
     else
       {
-	  /* attempting to get a RasterSymbolizer style */
-	  symbolizer =
-	      rl2_create_raster_style_from_dbms (sqlite, cvg_name, style);
+	  /* attempting to get a Coverage Style */
+	  cvg_stl =
+	      rl2_create_coverage_style_from_dbms (sqlite, cvg_name, style);
+	  if (cvg_stl == NULL)
+	      goto error;
+	  symbolizer = rl2_get_symbolizer_from_coverage_style (cvg_stl, 1.0);
 	  if (symbolizer == NULL)
 	      goto error;
 	  stats = rl2_create_raster_statistics_from_dbms (sqlite, cvg_name);
@@ -6803,24 +6807,23 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	out_pixel = RL2_PIXEL_MONOCHROME;
 
     if ((cvg->pixelType == RL2_PIXEL_DATAGRID
-	 || cvg->pixelType == RL2_PIXEL_MULTIBAND) && symbolizer == NULL)
+	 || cvg->pixelType == RL2_PIXEL_MULTIBAND) && cvg_stl == NULL)
       {
-	  /* creating a default RasterStyle */
-	  rl2PrivRasterStylePtr symb = malloc (sizeof (rl2PrivRasterStyle));
-	  symbolizer = (rl2RasterStylePtr) symb;
-	  symb->name = malloc (8);
-	  strcpy (symb->name, "default");
-	  symb->title = NULL;
-	  symb->abstract = NULL;
-	  symb->opacity = 1.0;
-	  symb->contrastEnhancement = RL2_CONTRAST_ENHANCEMENT_NONE;
+	  /* creating a default Coverage Style */
+	  rl2PrivCoverageStylePtr stl = rl2_create_default_coverage_style ();
+	  rl2PrivStyleRulePtr rule = rl2_create_default_style_rule ();
+	  rl2PrivRasterSymbolizerPtr symb =
+	      rl2_create_default_raster_symbolizer ();
 	  symb->bandSelection = malloc (sizeof (rl2PrivBandSelection));
 	  symb->bandSelection->selectionType = RL2_BAND_SELECTION_MONO;
 	  symb->bandSelection->grayBand = 0;
 	  symb->bandSelection->grayContrast = RL2_CONTRAST_ENHANCEMENT_NONE;
-	  symb->categorize = NULL;
-	  symb->interpolate = NULL;
-	  symb->shadedRelief = 0;
+	  rule->style_type = RL2_RASTER_STYLE;
+	  rule->style = symbolizer;
+	  stl->first_rule = rule;
+	  stl->last_rule = rule;
+	  cvg_stl = (rl2CoverageStylePtr) stl;
+	  symbolizer = (rl2RasterSymbolizerPtr) symb;
 	  if (stats == NULL)
 	    {
 		stats =
@@ -6834,8 +6837,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
       {
 	  /* applying a RasterSymbolizer */
 	  int yes_no;
-	  if (rl2_is_raster_style_triple_band_selected (symbolizer, &yes_no) ==
-	      RL2_OK)
+	  if (rl2_is_raster_symbolizer_triple_band_selected
+	      (symbolizer, &yes_no) == RL2_OK)
 	    {
 		if ((cvg->sampleType == RL2_SAMPLE_UINT8
 		     || cvg->sampleType == RL2_SAMPLE_UINT16)
@@ -6843,8 +6846,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 			|| cvg->pixelType == RL2_PIXEL_MULTIBAND) && yes_no)
 		    out_pixel = RL2_PIXEL_RGB;
 	    }
-	  if (rl2_is_raster_style_mono_band_selected (symbolizer, &yes_no) ==
-	      RL2_OK)
+	  if (rl2_is_raster_symbolizer_mono_band_selected (symbolizer, &yes_no)
+	      == RL2_OK)
 	    {
 		if ((cvg->sampleType == RL2_SAMPLE_UINT8
 		     || cvg->sampleType == RL2_SAMPLE_UINT16)
@@ -6863,7 +6866,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 		    && cvg->pixelType == RL2_PIXEL_DATAGRID && yes_no)
 		    out_pixel = RL2_PIXEL_GRAYSCALE;
 	    }
-	  if (rl2_get_raster_style_opacity (symbolizer, &opacity) != RL2_OK)
+	  if (rl2_get_raster_symbolizer_opacity (symbolizer, &opacity) !=
+	      RL2_OK)
 	      opacity = 1.0;
 	  if (opacity > 1.0)
 	      opacity = 1.0;
@@ -6889,7 +6893,7 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
       {
 	  /* ordinary Coverage */
 	  by_section = 0;
-/* retrieving the optimal resolution level */
+	  /* retrieving the optimal resolution level */
 	  if (!rl2_find_best_resolution_level
 	      (sqlite, cvg_name, 0, 0, x_res, y_res, &level_id, &scale, &xscale,
 	       &xx_res, &yy_res))
@@ -6938,8 +6942,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	      goto error;
 	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
-		rl2_destroy_raster_style (symbolizer);
-		symbolizer = NULL;
+		rl2_destroy_coverage_style (cvg_stl);
+		cvg_stl = NULL;
 	    }
       }
     else
@@ -6967,8 +6971,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	      goto error;
 	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
 	    {
-		rl2_destroy_raster_style (symbolizer);
-		symbolizer = NULL;
+		rl2_destroy_coverage_style (cvg_stl);
+		cvg_stl = NULL;
 	    }
       }
 
@@ -7014,8 +7018,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
     rl2_destroy_coverage (coverage);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
-    if (symbolizer != NULL)
-	rl2_destroy_raster_style (symbolizer);
+    if (cvg_stl != NULL)
+	rl2_destroy_coverage_style (cvg_stl);
     if (stats != NULL)
 	rl2_destroy_raster_statistics (stats);
     return;
@@ -7025,8 +7029,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	rl2_destroy_coverage (coverage);
     if (palette != NULL)
 	rl2_destroy_palette (palette);
-    if (symbolizer != NULL)
-	rl2_destroy_raster_style (symbolizer);
+    if (cvg_stl != NULL)
+	rl2_destroy_coverage_style (cvg_stl);
     if (stats != NULL)
 	rl2_destroy_raster_statistics (stats);
     sqlite3_result_null (context);

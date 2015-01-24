@@ -218,10 +218,72 @@ extern "C"
 /** RasterLite2 constant: contrast enhancement GAMMA-VALUE */
 #define RL2_CONTRAST_ENHANCEMENT_GAMMA		0x93
 
-/** ResterLite2 constant: GroupRenderer - RasterLayer */
+/** RasterLite2 constant: GroupRenderer - RasterLayer */
 #define RL2_GROUP_RENDERER_RASTER_LAYER	0xba
 /** ResterLite2 constant: GroupRenderer - VectorLayer */
 #define RL2_GROUP_RENDERER_VECTOR_LAYER	0xbb
+
+/** RasterLite2 constants: unknown Symbolizer type */
+#define RL2_UNKNOWN_SYMBOLIZER	0xa0
+/** RasterLite2 constants: Point Symbolizer type */
+#define RL2_POINT_SYMBOLIZER	0xa1
+/** RasterLite2 constants: Line Symbolizer type */
+#define RL2_LINE_SYMBOLIZER	0xa2
+/** RasterLite2 constants: Polygon Symbolizer type */
+#define RL2_POLYGON_SYMBOLIZER	0xa3
+/** RasterLite2 constants: Text Symbolizer type */
+#define RL2_TEXT_SYMBOLIZER	0xa4
+
+/** RasterLite2 constants: unknown Stroke Linejoin */
+#define RL2_STROKE_LINEJOIN_UNKNOWN	0x50
+/** RasterLite2 constants: Stroke Linejoin - Mitre */
+#define RL2_STROKE_LINEJOIN_MITRE	0x51
+/** RasterLite2 constants: Stroke Linejoin - Round */
+#define RL2_STROKE_LINEJOIN_ROUND	0x52
+/** RasterLite2 constants: Stroke Linejoin - Bevel */
+#define RL2_STROKE_LINEJOIN_BEVEL	0x53
+
+/** RasterLite2 constants: unknown Stroke Linecap */
+#define RL2_STROKE_LINECAP_UNKNOWN	0x60
+/** RasterLite2 constants: Stroke Linecap - Butt */
+#define RL2_STROKE_LINECAP_BUTT		0x61
+/** RasterLite2 constants: Stroke Linecap - Round */
+#define RL2_STROKE_LINECAP_ROUND	0x62
+/** RasterLite2 constants: Stroke Linecap - Square */
+#define RL2_STROKE_LINECAP_SQUARE	0x63
+
+/** RasterLite2 constants: unknown Mark */
+#define RL2_GRAPHIC_MARK_UNKNOWN	0x70
+/** RasterLite2 constants: the well-known Square Mark */
+#define RL2_GRAPHIC_MARK_SQUARE		0x71
+/** RasterLite2 constants: the well-known Circle Mark */
+#define RL2_GRAPHIC_MARK_CIRCLE		0x72
+/** RasterLite2 constants: the well-known Triangle Mark */
+#define RL2_GRAPHIC_MARK_TRIANGLE	0x73
+/** RasterLite2 constants: the well-known Star Mark */
+#define RL2_GRAPHIC_MARK_STAR		0x74
+/** RasterLite2 constants: the well-known Cross Mark */
+#define RL2_GRAPHIC_MARK_CROSS		0x75
+/** RasterLite2 constants: the well-known X Mark */
+#define RL2_GRAPHIC_MARK_X		0x76
+
+/** Rasterlite2 constants: Font Style Normal */
+#define RL2_FONT_STYLE_NORMAL	0x30
+/** Rasterlite2 constants: Font Style Italic */
+#define RL2_FONT_STYLE_ITALIC	0x31
+/** Rasterlite2 constants: Font Style Oblique */
+#define RL2_FONT_STYLE_OBLIQUE	0x32
+/** Rasterlite2 constants: Font Weight Normal */
+#define RL2_FONT_WEIGHT_NORMAL	0x40
+/** Rasterlite2 constants: Font Weight Bold */
+#define RL2_FONT_WEIGHT_BOLD	0x41
+
+/** Rasterlite2 constants: LabelPlacement: Unknwn */
+#define RL2_LABEL_PLACEMENT_UNKNOWN	0x53
+/** Rasterlite2 constants: LabelPlacement: PointPlacement */
+#define RL2_LABEL_PLACEMENT_POINT	0x54
+/** Rasterlite2 constants: LabelPlacement: LinePlacement */
+#define RL2_LABEL_PLACEMENT_LINE	0x55
 
 /**
  Typedef for RL2 Pixel object (opaque, hidden)
@@ -302,30 +364,173 @@ extern "C"
     typedef rl2VectorLayer *rl2VectorLayerPtr;
 
 /**
- Typedef for RL2 RasterStyle object (opaque, hidden)
+ Typedef for RL2 CoverageStyle object (opaque, hidden)
 
- \sa rl2RasterStylePtr
+ \sa rl2CoverageStylePtr
  */
-    typedef struct rl2_raster_style rl2RasterStyle;
+    typedef struct rl2_coverage_style rl2CoverageStyle;
 /**
- Typedef for RL2 RasterStyle object pointer (opaque, hidden)
+ Typedef for RL2 CoverageStyle object pointer (opaque, hidden)
 
- \sa rl2RasterStyle
+ \sa rl2CoverageStyle
  */
-    typedef rl2RasterStyle *rl2RasterStylePtr;
+    typedef rl2CoverageStyle *rl2CoverageStylePtr;
 
 /**
- Typedef for RL2 VectorStyle object (opaque, hidden)
+ Typedef for RL2 RasterSymbolizer object (opaque, hidden)
 
- \sa rl2VectorStylePtr
+ \sa rl2RasterSymbolizerPtr
  */
-    typedef struct rl2_vector_style rl2VectorStyle;
+    typedef struct rl2_raster_symbolizer rl2RasterSymbolizer;
 /**
- Typedef for RL2 VectorStyle object pointer (opaque, hidden)
+ Typedef for RL2 RasterSymbolizer object pointer (opaque, hidden)
 
- \sa rl2VectorStyle
+ \sa rl2RasterSymbolizer
  */
-    typedef rl2VectorStyle *rl2VectorStylePtr;
+    typedef rl2RasterSymbolizer *rl2RasterSymbolizerPtr;
+
+/**
+ Typedef for RL2 Rule Like Arguments object (opaque, hidden)
+
+ \sa rl2SRuleLikeArgsPtr
+ */
+    typedef struct rl2_rule_like_args rl2RuleLikeArgs;
+/**
+ Typedef for RL2 RuleLikeArgs object pointer (opaque, hidden)
+
+ \sa rl2RuleLikeArgs
+ */
+    typedef rl2RuleLikeArgs *rl2RuleLikeArgsPtr;
+
+/**
+ Typedef for RL2 Rule Between Arguments object (opaque, hidden)
+
+ \sa rl2SRuleBetweenArgsPtr
+ */
+    typedef struct rl2_rule_between_args rl2RuleBetweenArgs;
+/**
+ Typedef for RL2 RuleBetweenArgs object pointer (opaque, hidden)
+
+ \sa rl2RuleBetweenArgs
+ */
+    typedef rl2RuleBetweenArgs *rl2RuleBetweenArgsPtr;
+
+/**
+ Typedef for RL2 Rule Single Argument object (opaque, hidden)
+
+ \sa rl2SRuleSingleArgPtr
+ */
+    typedef struct rl2_rule_single_arg rl2RuleSingleArg;
+/**
+ Typedef for RL2 RuleSingleArg object pointer (opaque, hidden)
+
+ \sa rl2RuleSingleArg
+ */
+    typedef rl2RuleSingleArg *rl2RuleSingleArgPtr;
+
+/**
+ Typedef for RL2 VariantValue object (opaque, hidden)
+
+ \sa rl2VariantValuePtr
+ */
+    typedef struct rl2_variant_value rl2VariantValue;
+/**
+ Typedef for RL2 VariantValue object pointer (opaque, hidden)
+
+ \sa rl2VariantValue
+ */
+    typedef rl2VariantValue *rl2VariantValuePtr;
+
+/**
+ Typedef for RL2 StyleRule object (opaque, hidden)
+
+ \sa rl2StyleRulePtr
+ */
+    typedef struct rl2_style_rule rl2StyleRule;
+/**
+ Typedef for RL2 StyleRule object pointer (opaque, hidden)
+
+ \sa rl2StyleRule
+ */
+    typedef rl2StyleRule *rl2StyleRulePtr;
+
+/**
+ Typedef for RL2 FeatureTypeStyle object (opaque, hidden)
+
+ \sa rl2FeatureTypeStylePtr
+ */
+    typedef struct rl2_feature_type_style rl2FeatureTypeStyle;
+/**
+ Typedef for RL2 FeatureTypeStyle object pointer (opaque, hidden)
+
+ \sa rl2FeatureTypeStyle
+ */
+    typedef rl2FeatureTypeStyle *rl2FeatureTypeStylePtr;
+
+/**
+ Typedef for RL2 VectorSymbolizer object (opaque, hidden)
+
+ \sa rl2VectorSymbolizerPtr
+ */
+    typedef struct rl2_vector_symbolizer rl2VectorSymbolizer;
+/**
+ Typedef for RL2 VectorSymbolizer object pointer (opaque, hidden)
+
+ \sa rl2VectorSymbolizer
+ */
+    typedef rl2VectorSymbolizer *rl2VectorSymbolizerPtr;
+
+/**
+ Typedef for RL2 PointSymbolizer object (opaque, hidden)
+
+ \sa rl2PointSymbolizerPtr
+ */
+    typedef struct rl2_point_symbolizer rl2PointSymbolizer;
+/**
+ Typedef for RL2 PointSymbolizer object pointer (opaque, hidden)
+
+ \sa rl2PointSymbolizer
+ */
+    typedef rl2PointSymbolizer *rl2PointSymbolizerPtr;
+
+/**
+ Typedef for RL2 LineSymbolizer object (opaque, hidden)
+
+ \sa rl2LineSymbolizerPtr
+ */
+    typedef struct rl2_line_symbolizer rl2LineSymbolizer;
+/**
+ Typedef for RL2 LineSymbolizer object pointer (opaque, hidden)
+
+ \sa rl2LineSymbolizer
+ */
+    typedef rl2LineSymbolizer *rl2LineSymbolizerPtr;
+
+/**
+ Typedef for RL2 PolygonSymbolizer object (opaque, hidden)
+
+ \sa rl2PolygonSymbolizerPtr
+ */
+    typedef struct rl2_polygon_symbolizer rl2PolygonSymbolizer;
+/**
+ Typedef for RL2 PolygonSymbolizer object pointer (opaque, hidden)
+
+ \sa rl2PolygonSymbolizer
+ */
+    typedef rl2PolygonSymbolizer *rl2PolygonSymbolizerPtr;
+
+/**
+ Typedef for RL2 TextSymbolizer object (opaque, hidden)
+
+ \sa rl2TextSymbolizerPtr
+ */
+    typedef struct rl2_text_symbolizer rl2TextSymbolizer;
+/**
+ Typedef for RL2 TextSymbolizer object pointer (opaque, hidden)
+
+ \sa rl2TextSymbolizer
+ */
+    typedef rl2TextSymbolizer *rl2TextSymbolizerPtr;
 
 /**
  Typedef for RL2 GroupStyle object (opaque, hidden)
@@ -3277,7 +3482,7 @@ extern "C"
 					 unsigned char bg_red,
 					 unsigned char bg_green,
 					 unsigned char bg_blue,
-					 rl2RasterStylePtr style,
+					 rl2RasterSymbolizerPtr style,
 					 rl2RasterStatisticsPtr stats);
 
     RL2_DECLARE int
@@ -3295,7 +3500,7 @@ extern "C"
 						   unsigned char bg_red,
 						   unsigned char bg_green,
 						   unsigned char bg_blue,
-						   rl2RasterStylePtr style,
+						   rl2RasterSymbolizerPtr style,
 						   rl2RasterStatisticsPtr
 						   stats);
 
@@ -4176,139 +4381,549 @@ extern "C"
 	rl2_parse_hexrgb (const char *hex, unsigned char *red,
 			  unsigned char *green, unsigned char *blue);
 
-    RL2_DECLARE rl2RasterStylePtr
-	rl2_create_raster_style_from_dbms (sqlite3 * handle,
-					   const char *coverage,
-					   const char *style);
+    RL2_DECLARE rl2CoverageStylePtr
+	rl2_create_coverage_style_from_dbms (sqlite3 * handle,
+					     const char *coverage,
+					     const char *style);
 
-    RL2_DECLARE rl2VectorStylePtr
-	rl2_create_vector_style_from_dbms (sqlite3 * handle,
-					   const char *coverage,
-					   const char *style);
+    RL2_DECLARE rl2FeatureTypeStylePtr
+	rl2_create_feature_type_style_from_dbms (sqlite3 * handle,
+						 const char *coverage,
+						 const char *style);
 
     RL2_DECLARE rl2RasterStatisticsPtr
 	rl2_create_raster_statistics_from_dbms (sqlite3 * handle,
 						const char *coverage);
 
-    RL2_DECLARE void rl2_destroy_raster_style (rl2RasterStylePtr style);
+    RL2_DECLARE void rl2_destroy_coverage_style (rl2CoverageStylePtr style);
 
-    RL2_DECLARE const char *rl2_get_raster_style_name (rl2RasterStylePtr style);
+    RL2_DECLARE const char *rl2_get_coverage_style_name (rl2CoverageStylePtr
+							 style);
 
-    RL2_DECLARE const char *rl2_get_raster_style_title (rl2RasterStylePtr
-							style);
+    RL2_DECLARE rl2RasterSymbolizerPtr
+	rl2_get_symbolizer_from_coverage_style (rl2CoverageStylePtr style,
+						double scale);
 
-    RL2_DECLARE const char *rl2_get_raster_style_abstract (rl2RasterStylePtr
-							   style);
+    RL2_DECLARE const char *rl2_get_rule_like_wild_card (rl2RuleLikeArgsPtr
+							 args);
 
-    RL2_DECLARE int rl2_get_raster_style_opacity (rl2RasterStylePtr style,
-						  double *opacity);
+    RL2_DECLARE const char *rl2_get_rule_like_single_char (rl2RuleLikeArgsPtr
+							   args);
 
-    RL2_DECLARE int rl2_is_raster_style_mono_band_selected (rl2RasterStylePtr
-							    style,
-							    int *selected);
+    RL2_DECLARE const char *rl2_get_rule_like_value (rl2RuleLikeArgsPtr args);
 
-    RL2_DECLARE int rl2_get_raster_style_mono_band_selection (rl2RasterStylePtr
-							      style,
-							      unsigned char
-							      *gray_band);
+    RL2_DECLARE const char *rl2_get_rule_like_escape_char (rl2RuleLikeArgsPtr
+							   args);
 
-    RL2_DECLARE int rl2_is_raster_style_triple_band_selected (rl2RasterStylePtr
-							      style,
-							      int *selected);
+    RL2_DECLARE const char *rl2_get_rule_between_lower (rl2RuleBetweenArgsPtr
+							args);
 
-    RL2_DECLARE int
-	rl2_get_raster_style_triple_band_selection (rl2RasterStylePtr style,
-						    unsigned char *red_band,
-						    unsigned char *green_band,
-						    unsigned char *blue_band);
+    RL2_DECLARE const char *rl2_get_rule_between_upper (rl2RuleBetweenArgsPtr
+							args);
 
-    RL2_DECLARE int
-	rl2_get_raster_style_overall_contrast_enhancement (rl2RasterStylePtr
-							   style,
-							   unsigned char
-							   *contrast_enhancement,
-							   double *gamma_value);
+    RL2_DECLARE const char *rl2_get_rule_value (rl2RuleSingleArgPtr arg);
+
+    RL2_DECLARE int rl2_get_raster_symbolizer_opacity (rl2RasterSymbolizerPtr
+						       style, double *opacity);
 
     RL2_DECLARE int
-	rl2_get_raster_style_red_band_contrast_enhancement (rl2RasterStylePtr
-							    style,
-							    unsigned char
-							    *contrast_enhancement,
+	rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr
+						     style, int *selected);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_mono_band_selection (rl2RasterSymbolizerPtr
+						       style,
+						       unsigned char
+						       *gray_band);
+
+    RL2_DECLARE int
+	rl2_is_raster_symbolizer_triple_band_selected (rl2RasterSymbolizerPtr
+						       style, int *selected);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_triple_band_selection (rl2RasterSymbolizerPtr
+							 style,
+							 unsigned char
+							 *red_band,
+							 unsigned char
+							 *green_band,
+							 unsigned char
+							 *blue_band);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_overall_contrast_enhancement
+	(rl2RasterSymbolizerPtr style, unsigned char *contrast_enhancement,
+	 double *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_red_band_contrast_enhancement
+	(rl2RasterSymbolizerPtr style, unsigned char *contrast_enhancement,
+	 double *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_green_band_contrast_enhancement
+	(rl2RasterSymbolizerPtr style, unsigned char *contrast_enhancement,
+	 double *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_blue_band_contrast_enhancement
+	(rl2RasterSymbolizerPtr style, unsigned char *contrast_enhancement,
+	 double *gamma_value);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_gray_band_contrast_enhancement
+	(rl2RasterSymbolizerPtr style, unsigned char *contrast_enhancement,
+	 double *gamma_value);
+
+    RL2_DECLARE int
+	rl2_has_raster_symbolizer_color_map_interpolated (rl2RasterSymbolizerPtr
+							  style,
+							  int *interpolated);
+
+    RL2_DECLARE int
+	rl2_has_raster_symbolizer_color_map_categorized (rl2RasterSymbolizerPtr
+							 style,
+							 int *categorized);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_color_map_default (rl2RasterSymbolizerPtr
+						     style, unsigned char *red,
+						     unsigned char *green,
+						     unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_color_map_category_base
+	(rl2RasterSymbolizerPtr style, unsigned char *red, unsigned char *green,
+	 unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_color_map_count (rl2RasterSymbolizerPtr style,
+						   int *count);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_color_map_entry (rl2RasterSymbolizerPtr style,
+						   int index, double *value,
+						   unsigned char *red,
+						   unsigned char *green,
+						   unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_has_raster_symbolizer_shaded_relief (rl2RasterSymbolizerPtr style,
+						 int *shaded_relief);
+
+    RL2_DECLARE int
+	rl2_get_raster_symbolizer_shaded_relief (rl2RasterSymbolizerPtr style,
+						 int *brightness_only,
+						 double *relief_factor);
+
+    RL2_DECLARE void rl2_destroy_feature_type_style (rl2FeatureTypeStylePtr
+						     style);
+
+    RL2_DECLARE const char
+	*rl2_get_feature_type_style_name (rl2FeatureTypeStylePtr style);
+
+    RL2_DECLARE rl2VariantValuePtr rl2_create_variant_int (sqlite3_int64 value);
+
+    RL2_DECLARE rl2VariantValuePtr rl2_create_variant_double (double value);
+
+    RL2_DECLARE rl2VariantValuePtr
+	rl2_create_variant_text (const char *value, int bytes);
+
+    RL2_DECLARE rl2VariantValuePtr
+	rl2_create_variant_blob (const unsigned char *value, int bytes);
+
+    RL2_DECLARE rl2VariantValuePtr rl2_create_variant_null (void);
+
+    RL2_DECLARE void rl2_destroy_variant_value (rl2VariantValuePtr value);
+
+    RL2_DECLARE rl2VectorSymbolizerPtr
+	rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr
+						    style, double scale,
+						    rl2VariantValuePtr variant);
+
+    RL2_DECLARE int
+	rl2_is_valid_vector_symbolizer (rl2VectorSymbolizerPtr symbolizer,
+					int *valid);
+
+    RL2_DECLARE int
+	rl2_get_vector_symbolizer_count (rl2VectorSymbolizerPtr symbolizer,
+					 int *count);
+
+    RL2_DECLARE int
+	rl2_get_vector_symbolizer_item_type (rl2VectorSymbolizerPtr symbolizer,
+					     int index, int *type);
+
+    RL2_DECLARE rl2PointSymbolizerPtr
+	rl2_get_point_symbolizer (rl2VectorSymbolizerPtr symbolizer, int index);
+
+    RL2_DECLARE rl2LineSymbolizerPtr
+	rl2_get_line_symbolizer (rl2VectorSymbolizerPtr symbolizer, int index);
+
+    RL2_DECLARE rl2PolygonSymbolizerPtr
+	rl2_get_polygon_symbolizer (rl2VectorSymbolizerPtr symbolizer,
+				    int index);
+
+    RL2_DECLARE rl2TextSymbolizerPtr
+	rl2_get_text_symbolizer (rl2VectorSymbolizerPtr symbolizer, int index);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_count (rl2PointSymbolizerPtr symbolizer,
+					int *count);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_is_graphic (rl2PointSymbolizerPtr symbolizer,
+					 int index, int *external_graphic);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_graphic_href (rl2PointSymbolizerPtr
+						symbolizer, int index);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_graphic_recode_color
+	(rl2PointSymbolizerPtr symbolizer, int index, int repl_index,
+	 int *color_index, unsigned char *red, unsigned char *green,
+	 unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_is_mark (rl2PointSymbolizerPtr symbolizer,
+				      int index, int *mark);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_well_known_type (rl2PointSymbolizerPtr
+						       symbolizer, int index,
+						       unsigned char *type);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_has_stroke (rl2PointSymbolizerPtr symbolizer,
+					      int index, int *stroke);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_color (rl2PointSymbolizerPtr
+						    symbolizer, int index,
+						    unsigned char *red,
+						    unsigned char *green,
+						    unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_width (rl2PointSymbolizerPtr
+						    symbolizer, int index,
+						    double *width);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_linejoin (rl2PointSymbolizerPtr
+						       symbolizer, int index,
+						       unsigned char *linejoin);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_linecap (rl2PointSymbolizerPtr
+						      symbolizer, int index,
+						      unsigned char *linecap);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_dash_offset (rl2PointSymbolizerPtr
+							  symbolizer, int index,
+							  double *offset);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_dash_count (rl2PointSymbolizerPtr
+							 symbolizer, int index,
+							 int *count);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_stroke_dash_item (rl2PointSymbolizerPtr
+							symbolizer, int index,
+							int item_index,
+							double *item);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_has_fill (rl2PointSymbolizerPtr symbolizer,
+					    int index, int *fill);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_mark_get_fill_color (rl2PointSymbolizerPtr
+						  symbolizer, int index,
+						  unsigned char *red,
+						  unsigned char *green,
+						  unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_opacity (rl2PointSymbolizerPtr symbolizer,
+					  double *opacity);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_size (rl2PointSymbolizerPtr symbolizer,
+				       double *size);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_rotation (rl2PointSymbolizerPtr symbolizer,
+					   double *rotation);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_anchor_point (rl2PointSymbolizerPtr symbolizer,
+					       double *x, double *y);
+
+    RL2_DECLARE int
+	rl2_point_symbolizer_get_displacement (rl2PointSymbolizerPtr symbolizer,
+					       double *x, double *y);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_has_stroke (rl2LineSymbolizerPtr symbolizer,
+					int *stroke);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_has_graphic_stroke (rl2LineSymbolizerPtr symbolizer,
+						int *stroke);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_graphic_stroke_href (rl2LineSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_graphic_stroke_recode_count
+	(rl2LineSymbolizerPtr symbolizer, int *count);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_graphic_stroke_recode_color
+	(rl2LineSymbolizerPtr symbolizer, int index, int *color_index,
+	 unsigned char *red, unsigned char *green, unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_color (rl2LineSymbolizerPtr symbolizer,
+					      unsigned char *red,
+					      unsigned char *green,
+					      unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_opacity (rl2LineSymbolizerPtr symbolizer,
+						double *opacity);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_width (rl2LineSymbolizerPtr symbolizer,
+					      double *width);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_linejoin (rl2LineSymbolizerPtr
+						 symbolizer,
+						 unsigned char *linejoin);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_linecap (rl2LineSymbolizerPtr symbolizer,
+						unsigned char *linecap);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_dash_offset (rl2LineSymbolizerPtr
+						    symbolizer, double *offset);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_dash_count (rl2LineSymbolizerPtr
+						   symbolizer, int *count);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_stroke_dash_item (rl2LineSymbolizerPtr
+						  symbolizer, int index,
+						  double *item);
+
+    RL2_DECLARE int
+	rl2_line_symbolizer_get_perpendicular_offset (rl2LineSymbolizerPtr
+						      symbolizer,
+						      double *offset);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_has_stroke (rl2PolygonSymbolizerPtr symbolizer,
+					   int *stroke);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_has_graphic_stroke (rl2PolygonSymbolizerPtr
+						   symbolizer, int *stroke);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_graphic_stroke_href (rl2PolygonSymbolizerPtr
+							 symbolizer);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_graphic_stroke_recode_count
+	(rl2PolygonSymbolizerPtr symbolizer, int *count);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_graphic_stroke_recode_color
+	(rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index,
+	 unsigned char *red, unsigned char *green, unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_color (rl2PolygonSymbolizerPtr
+						 symbolizer, unsigned char *red,
+						 unsigned char *green,
+						 unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_opacity (rl2PolygonSymbolizerPtr
+						   symbolizer, double *opacity);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_width (rl2PolygonSymbolizerPtr
+						 symbolizer, double *width);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_linejoin (rl2PolygonSymbolizerPtr
+						    symbolizer,
+						    unsigned char *linejoin);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_linecap (rl2PolygonSymbolizerPtr
+						   symbolizer,
+						   unsigned char *linecap);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_dash_offset (rl2PolygonSymbolizerPtr
+						       symbolizer,
+						       double *offset);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_dash_count (rl2PolygonSymbolizerPtr
+						      symbolizer, int *count);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_stroke_dash_item (rl2PolygonSymbolizerPtr
+						     symbolizer, int index,
+						     double *item);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_has_fill (rl2PolygonSymbolizerPtr symbolizer,
+					 int *fill);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_has_graphic_fill (rl2PolygonSymbolizerPtr
+						 symbolizer, int *fill);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_graphic_fill_href (rl2PolygonSymbolizerPtr
+						       symbolizer);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_graphic_fill_recode_count
+	(rl2PolygonSymbolizerPtr symbolizer, int *count);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_graphic_fill_recode_color
+	(rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index,
+	 unsigned char *red, unsigned char *green, unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_fill_color (rl2PolygonSymbolizerPtr
+					       symbolizer, unsigned char *red,
+					       unsigned char *green,
+					       unsigned char *blue);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_fill_opacity (rl2PolygonSymbolizerPtr
+						 symbolizer, double *opacity);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_displacement (rl2PolygonSymbolizerPtr
+						 symbolizer, double *x,
+						 double *y);
+
+    RL2_DECLARE int
+	rl2_polygon_symbolizer_get_perpendicular_offset (rl2PolygonSymbolizerPtr
+							 symbolizer,
+							 double *offset);
+
+    RL2_DECLARE const char *rl2_text_symbolizer_get_label (rl2TextSymbolizerPtr
+							   symbolizer);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_font_families_count (rl2TextSymbolizerPtr
+						     symbolizer, int *count);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_font_family_name (rl2TextSymbolizerPtr
+						   symbolizer, int index);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_font_style (rl2TextSymbolizerPtr symbolizer,
+					    unsigned char *style);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_font_weight (rl2TextSymbolizerPtr symbolizer,
+					     unsigned char *weight);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_font_size (rl2TextSymbolizerPtr symbolizer,
+					   double *size);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_label_placement_mode (rl2TextSymbolizerPtr
+						      symbolizer,
+						      unsigned char *mode);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_point_placement_anchor_point
+	(rl2TextSymbolizerPtr symbolizer, double *x, double *y);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_point_placement_displacement
+	(rl2TextSymbolizerPtr symbolizer, double *x, double *y);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_point_placement_rotation (rl2TextSymbolizerPtr
+							  symbolizer,
+							  double *rotation);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_line_placement_perpendicular_offset
+	(rl2TextSymbolizerPtr symbolizer, double *offset);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_line_placement_is_repeated (rl2TextSymbolizerPtr
+							    symbolizer,
+							    int *is_repeated);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_line_placement_initial_gap (rl2TextSymbolizerPtr
+							    symbolizer,
 							    double
-							    *gamma_value);
+							    *initial_gap);
 
     RL2_DECLARE int
-	rl2_get_raster_style_green_band_contrast_enhancement (rl2RasterStylePtr
-							      style,
-							      unsigned char
-							      *contrast_enhancement,
-							      double
-							      *gamma_value);
+	rl2_text_symbolizer_get_line_placement_gap (rl2TextSymbolizerPtr
+						    symbolizer, double *gap);
 
     RL2_DECLARE int
-	rl2_get_raster_style_blue_band_contrast_enhancement (rl2RasterStylePtr
-							     style,
-							     unsigned char
-							     *contrast_enhancement,
-							     double
-							     *gamma_value);
+	rl2_text_symbolizer_get_line_placement_is_aligned (rl2TextSymbolizerPtr
+							   symbolizer,
+							   int *is_aligned);
 
     RL2_DECLARE int
-	rl2_get_raster_style_gray_band_contrast_enhancement (rl2RasterStylePtr
-							     style,
-							     unsigned char
-							     *contrast_enhancement,
-							     double
-							     *gamma_value);
+	rl2_text_symbolizer_get_line_placement_generalize_line
+	(rl2TextSymbolizerPtr symbolizer, int *generalize_line);
 
     RL2_DECLARE int
-	rl2_has_raster_style_color_map_interpolated (rl2RasterStylePtr style,
-						     int *interpolated);
+	rl2_text_symbolizer_has_halo (rl2TextSymbolizerPtr symbolizer,
+				      int *halo);
 
     RL2_DECLARE int
-	rl2_has_raster_style_color_map_categorized (rl2RasterStylePtr style,
-						    int *categorized);
-
-    RL2_DECLARE int rl2_get_raster_style_color_map_default (rl2RasterStylePtr
-							    style,
-							    unsigned char *red,
-							    unsigned char
-							    *green,
-							    unsigned char
-							    *blue);
+	rl2_text_symbolizer_get_halo_radius (rl2TextSymbolizerPtr symbolizer,
+					     double *radius);
 
     RL2_DECLARE int
-	rl2_get_raster_style_color_map_category_base (rl2RasterStylePtr style,
-						      unsigned char *red,
-						      unsigned char *green,
-						      unsigned char *blue);
+	rl2_text_symbolizer_has_halo_fill (rl2TextSymbolizerPtr symbolizer,
+					   int *fill);
 
-    RL2_DECLARE int rl2_get_raster_style_color_map_count (rl2RasterStylePtr
-							  style, int *count);
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_halo_fill_color (rl2TextSymbolizerPtr
+						 symbolizer, unsigned char *red,
+						 unsigned char *green,
+						 unsigned char *blue);
 
-    RL2_DECLARE int rl2_get_raster_style_color_map_entry (rl2RasterStylePtr
-							  style, int index,
-							  double *value,
-							  unsigned char *red,
-							  unsigned char *green,
-							  unsigned char *blue);
+    RL2_DECLARE int
+	rl2_text_symbolizer_has_fill (rl2TextSymbolizerPtr symbolizer,
+				      int *fill);
 
-    RL2_DECLARE int rl2_has_raster_style_shaded_relief (rl2RasterStylePtr style,
-							int *shaded_relief);
-
-    RL2_DECLARE int rl2_get_raster_style_shaded_relief (rl2RasterStylePtr style,
-							int *brightness_only,
-							double *relief_factor);
-
-    RL2_DECLARE void rl2_destroy_vector_style (rl2VectorStylePtr style);
-
-    RL2_DECLARE const char *rl2_get_vector_style_name (rl2VectorStylePtr style);
-
-    RL2_DECLARE const char *rl2_get_vector_style_title (rl2VectorStylePtr
-							style);
-
-    RL2_DECLARE const char *rl2_get_vector_style_abstract (rl2VectorStylePtr
-							   style);
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_fill_color (rl2TextSymbolizerPtr symbolizer,
+					    unsigned char *red,
+					    unsigned char *green,
+					    unsigned char *blue);
 
     RL2_DECLARE rl2GroupStylePtr
 	rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
@@ -4317,11 +4932,6 @@ extern "C"
     RL2_DECLARE void rl2_destroy_group_style (rl2GroupStylePtr style);
 
     RL2_DECLARE const char *rl2_get_group_style_name (rl2GroupStylePtr style);
-
-    RL2_DECLARE const char *rl2_get_group_style_title (rl2GroupStylePtr style);
-
-    RL2_DECLARE const char *rl2_get_group_style_abstract (rl2GroupStylePtr
-							  style);
 
     RL2_DECLARE int rl2_is_valid_group_style (rl2GroupStylePtr style,
 					      int *valid);

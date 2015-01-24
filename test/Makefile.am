@@ -18,7 +18,9 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_noref test_map_trento \
 	test_map_trieste test_map_infrared \
 	test_map_orbetello test_raster_symbolizer \
-	test_svg test_raw test_openjpeg
+	test_svg test_raw test_openjpeg \
+	test_line_symbolizer test_polygon_symbolizer \
+	test_point_symbolizer test_text_symbolizer
 
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
@@ -90,7 +92,8 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	gray_normalize.xml rgb_normalize2.xml \
 	rgb_histogram2.xml rgb_gamma.xml gray_normalize2.xml \
 	gray_histogram2.xml gray_gamma2.xml group_style_1.xml \
-	group_style_2.xml bicycle.svg car_repair.svg \
+	coverage_style.xml group_style_2.xml \
+	symbolizers.sqlite bicycle.svg car_repair.svg \
 	Car_Yellow.svg Circle_and_quadratic_bezier.svg \
 	Coat_of_arms_Holy_See.svg doctors.svg fastfood.svg \
 	Flag_of_the_United_Kingdom.svg Flag_of_the_United_States.svg \

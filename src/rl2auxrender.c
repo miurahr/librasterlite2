@@ -887,7 +887,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
     rl2PrivGroupRendererPtr grp;
     struct aux_renderer aux;
     rl2PalettePtr palette = NULL;
-    rl2PrivRasterStylePtr symbolizer = NULL;
+    rl2PrivRasterSymbolizerPtr symbolizer = NULL;
     int by_section = 0;
     sqlite3 *sqlite = sqlite3_context_db_handle (auxgrp->context);
 
@@ -954,8 +954,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		    is_shaded_relief = 1;
 		if (!is_shaded_relief)
 		  {
-		      if (rl2_is_raster_style_triple_band_selected
-			  ((rl2RasterStylePtr) (lyr->raster_symbolizer),
+		      if (rl2_is_raster_symbolizer_triple_band_selected
+			  ((rl2RasterSymbolizerPtr) (lyr->raster_symbolizer),
 			   &yes_no) == RL2_OK)
 			{
 			    if ((cvg->sampleType == RL2_SAMPLE_UINT8
@@ -965,8 +965,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 				&& yes_no)
 				out_pixel = RL2_PIXEL_RGB;
 			}
-		      if (rl2_is_raster_style_mono_band_selected
-			  ((rl2RasterStylePtr) (lyr->raster_symbolizer),
+		      if (rl2_is_raster_symbolizer_mono_band_selected
+			  ((rl2RasterSymbolizerPtr) (lyr->raster_symbolizer),
 			   &yes_no) == RL2_OK)
 			{
 			    if ((cvg->sampleType == RL2_SAMPLE_UINT8
@@ -988,8 +988,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 				&& yes_no)
 				out_pixel = RL2_PIXEL_GRAYSCALE;
 			}
-		      if (rl2_get_raster_style_opacity
-			  ((rl2RasterStylePtr) (lyr->raster_symbolizer),
+		      if (rl2_get_raster_symbolizer_opacity
+			  ((rl2RasterSymbolizerPtr) (lyr->raster_symbolizer),
 			   &opacity) != RL2_OK)
 			  opacity = 1.0;
 		      if (opacity > 1.0)
@@ -1061,7 +1061,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		     auxgrp->minx, auxgrp->miny, auxgrp->maxx, auxgrp->maxy,
 		     xx_res, yy_res, &outbuf, &outbuf_size, &palette,
 		     &out_pixel, auxgrp->bg_red, auxgrp->bg_green,
-		     auxgrp->bg_blue, (rl2RasterStylePtr) symbolizer,
+		     auxgrp->bg_blue, (rl2RasterSymbolizerPtr) symbolizer,
 		     (rl2RasterStatisticsPtr) (lyr->raster_stats)) != RL2_OK)
 		    goto error;
 		if (out_pixel == RL2_PIXEL_PALETTE && palette == NULL)
@@ -1101,7 +1101,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 	  aux.bg_green = auxgrp->bg_green;
 	  aux.bg_blue = auxgrp->bg_blue;
 	  aux.coverage = lyr->coverage;
-	  aux.symbolizer = (rl2RasterStylePtr) symbolizer;
+	  aux.symbolizer = (rl2RasterSymbolizerPtr) symbolizer;
 	  aux.stats = (rl2RasterStatisticsPtr) (lyr->raster_stats);
 	  aux.outbuf = outbuf;
 	  aux.palette = palette;
@@ -1327,7 +1327,7 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, rl2CoveragePtr cvg,
 					   unsigned char bg_red,
 					   unsigned char bg_green,
 					   unsigned char bg_blue,
-					   rl2RasterStylePtr style,
+					   rl2RasterSymbolizerPtr style,
 					   rl2RasterStatisticsPtr stats)
 {
 /* attempting to return raw pixels from the DBMS Coverage - Mixed Resolutions */
@@ -1343,7 +1343,7 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, rl2CoveragePtr cvg,
     unsigned char *p;
     unsigned int x;
     unsigned int y;
-    rl2RasterStylePtr xstyle = style;
+    rl2RasterSymbolizerPtr xstyle = style;
     char *xsections;
     char *xxsections;
     char *sql;

@@ -1018,7 +1018,7 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
     sqlite3_free (sql);
     if (ret == SQLITE_OK)
       {
-	  fprintf (stderr, "RegisterRasterStyledLayer #9 \"%s\" error: %s\n",
+	  fprintf (stderr, "RegisterRasterStyledLayer #9 error: %s\n",
 		   "expected failure");
 	  *retcode += -26;
 	  return 0;

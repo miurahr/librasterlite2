@@ -133,8 +133,8 @@ am_librasterlite2_la_OBJECTS = rasterlite2.lo rl2raw.lo rl2codec.lo \
 	rl2jpeg.lo rl2png.lo rl2gif.lo rl2webp.lo rl2tiff.lo rl2wms.lo \
 	rl2ascii.lo rl2paint.lo rl2dbms.lo rl2import.lo rl2pyramid.lo \
 	rl2sql.lo rl2sqlaux.lo rl2auxrender.lo rl2svg.lo rl2svgxml.lo \
-	rl2svgaux.lo rl2symbolizer.lo rl2rastersym.lo rl2version.lo \
-	rl2md5.lo md5.lo rl2charls.lo rl2openjpeg.lo
+	rl2svgaux.lo rl2symbolizer.lo rl2symbaux.lo rl2rastersym.lo \
+	rl2version.lo rl2md5.lo md5.lo rl2charls.lo rl2openjpeg.lo
 librasterlite2_la_OBJECTS = $(am_librasterlite2_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -159,6 +159,7 @@ am_mod_rasterlite2_la_OBJECTS = mod_rasterlite2_la-rasterlite2.lo \
 	mod_rasterlite2_la-rl2svg.lo mod_rasterlite2_la-rl2svgxml.lo \
 	mod_rasterlite2_la-rl2svgaux.lo \
 	mod_rasterlite2_la-rl2symbolizer.lo \
+	mod_rasterlite2_la-rl2symbaux.lo \
 	mod_rasterlite2_la-rl2rastersym.lo \
 	mod_rasterlite2_la-rl2version.lo mod_rasterlite2_la-rl2md5.lo \
 	mod_rasterlite2_la-md5.lo mod_rasterlite2_la-rl2charls.lo \
@@ -379,8 +380,8 @@ librasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
 	rl2ascii.c rl2paint.c rl2dbms.c rl2import.c rl2pyramid.c \
 	rl2sql.c rl2sqlaux.c rl2auxrender.c rl2svg.c rl2svgxml.c \
-	rl2svgaux.c rl2symbolizer.c rl2rastersym.c rl2version.c \
-	rl2md5.c md5.c rl2charls.c rl2openjpeg.c
+	rl2svgaux.c rl2symbolizer.c rl2symbaux.c rl2rastersym.c \
+	rl2version.c rl2md5.c md5.c rl2charls.c rl2openjpeg.c
 
 librasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ @LIBLZMA_LIBS@ \
 	@LIBCAIRO_LIBS@ @LIBCURL_LIBS@ @LIBXML2_LIBS@ $(am__append_1) \
@@ -391,8 +392,8 @@ mod_rasterlite2_la_SOURCES = rasterlite2.c rl2raw.c rl2codec.c \
 	rl2jpeg.c rl2png.c rl2gif.c rl2webp.c rl2tiff.c rl2wms.c \
 	rl2ascii.c rl2paint.c rl2dbms.c rl2import.c rl2pyramid.c \
 	rl2sql.c rl2sqlaux.c rl2auxrender.c rl2svg.c rl2svgxml.c \
-	rl2svgaux.c rl2symbolizer.c rl2rastersym.c rl2version.c \
-	rl2md5.c md5.c rl2charls.c rl2openjpeg.c
+	rl2svgaux.c rl2symbolizer.c rl2symbaux.c rl2rastersym.c \
+	rl2version.c rl2md5.c md5.c rl2charls.c rl2openjpeg.c
 
 mod_rasterlite2_la_LIBADD = @LIBPNG_LIBS@ @LIBWEBP_LIBS@ \
 	@LIBLZMA_LIBS@ @LIBCAIRO_LIBS@ @LIBCURL_LIBS@ @LIBXML2_LIBS@ \
@@ -508,6 +509,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2svg.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2svgaux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2svgxml.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2symbaux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2symbolizer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2tiff.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mod_rasterlite2_la-rl2version.Plo@am__quote@
@@ -534,6 +536,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2svg.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2svgaux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2svgxml.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2symbaux.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2symbolizer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2tiff.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rl2version.Plo@am__quote@
@@ -707,6 +710,13 @@ mod_rasterlite2_la-rl2symbolizer.lo: rl2symbolizer.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='rl2symbolizer.c' object='mod_rasterlite2_la-rl2symbolizer.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(mod_rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(mod_rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mod_rasterlite2_la-rl2symbolizer.lo `test -f 'rl2symbolizer.c' || echo '$(srcdir)/'`rl2symbolizer.c
+
+mod_rasterlite2_la-rl2symbaux.lo: rl2symbaux.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(mod_rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(mod_rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mod_rasterlite2_la-rl2symbaux.lo -MD -MP -MF $(DEPDIR)/mod_rasterlite2_la-rl2symbaux.Tpo -c -o mod_rasterlite2_la-rl2symbaux.lo `test -f 'rl2symbaux.c' || echo '$(srcdir)/'`rl2symbaux.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/mod_rasterlite2_la-rl2symbaux.Tpo $(DEPDIR)/mod_rasterlite2_la-rl2symbaux.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='rl2symbaux.c' object='mod_rasterlite2_la-rl2symbaux.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(mod_rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(mod_rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o mod_rasterlite2_la-rl2symbaux.lo `test -f 'rl2symbaux.c' || echo '$(srcdir)/'`rl2symbaux.c
 
 mod_rasterlite2_la-rl2rastersym.lo: rl2rastersym.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(mod_rasterlite2_la_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(mod_rasterlite2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT mod_rasterlite2_la-rl2rastersym.lo -MD -MP -MF $(DEPDIR)/mod_rasterlite2_la-rl2rastersym.Tpo -c -o mod_rasterlite2_la-rl2rastersym.lo `test -f 'rl2rastersym.c' || echo '$(srcdir)/'`rl2rastersym.c

@@ -2499,7 +2499,7 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 			    unsigned char num_bands, double x_res, double y_res,
 			    double minx, double maxy,
 			    int scale, rl2PalettePtr palette,
-			    rl2PixelPtr no_data, rl2RasterStylePtr style,
+			    rl2PixelPtr no_data, rl2RasterSymbolizerPtr style,
 			    rl2RasterStatisticsPtr stats)
 {
 /* retrieving a full image from DBMS tiles */
@@ -3399,7 +3399,7 @@ rl2_load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		     unsigned char num_bands, double x_res, double y_res,
 		     double minx, double miny, double maxx, double maxy,
 		     int level, int scale, rl2PalettePtr palette,
-		     rl2PixelPtr no_data, rl2RasterStylePtr style,
+		     rl2PixelPtr no_data, rl2RasterSymbolizerPtr style,
 		     rl2RasterStatisticsPtr stats)
 {
 /* binding the query args */
@@ -3647,11 +3647,11 @@ rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
 }
 
 RL2_PRIVATE int
-rl2_has_styled_rgb_colors (rl2RasterStylePtr style)
+rl2_has_styled_rgb_colors (rl2RasterSymbolizerPtr style)
 {
 /* testing for a RasterSymbolizer requiring RGB colors */
     rl2PrivColorMapPointPtr color;
-    rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
+    rl2PrivRasterSymbolizerPtr stl = (rl2PrivRasterSymbolizerPtr) style;
     if (stl == NULL)
 	return 0;
     if (stl->shadedRelief && stl->brightnessOnly)
@@ -3737,7 +3737,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 				unsigned char **buffer, int *buf_size,
 				rl2PalettePtr * palette,
 				unsigned char out_pixel, rl2PixelPtr bgcolor,
-				rl2RasterStylePtr style,
+				rl2RasterSymbolizerPtr style,
 				rl2RasterStatisticsPtr stats)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
@@ -3945,15 +3945,15 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
     if (style != NULL)
       {
 	  /* testing for Shaded Relief */
-	  if (rl2_has_raster_style_shaded_relief (style, &has_shaded_relief) !=
-	      RL2_OK)
+	  if (rl2_has_raster_symbolizer_shaded_relief
+	      (style, &has_shaded_relief) != RL2_OK)
 	      goto error;
 	  if (has_shaded_relief)
 	    {
 		/* preparing a Shaded Relief mask */
 		double scale_factor =
 		    rl2_get_shaded_relief_scale_factor (handle, coverage);
-		if (rl2_get_raster_style_shaded_relief
+		if (rl2_get_raster_symbolizer_shaded_relief
 		    (style, &brightness_only, &relief_factor) != RL2_OK)
 		    goto error;
 		if (rl2_build_shaded_relief_mask
@@ -4575,7 +4575,7 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
 				 rl2PalettePtr * palette,
 				 unsigned char *out_pixel, unsigned char bg_red,
 				 unsigned char bg_green, unsigned char bg_blue,
-				 rl2RasterStylePtr style,
+				 rl2RasterSymbolizerPtr style,
 				 rl2RasterStatisticsPtr stats)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage + bgcolor */
@@ -4585,7 +4585,7 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
-    rl2RasterStylePtr xstyle = style;
+    rl2RasterSymbolizerPtr xstyle = style;
 
     if (cvg == NULL || handle == NULL)
 	return RL2_ERROR;
@@ -4829,7 +4829,8 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
 	  int ok = 0;
 	  if (style != NULL)
 	    {
-		rl2PrivRasterStylePtr stl = (rl2PrivRasterStylePtr) style;
+		rl2PrivRasterSymbolizerPtr stl =
+		    (rl2PrivRasterSymbolizerPtr) style;
 		if (stl->categorize != NULL)
 		  {
 		      rl2PrivColorMapPointPtr color = stl->categorize->first;
@@ -5417,23 +5418,21 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
     return RL2_ERROR;
 }
 
-RL2_DECLARE rl2RasterStylePtr
-rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
-				   const char *style)
+RL2_DECLARE rl2CoverageStylePtr
+rl2_create_coverage_style_from_dbms (sqlite3 * handle, const char *coverage,
+				     const char *style)
 {
-/* attempting to load and parse a RasterSymbolizer style */
+/* attempting to load and parse a Coverage Style */
     const char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
-    rl2RasterStylePtr stl = NULL;
+    rl2CoverageStylePtr stl = NULL;
     char *name = NULL;
-    char *title = NULL;
-    char *abstract = NULL;
     unsigned char *xml = NULL;
     int done = 0;
 
-    sql = "SELECT s.style_name, XB_GetTitle(s.style), XB_GetAbstract(s.style), "
-	"XB_GetDocument(s.style) FROM SE_raster_styled_layers AS r "
+    sql = "SELECT s.style_name, XB_GetDocument(s.style) "
+	"FROM SE_raster_styled_layers AS r "
 	"JOIN SE_raster_styles AS s ON (r.style_id = s.style_id) "
 	"WHERE Lower(r.coverage_name) = Lower(?) AND "
 	"Lower(s.style_name) = Lower(?)";
@@ -5471,21 +5470,7 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
 			}
 		      if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
 			{
-			    str = (const char *) sqlite3_column_text (stmt, 1);
-			    len = strlen (str);
-			    title = malloc (len + 1);
-			    strcpy (title, str);
-			}
-		      if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
-			{
-			    str = (const char *) sqlite3_column_text (stmt, 2);
-			    len = strlen (str);
-			    abstract = malloc (len + 1);
-			    strcpy (abstract, str);
-			}
-		      if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
-			{
-			    ustr = sqlite3_column_text (stmt, 3);
+			    ustr = sqlite3_column_text (stmt, 1);
 			    len = strlen ((const char *) ustr);
 			    xml = malloc (len + 1);
 			    strcpy ((char *) xml, (const char *) ustr);
@@ -5506,15 +5491,11 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
       {
 	  if (name != NULL)
 	      free (name);
-	  if (title != NULL)
-	      free (title);
-	  if (abstract != NULL)
-	      free (abstract);
 	  if (xml != NULL)
 	      free (xml);
 	  goto error;
       }
-    stl = raster_style_from_sld_se_xml (name, title, abstract, xml);
+    stl = coverage_style_from_xml (name, xml);
     if (stl == NULL)
 	goto error;
     return stl;
@@ -5523,27 +5504,25 @@ rl2_create_raster_style_from_dbms (sqlite3 * handle, const char *coverage,
     if (stmt != NULL)
 	sqlite3_finalize (stmt);
     if (stl != NULL)
-	rl2_destroy_raster_style (stl);
+	rl2_destroy_coverage_style (stl);
     return NULL;
 }
 
-RL2_DECLARE rl2VectorStylePtr
-rl2_create_vector_style_from_dbms (sqlite3 * handle, const char *coverage,
-				   const char *style)
+RL2_DECLARE rl2FeatureTypeStylePtr
+rl2_create_feature_type_style_from_dbms (sqlite3 * handle, const char *coverage,
+					 const char *style)
 {
-/* attempting to load and parse a VectorSymbolizer style */
+/* attempting to load and parse a Feature Type Style */
     const char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
-    rl2VectorStylePtr stl = NULL;
+    rl2FeatureTypeStylePtr stl = NULL;
     char *name = NULL;
-    char *title = NULL;
-    char *abstract = NULL;
     unsigned char *xml = NULL;
     int done = 0;
 
-    sql = "SELECT s.style_name, XB_GetTitle(s.style), XB_GetAbstract(s.style), "
-	"XB_GetDocument(s.style) FROM SE_vector_styled_layers AS v "
+    sql = "SELECT s.style_name, XB_GetDocument(s.style) "
+	"FROM SE_vector_styled_layers AS v "
 	"JOIN SE_vector_styles AS s ON (v.style_id = s.style_id) "
 	"WHERE Lower(v.coverage_name) = Lower(?) "
 	"AND Lower(s.style_name) = Lower(?)";
@@ -5581,21 +5560,7 @@ rl2_create_vector_style_from_dbms (sqlite3 * handle, const char *coverage,
 			}
 		      if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
 			{
-			    str = (const char *) sqlite3_column_text (stmt, 1);
-			    len = strlen (str);
-			    title = malloc (len + 1);
-			    strcpy (title, str);
-			}
-		      if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
-			{
-			    str = (const char *) sqlite3_column_text (stmt, 2);
-			    len = strlen (str);
-			    abstract = malloc (len + 1);
-			    strcpy (abstract, str);
-			}
-		      if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
-			{
-			    ustr = sqlite3_column_text (stmt, 3);
+			    ustr = sqlite3_column_text (stmt, 1);
 			    len = strlen ((const char *) ustr);
 			    xml = malloc (len + 1);
 			    strcpy ((char *) xml, (const char *) ustr);
@@ -5616,15 +5581,11 @@ rl2_create_vector_style_from_dbms (sqlite3 * handle, const char *coverage,
       {
 	  if (name != NULL)
 	      free (name);
-	  if (title != NULL)
-	      free (title);
-	  if (abstract != NULL)
-	      free (abstract);
 	  if (xml != NULL)
 	      free (xml);
 	  goto error;
       }
-    stl = vector_style_from_sld_se_xml (name, title, abstract, xml);
+    stl = feature_type_style_from_xml (name, xml);
     if (stl == NULL)
 	goto error;
     return stl;
@@ -5633,7 +5594,7 @@ rl2_create_vector_style_from_dbms (sqlite3 * handle, const char *coverage,
     if (stmt != NULL)
 	sqlite3_finalize (stmt);
     if (stl != NULL)
-	rl2_destroy_vector_style (stl);
+	rl2_destroy_feature_type_style (stl);
     return NULL;
 }
 
@@ -5717,15 +5678,13 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
     sqlite3_stmt *stmt = NULL;
     rl2GroupStylePtr stl = NULL;
     char *name = NULL;
-    char *title = NULL;
-    char *abstract = NULL;
     unsigned char *xml = NULL;
     rl2PrivGroupStylePtr grp_stl;
     rl2PrivChildStylePtr child;
     int done = 0;
 
-    sql = "SELECT s.style_name, XB_GetTitle(s.style), XB_GetAbstract(s.style), "
-	"XB_GetDocument(s.style) FROM SE_styled_group_styles AS g "
+    sql = "SELECT s.style_name, XB_GetDocument(s.style) "
+	"FROM SE_styled_group_styles AS g "
 	"JOIN SE_group_styles AS s ON (g.style_id = s.style_id) "
 	"WHERE Lower(g.group_name) = Lower(?) AND Lower(s.style_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
@@ -5762,21 +5721,7 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
 			}
 		      if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
 			{
-			    str = (const char *) sqlite3_column_text (stmt, 1);
-			    len = strlen (str);
-			    title = malloc (len + 1);
-			    strcpy (title, str);
-			}
-		      if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
-			{
-			    str = (const char *) sqlite3_column_text (stmt, 2);
-			    len = strlen (str);
-			    abstract = malloc (len + 1);
-			    strcpy (abstract, str);
-			}
-		      if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
-			{
-			    ustr = sqlite3_column_text (stmt, 3);
+			    ustr = sqlite3_column_text (stmt, 1);
 			    len = strlen ((const char *) ustr);
 			    xml = malloc (len + 1);
 			    strcpy ((char *) xml, (const char *) ustr);
@@ -5797,17 +5742,13 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
       {
 	  if (name != NULL)
 	      free (name);
-	  if (title != NULL)
-	      free (title);
-	  if (abstract != NULL)
-	      free (abstract);
 	  if (xml != NULL)
 	      free (xml);
 	  goto error;
       }
 
 /* final validation */
-    stl = group_style_from_sld_xml (name, title, abstract, xml);
+    stl = group_style_from_sld_xml (name, xml);
     if (stl == NULL)
 	goto error;
     grp_stl = (rl2PrivGroupStylePtr) stl;

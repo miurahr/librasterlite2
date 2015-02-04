@@ -59,12 +59,6 @@ extern "C"
 {
 #endif
 
-#define RL2_PENSTYLE_SOLID	5001
-#define RL2_PENSTYLE_DOT	5002
-#define RL2_PENSTYLE_LONG_DASH 	5003
-#define RL2_PENSTYLE_SHORT_DASH	5004
-#define RL2_PENSTYLE_DOT_DASH	5005
-
 #define RL2_FONTSTYLE_NORMAL	5101
 #define RL2_FONTSTYLE_ITALIC	5102
 
@@ -73,6 +67,14 @@ extern "C"
 
 #define RL2_CLEAR_PATH		5100
 #define RL2_PRESERVE_PATH	5101
+
+#define RL2_PEN_CAP_BUTT	5210
+#define RL2_PEN_CAP_ROUND	5211
+#define RL2_PEN_CAP_SQUARE	5212
+
+#define RL2_PEN_JOIN_MITER	5261
+#define RL2_PEN_JOIN_ROUND	5262
+#define RL2_PEN_JOIN_BEVEL	5263
 
     typedef struct rl2_graphics_context rl2GraphicsContext;
     typedef rl2GraphicsContext *rl2GraphicsContextPtr;
@@ -232,7 +234,7 @@ extern "C"
 					    unsigned char **buffer, int *size);
 
 /**
- Selects the currently set Pen for a Graphics Context
+ Selects the currently set Pen for a Graphics Context (solid style)
 
  \param context the pointer to a valid Graphics Context returned by a previous call
  to rl2_graph_create_context(), rl2_graph_create_svg_context() or
@@ -242,20 +244,241 @@ extern "C"
  \param blue Pen color: blue component.
  \param alpha Pen transparency (0 full transparent; 255 full opaque).
  \param width Pen width
- \param style one of RL2_PENSTYLE_SOLID, RL2_PENSTYLE_DOT, RL2_PENSTYLE_LONG_DASH,
- RL2_PENSTYLE_SHORT_DASH, RL2_PENSTYLE_DOT_DASH
+ \param line_cap one of RL2_PEN_CAP_BUTT, RL2_PEN_CAP_ROUND or RL2_PEN_CAP_SQUARE
+ \param line_join one of RL2_PEN_JOIN_MITER, RL2_PEN_JOIN_MITER or RL2_PEN_JOIN_BEVEL
 
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
- rl2_graph_create_pdf_context, rl2_graph_set_brush, 
- rl2_graph_set_linear_gradient_brush, rl2_graph_set_pattern_brush,
- rl2_graph_set_font
+ rl2_graph_create_pdf_context, rl2_graph_set_dashed_pen,
+ rl2_graph_set_linear_gradient_solid_pen, rl2_graph_set_linear_gradient_dashed_pen,
+ rl2_graph_set_pattern_solid_pen, rl2_graph_set_pattern_dashed_pen, 
+ rl2_graph_set_brush, rl2_graph_set_font
  */
-    RL2_DECLARE int rl2_graph_set_pen (rl2GraphicsContextPtr context,
-				       unsigned char red, unsigned char green,
-				       unsigned char blue, unsigned char alpha,
-				       double width, int style);
+    RL2_DECLARE int rl2_graph_set_solid_pen (rl2GraphicsContextPtr context,
+					     unsigned char red,
+					     unsigned char green,
+					     unsigned char blue,
+					     unsigned char alpha, double width,
+					     int line_cap, int line_join);
+
+/**
+ Selects the currently set Pen for a Graphics Context (dashed style)
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+ \param red Pen color: red component.
+ \param green Pen color: green component.
+ \param blue Pen color: blue component.
+ \param alpha Pen transparency (0 full transparent; 255 full opaque).
+ \param width Pen width
+ \param line_cap one of RL2_PEN_CAP_BUTT, RL2_PEN_CAP_ROUND or RL2_PEN_CAP_SQUARE
+ \param line_join one of RL2_PEN_JOIN_MITER, RL2_PEN_JOIN_MITER or RL2_PEN_JOIN_BEVEL
+ \param dash_count the total count of dash_list items
+ \param dash_list an array of dash items 
+ \param dash_offset start offset
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen,
+ rl2_graph_set_linear_gradient_solid_pen, rl2_graph_set_linear_gradient_dashed_pen,
+ rl2_graph_set_pattern_solid_pen, rl2_graph_set_pattern_dashed_pen, 
+ rl2_graph_set_brush, rl2_graph_set_font
+ */
+    RL2_DECLARE int rl2_graph_set_dashed_pen (rl2GraphicsContextPtr context,
+					      unsigned char red,
+					      unsigned char green,
+					      unsigned char blue,
+					      unsigned char alpha, double width,
+					      int line_cap, int line_join,
+					      int dash_count,
+					      double dash_list[],
+					      double dash_offset);
+
+/**
+ Selects the currently set Linear Gradient Pen for a Graphics Context (solid style)
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+ \param x start point (X coord, in pixels) of the Gradient.
+ \param y start point (Y coord, in pixels) of the Gradient.
+ \param width the Gradient width.
+ \param height the Gradient height.
+ \param red1 first Gradient color: red component.
+ \param green1 first Gradient color: green component.
+ \param blue1 first Gradient color: blue component.
+ \param alpha1 first Gradient color transparency (0 full transparent; 255 full opaque).
+ \param red2 second Gradient color: red component.
+ \param green2 second Gradient color: green component.
+ \param blue2 second Gradient color: blue component.
+ \param alpha2 second Gradient color transparency (0 full transparent; 255 full opaque).
+ \param width Pen width
+ \param line_cap one of RL2_PEN_CAP_BUTT, RL2_PEN_CAP_ROUND or RL2_PEN_CAP_SQUARE
+ \param line_join one of RL2_PEN_JOIN_MITER, RL2_PEN_JOIN_MITER or RL2_PEN_JOIN_BEVEL
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_brush, 
+ rl2_graph_set_dashed_pen, rl2_graph_set_linear_gradient_dashed_pen,
+ rl2_graph_set_pattern_solid_pen, rl2_graph_set_pattern_dashed_pen, 
+ rl2_graph_set_brush, rl2_graph_set_font
+
+ \note a Pen created by this function always is a Linear Gradient Pen.
+ */
+    RL2_DECLARE int
+	rl2_graph_set_linear_gradient_solid_pen (rl2GraphicsContextPtr,
+						 double x, double y,
+						 double width, double height,
+						 unsigned char red1,
+						 unsigned char green1,
+						 unsigned char blue1,
+						 unsigned char alpha1,
+						 unsigned char red2,
+						 unsigned char green2,
+						 unsigned char blue2,
+						 unsigned char alpha2,
+						 double pen_width, int line_cap,
+						 int line_join);
+
+/**
+ Selects the currently set Linear Gradient Pen for a Graphics Context (dashed style)
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+ \param x start point (X coord, in pixels) of the Gradient.
+ \param y start point (Y coord, in pixels) of the Gradient.
+ \param width the Gradient width.
+ \param height the Gradient height.
+ \param red1 first Gradient color: red component.
+ \param green1 first Gradient color: green component.
+ \param blue1 first Gradient color: blue component.
+ \param alpha1 first Gradient color transparency (0 full transparent; 255 full opaque).
+ \param red2 second Gradient color: red component.
+ \param green2 second Gradient color: green component.
+ \param blue2 second Gradient color: blue component.
+ \param alpha2 second Gradient color transparency (0 full transparent; 255 full opaque).
+ \param width Pen width
+ \param line_cap one of RL2_PEN_CAP_BUTT, RL2_PEN_CAP_ROUND or RL2_PEN_CAP_SQUARE
+ \param line_join one of RL2_PEN_JOIN_MITER, RL2_PEN_JOIN_MITER or RL2_PEN_JOIN_BEVEL
+ \param dash_count the total count of dash_list items
+ \param dash_list an array of dash items 
+ \param dash_offset start offset
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, 
+ rl2_graph_set_dashed_pen, rl2_graph_set_linear_gradient_solid_pen, 
+ rl2_graph_set_pattern_solid_pen, rl2_graph_set_pattern_dashed_pen, 
+ rl2_graph_set_brush, rl2_graph_set_font
+
+ \note a Pen created by this function always is a Linear Gradient Pen.
+ */
+    RL2_DECLARE int
+	rl2_graph_set_linear_gradient_dashed_pen (rl2GraphicsContextPtr,
+						  double x, double y,
+						  double width, double height,
+						  unsigned char red1,
+						  unsigned char green1,
+						  unsigned char blue1,
+						  unsigned char alpha1,
+						  unsigned char red2,
+						  unsigned char green2,
+						  unsigned char blue2,
+						  unsigned char alpha2,
+						  double pen_width,
+						  int line_cap, int line_join,
+						  int dash_count,
+						  double dash_list[],
+						  double offset);
+
+/**
+ Selects the currently set Pattern Pen for a Graphics Context (solid style)
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+ \param pattern the pointer to a valid Graphics Pattern returned by a previous
+ call to rl2_graph_create_pattern().
+ \param pen_width Pen width
+ \param line_cap one of RL2_PEN_CAP_BUTT, RL2_PEN_CAP_ROUND or RL2_PEN_CAP_SQUARE
+ \param line_join one of RL2_PEN_JOIN_MITER, RL2_PEN_JOIN_MITER or RL2_PEN_JOIN_BEVEL
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
+ rl2_graph_set_linear_gradient_solid_pen, rl2_graph_set_linear_gradient_dashed_pen,
+ rl2_graph_set_pattern_dashed_pen, rl2_graph_set_brush, rl2_graph_set_font, 
+ rl2_create_pattern, rl2_realease_pattern_pen
+
+ \note a Pen created by this function always is a Pattern Pen, 
+ i.e. a Pen repeatedly using a small bitmap as a filling source.
+ */
+    RL2_DECLARE int rl2_graph_set_pattern_solid_pen (rl2GraphicsContextPtr
+						     context,
+						     rl2GraphicsPatternPtr
+						     pattern, double width,
+						     int line_cap,
+						     int line_join);
+
+/**
+ Selects the currently set Pattern Pen for a Graphics Context (dashed style)
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+ \param pattern the pointer to a valid Graphics Pattern returned by a previous
+ call to rl2_graph_create_pattern().
+ \param pen_width Pen width
+ \param line_cap one of RL2_PEN_CAP_BUTT, RL2_PEN_CAP_ROUND or RL2_PEN_CAP_SQUARE
+ \param line_join one of RL2_PEN_JOIN_MITER, RL2_PEN_JOIN_MITER or RL2_PEN_JOIN_BEVEL
+ \param dash_count the total count of dash_list items
+ \param dash_list an array of dash items 
+ \param dash_offset start offset
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
+ rl2_graph_set_linear_gradient_solid_pen, rl2_graph_set_linear_gradient_dashed_pen,
+ rl2_graph_set_pattern_solid_pen, rl2_graph_set_brush, rl2_graph_set_font, 
+ rl2_create_pattern, rl2_realease_pattern_pen
+
+ \note a Pen created by this function always is a Pattern Pen, 
+ i.e. a Pen repeatedly using a small bitmap as a filling source.
+ */
+    RL2_DECLARE int rl2_graph_set_pattern_dashed_pen (rl2GraphicsContextPtr
+						      context,
+						      rl2GraphicsPatternPtr
+						      pattern, double width,
+						      int line_cap,
+						      int line_join,
+						      int dash_count,
+						      double dash_list[],
+						      double offset);
+
+/**
+ Releases the currently set Pattern Pen (if any) from a Graphics Context
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_set_pattern_solid_pen, rl2_graph_set_pattern_dashed_pen
+
+ \note you should always release a Pattern Pen before attempting to
+ destroy the corresponding Pattern object.
+ */
+    RL2_DECLARE int rl2_graph_release_pattern_pen (rl2GraphicsContextPtr
+						   context);
 
 /**
  Selects the currently set Brush for a Graphics Context
@@ -271,7 +494,8 @@ extern "C"
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
- rl2_graph_create_pdf_context, rl2_graph_set_pen, 
+ rl2_graph_create_pdf_context, rrl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
+ rl2_graph_set_linear_gradient_pen, rl2_graph_set_pattern_pen,
  rl2_graph_set_linear_gradient_brush, rl2_graph_set_pattern_brush,
  rl2_graph_set_font
 
@@ -305,7 +529,8 @@ extern "C"
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
- rl2_graph_create_pdf_context, rl2_graph_set_pen, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
+ rl2_graph_set_linear_gradient_pen, rl2_graph_set_pattern_pen,
  rl2_graph_set_brush, rl2_graph_set_pattern_brush,
  rl2_graph_set_font
 
@@ -330,21 +555,38 @@ extern "C"
  \param context the pointer to a valid Graphics Context returned by a previous call
  to rl2_graph_create_context(), rl2_graph_create_svg_context() or
  rl2_graph_create_pdf_context()
- \param brush the pointer to a valid Graphics Pattern returned by a previous
+ \param pattern the pointer to a valid Graphics Pattern returned by a previous
  call to rl2_graph_create_pattern().
 
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
- rl2_graph_create_pdf_context, rl2_graph_set_pen, 
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
  rl2_graph_set_brush, rl2_graph_set_linear_gradient_brush, 
- rl2_graph_set_font, rl2_create_pattern
+ rl2_graph_set_font, rl2_create_pattern, rl2_release_pattern_brush
 
  \note a Brush created by this function always is a Pattern Brush, 
  i.e. a Brush repeatedly using a small bitmap as a filling source.
  */
     RL2_DECLARE int rl2_graph_set_pattern_brush (rl2GraphicsContextPtr context,
-						 rl2GraphicsPatternPtr brush);
+						 rl2GraphicsPatternPtr pattern);
+
+/**
+ Releases the currently set Pattern Brush (if any) from a Graphics Context
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_set_pattern_brush
+
+ \note you should always release a Pattern Brush before attempting to
+ destroy the corresponding Pattern object.
+ */
+    RL2_DECLARE int rl2_graph_release_pattern_brush (rl2GraphicsContextPtr
+						     context);
 
 /**
  Selects the currently set Font for a Graphics Context
@@ -358,8 +600,8 @@ extern "C"
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
- rl2_graph_create_pdf_context, rl2_graph_set_pen, rl2_graph_set_brush,
- rl2_graph_set_linear_gradient_brush, rl2_graph_set_pattern_brush,
+ rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
+ rl2_graph_set_brush, rl2_graph_set_linear_gradient_brush, rl2_graph_set_pattern_brush,
  rl2_create_font
  */
     RL2_DECLARE int rl2_graph_set_font (rl2GraphicsContextPtr context,
@@ -501,9 +743,9 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph, draw_rectangle,
- rl2_graph_draw_ellipse, rl2_graph_draw_circle_sector, rl2_graph_stroke_line, 
- rl2_graph_fill_path, rl2_graph_stroke_path
+ \sa rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen, rl2_graph_set_brush,
+ rl2_graph, draw_rectangle, rl2_graph_draw_ellipse, rl2_graph_draw_circle_sector, 
+ rl2_graph_stroke_line, rl2_graph_fill_path, rl2_graph_stroke_path
 
  \note the rectangle will be stroked using the current Pen and will
  be filled using the current Brush.
@@ -524,9 +766,9 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_draw_rectangle,
- rl2_graph_draw_ellipse, rl2_graph_draw_circle_sector, rl2_graph_stroke_line, 
- rl2_graph_fill_path, rl2_graph_stroke_path
+ \sa rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen, rl2_graph_set_brush,
+ rl2_draw_rectangle, rl2_graph_draw_ellipse, rl2_graph_draw_circle_sector, 
+ rl2_graph_stroke_line, rl2_graph_fill_path, rl2_graph_stroke_path
 
  \note the rectangle will be stroked using the current Pen and will
  be filled using the current Brush.
@@ -549,8 +791,8 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_draw_rectangle,
- rl2_graph_draw_rounded_rectangle, rl2_graph_draw_circle_sector, 
+ \sa rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen, rl2_graph_set_brush, 
+ rl2_draw_rectangle, rl2_graph_draw_rounded_rectangle, rl2_graph_draw_circle_sector, 
  rl2_graph_stroke_line, rl2_graph_fill_path, rl2_graph_stroke_path
 
  \note the ellipse will be stroked using the current Pen and will
@@ -572,8 +814,8 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_draw_rectangle,
- rl2_graph_draw_rounded_rectangle, rl2_graph_draw_ellipse, 
+ \sa rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen, rl2_graph_set_brush, 
+ rl2_draw_rectangle, rl2_graph_draw_rounded_rectangle, rl2_graph_draw_ellipse, 
  rl2_graph_stroke_line, rl2_graph_fill_path, rl2_graph_stroke_path
 
  \note the Sector will be stroked using the current Pen and will
@@ -597,8 +839,8 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_draw_rectangle,
- rl2_graph_draw_rounded_rectangle, rl2_graph_draw_ellipse, 
+ \sa rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen, rl2_graph_set_brush, 
+ rl2_draw_rectangle, rl2_graph_draw_rounded_rectangle, rl2_graph_draw_ellipse, 
  rl2_graph_draw_circular_sector, rl2_graph_fill_path, rl2_graph_stroke_path
 
  \note the Sector will be stroked using the current Pen and will
@@ -617,7 +859,7 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_add_line_to_path,
+ \sa rl2_graph_add_line_to_path,
  rl2_graph_close_subpath, rl2_graph_fill_path, rl2_graph_stroke_path
  */
     RL2_DECLARE int rl2_graph_move_to_point (rl2GraphicsContextPtr context,
@@ -632,7 +874,7 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
+ \sa rl2_graph_set_brush, rl2_graph_move_to_point,
  rl2_graph_close_subpath, rl2_graph_fill_path, rl2_graph_stroke_path
  */
     RL2_DECLARE int rl2_graph_add_line_to_path (rl2GraphicsContextPtr context,
@@ -645,7 +887,7 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
+ \sa rl2_graph_set_brush, rl2_graph_move_to_point,
  rl2_graph_add_line_to_path, rl2_graph_fill_path, rl2_graph_stroke_path
  */
     RL2_DECLARE int rl2_graph_close_subpath (rl2GraphicsContextPtr context);
@@ -659,7 +901,7 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
+ \sa rl2_graph_set_brush, rl2_graph_move_to_point,
  rl2_graph_add_line_to_path, rl2_graph_close_subpath, rl2_graph_stroke_path
  */
     RL2_DECLARE int rl2_graph_fill_path (rl2GraphicsContextPtr context,
@@ -674,7 +916,7 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_pen, rl2_graph_set_brush, rl2_graph_move_to_point,
+ \sa rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen, rl2_graph_move_to_point,
  rl2_graph_add_line_to_path, rl2_graph_close_subpath, rl2_graph_fill_path
  */
     RL2_DECLARE int rl2_graph_stroke_path (rl2GraphicsContextPtr context,

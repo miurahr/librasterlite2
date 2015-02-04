@@ -463,7 +463,7 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getmapimage8.testcase \
 	getmapimage9.testcase \
 	getmapimage10.testcase \
-	getmapimage1.testcase \
+	getmapimage11.testcase \
 	getmapimage12.testcase \
 	getmapimage13.testcase \
 	getmapimage14.testcase \
@@ -473,6 +473,26 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	getmapimage18.testcase \
 	getmapimage19.testcase \
 	getmapimage20.testcase \
+	getvectorimage1.testcase \
+	getvectorimage2.testcase \
+	getvectorimage3.testcase \
+	getvectorimage4.testcase \
+	getvectorimage5.testcase \
+	getvectorimage6.testcase \
+	getvectorimage7.testcase \
+	getvectorimage8.testcase \
+	getvectorimage9.testcase \
+	getvectorimage10.testcase \
+	getvectorimage11.testcase \
+	getvectorimage12.testcase \
+	getvectorimage13.testcase \
+	getvectorimage14.testcase \
+	getvectorimage15.testcase \
+	getvectorimage16.testcase \
+	getvectorimage17.testcase \
+	getvectorimage18.testcase \
+	getvectorimage19.testcase \
+	getvectorimage20.testcase \
 	gettileimage1.testcase \
 	gettileimage2.testcase \
 	gettileimage3.testcase \

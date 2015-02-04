@@ -99,6 +99,14 @@ extern "C"
 {
 #endif
 
+/* macro handling X,Y coordinates */
+#define rl2GetPoint(xy,v,x,y)	\
+				{*x = xy[(v) * 2]; \
+				 *y = xy[(v) * 2 + 1];}
+#define rl2SetPoint(xy,v,x,y)	\
+				{xy[(v) * 2] = x; \
+				 xy[(v) * 2 + 1] = y;}
+
 /* internal binary format markers */
 #define RL2_ODD_BLOCK_START			0xfa
 #define RL2_ODD_BLOCK_END			0xf0
@@ -764,6 +772,7 @@ extern "C"
 
     typedef struct rl2_priv_variant_value
     {
+	char *column_name;
 	sqlite3_int64 int_value;
 	double dbl_value;
 	char *text_value;
@@ -772,6 +781,13 @@ extern "C"
 	int sqlite3_type;
     } rl2PrivVariantValue;
     typedef rl2PrivVariantValue *rl2PrivVariantValuePtr;
+
+    typedef struct rl2_priv_variant_array
+    {
+	int count;
+	rl2PrivVariantValuePtr *array;
+    } rl2PrivVariantArray;
+    typedef rl2PrivVariantArray *rl2PrivVariantArrayPtr;
 
     typedef struct rl2_priv_style_rule
     {
@@ -801,6 +817,8 @@ extern "C"
 	rl2PrivStyleRulePtr first_rule;
 	rl2PrivStyleRulePtr last_rule;
 	rl2PrivStyleRulePtr else_rule;
+	int columns_count;
+	char **column_names;
     } rl2PrivFeatureTypeStyle;
     typedef rl2PrivFeatureTypeStyle *rl2PrivFeatureTypeStylePtr;
 
@@ -1037,6 +1055,50 @@ extern "C"
 	int quality;
 	int reaspect;
     };
+
+    typedef struct rl2_point
+    {
+	double x;
+	double y;
+	struct rl2_point *next;
+    } rl2Point;
+    typedef rl2Point *rl2PointPtr;
+
+    typedef struct rl2_linestring
+    {
+	int points;
+	double *coords;
+	struct rl2_linestring *next;
+    } rl2Linestring;
+    typedef rl2Linestring *rl2LinestringPtr;
+
+    typedef struct rl2_ring
+    {
+	int points;
+	double *coords;
+	struct rl2_ring *next;
+    } rl2Ring;
+    typedef rl2Ring *rl2RingPtr;
+
+    typedef struct rl2_polygon
+    {
+	rl2RingPtr exterior;
+	int num_interiors;
+	rl2RingPtr interiors;
+	struct rl2_polygon *next;
+    } rl2Polygon;
+    typedef rl2Polygon *rl2PolygonPtr;
+
+    typedef struct rl2_geometry
+    {
+	rl2PointPtr first_point;
+	rl2PointPtr last_point;
+	rl2LinestringPtr first_linestring;
+	rl2LinestringPtr last_linestring;
+	rl2PolygonPtr first_polygon;
+	rl2PolygonPtr last_polygon;
+    } rl2Geometry;
+    typedef rl2Geometry *rl2GeometryPtr;
 
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
@@ -1790,6 +1852,39 @@ extern "C"
 
     RL2_PRIVATE int rl2_delta_decode (unsigned char *buffer, int size,
 				      int distance);
+
+    RL2_PRIVATE rl2PrivVariantValuePtr rl2_create_variant_int (const char *name,
+							       sqlite3_int64
+							       value);
+
+    RL2_PRIVATE rl2PrivVariantValuePtr rl2_create_variant_double (const char
+								  *name,
+								  double value);
+
+    RL2_PRIVATE rl2PrivVariantValuePtr
+	rl2_create_variant_text (const char *name, const char *value,
+				 int bytes);
+
+    RL2_PRIVATE rl2PrivVariantValuePtr
+	rl2_create_variant_blob (const char *name, const unsigned char *value,
+				 int bytes);
+
+    RL2_PRIVATE rl2PrivVariantValuePtr rl2_create_variant_null (const char
+								*name);
+
+    RL2_PRIVATE void rl2_destroy_variant_value (rl2PrivVariantValuePtr value);
+
+    RL2_PRIVATE void rl2_draw_vector_feature (void *ctx, sqlite3 * handle,
+					      rl2VectorSymbolizerPtr symbolizer,
+					      int height, double minx,
+					      double miny, double x_res,
+					      double y_res,
+					      rl2GeometryPtr geom);
+
+    RL2_PRIVATE rl2GeometryPtr
+	rl2_geometry_from_blob (const unsigned char *blob, int blob_sz);
+
+    RL2_PRIVATE void rl2_destroy_geometry (rl2GeometryPtr geom);
 
 #ifdef __cplusplus
 }

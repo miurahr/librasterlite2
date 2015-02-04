@@ -199,7 +199,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 	intval = 1;
     if (strcmp (style_name, "polygon_2") == 0)
       {
-	  if (red == 0x00 && green == 0x8f && blue == 0xff)
+	  if (red == 0x00 && green == 0x00 && blue == 0x00)
 	      intval = 1;
       }
     if (strcmp (style_name, "polygon_3") == 0)
@@ -778,12 +778,12 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
       }
     red = 0;
     if (strcmp (style_name, "polygon_1") == 0
-	|| strcmp (style_name, "polygon_2") == 0)
+	|| strcmp (style_name, "polygon_3") == 0)
       {
 	  if (intval == 0)
 	      red = 1;
       }
-    if (strcmp (style_name, "polygon_3") == 0)
+    if (strcmp (style_name, "polygon_2") == 0)
       {
 	  if (intval == 1)
 	      red = 1;
@@ -800,12 +800,12 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
     string = rl2_polygon_symbolizer_get_graphic_stroke_href (polyg);
     intval = 0;
     if (strcmp (style_name, "polygon_1") == 0
-	|| strcmp (style_name, "polygon_2") == 0)
+	|| strcmp (style_name, "polygon_3") == 0)
       {
 	  if (string == NULL)
 	      intval = 1;
       }
-    if (strcmp (style_name, "polygon_3") == 0)
+    if (strcmp (style_name, "polygon_2") == 0)
       {
 	  if (string != NULL)
 	    {
@@ -833,12 +833,12 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
       }
     red = 0;
     if (strcmp (style_name, "polygon_1") == 0
-	|| strcmp (style_name, "polygon_2") == 0)
+	|| strcmp (style_name, "polygon_3") == 0)
       {
 	  if (intval == 0)
 	      red = 1;
       }
-    if (strcmp (style_name, "polygon_3") == 0)
+    if (strcmp (style_name, "polygon_2") == 0)
       {
 	  if (intval == 2)
 	      red = 1;
@@ -857,7 +857,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 								&index, &red,
 								&green, &blue);
     if (strcmp (style_name, "polygon_1") == 0
-	|| strcmp (style_name, "polygon_2") == 0)
+	|| strcmp (style_name, "polygon_3") == 0)
       {
 	  if (intval == RL2_OK)
 	    {
@@ -869,7 +869,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 	    }
 	  intval = 1;
       }
-    if (strcmp (style_name, "polygon_3") == 0)
+    if (strcmp (style_name, "polygon_2") == 0)
       {
 	  if (intval != RL2_OK)
 	    {
@@ -933,7 +933,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
       {
 	  if (string != NULL)
 	    {
-		if (strcmp (string, "http:/www.acme.com/pattern.png") == 0)
+		if (strcmp (string, "http:/www.acme.com/sample.png") == 0)
 		    intval = 1;
 	    }
       }
@@ -1004,7 +1004,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 		return 0;
 	    }
 	  intval = 0;
-	  if (index == 0 && red == 0xff && green == 0x70 && blue == 0x80)
+	  if (index == 0 && red == 0x12 && green == 0x34 && blue == 0x56)
 	      intval = 1;
       }
     if (intval != 1)
@@ -1312,10 +1312,11 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     rl2FeatureTypeStylePtr style;
     rl2VectorSymbolizerPtr symbolizer;
     rl2PolygonSymbolizerPtr polyg;
-    rl2VariantValuePtr value;
+    rl2VariantArrayPtr value;
     unsigned char red;
     unsigned char green;
     unsigned char blue;
+    int intval;
     const char *string;
     style =
 	rl2_create_feature_type_style_from_dbms (db_handle, coverage,
@@ -1327,22 +1328,35 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #1\n");
+	  *retcode += 2;
+	  return 0;
+      }
     string = "Emilia Romagna";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #1\n");
+	  *retcode += 3;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #3\n",
 		   style_name);
-	  *retcode += 2;
+	  *retcode += 4;
 	  return 0;
       }
     polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
     if (polyg == NULL)
       {
 	  fprintf (stderr, "Unable to get Polygon Symbolizer #2\n");
-	  *retcode += 3;
+	  *retcode += 5;
 	  return 0;
       }
     if (rl2_polygon_symbolizer_get_stroke_color (polyg, &red, &green, &blue) !=
@@ -1350,7 +1364,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
       {
 	  fprintf (stderr,
 		   "Unable to get Polygon Symbolizer GetStrokeColor #2\n");
-	  *retcode += 4;
+	  *retcode += 6;
 	  return 0;
       }
     if (red != 0x10 || green != 0xff || blue != 0x20)
@@ -1358,54 +1372,31 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Polygon Symbolizer GetStrokeColor #2: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 5;
+	  *retcode += 7;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #2\n");
+	  *retcode += 8;
+	  return 0;
+      }
     string = "Lazio";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #2\n");
+	  *retcode += 9;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #4\n",
-		   style_name);
-	  *retcode += 6;
-	  return 0;
-      }
-    polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
-    if (polyg == NULL)
-      {
-	  fprintf (stderr, "Unable to get Polygon Symbolizer #3\n");
-	  *retcode += 7;
-	  return 0;
-      }
-    if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Polygon Symbolizer GetFillColor #2\n");
-	  *retcode += 8;
-	  return 0;
-      }
-    if (red != 0xff || green != 0xdd || blue != 0xaa)
-      {
-	  fprintf (stderr,
-		   "Unexpected Polygon Symbolizer GetStrokeColor #3: %02x%02x%02x\n",
-		   red, green, blue);
-	  *retcode += 9;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    string = "Abruzzo";
-    value = rl2_create_variant_text (string, strlen (string));
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #5\n",
 		   style_name);
 	  *retcode += 10;
 	  return 0;
@@ -1413,7 +1404,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
     if (polyg == NULL)
       {
-	  fprintf (stderr, "Unable to get Polygon Symbolizer #4\n");
+	  fprintf (stderr, "Unable to get Polygon Symbolizer #3\n");
 	  *retcode += 11;
 	  return 0;
       }
@@ -1421,8 +1412,57 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Polygon Symbolizer GetFillColor #3\n");
+		   "Unable to get Polygon Symbolizer GetFillColor #2\n");
 	  *retcode += 12;
+	  return 0;
+      }
+    if (red != 0xff || green != 0xdd || blue != 0xaa)
+      {
+	  fprintf (stderr,
+		   "Unexpected Polygon Symbolizer GetStrokeColor #3: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 13;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #3\n");
+	  *retcode += 14;
+	  return 0;
+      }
+    string = "Abruzzo";
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #3\n");
+	  *retcode += 15;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #5\n",
+		   style_name);
+	  *retcode += 16;
+	  return 0;
+      }
+    polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
+    if (polyg == NULL)
+      {
+	  fprintf (stderr, "Unable to get Polygon Symbolizer #4\n");
+	  *retcode += 17;
+	  return 0;
+      }
+    if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Polygon Symbolizer GetFillColor #3\n");
+	  *retcode += 18;
 	  return 0;
       }
     if (red != 0x81 || green != 0xfa || blue != 0x91)
@@ -1430,90 +1470,31 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Polygon Symbolizer GetStrokeColor #4: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 13;
+	  *retcode += 19;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #4\n");
+	  *retcode += 20;
+	  return 0;
+      }
     string = "Campania";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #4\n");
+	  *retcode += 21;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #6\n",
-		   style_name);
-	  *retcode += 14;
-	  return 0;
-      }
-    polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
-    if (polyg == NULL)
-      {
-	  fprintf (stderr, "Unable to get Polygon Symbolizer #5\n");
-	  *retcode += 15;
-	  return 0;
-      }
-    if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Polygon Symbolizer GetFillColor #4\n");
-	  *retcode += 16;
-	  return 0;
-      }
-    if (red != 0x82 || green != 0xfb || blue != 0x92)
-      {
-	  fprintf (stderr,
-		   "Unexpected Polygon Symbolizer GetStrokeColor #5: %02x%02x%02x\n",
-		   red, green, blue);
-	  *retcode += 17;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    string = "Trentino Alto Adige";
-    value = rl2_create_variant_text (string, strlen (string));
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #7\n",
-		   style_name);
-	  *retcode += 18;
-	  return 0;
-      }
-    polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
-    if (polyg == NULL)
-      {
-	  fprintf (stderr, "Unable to get Polygon Symbolizer #6\n");
-	  *retcode += 19;
-	  return 0;
-      }
-    if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Polygon Symbolizer GetFillColor #5\n");
-	  *retcode += 20;
-	  return 0;
-      }
-    if (red != 0x83 || green != 0xfc || blue != 0x93)
-      {
-	  fprintf (stderr,
-		   "Unexpected Polygon Symbolizer GetStrokeColor #6: %02x%02x%02x\n",
-		   red, green, blue);
-	  *retcode += 21;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    string = "pseudo-Toscanella";
-    value = rl2_create_variant_text (string, strlen (string));
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #8\n",
 		   style_name);
 	  *retcode += 22;
 	  return 0;
@@ -1521,7 +1502,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
     if (polyg == NULL)
       {
-	  fprintf (stderr, "Unable to get Polygon Symbolizer #7\n");
+	  fprintf (stderr, "Unable to get Polygon Symbolizer #5\n");
 	  *retcode += 23;
 	  return 0;
       }
@@ -1529,8 +1510,106 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Polygon Symbolizer GetFillColor #6\n");
+		   "Unable to get Polygon Symbolizer GetFillColor #4\n");
 	  *retcode += 24;
+	  return 0;
+      }
+    if (red != 0x70 || green != 0xff || blue != 0xc0)
+      {
+	  fprintf (stderr,
+		   "Unexpected Polygon Symbolizer GetStrokeColor #5: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 25;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #5\n");
+	  *retcode += 26;
+	  return 0;
+      }
+    string = "Trentino Alto Adige";
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #5\n");
+	  *retcode += 27;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #7\n",
+		   style_name);
+	  *retcode += 29;
+	  return 0;
+      }
+    polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
+    if (polyg == NULL)
+      {
+	  fprintf (stderr, "Unable to get Polygon Symbolizer #6\n");
+	  *retcode += 30;
+	  return 0;
+      }
+    if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Polygon Symbolizer GetFillColor #5\n");
+	  *retcode += 31;
+	  return 0;
+      }
+    if (red != 0x83 || green != 0xfc || blue != 0x93)
+      {
+	  fprintf (stderr,
+		   "Unexpected Polygon Symbolizer GetStrokeColor #6: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 32;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #6\n");
+	  *retcode += 26;
+	  return 0;
+      }
+    string = "pseudo-Toscanella";
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #6\n");
+	  *retcode += 27;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #8\n",
+		   style_name);
+	  *retcode += 28;
+	  return 0;
+      }
+    polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
+    if (polyg == NULL)
+      {
+	  fprintf (stderr, "Unable to get Polygon Symbolizer #7\n");
+	  *retcode += 29;
+	  return 0;
+      }
+    if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Polygon Symbolizer GetFillColor #6\n");
+	  *retcode += 30;
 	  return 0;
       }
     if (red != 0xab || green != 0xcd || blue != 0xef)
@@ -1538,27 +1617,40 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Polygon Symbolizer GetStrokeColor #7: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 25;
+	  *retcode += 32;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #7\n");
+	  *retcode += 33;
+	  return 0;
+      }
     string = "Toscanona";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #7\n");
+	  *retcode += 34;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #9\n",
 		   style_name);
-	  *retcode += 26;
+	  *retcode += 35;
 	  return 0;
       }
     polyg = rl2_get_polygon_symbolizer (symbolizer, 0);
     if (polyg == NULL)
       {
 	  fprintf (stderr, "Unable to get Polygon Symbolizer #8\n");
-	  *retcode += 27;
+	  *retcode += 36;
 	  return 0;
       }
     if (rl2_polygon_symbolizer_get_fill_color (polyg, &red, &green, &blue) !=
@@ -1566,7 +1658,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
       {
 	  fprintf (stderr,
 		   "Unable to get Polygon Symbolizer GetFillColor #7\n");
-	  *retcode += 28;
+	  *retcode += 37;
 	  return 0;
       }
     if (red != 0xab || green != 0xcd || blue != 0xef)
@@ -1574,10 +1666,40 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Polygon Symbolizer GetStrokeColor #8: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 29;
+	  *retcode += 38;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
+
+    intval = rl2_get_feature_type_style_columns_count (style);
+    if (intval != 2)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnsCount #1: %d\n",
+		   intval);
+	  *retcode += 39;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 0);
+    if (strcasecmp (string, "name") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #1: \"%s\"\n",
+		   string);
+	  *retcode += 40;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 1);
+    if (strcasecmp (string, "some_column") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #2: \"%s\"\n",
+		   string);
+	  *retcode += 41;
+	  return 0;
+      }
 
     rl2_destroy_feature_type_style (style);
     return 1;

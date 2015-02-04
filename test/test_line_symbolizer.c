@@ -920,7 +920,8 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     rl2FeatureTypeStylePtr style;
     rl2VectorSymbolizerPtr symbolizer;
     rl2LineSymbolizerPtr line;
-    rl2VariantValuePtr value;
+    rl2VariantArrayPtr value;
+    int intval;
     const char *string;
     unsigned char red;
     unsigned char green;
@@ -936,28 +937,41 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    value = rl2_create_variant_double (6000000000.4);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #1\n");
+	  *retcode += 2;
+	  return 0;
+      }
+    if (rl2_set_variant_double (value, 0, "some_column", 6000000000.4) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #1\n");
+	  *retcode += 3;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #3\n",
 		   style_name);
-	  *retcode += 2;
+	  *retcode += 4;
 	  return 0;
       }
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
 	  fprintf (stderr, "Unable to get Line Symbolizer #2\n");
-	  *retcode += 3;
+	  *retcode += 5;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
 	RL2_OK)
       {
 	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #2\n");
-	  *retcode += 4;
+	  *retcode += 6;
 	  return 0;
       }
     if (red != 0x01 || green != 0xff || blue != 0x02)
@@ -965,51 +979,29 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Line Symbolizer GetStrokeColor #2: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 5;
+	  *retcode += 7;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    value = rl2_create_variant_double (4.4);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #2\n");
+	  *retcode += 8;
+	  return 0;
+      }
+    if (rl2_set_variant_double (value, 0, "some_column", 4.4) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #2\n");
+	  *retcode += 9;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #4\n",
-		   style_name);
-	  *retcode += 6;
-	  return 0;
-      }
-    line = rl2_get_line_symbolizer (symbolizer, 0);
-    if (line == NULL)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer #3\n");
-	  *retcode += 7;
-	  return 0;
-      }
-    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
-	RL2_OK)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #3\n");
-	  *retcode += 8;
-	  return 0;
-      }
-    if (red != 0xff || green != 0x01 || blue != 0x20)
-      {
-	  fprintf (stderr,
-		   "Unexpected Line Symbolizer GetStrokeColor #3: %02x%02x%02x\n",
-		   red, green, blue);
-	  *retcode += 9;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_blob (blob, 8);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #5\n",
 		   style_name);
 	  *retcode += 10;
 	  return 0;
@@ -1017,15 +1009,61 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer #4\n");
+	  fprintf (stderr, "Unable to get Line Symbolizer #3\n");
 	  *retcode += 11;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
 	RL2_OK)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #4\n");
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #3\n");
 	  *retcode += 12;
+	  return 0;
+      }
+    if (red != 0xff || green != 0x01 || blue != 0x20)
+      {
+	  fprintf (stderr,
+		   "Unexpected Line Symbolizer GetStrokeColor #3: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 13;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #3\n");
+	  *retcode += 14;
+	  return 0;
+      }
+    if (rl2_set_variant_blob (value, 0, "some_column", blob, 8) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #3\n");
+	  *retcode += 15;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #5\n",
+		   style_name);
+	  *retcode += 16;
+	  return 0;
+      }
+    line = rl2_get_line_symbolizer (symbolizer, 0);
+    if (line == NULL)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer #4\n");
+	  *retcode += 17;
+	  return 0;
+      }
+    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #4\n");
+	  *retcode += 18;
 	  return 0;
       }
     if (red != 0x00 || green != 0x00 || blue != 0xff)
@@ -1033,85 +1071,29 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Line Symbolizer GetStrokeColor #4: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 13;
+	  *retcode += 19;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    value = rl2_create_variant_int (6000000000);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #4\n");
+	  *retcode += 20;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 6000000000) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #4\n");
+	  *retcode += 21;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #6\n",
-		   style_name);
-	  *retcode += 14;
-	  return 0;
-      }
-    line = rl2_get_line_symbolizer (symbolizer, 0);
-    if (line == NULL)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer #5\n");
-	  *retcode += 15;
-	  return 0;
-      }
-    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
-	RL2_OK)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #5\n");
-	  *retcode += 16;
-	  return 0;
-      }
-    if (red != 0x01 || green != 0xff || blue != 0x02)
-      {
-	  fprintf (stderr,
-		   "Unexpected Line Symbolizer GetStrokeColor #5: %02x%02x%02x\n",
-		   red, green, blue);
-	  *retcode += 17;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_int (2);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #7\n",
-		   style_name);
-	  *retcode += 18;
-	  return 0;
-      }
-    line = rl2_get_line_symbolizer (symbolizer, 0);
-    if (line == NULL)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer #6\n");
-	  *retcode += 19;
-	  return 0;
-      }
-    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
-	RL2_OK)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #6\n");
-	  *retcode += 20;
-	  return 0;
-      }
-    if (red != 0x12 || green != 0x34 || blue != 0x56)
-      {
-	  fprintf (stderr,
-		   "Unexpected Line Symbolizer GetStrokeColor #6: %02x%02x%02x\n",
-		   red, green, blue);
-	  *retcode += 21;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_double (2.5);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #8\n",
 		   style_name);
 	  *retcode += 22;
 	  return 0;
@@ -1119,103 +1101,91 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer #7\n");
+	  fprintf (stderr, "Unable to get Line Symbolizer #5\n");
 	  *retcode += 23;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
 	RL2_OK)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #7\n");
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #5\n");
 	  *retcode += 24;
 	  return 0;
       }
-    if (red != 0x12 || green != 0x34 || blue != 0x56)
+    if (red != 0x01 || green != 0xff || blue != 0x02)
       {
 	  fprintf (stderr,
-		   "Unexpected Line Symbolizer GetStrokeColor #7: %02x%02x%02x\n",
+		   "Unexpected Line Symbolizer GetStrokeColor #5: %02x%02x%02x\n",
 		   red, green, blue);
 	  *retcode += 25;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    string = "0 walhalla";
-    value = rl2_create_variant_text (string, strlen (string));
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #5\n");
+	  *retcode += 26;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 2) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #5\n");
+	  *retcode += 27;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #9\n",
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #7\n",
 		   style_name);
-	  *retcode += 26;
+	  *retcode += 28;
 	  return 0;
       }
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer #8\n");
-	  *retcode += 27;
+	  fprintf (stderr, "Unable to get Line Symbolizer #6\n");
+	  *retcode += 29;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
 	RL2_OK)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #8\n");
-	  *retcode += 28;
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #6\n");
+	  *retcode += 30;
 	  return 0;
       }
     if (red != 0x12 || green != 0x34 || blue != 0x56)
       {
 	  fprintf (stderr,
-		   "Unexpected Line Symbolizer GetStrokeColor #8: %02x%02x%02x\n",
+		   "Unexpected Line Symbolizer GetStrokeColor #6: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 29;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    string = "100200300";
-    value = rl2_create_variant_text (string, strlen (string));
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #10\n",
-		   style_name);
-	  *retcode += 30;
-	  return 0;
-      }
-    line = rl2_get_line_symbolizer (symbolizer, 0);
-    if (line == NULL)
-      {
-	  fprintf (stderr, "Unable to get Line Symbolizer #9\n");
 	  *retcode += 31;
 	  return 0;
       }
-    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
-	RL2_OK)
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #9\n");
+	  fprintf (stderr, "Unexpected NULL VariantArray #6\n");
 	  *retcode += 32;
 	  return 0;
       }
-    if (red != 0x00 || green != 0x00 || blue != 0xff)
+    if (rl2_set_variant_double (value, 0, "some_column", 2.5) != RL2_OK)
       {
-	  fprintf (stderr,
-		   "Unexpected Line Symbolizer GetStrokeColor #9: %02x%02x%02x\n",
-		   red, green, blue);
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #6\n");
 	  *retcode += 33;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_int (100200300);
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #11\n",
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #8\n",
 		   style_name);
 	  *retcode += 34;
 	  return 0;
@@ -1223,8 +1193,150 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
-	  fprintf (stderr, "Unable to get Line Symbolizer #10\n");
+	  fprintf (stderr, "Unable to get Line Symbolizer #7\n");
 	  *retcode += 35;
+	  return 0;
+      }
+    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #7\n");
+	  *retcode += 37;
+	  return 0;
+      }
+    if (red != 0x12 || green != 0x34 || blue != 0x56)
+      {
+	  fprintf (stderr,
+		   "Unexpected Line Symbolizer GetStrokeColor #7: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 38;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #6\n");
+	  *retcode += 38;
+	  return 0;
+      }
+    string = "0 walhalla";
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #6\n");
+	  *retcode += 39;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #9\n",
+		   style_name);
+	  *retcode += 40;
+	  return 0;
+      }
+    line = rl2_get_line_symbolizer (symbolizer, 0);
+    if (line == NULL)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer #8\n");
+	  *retcode += 41;
+	  return 0;
+      }
+    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #8\n");
+	  *retcode += 42;
+	  return 0;
+      }
+    if (red != 0x12 || green != 0x34 || blue != 0x56)
+      {
+	  fprintf (stderr,
+		   "Unexpected Line Symbolizer GetStrokeColor #8: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 43;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #7\n");
+	  *retcode += 44;
+	  return 0;
+      }
+    string = "100200300";
+    if (rl2_set_variant_text (value, 0, "some_column", string, strlen (string))
+	!= RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #7\n");
+	  *retcode += 45;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #10\n",
+		   style_name);
+	  *retcode += 46;
+	  return 0;
+      }
+    line = rl2_get_line_symbolizer (symbolizer, 0);
+    if (line == NULL)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer #9\n");
+	  *retcode += 47;
+	  return 0;
+      }
+    if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer GetStrokeColor #9\n");
+	  *retcode += 48;
+	  return 0;
+      }
+    if (red != 0x00 || green != 0x00 || blue != 0xff)
+      {
+	  fprintf (stderr,
+		   "Unexpected Line Symbolizer GetStrokeColor #9: %02x%02x%02x\n",
+		   red, green, blue);
+	  *retcode += 49;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #8\n");
+	  *retcode += 50;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 100200300) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #8\n");
+	  *retcode += 51;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #11\n",
+		   style_name);
+	  *retcode += 52;
+	  return 0;
+      }
+    line = rl2_get_line_symbolizer (symbolizer, 0);
+    if (line == NULL)
+      {
+	  fprintf (stderr, "Unable to get Line Symbolizer #10\n");
+	  *retcode += 53;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
@@ -1232,7 +1344,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
       {
 	  fprintf (stderr,
 		   "Unable to get Line Symbolizer GetStrokeColor #10\n");
-	  *retcode += 36;
+	  *retcode += 54;
 	  return 0;
       }
     if (red != 0x00 || green != 0x00 || blue != 0xff)
@@ -1240,26 +1352,38 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Line Symbolizer GetStrokeColor #10: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 37;
+	  *retcode += 55;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    value = rl2_create_variant_double (100200300.0);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #9\n");
+	  *retcode += 56;
+	  return 0;
+      }
+    if (rl2_set_variant_double (value, 0, "some_column", 100200300.0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #9\n");
+	  *retcode += 57;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #12\n",
 		   style_name);
-	  *retcode += 38;
+	  *retcode += 58;
 	  return 0;
       }
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
 	  fprintf (stderr, "Unable to get Line Symbolizer #11\n");
-	  *retcode += 39;
+	  *retcode += 59;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
@@ -1267,7 +1391,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
       {
 	  fprintf (stderr,
 		   "Unable to get Line Symbolizer GetStrokeColor #11\n");
-	  *retcode += 40;
+	  *retcode += 60;
 	  return 0;
       }
     if (red != 0x00 || green != 0x00 || blue != 0xff)
@@ -1275,27 +1399,40 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Line Symbolizer GetStrokeColor #11: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 41;
+	  *retcode += 61;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #10\n");
+	  *retcode += 62;
+	  return 0;
+      }
     string = "TOSCANA";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #10\n");
+	  *retcode += 63;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #13\n",
 		   style_name);
-	  *retcode += 42;
+	  *retcode += 64;
 	  return 0;
       }
     line = rl2_get_line_symbolizer (symbolizer, 0);
     if (line == NULL)
       {
 	  fprintf (stderr, "Unable to get Line Symbolizer #12\n");
-	  *retcode += 43;
+	  *retcode += 65;
 	  return 0;
       }
     if (rl2_line_symbolizer_get_stroke_color (line, &red, &green, &blue) !=
@@ -1303,18 +1440,48 @@ test_filter (sqlite3 * db_handle, const char *coverage,
       {
 	  fprintf (stderr,
 		   "Unable to get Line Symbolizer GetStrokeColor #12\n");
-	  *retcode += 44;
+	  *retcode += 66;
 	  return 0;
       }
-    if (red != 0xff || green != 0xff || blue != 0x80)
+    if (red != 0xff || green != 0xa0 || blue != 0x80)
       {
 	  fprintf (stderr,
 		   "Unexpected Line Symbolizer GetStrokeColor #12: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 45;
+	  *retcode += 67;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
+
+    intval = rl2_get_feature_type_style_columns_count (style);
+    if (intval != 2)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnsCount #1: %d\n",
+		   intval);
+	  *retcode += 68;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 0);
+    if (strcasecmp (string, "name") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #1: \"%s\"\n",
+		   string);
+	  *retcode += 69;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 1);
+    if (strcasecmp (string, "some_column") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #2: \"%s\"\n",
+		   string);
+	  *retcode += 70;
+	  return 0;
+      }
 
     rl2_destroy_feature_type_style (style);
     return 1;

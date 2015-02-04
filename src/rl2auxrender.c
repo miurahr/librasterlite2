@@ -1530,3 +1530,590 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, rl2CoveragePtr cvg,
 	free (outbuf);
     return RL2_ERROR;
 }
+
+static rl2GraphicsPatternPtr
+load_external_graphic_from_dbms (sqlite3 * handle, rl2PrivGraphicPtr graphic)
+{
+/* attempting to load an External Graphic from the DBMS */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    const char *xlink_href = NULL;
+    rl2GraphicsPatternPtr pattern = NULL;
+    rl2PrivGraphicItemPtr item = graphic->first;
+
+/* searching for an xlink_href pseudo-URL */
+    while (item != NULL)
+      {
+	  if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
+	    {
+		rl2PrivExternalGraphicPtr ext =
+		    (rl2PrivExternalGraphicPtr) (item->item);
+		if (ext->xlink_href != NULL)
+		  {
+		      xlink_href = ext->xlink_href;
+		      break;
+		  }
+	    }
+	  item = item->next;
+      }
+    if (xlink_href == NULL)
+	return NULL;
+
+    sql = "SELECT resource, GetMimeType(resource) FROM SE_external_graphics "
+	"WHERE xlink_href = ?";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return NULL;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, xlink_href, strlen (xlink_href), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		rl2RasterPtr raster = NULL;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB
+		    && sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      const char *mime_type =
+			  (const char *) sqlite3_column_text (stmt, 1);
+		      if (strcmp (mime_type, "image/gif") == 0)
+			  raster = rl2_raster_from_gif (blob, blob_sz);
+		      if (strcmp (mime_type, "image/png") == 0)
+			  raster = rl2_raster_from_png (blob, blob_sz);
+		      if (strcmp (mime_type, "image/jpeg") == 0)
+			  raster = rl2_raster_from_jpeg (blob, blob_sz);
+		      if (strcmp (mime_type, "image/tiff") == 0)
+			  raster = rl2_raster_from_tiff (blob, blob_sz);
+		  }
+		if (raster != NULL)
+		  {
+		      unsigned char *rgba;
+		      int rgba_sz;
+		      unsigned int width;
+		      unsigned int height;
+		      if (rl2_get_raster_size (raster, &width, &height) !=
+			  RL2_OK)
+			{
+			    rl2_destroy_raster (raster);
+			    goto error;
+			}
+		      if (rl2_raster_data_to_RGBA (raster, &rgba, &rgba_sz) !=
+			  RL2_OK)
+			{
+			    rl2_destroy_raster (raster);
+			    goto error;
+			}
+		      pattern = rl2_graph_create_pattern (rgba, width, height);
+		      rl2_destroy_raster (raster);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    return pattern;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return NULL;
+}
+
+static void
+draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
+	    rl2PrivVectorSymbolizerPtr sym, int height, double minx,
+	    double miny, double x_res, double y_res, rl2GeometryPtr geom)
+{
+/* drawing Linear-type features */
+    rl2PrivVectorSymbolizerItemPtr item;
+    int stroke = 0;
+    int pen_cap;
+    int pen_join;
+    double opacity;
+    unsigned char norm_opacity;
+    rl2LinestringPtr line;
+    rl2GraphicsPatternPtr pattern = NULL;
+
+/* selecting the pen requested by the current LineSymbolizer */
+    item = sym->first;
+    while (item != NULL)
+      {
+	  if (item->symbolizer_type == RL2_LINE_SYMBOLIZER)
+	    {
+		rl2PrivLineSymbolizerPtr line_sym =
+		    (rl2PrivLineSymbolizerPtr) (item->symbolizer);
+		if (line_sym->stroke != NULL)
+		  {
+		      if (line_sym->stroke->graphic != NULL)
+			{
+			    /* external Graphic stroke */
+			    pattern = load_external_graphic_from_dbms (handle,
+								       line_sym->stroke->graphic);
+			    if (pattern != NULL)
+			      {
+				  switch (line_sym->stroke->linecap)
+				    {
+				    case RL2_STROKE_LINECAP_ROUND:
+					pen_cap = RL2_PEN_CAP_ROUND;
+					break;
+				    case RL2_STROKE_LINECAP_SQUARE:
+					pen_cap = RL2_PEN_CAP_SQUARE;
+					break;
+				    default:
+					pen_cap = RL2_PEN_CAP_BUTT;
+					break;
+				    };
+				  switch (line_sym->stroke->linejoin)
+				    {
+				    case RL2_STROKE_LINEJOIN_BEVEL:
+					pen_join = RL2_PEN_JOIN_BEVEL;
+					break;
+				    case RL2_STROKE_LINEJOIN_ROUND:
+					pen_join = RL2_PEN_JOIN_ROUND;
+					break;
+				    default:
+					pen_join = RL2_PEN_JOIN_MITER;
+					break;
+				    };
+				  rl2_graph_set_pattern_solid_pen (ctx, pattern,
+								   line_sym->
+								   stroke->width,
+								   pen_cap,
+								   pen_join);
+				  stroke = 1;
+			      }
+			}
+		      else
+			{
+			    /* solid RGB stroke */
+			    if (line_sym->stroke->opacity <= 0.0)
+				norm_opacity = 0;
+			    else if (line_sym->stroke->opacity >= 1.0)
+				norm_opacity = 255;
+			    else
+			      {
+				  opacity = 255.0 * line_sym->stroke->opacity;
+				  if (opacity <= 0.0)
+				      norm_opacity = 0;
+				  else if (opacity >= 255.0)
+				      norm_opacity = 255;
+				  else
+				      norm_opacity = opacity;
+			      }
+			    switch (line_sym->stroke->linecap)
+			      {
+			      case RL2_STROKE_LINECAP_ROUND:
+				  pen_cap = RL2_PEN_CAP_ROUND;
+				  break;
+			      case RL2_STROKE_LINECAP_SQUARE:
+				  pen_cap = RL2_PEN_CAP_SQUARE;
+				  break;
+			      default:
+				  pen_cap = RL2_PEN_CAP_BUTT;
+				  break;
+			      };
+			    switch (line_sym->stroke->linejoin)
+			      {
+			      case RL2_STROKE_LINEJOIN_BEVEL:
+				  pen_join = RL2_PEN_JOIN_BEVEL;
+				  break;
+			      case RL2_STROKE_LINEJOIN_ROUND:
+				  pen_join = RL2_PEN_JOIN_ROUND;
+				  break;
+			      default:
+				  pen_join = RL2_PEN_JOIN_MITER;
+				  break;
+			      };
+			    rl2_graph_set_solid_pen (ctx, line_sym->stroke->red,
+						     line_sym->stroke->green,
+						     line_sym->stroke->blue,
+						     norm_opacity,
+						     line_sym->stroke->width,
+						     pen_cap, pen_join);
+			    stroke = 1;
+			}
+		  }
+	    }
+	  item = item->next;
+      }
+    if (!stroke)
+	return;
+
+    line = geom->first_linestring;
+    while (line)
+      {
+	  /* drawing a LINESTRING */
+	  int iv;
+	  double dx;
+	  double dy;
+	  int x;
+	  int y;
+	  int lastX = 0;
+	  int lastY = 0;
+	  for (iv = 0; iv < line->points; iv++)
+	    {
+		rl2GetPoint (line->coords, iv, &dx, &dy);
+		x = (int) ((dx - minx) / x_res);
+		y = height - (int) ((dy - miny) / y_res);
+		if (iv == 0)
+		  {
+		      rl2_graph_move_to_point (ctx, x, y);
+		      lastX = x;
+		      lastY = y;
+		  }
+		else
+		  {
+		      if (x == lastX && y == lastY)
+			  ;
+		      else
+			{
+			    rl2_graph_add_line_to_path (ctx, x, y);
+			    lastX = x;
+			    lastY = y;
+			}
+		  }
+	    }
+	  if (stroke)
+	      rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+	  line = line->next;
+      }
+    if (pattern != NULL)
+	rl2_graph_destroy_pattern (pattern);
+}
+
+static void
+draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
+	       rl2PrivVectorSymbolizerPtr sym, int height, double minx,
+	       double miny, double x_res, double y_res, rl2GeometryPtr geom)
+{
+/* drawing Polygonal-type features */
+    rl2PrivVectorSymbolizerItemPtr item;
+    int stroke = 0;
+    int fill = 0;
+    int pen_cap;
+    int pen_join;
+    double opacity;
+    unsigned char norm_opacity;
+    rl2PolygonPtr polyg;
+    rl2GraphicsPatternPtr pattern_fill = NULL;
+    rl2GraphicsPatternPtr pattern_stroke = NULL;
+
+/* selecting the pen and brush requested by the current PolygonSymbolizer */
+    item = sym->first;
+    while (item != NULL)
+      {
+	  if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER)
+	    {
+		rl2PrivPolygonSymbolizerPtr polyg_sym =
+		    (rl2PrivPolygonSymbolizerPtr) (item->symbolizer);
+		if (polyg_sym->fill != NULL)
+		  {
+		      if (polyg_sym->fill->graphic != NULL)
+			{
+			    /* external Graphic fill */
+			    pattern_fill =
+				load_external_graphic_from_dbms (handle,
+								 polyg_sym->fill->
+								 graphic);
+			    if (pattern_fill != NULL)
+			      {
+				  rl2_graph_set_pattern_brush (ctx,
+							       pattern_fill);
+				  fill = 1;
+			      }
+			}
+		      else
+			{
+			    /* solid RGB fill */
+			    if (polyg_sym->fill->opacity <= 0.0)
+				norm_opacity = 0;
+			    else if (polyg_sym->fill->opacity >= 1.0)
+				norm_opacity = 255;
+			    else
+			      {
+				  opacity = 255.0 * polyg_sym->fill->opacity;
+				  if (opacity <= 0.0)
+				      norm_opacity = 0;
+				  else if (opacity >= 255.0)
+				      norm_opacity = 255;
+				  else
+				      norm_opacity = opacity;
+			      }
+			    rl2_graph_set_brush (ctx, polyg_sym->fill->red,
+						 polyg_sym->fill->green,
+						 polyg_sym->fill->blue,
+						 norm_opacity);
+			    fill = 1;
+			}
+		  }
+		if (polyg_sym->stroke != NULL)
+		  {
+		      if (polyg_sym->stroke->graphic != NULL)
+			{
+			    /* external Graphic stroke */
+			    pattern_stroke =
+				load_external_graphic_from_dbms (handle,
+								 polyg_sym->stroke->graphic);
+			    if (pattern_stroke != NULL)
+			      {
+				  switch (polyg_sym->stroke->linecap)
+				    {
+				    case RL2_STROKE_LINECAP_ROUND:
+					pen_cap = RL2_PEN_CAP_ROUND;
+					break;
+				    case RL2_STROKE_LINECAP_SQUARE:
+					pen_cap = RL2_PEN_CAP_SQUARE;
+					break;
+				    default:
+					pen_cap = RL2_PEN_CAP_BUTT;
+					break;
+				    };
+				  switch (polyg_sym->stroke->linejoin)
+				    {
+				    case RL2_STROKE_LINEJOIN_BEVEL:
+					pen_join = RL2_PEN_JOIN_BEVEL;
+					break;
+				    case RL2_STROKE_LINEJOIN_ROUND:
+					pen_join = RL2_PEN_JOIN_ROUND;
+					break;
+				    default:
+					pen_join = RL2_PEN_JOIN_MITER;
+					break;
+				    };
+				  rl2_graph_set_pattern_solid_pen (ctx,
+								   pattern_stroke,
+								   polyg_sym->
+								   stroke->width,
+								   pen_cap,
+								   pen_join);
+				  stroke = 1;
+			      }
+			}
+		      else
+			{
+			    /* solid RGB stroke */
+			    if (polyg_sym->stroke->opacity <= 0.0)
+				norm_opacity = 0;
+			    else if (polyg_sym->stroke->opacity >= 1.0)
+				norm_opacity = 255;
+			    else
+			      {
+				  opacity = 255.0 * polyg_sym->stroke->opacity;
+				  if (opacity <= 0.0)
+				      norm_opacity = 0;
+				  else if (opacity >= 255.0)
+				      norm_opacity = 255;
+				  else
+				      norm_opacity = opacity;
+			      }
+			    switch (polyg_sym->stroke->linecap)
+			      {
+			      case RL2_STROKE_LINECAP_ROUND:
+				  pen_cap = RL2_PEN_CAP_ROUND;
+				  break;
+			      case RL2_STROKE_LINECAP_SQUARE:
+				  pen_cap = RL2_PEN_CAP_SQUARE;
+				  break;
+			      default:
+				  pen_cap = RL2_PEN_CAP_BUTT;
+				  break;
+			      };
+			    switch (polyg_sym->stroke->linejoin)
+			      {
+			      case RL2_STROKE_LINEJOIN_BEVEL:
+				  pen_join = RL2_PEN_JOIN_BEVEL;
+				  break;
+			      case RL2_STROKE_LINEJOIN_ROUND:
+				  pen_join = RL2_PEN_JOIN_ROUND;
+				  break;
+			      default:
+				  pen_join = RL2_PEN_JOIN_MITER;
+				  break;
+			      };
+			    rl2_graph_set_solid_pen (ctx,
+						     polyg_sym->stroke->red,
+						     polyg_sym->stroke->green,
+						     polyg_sym->stroke->blue,
+						     norm_opacity,
+						     polyg_sym->stroke->width,
+						     pen_cap, pen_join);
+			    stroke = 1;
+			}
+		  }
+	    }
+	  item = item->next;
+      }
+    if (!fill && !stroke)
+	return;
+
+    polyg = geom->first_polygon;
+    while (polyg)
+      {
+	  /* drawing a POLYGON */
+	  int iv;
+	  double dx;
+	  double dy;
+	  int x;
+	  int y;
+	  int lastX = 0;
+	  int lastY = 0;
+	  int ib;
+	  rl2RingPtr ring = polyg->exterior;
+	  /* exterior border */
+	  for (iv = 0; iv < ring->points; iv++)
+	    {
+		rl2GetPoint (ring->coords, iv, &dx, &dy);
+		x = (int) ((dx - minx) / x_res);
+		y = height - (int) ((dy - miny) / y_res);
+		if (iv == 0)
+		  {
+		      rl2_graph_move_to_point (ctx, x, y);
+		      lastX = x;
+		      lastY = y;
+		  }
+		else
+		  {
+		      if (x == lastX && y == lastY)
+			  ;
+		      else
+			{
+			    rl2_graph_add_line_to_path (ctx, x, y);
+			    lastX = x;
+			    lastY = y;
+			}
+		  }
+	    }
+	  rl2_graph_close_subpath (ctx);
+	  for (ib = 0; ib < polyg->num_interiors; ib++)
+	    {
+		/* interior borders */
+		ring = polyg->interiors + ib;
+		for (iv = 0; iv < ring->points; iv++)
+		  {
+		      rl2GetPoint (ring->coords, iv, &dx, &dy);
+		      x = (int) ((dx - minx) / x_res);
+		      y = height - (int) ((dy - miny) / y_res);
+		      if (iv == 0)
+			{
+			    rl2_graph_move_to_point (ctx, x, y);
+			    lastX = x;
+			    lastY = y;
+			}
+		      else
+			{
+			    if (x == lastX && y == lastY)
+				;
+			    else
+			      {
+				  rl2_graph_add_line_to_path (ctx, x, y);
+				  lastX = x;
+				  lastY = y;
+			      }
+			}
+		  }
+		rl2_graph_close_subpath (ctx);
+	    }
+	  if (fill)
+	    {
+		if (stroke)
+		    rl2_graph_fill_path (ctx, RL2_PRESERVE_PATH);
+		else
+		    rl2_graph_fill_path (ctx, RL2_CLEAR_PATH);
+	    }
+	  if (stroke)
+	      rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+	  polyg = polyg->next;
+      }
+    if (pattern_fill != NULL)
+	rl2_graph_destroy_pattern (pattern_fill);
+    if (pattern_stroke != NULL)
+	rl2_graph_destroy_pattern (pattern_stroke);
+}
+
+RL2_PRIVATE void
+rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
+			 rl2VectorSymbolizerPtr symbolizer, int height,
+			 double minx, double miny, double x_res, double y_res,
+			 rl2GeometryPtr geom)
+{
+/* drawing a vector feature on the current canvass */
+    rl2PrivVectorSymbolizerItemPtr item;
+    rl2GraphicsContextPtr ctx = (rl2GraphicsContextPtr) p_ctx;
+    rl2PrivVectorSymbolizerPtr sym = (rl2PrivVectorSymbolizerPtr) symbolizer;
+    rl2PrivVectorSymbolizerPtr default_symbolizer = NULL;
+
+    if (ctx == NULL || geom == NULL)
+	return;
+
+    if (sym == NULL)
+      {
+	  /* creating a default general purpose Symbolizer */
+
+	  default_symbolizer = rl2_create_default_vector_symbolizer ();
+	  item = rl2_create_default_point_symbolizer ();
+	  if (default_symbolizer->first == NULL)
+	      default_symbolizer->first = item;
+	  if (default_symbolizer->last != NULL)
+	      default_symbolizer->last->next = item;
+	  default_symbolizer->last = item;
+	  item = rl2_create_default_line_symbolizer ();
+	  if (item->symbolizer_type == RL2_LINE_SYMBOLIZER
+	      && item->symbolizer != NULL)
+	    {
+		rl2PrivLineSymbolizerPtr s =
+		    (rl2PrivLineSymbolizerPtr) (item->symbolizer);
+		s->stroke = rl2_create_default_stroke ();
+	    }
+	  if (default_symbolizer->first == NULL)
+	      default_symbolizer->first = item;
+	  if (default_symbolizer->last != NULL)
+	      default_symbolizer->last->next = item;
+	  if (default_symbolizer->first == NULL)
+	      default_symbolizer->first = item;
+	  if (default_symbolizer->last != NULL)
+	      default_symbolizer->last->next = item;
+	  default_symbolizer->last = item;
+	  item = rl2_create_default_polygon_symbolizer ();
+	  if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER
+	      && item->symbolizer != NULL)
+	    {
+		rl2PrivPolygonSymbolizerPtr s =
+		    (rl2PrivPolygonSymbolizerPtr) (item->symbolizer);
+		s->fill = rl2_create_default_fill ();
+		s->stroke = rl2_create_default_stroke ();
+	    }
+	  if (default_symbolizer->first == NULL)
+	      default_symbolizer->first = item;
+	  if (default_symbolizer->last != NULL)
+	      default_symbolizer->last->next = item;
+	  default_symbolizer->last = item;
+	  item = rl2_create_default_text_symbolizer ();
+	  if (default_symbolizer->first == NULL)
+	      default_symbolizer->first = item;
+	  if (default_symbolizer->last != NULL)
+	      default_symbolizer->last->next = item;
+	  default_symbolizer->last = item;
+	  sym = default_symbolizer;
+      }
+
+    if (geom->first_polygon != NULL)
+	draw_polygons (ctx, handle, sym, height, minx, miny, x_res, y_res,
+		       geom);
+    if (geom->first_linestring != NULL)
+	draw_lines (ctx, handle, sym, height, minx, miny, x_res, y_res, geom);
+
+    if (default_symbolizer != NULL)
+	rl2_destroy_vector_symbolizer (default_symbolizer);
+}

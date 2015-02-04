@@ -1025,7 +1025,7 @@ test_style (sqlite3 * db_handle, const char *coverage,
     rl2FeatureTypeStylePtr style;
     rl2VectorSymbolizerPtr symbolizer;
     rl2TextSymbolizerPtr text;
-    rl2VariantValuePtr value;
+    rl2VariantArrayPtr value;
     int intval;
     double dblval;
     double dblval2;
@@ -1298,29 +1298,42 @@ test_style (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #1\n");
+	  *retcode += 33;
+	  return 0;
+      }
     string = "*emilia#Romagna";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #1\n");
+	  *retcode += 34;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #2\n",
 		   style_name);
-	  *retcode += 33;
+	  *retcode += 35;
 	  return 0;
       }
     text = rl2_get_text_symbolizer (symbolizer, 0);
     if (text == NULL)
       {
 	  fprintf (stderr, "Unable to get Text Symbolizer #2\n");
-	  *retcode += 34;
+	  *retcode += 36;
 	  return 0;
       }
     if (rl2_text_symbolizer_get_fill_color (text, &red, &green, &blue) !=
 	RL2_OK)
       {
 	  fprintf (stderr, "Unable to get Text Symbolizer GetFillColor #2\n");
-	  *retcode += 35;
+	  *retcode += 37;
 	  return 0;
       }
     if (red != 0x60 || green != 0x72 || blue != 0x84)
@@ -1328,34 +1341,47 @@ test_style (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Text Symbolizer GetStrokeColor #2: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 36;
+	  *retcode += 38;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #2\n");
+	  *retcode += 39;
+	  return 0;
+      }
     string = "*em*lia#Romagnola";
-    value = rl2_create_variant_text (string, strlen (string));
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #2\n");
+	  *retcode += 40;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #3\n",
 		   style_name);
-	  *retcode += 37;
+	  *retcode += 41;
 	  return 0;
       }
     text = rl2_get_text_symbolizer (symbolizer, 0);
     if (text == NULL)
       {
 	  fprintf (stderr, "Unable to get Text Symbolizer #3\n");
-	  *retcode += 38;
+	  *retcode += 42;
 	  return 0;
       }
     if (rl2_text_symbolizer_get_fill_color (text, &red, &green, &blue) !=
 	RL2_OK)
       {
 	  fprintf (stderr, "Unable to get Text Symbolizer GetFillColor #3\n");
-	  *retcode += 39;
+	  *retcode += 43;
 	  return 0;
       }
     if (red != 0x60 || green != 0x72 || blue != 0x84)
@@ -1363,10 +1389,50 @@ test_style (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Text Symbolizer GetStrokeColor #3: %02x%02x%02x\n",
 		   red, green, blue);
-	  *retcode += 40;
+	  *retcode += 44;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
+
+    intval = rl2_get_feature_type_style_columns_count (style);
+    if (intval != 2)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnsCount #1: %d\n",
+		   intval);
+	  *retcode += 45;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 0);
+    if (strcasecmp (string, "name") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #1: \"%s\"\n",
+		   string);
+	  *retcode += 46;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 1);
+    if (strcasecmp (string, "some_column") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #2: \"%s\"\n",
+		   string);
+	  *retcode += 47;
+	  return 0;
+      }
+
+    intval = rl2_get_feature_type_style_columns_count (NULL);
+    if (intval != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnsCount #2: %d\n",
+		   intval);
+	  *retcode += 48;
+	  return 0;
+      }
 
     rl2_destroy_feature_type_style (style);
     return 1;

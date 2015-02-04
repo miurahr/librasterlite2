@@ -1435,7 +1435,8 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     rl2FeatureTypeStylePtr style;
     rl2VectorSymbolizerPtr symbolizer;
     rl2PointSymbolizerPtr point;
-    rl2VariantValuePtr value;
+    rl2VariantArrayPtr value;
+    int intval;
     const char *string;
     unsigned char type;
     unsigned char blob[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
@@ -1449,21 +1450,33 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    value = rl2_create_variant_int (4);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #1\n");
+	  *retcode += 2;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 4) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #1\n");
+	  *retcode += 3;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #3\n",
 		   style_name);
-	  *retcode += 2;
+	  *retcode += 4;
 	  return 0;
       }
     point = rl2_get_point_symbolizer (symbolizer, 0);
     if (point == NULL)
       {
 	  fprintf (stderr, "Unable to get Point Symbolizer #2\n");
-	  *retcode += 3;
+	  *retcode += 5;
 	  return 0;
       }
     if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
@@ -1471,7 +1484,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
       {
 	  fprintf (stderr,
 		   "Unable to get Point Symbolizer Mark GetWellKnownType #1\n");
-	  *retcode += 4;
+	  *retcode += 6;
 	  return 0;
       }
     if (type != RL2_GRAPHIC_MARK_TRIANGLE)
@@ -1479,52 +1492,29 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Point Symbolizer Mark GetWellKnownType #1: %02x\n",
 		   type);
-	  *retcode += 5;
+	  *retcode += 7;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    value = rl2_create_variant_double (14.6);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #2\n");
+	  *retcode += 8;
+	  return 0;
+      }
+    if (rl2_set_variant_double (value, 0, "some_column", 14.6) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #2\n");
+	  *retcode += 9;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #4\n",
-		   style_name);
-	  *retcode += 6;
-	  return 0;
-      }
-    point = rl2_get_point_symbolizer (symbolizer, 0);
-    if (point == NULL)
-      {
-	  fprintf (stderr, "Unable to get Point Symbolizer #3\n");
-	  *retcode += 7;
-	  return 0;
-      }
-    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #2\n");
-	  *retcode += 8;
-	  return 0;
-      }
-    if (type != RL2_GRAPHIC_MARK_CROSS)
-      {
-	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #2: %02x\n",
-		   type);
-	  *retcode += 9;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_null ();
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #5\n",
 		   style_name);
 	  *retcode += 10;
 	  return 0;
@@ -1532,7 +1522,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     point = rl2_get_point_symbolizer (symbolizer, 0);
     if (point == NULL)
       {
-	  fprintf (stderr, "Unable to get Point Symbolizer #4\n");
+	  fprintf (stderr, "Unable to get Point Symbolizer #3\n");
 	  *retcode += 11;
 	  return 0;
       }
@@ -1540,8 +1530,55 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #3\n");
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #2\n");
 	  *retcode += 12;
+	  return 0;
+      }
+    if (type != RL2_GRAPHIC_MARK_CROSS)
+      {
+	  fprintf (stderr,
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #2: %02x\n",
+		   type);
+	  *retcode += 13;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #3\n");
+	  *retcode += 14;
+	  return 0;
+      }
+    if (rl2_set_variant_null (value, 0, "some_column") != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #3\n");
+	  *retcode += 15;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #5\n",
+		   style_name);
+	  *retcode += 16;
+	  return 0;
+      }
+    point = rl2_get_point_symbolizer (symbolizer, 0);
+    if (point == NULL)
+      {
+	  fprintf (stderr, "Unable to get Point Symbolizer #4\n");
+	  *retcode += 17;
+	  return 0;
+      }
+    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #3\n");
+	  *retcode += 18;
 	  return 0;
       }
     if (type != RL2_GRAPHIC_MARK_SQUARE)
@@ -1549,87 +1586,29 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "Unexpected Point Symbolizer Mark GetWellKnownType #3: %02x\n",
 		   type);
-	  *retcode += 13;
+	  *retcode += 19;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    value = rl2_create_variant_blob (blob, 8);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #4\n");
+	  *retcode += 20;
+	  return 0;
+      }
+    if (rl2_set_variant_blob (value, 0, "some_column", blob, 8) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #4\n");
+	  *retcode += 21;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #6\n",
-		   style_name);
-	  *retcode += 14;
-	  return 0;
-      }
-    point = rl2_get_point_symbolizer (symbolizer, 0);
-    if (point == NULL)
-      {
-	  fprintf (stderr, "Unable to get Point Symbolizer #5\n");
-	  *retcode += 15;
-	  return 0;
-      }
-    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #4\n");
-	  *retcode += 16;
-	  return 0;
-      }
-    if (type != RL2_GRAPHIC_MARK_X)
-      {
-	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #4: %02x\n",
-		   type);
-	  *retcode += 17;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_int (5);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #7\n",
-		   style_name);
-	  *retcode += 18;
-	  return 0;
-      }
-    point = rl2_get_point_symbolizer (symbolizer, 0);
-    if (point == NULL)
-      {
-	  fprintf (stderr, "Unable to get Point Symbolizer #6\n");
-	  *retcode += 19;
-	  return 0;
-      }
-    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #5\n");
-	  *retcode += 20;
-	  return 0;
-      }
-    if (type != RL2_GRAPHIC_MARK_CIRCLE)
-      {
-	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #5: %02x\n",
-		   type);
-	  *retcode += 21;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_int (54321);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #8\n",
 		   style_name);
 	  *retcode += 22;
 	  return 0;
@@ -1637,7 +1616,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     point = rl2_get_point_symbolizer (symbolizer, 0);
     if (point == NULL)
       {
-	  fprintf (stderr, "Unable to get Point Symbolizer #7\n");
+	  fprintf (stderr, "Unable to get Point Symbolizer #5\n");
 	  *retcode += 23;
 	  return 0;
       }
@@ -1645,96 +1624,85 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #6\n");
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #4\n");
 	  *retcode += 24;
 	  return 0;
       }
-    if (type != RL2_GRAPHIC_MARK_CIRCLE)
+    if (type != RL2_GRAPHIC_MARK_X)
       {
 	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #6: %02x\n",
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #4: %02x\n",
 		   type);
 	  *retcode += 25;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    value = rl2_create_variant_double (54321.0);
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #5\n");
+	  *retcode += 26;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 5) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #5\n");
+	  *retcode += 27;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #9\n",
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #7\n",
 		   style_name);
-	  *retcode += 26;
+	  *retcode += 28;
 	  return 0;
       }
     point = rl2_get_point_symbolizer (symbolizer, 0);
     if (point == NULL)
       {
-	  fprintf (stderr, "Unable to get Point Symbolizer #8\n");
-	  *retcode += 27;
+	  fprintf (stderr, "Unable to get Point Symbolizer #6\n");
+	  *retcode += 29;
 	  return 0;
       }
     if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #7\n");
-	  *retcode += 28;
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #5\n");
+	  *retcode += 30;
 	  return 0;
       }
     if (type != RL2_GRAPHIC_MARK_CIRCLE)
       {
 	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #7: %02x\n",
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #5: %02x\n",
 		   type);
-	  *retcode += 29;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_int (14);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #10\n",
-		   style_name);
-	  *retcode += 30;
-	  return 0;
-      }
-    point = rl2_get_point_symbolizer (symbolizer, 0);
-    if (point == NULL)
-      {
-	  fprintf (stderr, "Unable to get Point Symbolizer #9\n");
 	  *retcode += 31;
 	  return 0;
       }
-    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
-	RL2_OK)
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
       {
-	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #8\n");
+	  fprintf (stderr, "Unexpected NULL VariantArray #6\n");
 	  *retcode += 32;
 	  return 0;
       }
-    if (type != RL2_GRAPHIC_MARK_CROSS)
+    if (rl2_set_variant_int (value, 0, "some_column", 54321) != RL2_OK)
       {
-	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #8: %02x\n",
-		   type);
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #6\n");
 	  *retcode += 33;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_int (500);
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #11\n",
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #8\n",
 		   style_name);
 	  *retcode += 34;
 	  return 0;
@@ -1742,7 +1710,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     point = rl2_get_point_symbolizer (symbolizer, 0);
     if (point == NULL)
       {
-	  fprintf (stderr, "Unable to get Point Symbolizer #10\n");
+	  fprintf (stderr, "Unable to get Point Symbolizer #7\n");
 	  *retcode += 35;
 	  return 0;
       }
@@ -1750,98 +1718,85 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #9\n");
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #6\n");
 	  *retcode += 36;
-	  return 0;
-      }
-    if (type != RL2_GRAPHIC_MARK_TRIANGLE)
-      {
-	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #9: %02x\n",
-		   type);
-	  *retcode += 37;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    value = rl2_create_variant_double (500.1);
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #12\n",
-		   style_name);
-	  *retcode += 38;
-	  return 0;
-      }
-    point = rl2_get_point_symbolizer (symbolizer, 0);
-    if (point == NULL)
-      {
-	  fprintf (stderr, "Unable to get Point Symbolizer #11\n");
-	  *retcode += 39;
-	  return 0;
-      }
-    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #10\n");
-	  *retcode += 40;
-	  return 0;
-      }
-    if (type != RL2_GRAPHIC_MARK_TRIANGLE)
-      {
-	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #10: %02x\n",
-		   type);
-	  *retcode += 41;
-	  return 0;
-      }
-    rl2_destroy_variant_value (value);
-
-    string = "TOSCANA";
-    value = rl2_create_variant_text (string, strlen (string));
-    symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
-    if (symbolizer == NULL)
-      {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #13\n",
-		   style_name);
-	  *retcode += 42;
-	  return 0;
-      }
-    point = rl2_get_point_symbolizer (symbolizer, 0);
-    if (point == NULL)
-      {
-	  fprintf (stderr, "Unable to get Point Symbolizer #12\n");
-	  *retcode += 43;
-	  return 0;
-      }
-    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
-	RL2_OK)
-      {
-	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #11\n");
-	  *retcode += 44;
 	  return 0;
       }
     if (type != RL2_GRAPHIC_MARK_CIRCLE)
       {
 	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #11: %02x\n",
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #6: %02x\n",
 		   type);
-	  *retcode += 45;
+	  *retcode += 37;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
 
-    string = "Lazio";
-    value = rl2_create_variant_text (string, strlen (string));
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #7\n");
+	  *retcode += 38;
+	  return 0;
+      }
+    if (rl2_set_variant_double (value, 0, "some_column", 54321.0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #7\n");
+	  *retcode += 39;
+	  return 0;
+      }
     symbolizer =
 	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
     if (symbolizer == NULL)
       {
-	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #14\n",
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #9\n",
+		   style_name);
+	  *retcode += 40;
+	  return 0;
+      }
+    point = rl2_get_point_symbolizer (symbolizer, 0);
+    if (point == NULL)
+      {
+	  fprintf (stderr, "Unable to get Point Symbolizer #8\n");
+	  *retcode += 41;
+	  return 0;
+      }
+    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #7\n");
+	  *retcode += 42;
+	  return 0;
+      }
+    if (type != RL2_GRAPHIC_MARK_CIRCLE)
+      {
+	  fprintf (stderr,
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #7: %02x\n",
+		   type);
+	  *retcode += 43;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #8\n");
+	  *retcode += 44;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 14) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #8\n");
+	  *retcode += 45;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #10\n",
 		   style_name);
 	  *retcode += 46;
 	  return 0;
@@ -1849,7 +1804,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     point = rl2_get_point_symbolizer (symbolizer, 0);
     if (point == NULL)
       {
-	  fprintf (stderr, "Unable to get Point Symbolizer #13\n");
+	  fprintf (stderr, "Unable to get Point Symbolizer #9\n");
 	  *retcode += 47;
 	  return 0;
       }
@@ -1857,19 +1812,261 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	RL2_OK)
       {
 	  fprintf (stderr,
-		   "Unable to get Point Symbolizer Mark GetWellKnownType #12\n");
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #8\n");
 	  *retcode += 48;
+	  return 0;
+      }
+    if (type != RL2_GRAPHIC_MARK_CROSS)
+      {
+	  fprintf (stderr,
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #8: %02x\n",
+		   type);
+	  *retcode += 49;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #9\n");
+	  *retcode += 50;
+	  return 0;
+      }
+    if (rl2_set_variant_int (value, 0, "some_column", 500) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #9\n");
+	  *retcode += 51;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #11\n",
+		   style_name);
+	  *retcode += 52;
+	  return 0;
+      }
+    point = rl2_get_point_symbolizer (symbolizer, 0);
+    if (point == NULL)
+      {
+	  fprintf (stderr, "Unable to get Point Symbolizer #10\n");
+	  *retcode += 53;
+	  return 0;
+      }
+    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #9\n");
+	  *retcode += 54;
 	  return 0;
       }
     if (type != RL2_GRAPHIC_MARK_TRIANGLE)
       {
 	  fprintf (stderr,
-		   "Unexpected Point Symbolizer Mark GetWellKnownType #12: %02x\n",
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #9: %02x\n",
 		   type);
-	  *retcode += 49;
+	  *retcode += 55;
 	  return 0;
       }
-    rl2_destroy_variant_value (value);
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #10\n");
+	  *retcode += 56;
+	  return 0;
+      }
+    if (rl2_set_variant_double (value, 0, "some_column", 500.1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #10\n");
+	  *retcode += 57;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #12\n",
+		   style_name);
+	  *retcode += 58;
+	  return 0;
+      }
+    point = rl2_get_point_symbolizer (symbolizer, 0);
+    if (point == NULL)
+      {
+	  fprintf (stderr, "Unable to get Point Symbolizer #11\n");
+	  *retcode += 59;
+	  return 0;
+      }
+    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #10\n");
+	  *retcode += 60;
+	  return 0;
+      }
+    if (type != RL2_GRAPHIC_MARK_TRIANGLE)
+      {
+	  fprintf (stderr,
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #10: %02x\n",
+		   type);
+	  *retcode += 61;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #11\n");
+	  *retcode += 62;
+	  return 0;
+      }
+    string = "TOSCANA";
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #11\n");
+	  *retcode += 63;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #13\n",
+		   style_name);
+	  *retcode += 64;
+	  return 0;
+      }
+    point = rl2_get_point_symbolizer (symbolizer, 0);
+    if (point == NULL)
+      {
+	  fprintf (stderr, "Unable to get Point Symbolizer #12\n");
+	  *retcode += 65;
+	  return 0;
+      }
+    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #11\n");
+	  *retcode += 66;
+	  return 0;
+      }
+    if (type != RL2_GRAPHIC_MARK_CIRCLE)
+      {
+	  fprintf (stderr,
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #11: %02x\n",
+		   type);
+	  *retcode += 67;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    value = rl2_create_variant_array (1);
+    if (value == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VariantArray #12\n");
+	  *retcode += 68;
+	  return 0;
+      }
+    string = "Lazio";
+    if (rl2_set_variant_text (value, 0, "name", string, strlen (string)) !=
+	RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected failure: SetVariantValue #12\n");
+	  *retcode += 69;
+	  return 0;
+      }
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+    if (symbolizer == NULL)
+      {
+	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #14\n",
+		   style_name);
+	  *retcode += 70;
+	  return 0;
+      }
+    point = rl2_get_point_symbolizer (symbolizer, 0);
+    if (point == NULL)
+      {
+	  fprintf (stderr, "Unable to get Point Symbolizer #13\n");
+	  *retcode += 71;
+	  return 0;
+      }
+    if (rl2_point_symbolizer_mark_get_well_known_type (point, 0, &type) !=
+	RL2_OK)
+      {
+	  fprintf (stderr,
+		   "Unable to get Point Symbolizer Mark GetWellKnownType #12\n");
+	  *retcode += 72;
+	  return 0;
+      }
+    if (type != RL2_GRAPHIC_MARK_X)
+      {
+	  fprintf (stderr,
+		   "Unexpected Point Symbolizer Mark GetWellKnownType #12: %02x\n",
+		   type);
+	  *retcode += 73;
+	  return 0;
+      }
+    rl2_destroy_variant_array (value);
+
+    intval = rl2_get_feature_type_style_columns_count (style);
+    if (intval != 2)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnsCount #1: %d\n",
+		   intval);
+	  *retcode += 74;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 0);
+    if (strcasecmp (string, "name") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #1: \"%s\"\n",
+		   string);
+	  *retcode += 75;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 1);
+    if (strcasecmp (string, "some_column") != 0)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #2: \"%s\"\n",
+		   string);
+	  *retcode += 76;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (style, 2);
+    if (string != NULL)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #3: \"%s\"\n",
+		   string);
+	  *retcode += 77;
+	  return 0;
+      }
+
+    string = rl2_get_feature_type_style_column_name (NULL, 0);
+    if (string != NULL)
+      {
+	  fprintf (stderr,
+		   "Unexpected GetFeatureTypeStyleColumnName #4: \"%s\"\n",
+		   string);
+	  *retcode += 78;
+	  return 0;
+      }
 
     rl2_destroy_feature_type_style (style);
     return 1;

@@ -2072,13 +2072,14 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 }
 
 RL2_DECLARE rl2VectorLayerPtr
-rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *f_table_name,
-				   const char *f_geometry_column)
+rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *coverage)
 {
 /* attempting to create a Vector Layer Object from the DBMS definition */
     char *sql;
     int ret;
     sqlite3_stmt *stmt;
+    char *f_table_name = NULL;
+    char *f_geometry_column = NULL;
     int geometry_type;
     int srid;
     int spatial_index;
@@ -2087,9 +2088,11 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *f_table_name,
 
 /* querying the Vector Layer metadata defs */
     sql =
-	"SELECT geometry_type, srid, spatial_index "
-	"FROM geometry_columns WHERE Lower(f_table_name) = Lower(?) "
-	"AND Lower(f_geometry_column) = Lower(?)";
+	"SELECT c.f_table_name, c.f_geometry_column, g.srid, g.geometry_type, "
+	"g.spatial_index_enabled FROM vector_coverages AS c "
+	"JOIN geometry_columns AS g ON (c.f_table_name = g.f_table_name "
+	"AND c.f_geometry_column = g.f_geometry_column) "
+	"WHERE Lower(c.coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -2098,10 +2101,7 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *f_table_name,
       }
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, f_table_name, strlen (f_table_name),
-		       SQLITE_STATIC);
-    sqlite3_bind_text (stmt, 1, f_geometry_column, strlen (f_geometry_column),
-		       SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
     while (1)
       {
 	  /* scrolling the result set rows */
@@ -2110,25 +2110,50 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *f_table_name,
 	      break;		/* end of result set */
 	  if (ret == SQLITE_ROW)
 	    {
+		int len;
+		const char *name;
+		int ok_table_name = 0;
+		int ok_geometry_column = 0;
 		int ok_type = 0;
 		int ok_srid = 0;
 		int ok_index = 0;
-		if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
+		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
 		  {
-		      geometry_type = sqlite3_column_int (stmt, 0);
-		      ok_type = 1;
+		      name = (const char *) sqlite3_column_text (stmt, 0);
+		      len = strlen (name);
+		      if (f_table_name != NULL)
+			  free (f_table_name);
+		      f_table_name = malloc (len + 1);
+		      strcpy (f_table_name, name);
+		      ok_table_name = 1;
 		  }
-		if (sqlite3_column_type (stmt, 1) == SQLITE_INTEGER)
+		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
 		  {
-		      srid = sqlite3_column_int (stmt, 1);
-		      ok_srid = 1;
+		      name = (const char *) sqlite3_column_text (stmt, 1);
+		      len = strlen (name);
+		      if (f_geometry_column != NULL)
+			  free (f_geometry_column);
+		      f_geometry_column = malloc (len + 1);
+		      strcpy (f_geometry_column, name);
+		      ok_geometry_column = 1;
 		  }
 		if (sqlite3_column_type (stmt, 2) == SQLITE_INTEGER)
 		  {
-		      spatial_index = sqlite3_column_int (stmt, 2);
+		      srid = sqlite3_column_int (stmt, 2);
+		      ok_srid = 1;
+		  }
+		if (sqlite3_column_type (stmt, 3) == SQLITE_INTEGER)
+		  {
+		      geometry_type = sqlite3_column_int (stmt, 3);
+		      ok_type = 1;
+		  }
+		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
+		  {
+		      spatial_index = sqlite3_column_int (stmt, 4);
 		      ok_index = 1;
 		  }
-		if (ok_type && ok_srid && ok_index)
+		if (ok_table_name && ok_geometry_column && ok_type && ok_srid
+		    && ok_index)
 		    ok = 1;
 	    }
       }
@@ -2137,19 +2162,25 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *f_table_name,
     if (!ok)
       {
 	  fprintf (stderr,
-		   "ERROR: unable to find a Vector Layer named \"%s\".\"%s\"\n",
-		   f_table_name, f_geometry_column);
+		   "ERROR: unable to find a Vector Layer named \"%s\"\n",
+		   coverage);
+	  if (f_table_name != NULL)
+	      free (f_table_name);
+	  if (f_geometry_column != NULL)
+	      free (f_geometry_column);
 	  return NULL;
       }
 
     vector =
 	rl2_create_vector_layer (f_table_name, f_geometry_column, geometry_type,
 				 srid, spatial_index);
+    free (f_table_name);
+    free (f_geometry_column);
     if (vector == NULL)
       {
 	  fprintf (stderr,
-		   "ERROR: unable to create a Vector Layer Object supporting \"%s\".\"%s\"\n",
-		   f_table_name, f_geometry_column);
+		   "ERROR: unable to create a Vector Layer Object supporting \"%s\"\n",
+		   coverage);
 	  return NULL;
       }
     return vector;

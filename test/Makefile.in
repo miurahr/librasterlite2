@@ -100,7 +100,8 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_orbetello$(EXEEXT) test_raster_symbolizer$(EXEEXT) \
 	test_svg$(EXEEXT) test_raw$(EXEEXT) test_openjpeg$(EXEEXT) \
 	test_line_symbolizer$(EXEEXT) test_polygon_symbolizer$(EXEEXT) \
-	test_point_symbolizer$(EXEEXT) test_text_symbolizer$(EXEEXT)
+	test_point_symbolizer$(EXEEXT) test_text_symbolizer$(EXEEXT) \
+	test_vectors$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -287,6 +288,9 @@ test_text_symbolizer_LDADD = $(LDADD)
 test_tifin_SOURCES = test_tifin.c
 test_tifin_OBJECTS = test_tifin.$(OBJEXT)
 test_tifin_LDADD = $(LDADD)
+test_vectors_SOURCES = test_vectors.c
+test_vectors_OBJECTS = test_vectors.$(OBJEXT)
+test_vectors_LDADD = $(LDADD)
 test_webp_SOURCES = test_webp.c
 test_webp_OBJECTS = test_webp.$(OBJEXT)
 test_webp_LDADD = $(LDADD)
@@ -347,8 +351,8 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_palette.c test_point_symbolizer.c \
 	test_polygon_symbolizer.c test_raster.c \
 	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
-	test_text_symbolizer.c test_tifin.c test_webp.c test_wms1.c \
-	test_wms2.c test_wr_tiff.c
+	test_text_symbolizer.c test_tifin.c test_vectors.c test_webp.c \
+	test_wms1.c test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
@@ -364,7 +368,8 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_point_symbolizer.c test_polygon_symbolizer.c \
 	test_raster.c test_raster_symbolizer.c test_raw.c \
 	test_section.c test_svg.c test_text_symbolizer.c test_tifin.c \
-	test_webp.c test_wms1.c test_wms2.c test_wr_tiff.c
+	test_vectors.c test_webp.c test_wms1.c test_wms2.c \
+	test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -1123,6 +1128,10 @@ test_tifin$(EXEEXT): $(test_tifin_OBJECTS) $(test_tifin_DEPENDENCIES) $(EXTRA_te
 	@rm -f test_tifin$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_tifin_OBJECTS) $(test_tifin_LDADD) $(LIBS)
 
+test_vectors$(EXEEXT): $(test_vectors_OBJECTS) $(test_vectors_DEPENDENCIES) $(EXTRA_test_vectors_DEPENDENCIES) 
+	@rm -f test_vectors$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_vectors_OBJECTS) $(test_vectors_LDADD) $(LIBS)
+
 test_webp$(EXEEXT): $(test_webp_OBJECTS) $(test_webp_DEPENDENCIES) $(EXTRA_test_webp_DEPENDENCIES) 
 	@rm -f test_webp$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_webp_OBJECTS) $(test_webp_LDADD) $(LIBS)
@@ -1201,6 +1210,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_svg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_text_symbolizer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tifin.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_vectors.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_webp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms1.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms2.Po@am__quote@
@@ -1889,6 +1899,13 @@ test_point_symbolizer.log: test_point_symbolizer$(EXEEXT)
 test_text_symbolizer.log: test_text_symbolizer$(EXEEXT)
 	@p='test_text_symbolizer$(EXEEXT)'; \
 	b='test_text_symbolizer'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_vectors.log: test_vectors$(EXEEXT)
+	@p='test_vectors$(EXEEXT)'; \
+	b='test_vectors'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

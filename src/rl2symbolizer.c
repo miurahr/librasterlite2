@@ -3909,6 +3909,91 @@ find_feature_type_style (xmlNodePtr node, rl2PrivFeatureTypeStylePtr style,
     return 0;
 }
 
+static void
+build_column_names_array (rl2PrivFeatureTypeStylePtr style)
+{
+/* building the column names array - Feature Type Style */
+    char **strings;
+    char *dupl;
+    int len;
+    int count = 0;
+    int count2 = 0;
+    int i;
+    int j;
+    rl2PrivStyleRulePtr pR;
+
+    pR = style->first_rule;
+    while (pR != NULL)
+      {
+	  /* counting max column names */
+	  if (pR->column_name != NULL)
+	      count++;
+	  pR = pR->next;
+      }
+    if (count == 0)
+	return;
+
+    strings = malloc (sizeof (char *) * count);
+    dupl = malloc (sizeof (char) * count);
+    i = 0;
+    pR = style->first_rule;
+    while (pR != NULL)
+      {
+	  /* initializing the column names temporary array */
+	  if (pR->column_name != NULL)
+	    {
+		len = strlen (pR->column_name);
+		*(strings + i) = malloc (len + 1);
+		strcpy (*(strings + i), pR->column_name);
+		*(dupl + i) = 'N';
+		i++;
+	    }
+	  pR = pR->next;
+      }
+
+    for (i = 0; i < count; i++)
+      {
+	  /* identifying all duplicates */
+	  if (*(dupl + i) == 'Y')
+	      continue;
+	  for (j = i + 1; j < count; j++)
+	    {
+		if (strcasecmp (*(strings + i), *(strings + j)) == 0)
+		    *(dupl + j) = 'Y';
+	    }
+      }
+
+/* allocating the final array */
+    for (i = 0; i < count; i++)
+      {
+	  if (*(dupl + i) == 'N')
+	      count2++;
+      }
+    style->columns_count = count2;
+    style->column_names = malloc (sizeof (char *) * count2);
+    j = 0;
+    for (i = 0; i < count; i++)
+      {
+	  /* initializing the final array */
+	  if (*(dupl + i) == 'N')
+	    {
+		len = strlen (*(strings + i));
+		*(style->column_names + j) = malloc (len + 1);
+		strcpy (*(style->column_names + j), *(strings + i));
+		j++;
+	    }
+      }
+
+/* final cleanup */
+    for (i = 0; i < count; i++)
+      {
+	  if (*(strings + i) != NULL)
+	      free (*(strings + i));
+      }
+    free (strings);
+    free (dupl);
+}
+
 RL2_PRIVATE rl2FeatureTypeStylePtr
 feature_type_style_from_xml (char *name, unsigned char *xml)
 {
@@ -3926,6 +4011,8 @@ feature_type_style_from_xml (char *name, unsigned char *xml)
     style->first_rule = NULL;
     style->last_rule = NULL;
     style->else_rule = NULL;
+    style->columns_count = 0;
+    style->column_names = NULL;
 
 /* parsing the XML document */
     xmlSetGenericErrorFunc (NULL, silentError);
@@ -3948,6 +4035,7 @@ feature_type_style_from_xml (char *name, unsigned char *xml)
 
     if (style->name == NULL)
 	goto error;
+    build_column_names_array (style);
 
     return (rl2FeatureTypeStylePtr) style;
 

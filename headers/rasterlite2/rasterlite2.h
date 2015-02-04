@@ -429,17 +429,17 @@ extern "C"
     typedef rl2RuleSingleArg *rl2RuleSingleArgPtr;
 
 /**
- Typedef for RL2 VariantValue object (opaque, hidden)
+ Typedef for RL2 VariantArray object (opaque, hidden)
 
- \sa rl2VariantValuePtr
+ \sa rl2VariantArrayPtr
  */
-    typedef struct rl2_variant_value rl2VariantValue;
+    typedef struct rl2_variant_array rl2VariantArray;
 /**
- Typedef for RL2 VariantValue object pointer (opaque, hidden)
+ Typedef for RL2 VariantArray object pointer (opaque, hidden)
 
- \sa rl2VariantValue
+ \sa rl2VariantArray
  */
-    typedef rl2VariantValue *rl2VariantValuePtr;
+    typedef rl2VariantArray *rl2VariantArrayPtr;
 
 /**
  Typedef for RL2 StyleRule object (opaque, hidden)
@@ -3377,8 +3377,7 @@ extern "C"
 
     RL2_DECLARE rl2VectorLayerPtr
 	rl2_create_vector_layer_from_dbms (sqlite3 * handle,
-					   const char *f_table_name,
-					   const char *f_geometry_column);
+					   const char *coverage);
 
     RL2_DECLARE int
 	rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
@@ -4522,24 +4521,40 @@ extern "C"
     RL2_DECLARE const char
 	*rl2_get_feature_type_style_name (rl2FeatureTypeStylePtr style);
 
-    RL2_DECLARE rl2VariantValuePtr rl2_create_variant_int (sqlite3_int64 value);
+    RL2_DECLARE int
+	rl2_get_feature_type_style_columns_count (rl2FeatureTypeStylePtr style);
 
-    RL2_DECLARE rl2VariantValuePtr rl2_create_variant_double (double value);
+    RL2_DECLARE const char
+	*rl2_get_feature_type_style_column_name (rl2FeatureTypeStylePtr style,
+						 int index);
 
-    RL2_DECLARE rl2VariantValuePtr
-	rl2_create_variant_text (const char *value, int bytes);
+    RL2_DECLARE rl2VariantArrayPtr rl2_create_variant_array (int count);
 
-    RL2_DECLARE rl2VariantValuePtr
-	rl2_create_variant_blob (const unsigned char *value, int bytes);
+    RL2_DECLARE void rl2_destroy_variant_array (rl2VariantArrayPtr variant);
 
-    RL2_DECLARE rl2VariantValuePtr rl2_create_variant_null (void);
+    RL2_DECLARE int rl2_set_variant_int (rl2VariantArrayPtr variant, int index,
+					 const char *name, sqlite3_int64 value);
 
-    RL2_DECLARE void rl2_destroy_variant_value (rl2VariantValuePtr value);
+    RL2_DECLARE int rl2_set_variant_double (rl2VariantArrayPtr variant,
+					    int index, const char *name,
+					    double value);
+
+    RL2_DECLARE int rl2_set_variant_text (rl2VariantArrayPtr variant, int index,
+					  const char *name, const char *value,
+					  int bytes);
+
+    RL2_DECLARE int rl2_set_variant_blob (rl2VariantArrayPtr variant, int index,
+					  const char *name,
+					  const unsigned char *value,
+					  int bytes);
+
+    RL2_DECLARE int rl2_set_variant_null (rl2VariantArrayPtr variant, int index,
+					  const char *name);
 
     RL2_DECLARE rl2VectorSymbolizerPtr
 	rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr
 						    style, double scale,
-						    rl2VariantValuePtr variant);
+						    rl2VariantArrayPtr variant);
 
     RL2_DECLARE int
 	rl2_is_valid_vector_symbolizer (rl2VectorSymbolizerPtr symbolizer,

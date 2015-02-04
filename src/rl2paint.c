@@ -70,13 +70,28 @@ the terms of any one of the MPL, the GPL or the LGPL.
 struct rl2_graphics_pen
 {
 /* a struct wrapping a Cairo Pen */
+    int is_solid_color;
+    int is_linear_gradient;
+    int is_pattern;
     double red;
     double green;
     double blue;
     double alpha;
+    double x0;
+    double y0;
+    double x1;
+    double y1;
+    double red2;
+    double green2;
+    double blue2;
+    double alpha2;
+    cairo_pattern_t *pattern;
     double width;
-    double lengths[4];
-    int lengths_count;
+    double *dash_array;
+    int dash_count;
+    double dash_offset;
+    int line_cap;
+    int line_join;
 };
 
 struct rl2_graphics_brush
@@ -119,16 +134,16 @@ typedef struct rl2_graphics_context
 } RL2GraphContext;
 typedef RL2GraphContext *RL2GraphContextPtr;
 
-typedef struct rl2_graphics_pattern_brush
+typedef struct rl2_priv_graphics_pattern
 {
-/* a Cairo based pattern brush */
+/* a Cairo based pattern */
     int width;
     int height;
     unsigned char *rgba;
     cairo_surface_t *bitmap;
     cairo_pattern_t *pattern;
-} RL2GraphPatternBrush;
-typedef RL2GraphPatternBrush *RL2GraphPatternBrushPtr;
+} RL2PrivGraphPattern;
+typedef RL2PrivGraphPattern *RL2PrivGraphPatternPtr;
 
 typedef struct rl2_graphics_font
 {
@@ -180,13 +195,20 @@ rl2_graph_create_context (int width, int height)
 	goto error2;
 
 /* setting up a default Black Pen */
+    ctx->current_pen.is_solid_color = 1;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 0;
     ctx->current_pen.red = 0.0;
     ctx->current_pen.green = 0.0;
     ctx->current_pen.blue = 0.0;
     ctx->current_pen.alpha = 1.0;
     ctx->current_pen.width = 1.0;
-    ctx->current_pen.lengths[0] = 1.0;
-    ctx->current_pen.lengths_count = 1;
+    ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+    ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_count = 0;
+    ctx->current_pen.dash_offset = 0.0;
+    ctx->current_pen.pattern = NULL;
 
 /* setting up a default Black Brush */
     ctx->current_brush.is_solid_color = 1;
@@ -226,6 +248,8 @@ destroy_context (RL2GraphContextPtr ctx)
 /* memory cleanup - destroying a Graphics Context */
     if (ctx == NULL)
 	return;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
     cairo_destroy (ctx->cairo);
     cairo_surface_destroy (ctx->surface);
     free (ctx);
@@ -300,13 +324,20 @@ rl2_graph_create_svg_context (const char *path, int width, int height)
 	goto error2;
 
 /* setting up a default Black Pen */
+    ctx->current_pen.is_solid_color = 1;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 0;
     ctx->current_pen.red = 0.0;
     ctx->current_pen.green = 0.0;
     ctx->current_pen.blue = 0.0;
     ctx->current_pen.alpha = 1.0;
     ctx->current_pen.width = 1.0;
-    ctx->current_pen.lengths[0] = 1.0;
-    ctx->current_pen.lengths_count = 1;
+    ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+    ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_count = 0;
+    ctx->current_pen.dash_offset = 0.0;
+    ctx->current_pen.pattern = NULL;
 
 /* setting up a default Black Brush */
     ctx->current_brush.is_solid_color = 1;
@@ -390,13 +421,20 @@ rl2_graph_create_pdf_context (const char *path, int dpi, double page_width,
 	goto error4;
 
 /* setting up a default Black Pen */
+    ctx->current_pen.is_solid_color = 1;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 0;
     ctx->current_pen.red = 0.0;
     ctx->current_pen.green = 0.0;
     ctx->current_pen.blue = 0.0;
     ctx->current_pen.alpha = 1.0;
     ctx->current_pen.width = 1.0;
-    ctx->current_pen.lengths[0] = 1.0;
-    ctx->current_pen.lengths_count = 1;
+    ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+    ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_count = 0;
+    ctx->current_pen.dash_offset = 0.0;
+    ctx->current_pen.pattern = NULL;
 
 /* setting up a default Black Brush */
     ctx->current_brush.is_solid_color = 1;
@@ -523,13 +561,20 @@ rl2_graph_create_mem_pdf_context (rl2MemPdfPtr mem_pdf, int dpi,
 	goto error4;
 
 /* setting up a default Black Pen */
+    ctx->current_pen.is_solid_color = 1;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 0;
     ctx->current_pen.red = 0.0;
     ctx->current_pen.green = 0.0;
     ctx->current_pen.blue = 0.0;
     ctx->current_pen.alpha = 1.0;
     ctx->current_pen.width = 1.0;
-    ctx->current_pen.lengths[0] = 1.0;
-    ctx->current_pen.lengths_count = 1;
+    ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+    ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_count = 0;
+    ctx->current_pen.dash_offset = 0.0;
+    ctx->current_pen.pattern = NULL;
 
 /* setting up a default Black Brush */
     ctx->current_brush.is_solid_color = 1;
@@ -573,11 +618,12 @@ rl2_graph_create_mem_pdf_context (rl2MemPdfPtr mem_pdf, int dpi,
 }
 
 RL2_DECLARE int
-rl2_graph_set_pen (rl2GraphicsContextPtr context, unsigned char red,
-		   unsigned char green, unsigned char blue, unsigned char alpha,
-		   double width, int style)
+rl2_graph_set_solid_pen (rl2GraphicsContextPtr context, unsigned char red,
+			 unsigned char green, unsigned char blue,
+			 unsigned char alpha, double width, int line_cap,
+			 int line_join)
 {
-/* creating a Color Pen */
+/* creating a Color Pen - solid style */
     double d_red = (double) red / 255.0;
     double d_green = (double) green / 255.0;
     double d_blue = (double) blue / 255.0;
@@ -587,39 +633,356 @@ rl2_graph_set_pen (rl2GraphicsContextPtr context, unsigned char red,
 	return 0;
 
     ctx->current_pen.width = width;
+    ctx->current_pen.is_solid_color = 1;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 0;
     ctx->current_pen.red = d_red;
     ctx->current_pen.green = d_green;
     ctx->current_pen.blue = d_blue;
     ctx->current_pen.alpha = d_alpha;
-    switch (style)
+    switch (line_cap)
       {
-      case RL2_PENSTYLE_DOT:
-	  ctx->current_pen.lengths[0] = 2;
-	  ctx->current_pen.lengths[1] = 2;
-	  ctx->current_pen.lengths_count = 2;
-	  break;
-      case RL2_PENSTYLE_LONG_DASH:
-	  ctx->current_pen.lengths[0] = 16;
-	  ctx->current_pen.lengths[1] = 8;
-	  ctx->current_pen.lengths_count = 2;
-	  break;
-      case RL2_PENSTYLE_SHORT_DASH:
-	  ctx->current_pen.lengths[0] = 8;
-	  ctx->current_pen.lengths[1] = 4;
-	  ctx->current_pen.lengths_count = 2;
-	  break;
-      case RL2_PENSTYLE_DOT_DASH:
-	  ctx->current_pen.lengths[0] = 8;
-	  ctx->current_pen.lengths[1] = 4;
-	  ctx->current_pen.lengths[2] = 2;
-	  ctx->current_pen.lengths[3] = 4;
-	  ctx->current_pen.lengths_count = 4;
+      case RL2_PEN_CAP_ROUND:
+      case RL2_PEN_CAP_SQUARE:
+	  ctx->current_pen.line_cap = line_cap;
 	  break;
       default:
-	  ctx->current_pen.lengths[0] = 1;
-	  ctx->current_pen.lengths[1] = 0;
-	  ctx->current_pen.lengths_count = 2;
+	  ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+	  break;
+
       };
+    switch (line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+      case RL2_PEN_JOIN_BEVEL:
+	  ctx->current_pen.line_join = line_join;
+	  break;
+      default:
+	  ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+	  break;
+
+      };
+    ctx->current_pen.dash_count = 0;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_offset = 0.0;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_set_dashed_pen (rl2GraphicsContextPtr context, unsigned char red,
+			  unsigned char green, unsigned char blue,
+			  unsigned char alpha, double width, int line_cap,
+			  int line_join, int dash_count, double dash_list[],
+			  double dash_offset)
+{
+/* creating a Color Pen - dashed style */
+    int d;
+    double d_red = (double) red / 255.0;
+    double d_green = (double) green / 255.0;
+    double d_blue = (double) blue / 255.0;
+    double d_alpha = (double) alpha / 255.0;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return 0;
+    if (dash_count <= 0 || dash_list == NULL)
+	return 0;
+
+    ctx->current_pen.width = width;
+    ctx->current_pen.is_solid_color = 1;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 0;
+    ctx->current_pen.red = d_red;
+    ctx->current_pen.green = d_green;
+    ctx->current_pen.blue = d_blue;
+    ctx->current_pen.alpha = d_alpha;
+    switch (line_cap)
+      {
+      case RL2_PEN_CAP_ROUND:
+      case RL2_PEN_CAP_SQUARE:
+	  ctx->current_pen.line_cap = line_cap;
+	  break;
+      default:
+	  ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+	  break;
+
+      };
+    switch (line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+      case RL2_PEN_JOIN_BEVEL:
+	  ctx->current_pen.line_join = line_join;
+	  break;
+      default:
+	  ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+	  break;
+
+      };
+    ctx->current_pen.dash_count = dash_count;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
+    ctx->current_pen.dash_array = malloc (sizeof (double) * dash_count);
+    for (d = 0; d < dash_count; d++)
+	*(ctx->current_pen.dash_array + d) = *(dash_list + d);
+    ctx->current_pen.dash_offset = dash_offset;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_set_linear_gradient_solid_pen (rl2GraphicsContextPtr context,
+					 double x, double y, double width,
+					 double height, unsigned char red1,
+					 unsigned char green1,
+					 unsigned char blue1,
+					 unsigned char alpha1,
+					 unsigned char red2,
+					 unsigned char green2,
+					 unsigned char blue2,
+					 unsigned char alpha2, double pen_width,
+					 int line_cap, int line_join)
+{
+/* setting up a Linear Gradient Pen - solid style */
+    double d_red = (double) red1 / 255.0;
+    double d_green = (double) green1 / 255.0;
+    double d_blue = (double) blue1 / 255.0;
+    double d_alpha = (double) alpha1 / 255.0;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return 0;
+
+    ctx->current_pen.width = pen_width;
+    switch (line_cap)
+      {
+      case RL2_PEN_CAP_ROUND:
+      case RL2_PEN_CAP_SQUARE:
+	  ctx->current_pen.line_cap = line_cap;
+	  break;
+      default:
+	  ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+	  break;
+
+      };
+    switch (line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+      case RL2_PEN_JOIN_BEVEL:
+	  ctx->current_pen.line_join = line_join;
+	  break;
+      default:
+	  ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+	  break;
+
+      };
+    ctx->current_pen.is_solid_color = 0;
+    ctx->current_pen.is_linear_gradient = 1;
+    ctx->current_pen.is_pattern = 0;
+    ctx->current_pen.red = d_red;
+    ctx->current_pen.green = d_green;
+    ctx->current_pen.blue = d_blue;
+    ctx->current_pen.alpha = d_alpha;
+    ctx->current_pen.x0 = x;
+    ctx->current_pen.y0 = y;
+    ctx->current_pen.x1 = x + width;
+    ctx->current_pen.y1 = y + height;
+    d_red = (double) red2 / 255.0;
+    d_green = (double) green2 / 255.0;
+    d_blue = (double) blue2 / 255.0;
+    d_alpha = (double) alpha2 / 255.0;
+    ctx->current_pen.red2 = d_red;
+    ctx->current_pen.green2 = d_green;
+    ctx->current_pen.blue2 = d_blue;
+    ctx->current_pen.alpha2 = d_alpha;
+    ctx->current_pen.dash_count = 0;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_offset = 0.0;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_set_linear_gradient_dashed_pen (rl2GraphicsContextPtr context,
+					  double x, double y, double width,
+					  double height, unsigned char red1,
+					  unsigned char green1,
+					  unsigned char blue1,
+					  unsigned char alpha1,
+					  unsigned char red2,
+					  unsigned char green2,
+					  unsigned char blue2,
+					  unsigned char alpha2,
+					  double pen_width, int line_cap,
+					  int line_join, int dash_count,
+					  double dash_list[],
+					  double dash_offset)
+{
+/* setting up a Linear Gradient Pen - dashed style */
+    int d;
+    double d_red = (double) red1 / 255.0;
+    double d_green = (double) green1 / 255.0;
+    double d_blue = (double) blue1 / 255.0;
+    double d_alpha = (double) alpha1 / 255.0;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return 0;
+    if (dash_count <= 0 || dash_list == NULL)
+	return 0;
+
+    ctx->current_pen.width = pen_width;
+    switch (line_cap)
+      {
+      case RL2_PEN_CAP_ROUND:
+      case RL2_PEN_CAP_SQUARE:
+	  ctx->current_pen.line_cap = line_cap;
+	  break;
+      default:
+	  ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+	  break;
+
+      };
+    switch (line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+      case RL2_PEN_JOIN_BEVEL:
+	  ctx->current_pen.line_join = line_join;
+	  break;
+      default:
+	  ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+	  break;
+
+      };
+    ctx->current_pen.is_solid_color = 0;
+    ctx->current_pen.is_linear_gradient = 1;
+    ctx->current_pen.is_pattern = 0;
+    ctx->current_pen.red = d_red;
+    ctx->current_pen.green = d_green;
+    ctx->current_pen.blue = d_blue;
+    ctx->current_pen.alpha = d_alpha;
+    ctx->current_pen.x0 = x;
+    ctx->current_pen.y0 = y;
+    ctx->current_pen.x1 = x + width;
+    ctx->current_pen.y1 = y + height;
+    d_red = (double) red2 / 255.0;
+    d_green = (double) green2 / 255.0;
+    d_blue = (double) blue2 / 255.0;
+    d_alpha = (double) alpha2 / 255.0;
+    ctx->current_pen.red2 = d_red;
+    ctx->current_pen.green2 = d_green;
+    ctx->current_pen.blue2 = d_blue;
+    ctx->current_pen.alpha2 = d_alpha;
+    ctx->current_pen.dash_count = dash_count;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
+    ctx->current_pen.dash_array = malloc (sizeof (double) * dash_count);
+    for (d = 0; d < dash_count; d++)
+	*(ctx->current_pen.dash_array + d) = *(dash_list + d);
+    ctx->current_pen.dash_offset = dash_offset;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_set_pattern_solid_pen (rl2GraphicsContextPtr context,
+				 rl2GraphicsPatternPtr brush,
+				 double width, int line_cap, int line_join)
+{
+/* setting up a Pattern Pen - solid style */
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) brush;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+
+    if (ctx == NULL)
+	return 0;
+    if (pattern == NULL)
+	return 0;
+
+    ctx->current_pen.width = width;
+    switch (line_cap)
+      {
+      case RL2_PEN_CAP_ROUND:
+      case RL2_PEN_CAP_SQUARE:
+	  ctx->current_pen.line_cap = line_cap;
+	  break;
+      default:
+	  ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+	  break;
+
+      };
+    switch (line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+      case RL2_PEN_JOIN_BEVEL:
+	  ctx->current_pen.line_join = line_join;
+	  break;
+      default:
+	  ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+	  break;
+
+      };
+    ctx->current_pen.is_solid_color = 0;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 1;
+    ctx->current_pen.pattern = pattern->pattern;
+    ctx->current_pen.dash_count = 0;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
+    ctx->current_pen.dash_array = NULL;
+    ctx->current_pen.dash_offset = 0.0;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_set_pattern_dashed_pen (rl2GraphicsContextPtr context,
+				  rl2GraphicsPatternPtr brush,
+				  double width, int line_cap, int line_join,
+				  int dash_count, double dash_list[],
+				  double dash_offset)
+{
+/* setting up a Pattern Pen - dashed style */
+    int d;
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) brush;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+
+    if (ctx == NULL)
+	return 0;
+    if (pattern == NULL)
+	return 0;
+    if (dash_count <= 0 || dash_list == NULL)
+	return 0;
+
+    ctx->current_pen.width = width;
+    switch (line_cap)
+      {
+      case RL2_PEN_CAP_ROUND:
+      case RL2_PEN_CAP_SQUARE:
+	  ctx->current_pen.line_cap = line_cap;
+	  break;
+      default:
+	  ctx->current_pen.line_cap = RL2_PEN_CAP_BUTT;
+	  break;
+
+      };
+    switch (line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+      case RL2_PEN_JOIN_BEVEL:
+	  ctx->current_pen.line_join = line_join;
+	  break;
+      default:
+	  ctx->current_pen.line_join = RL2_PEN_JOIN_MITER;
+	  break;
+
+      };
+    ctx->current_pen.is_solid_color = 0;
+    ctx->current_pen.is_linear_gradient = 0;
+    ctx->current_pen.is_pattern = 1;
+    ctx->current_pen.pattern = pattern->pattern;
+    ctx->current_pen.dash_count = dash_count;
+    if (ctx->current_pen.dash_array != NULL)
+	free (ctx->current_pen.dash_array);
+    ctx->current_pen.dash_array = malloc (sizeof (double) * dash_count);
+    for (d = 0; d < dash_count; d++)
+	*(ctx->current_pen.dash_array + d) = *(dash_list + d);
+    ctx->current_pen.dash_offset = dash_offset;
     return 1;
 }
 
@@ -691,7 +1054,7 @@ rl2_graph_set_pattern_brush (rl2GraphicsContextPtr context,
 			     rl2GraphicsPatternPtr brush)
 {
 /* setting up a Pattern Brush */
-    RL2GraphPatternBrushPtr pattern = (RL2GraphPatternBrushPtr) brush;
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) brush;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)
@@ -805,13 +1168,13 @@ RL2_DECLARE rl2GraphicsPatternPtr
 rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height)
 {
 /* creating a pattern brush */
-    RL2GraphPatternBrushPtr pattern;
+    RL2PrivGraphPatternPtr pattern;
 
     if (rgbaArray == NULL)
 	return NULL;
 
     adjust_for_endianness (rgbaArray, width, height);
-    pattern = malloc (sizeof (RL2GraphPatternBrush));
+    pattern = malloc (sizeof (RL2PrivGraphPattern));
     if (pattern == NULL)
 	return NULL;
     pattern->width = width;
@@ -829,7 +1192,7 @@ RL2_DECLARE void
 rl2_graph_destroy_pattern (rl2GraphicsPatternPtr brush)
 {
 /* destroying a pattern brush */
-    RL2GraphPatternBrushPtr pattern = (RL2GraphPatternBrushPtr) brush;
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) brush;
 
     if (pattern == NULL)
 	return;
@@ -1009,6 +1372,30 @@ set_current_brush (RL2GraphContextPtr ctx)
       }
 }
 
+RL2_DECLARE int
+rl2_graph_release_pattern_brush (rl2GraphicsContextPtr context)
+{
+/* relasing the current Pattern Brush */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    cairo_t *cairo;
+    if (ctx == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    if (ctx->current_brush.is_pattern)
+      {
+	  ctx->current_brush.is_solid_color = 1;
+	  ctx->current_brush.is_pattern = 0;
+	  cairo_set_source_rgba (cairo, 0.0, 0.0, 0.0, 1.0);
+	  ctx->current_brush.pattern = NULL;
+	  return 1;
+      }
+    else
+	return 0;
+}
+
 static void
 set_current_pen (RL2GraphContextPtr ctx)
 {
@@ -1019,13 +1406,93 @@ set_current_pen (RL2GraphContextPtr ctx)
     else
 	cairo = ctx->cairo;
     cairo_set_line_width (cairo, ctx->current_pen.width);
-    cairo_set_source_rgba (cairo, ctx->current_pen.red,
-			   ctx->current_pen.green, ctx->current_pen.blue,
-			   ctx->current_pen.alpha);
-    cairo_set_line_cap (cairo, CAIRO_LINE_CAP_BUTT);
-    cairo_set_line_join (cairo, CAIRO_LINE_JOIN_MITER);
-    cairo_set_dash (cairo, ctx->current_pen.lengths,
-		    ctx->current_pen.lengths_count, 0.0);
+    if (ctx->current_pen.is_solid_color)
+      {
+	  /* using a Solid Color Pen */
+	  cairo_set_source_rgba (cairo, ctx->current_pen.red,
+				 ctx->current_pen.green,
+				 ctx->current_pen.blue, ctx->current_pen.alpha);
+      }
+    else if (ctx->current_pen.is_linear_gradient)
+      {
+	  /* using a Linear Gradient Pen */
+	  cairo_pattern_t *pattern =
+	      cairo_pattern_create_linear (ctx->current_pen.x0,
+					   ctx->current_pen.y0,
+					   ctx->current_pen.x1,
+					   ctx->current_pen.y1);
+	  cairo_pattern_add_color_stop_rgba (pattern, 0.0,
+					     ctx->current_pen.red,
+					     ctx->current_pen.green,
+					     ctx->current_pen.blue,
+					     ctx->current_pen.alpha);
+	  cairo_pattern_add_color_stop_rgba (pattern, 1.0,
+					     ctx->current_pen.red2,
+					     ctx->current_pen.green2,
+					     ctx->current_pen.blue2,
+					     ctx->current_pen.alpha2);
+	  cairo_set_source (cairo, pattern);
+	  cairo_pattern_destroy (pattern);
+      }
+    else if (ctx->current_pen.is_pattern)
+      {
+	  /* using a Pattern Pen */
+	  cairo_set_source (cairo, ctx->current_pen.pattern);
+      }
+    switch (ctx->current_pen.line_cap)
+      {
+      case RL2_PEN_CAP_ROUND:
+	  cairo_set_line_cap (cairo, CAIRO_LINE_CAP_ROUND);
+	  break;
+      case RL2_PEN_CAP_SQUARE:
+	  cairo_set_line_cap (cairo, CAIRO_LINE_CAP_SQUARE);
+	  break;
+      default:
+	  cairo_set_line_cap (cairo, CAIRO_LINE_CAP_BUTT);
+	  break;
+      };
+    switch (ctx->current_pen.line_join)
+      {
+      case RL2_PEN_JOIN_ROUND:
+	  cairo_set_line_join (cairo, CAIRO_LINE_JOIN_ROUND);
+	  break;
+      case RL2_PEN_JOIN_BEVEL:
+	  cairo_set_line_join (cairo, CAIRO_LINE_JOIN_BEVEL);
+	  break;
+      default:
+	  cairo_set_line_join (cairo, CAIRO_LINE_JOIN_MITER);
+	  break;
+      };
+    if (ctx->current_pen.dash_count == 0 || ctx->current_pen.dash_array == NULL)
+	cairo_set_dash (cairo, NULL, 0, 0.0);
+    else
+	cairo_set_dash (cairo, ctx->current_pen.dash_array,
+			ctx->current_pen.dash_count,
+			ctx->current_pen.dash_offset);
+}
+
+RL2_DECLARE int
+rl2_graph_release_pattern_pen (rl2GraphicsContextPtr context)
+{
+/* relasing the current Pattern Pen */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    cairo_t *cairo;
+    if (ctx == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    if (ctx->current_pen.is_pattern)
+      {
+	  ctx->current_pen.is_solid_color = 1;
+	  ctx->current_pen.is_pattern = 0;
+	  cairo_set_source_rgba (cairo, 0.0, 0.0, 0.0, 1.0);
+	  ctx->current_pen.pattern = NULL;
+	  return 1;
+      }
+    else
+	return 0;
 }
 
 RL2_DECLARE int
@@ -1238,6 +1705,7 @@ rl2_graph_fill_path (rl2GraphicsContextPtr context, int preserve)
 	cairo = ctx->cairo;
 
     set_current_brush (ctx);
+    cairo_set_fill_rule (cairo, CAIRO_FILL_RULE_EVEN_ODD);
     if (preserve == RL2_PRESERVE_PATH)
 	cairo_fill_preserve (cairo);
     else
@@ -1649,7 +2117,8 @@ rl2_gray_pdf (unsigned int width, unsigned int height, unsigned char **pdf,
 					  1.0, 1.0);
     if (ctx == NULL)
 	goto error;
-    rl2_graph_set_pen (ctx, 255, 0, 0, 255, 2.0, RL2_PENSTYLE_SOLID);
+    rl2_graph_set_solid_pen (ctx, 255, 0, 0, 255, 2.0, RL2_PEN_CAP_BUTT,
+			     RL2_PEN_JOIN_MITER);
     rl2_graph_set_brush (ctx, 128, 128, 128, 255);
     rl2_graph_draw_rounded_rectangle (ctx, 0, 0, width, height, width / 10.0);
 

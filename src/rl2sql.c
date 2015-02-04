@@ -6576,19 +6576,19 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 /* SQL function:
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height)
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height,
-/                       text style)
+/						text style)
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height,
-/                       text style, text format)
+/						text style, text format)
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height,
-/                       text style, text format, text bg_color)
+/						text style, text format, text bg_color)
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height,
-/                       text style, text format, text bg_color,
+/						text style, text format, text bg_color,
 /                       int transparent)
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height,
-/                       text style, text format, text bg_color,
+/						text style, text format, text bg_color,
 /                       int transparent, int quality)
 / GetMapImageFromRaster(text coverage, BLOB geom, int width, int height,
-/                       text style, text format, text bg_color,
+/						text style, text format, text bg_color,
 /                       int transparent, int quality, int reaspect)
 /
 / will return a BLOB containing the Image payload from a Raster Coverage
@@ -6599,6 +6599,7 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
     const char *cvg_name;
     rl2CoveragePtr coverage = NULL;
     rl2PrivCoveragePtr cvg;
+    int out_srid;
     int width;
     int height;
     int base_width;
@@ -6731,8 +6732,9 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
     if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
 	goto error;
 /* checking the Geometry */
-    if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy) !=
-	RL2_OK)
+    if (rl2_parse_bbox_srid
+	(sqlite, blob, blob_sz, &out_srid, &minx, &miny, &maxx,
+	 &maxy) != RL2_OK)
 	goto error;
 
     ext_x = maxx - minx;
@@ -6793,6 +6795,14 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	goto error;
     if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
 	srid = -1;
+    if (out_srid > 0 && srid > 0)
+      {
+	  if (out_srid != srid)
+	    {
+		/* raster reprojection isn't yet supported */
+		goto error;
+	    }
+      }
     cvg = (rl2PrivCoveragePtr) coverage;
     out_pixel = RL2_PIXEL_UNKNOWN;
     if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
@@ -7033,6 +7043,464 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 	rl2_destroy_coverage_style (cvg_stl);
     if (stats != NULL)
 	rl2_destroy_raster_statistics (stats);
+    sqlite3_result_null (context);
+}
+
+static int
+test_geographic_srid (sqlite3 * handle, int srid)
+{
+/* testing if some SRID is of the Geographic type */
+    int ret;
+    int is_geographic = 0;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+
+    sql = "SELECT SridIsGeographic(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int (stmt, 1, srid);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	      is_geographic = sqlite3_column_int (stmt, 0);
+      }
+    sqlite3_finalize (stmt);
+    return is_geographic;
+}
+
+static double
+standard_scale (sqlite3 * handle, int srid, int width, int height, double ext_x,
+		double ext_y)
+{
+/* computing the standard (normalized) scale */
+    double linear_res;
+    double factor;
+    int is_geographic = test_geographic_srid (handle, srid);
+    if (is_geographic)
+      {
+	  /* geographic (long/lat) CRS */
+	  double metres = ext_x * (6378137.0 * 2.0 * 3.141592653589793) / 360.0;
+	  linear_res = metres / (double) width;
+      }
+    else
+      {
+	  /* planar (projected) CRS */
+	  double x_res = ext_x / (double) width;
+	  double y_res = ext_y / (double) height;
+	  linear_res = sqrt (x_res * y_res);
+      }
+    factor = linear_res / 0.000254;
+    return factor * (0.28 / 0.254);
+}
+
+static void
+fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
+			    sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height)
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height,
+/						text style)
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height,
+/						text style, text format)
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height,
+/						text style, text format, text bg_color)
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height,
+/						text style, text format, text bg_color,
+/                       int transparent)
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height,
+/						text style, text format, text bg_color,
+/                       int transparent, int quality)
+/ GetMapImageFromVector(text coverage, BLOB geom, int width, int height,
+/						text style, text format, text bg_color,
+/                    	int transparent, int quality, int reaspect)
+/
+/ will return a BLOB containing the Image payload from a Raster Coverage
+/ or NULL (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *cvg_name;
+    rl2VectorLayerPtr layer = NULL;
+    rl2PrivVectorLayerPtr lyr;
+    int out_srid;
+    int width;
+    int height;
+    const unsigned char *blob;
+    int blob_sz;
+    const char *style = "default";
+    const char *format = "image/png";
+    const char *bg_color = "#ffffff";
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+    int transparent = 0;
+    int quality = 80;
+    int reaspect = 0;
+    sqlite3 *sqlite;
+    sqlite3_stmt *stmt = NULL;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    double ext_x;
+    double ext_y;
+    double x_res;
+    double y_res;
+    double scale;
+    int srid;
+    int ok_style;
+    int ok_format;
+    unsigned char *image = NULL;
+    int image_size;
+    unsigned char format_id = RL2_OUTPUT_FORMAT_UNKNOWN;
+    rl2FeatureTypeStylePtr lyr_stl = NULL;
+    rl2VectorSymbolizerPtr symbolizer = NULL;
+    char *quoted;
+    char *sql;
+    char *oldsql;
+    int columns = 0;
+    int i;
+    int ret;
+    int reproject_on_the_fly;
+    int has_extra_columns;
+    rl2VariantArrayPtr variant = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+/* testing arguments for validity */
+    err = 0;
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_BLOB)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	err = 1;
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 5 && sqlite3_value_type (argv[5]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 6 && sqlite3_value_type (argv[6]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 7 && sqlite3_value_type (argv[7]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	err = 1;
+    if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
+	err = 1;
+    if (err != 0)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+
+/* retrieving the arguments */
+    cvg_name = (const char *) sqlite3_value_text (argv[0]);
+    blob = sqlite3_value_blob (argv[1]);
+    blob_sz = sqlite3_value_bytes (argv[1]);
+    width = sqlite3_value_int (argv[2]);
+    height = sqlite3_value_int (argv[3]);
+    if (argc > 4)
+	style = (const char *) sqlite3_value_text (argv[4]);
+    if (argc > 5)
+	format = (const char *) sqlite3_value_text (argv[5]);
+    if (argc > 6)
+	bg_color = (const char *) sqlite3_value_text (argv[6]);
+    if (argc > 7)
+	transparent = sqlite3_value_int (argv[7]);
+    if (argc > 8)
+	quality = sqlite3_value_int (argv[8]);
+    if (argc > 9)
+	reaspect = sqlite3_value_int (argv[9]);
+
+/* coarse args validation */
+    sqlite = sqlite3_context_db_handle (context);
+    if (width < 64)
+	goto error;
+    if (height < 64)
+	goto error;
+/* validating the format */
+    ok_format = 0;
+    if (strcmp (format, "image/png") == 0)
+      {
+	  format_id = RL2_OUTPUT_FORMAT_PNG;
+	  ok_format = 1;
+      }
+    if (strcmp (format, "image/jpeg") == 0)
+      {
+	  format_id = RL2_OUTPUT_FORMAT_JPEG;
+	  ok_format = 1;
+      }
+    if (strcmp (format, "image/tiff") == 0)
+      {
+	  format_id = RL2_OUTPUT_FORMAT_TIFF;
+	  ok_format = 1;
+      }
+    if (strcmp (format, "application/x-pdf") == 0)
+      {
+	  format_id = RL2_OUTPUT_FORMAT_PDF;
+	  ok_format = 1;
+      }
+    if (!ok_format)
+	goto error;
+/* parsing the background color */
+    if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
+	goto error;
+/* checking the Geometry */
+    if (rl2_parse_bbox_srid
+	(sqlite, blob, blob_sz, &out_srid, &minx, &miny, &maxx,
+	 &maxy) != RL2_OK)
+	goto error;
+
+/* attempting to load the VectorLayer definitions from the DBMS */
+    layer = rl2_create_vector_layer_from_dbms (sqlite, cvg_name);
+    if (layer == NULL)
+	goto error;
+    if (rl2_get_vector_srid (layer, &srid) != RL2_OK)
+	srid = -1;
+    lyr = (rl2PrivVectorLayerPtr) layer;
+    if (out_srid <= 0)
+	out_srid = srid;
+    if (srid > 0 && out_srid > 0 && out_srid != srid)
+	reproject_on_the_fly = 1;
+    else
+	reproject_on_the_fly = 0;
+
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    if (ext_x <= 0.0 || ext_y <= 0.0)
+	goto error;
+    x_res = ext_x / (double) width;
+    y_res = ext_y / (double) height;
+    scale = standard_scale (sqlite, srid, width, height, ext_x, ext_y);
+/* validating the style */
+    ok_style = 0;
+    if (strcasecmp (style, "default") == 0)
+	ok_style = 1;
+    else
+      {
+	  /* attempting to get a FeatureType Style */
+	  lyr_stl =
+	      rl2_create_feature_type_style_from_dbms (sqlite, cvg_name, style);
+	  if (lyr_stl == NULL)
+	      goto error;
+	  ok_style = 1;
+      }
+    if (!ok_style)
+	goto error;
+
+/* composing the SQL query */
+    quoted = rl2_double_quoted_sql (lyr->f_geometry_column);
+    if (reproject_on_the_fly)
+	sql =
+	    sqlite3_mprintf ("SELECT ST_Transform(\"%s\", %d)", quoted,
+			     out_srid);
+    else
+	sql = sqlite3_mprintf ("SELECT \"%s\"", quoted);
+    free (quoted);
+    has_extra_columns = 0;
+    if (lyr_stl != NULL)
+      {
+	  /* may be that the Symbolizer requires some extra column */
+	  columns = rl2_get_feature_type_style_columns_count (lyr_stl);
+	  for (i = 0; i < columns; i++)
+	    {
+		/* adding columns required by some Filter */
+		const char *col_name =
+		    rl2_get_feature_type_style_column_name (lyr_stl, i);
+		oldsql = sql;
+		quoted = rl2_double_quoted_sql (col_name);
+		sql = sqlite3_mprintf ("%s, \"%s\"", oldsql, quoted);
+		free (quoted);
+		sqlite3_free (oldsql);
+		has_extra_columns = 1;
+	    }
+      }
+    quoted = rl2_double_quoted_sql (lyr->f_table_name);
+    oldsql = sql;
+    sql = sqlite3_mprintf ("%s FROM \"%s\"", oldsql, quoted);
+    free (quoted);
+    sqlite3_free (oldsql);
+    if (lyr->spatial_index)
+      {
+	  /* queryng the R*Tree Spatial Index */
+	  oldsql = sql;
+	  sql =
+	      sqlite3_mprintf
+	      ("%s WHERE ROWID IN (SELECT ROWID FROM SpatialIndex "
+	       "WHERE f_table_name = %Q AND f_geometry_column = %Q AND search_frame = ?)",
+	       oldsql, lyr->f_table_name, lyr->f_geometry_column);
+	  sqlite3_free (oldsql);
+      }
+    else
+      {
+	  /* applying MBR filtering */
+	  oldsql = sql;
+	  quoted = rl2_double_quoted_sql (lyr->f_geometry_column);
+	  sql =
+	      sqlite3_mprintf ("%s WHERE MbrIntersects(\"%s\", ?)", oldsql,
+			       quoted);
+	  free (quoted);
+	  sqlite3_free (oldsql);
+      }
+
+/* preparing the SQL statement */
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (sqlite));
+	  goto error;
+      }
+
+/* preparing a Graphic Context */
+    ctx = rl2_graph_create_context (width, height);
+    if (ctx == NULL)
+	goto error;
+
+/* priming the Graphic Context */
+    if (transparent)
+	rl2_graph_set_brush (ctx, 255, 255, 255, 9);
+    else
+	rl2_graph_set_brush (ctx, bg_red, bg_green, bg_blue, 255);
+    rl2_graph_draw_rectangle (ctx, -1, -1, width + 2, height + 2);
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		rl2GeometryPtr geom = NULL;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      /* fetching Geometry */
+		      const void *g_blob = sqlite3_column_blob (stmt, 0);
+		      int g_blob_sz = sqlite3_column_bytes (stmt, 0);
+		      geom =
+			  rl2_geometry_from_blob ((const unsigned char *)
+						  g_blob, g_blob_sz);
+		  }
+		if (has_extra_columns)
+		  {
+		      if (variant != NULL)
+			  rl2_destroy_variant_array (variant);
+		      variant = rl2_create_variant_array (columns);
+		      for (i = 0; i < columns; i++)
+			{
+			    const char *col_name =
+				rl2_get_feature_type_style_column_name (lyr_stl,
+									i);
+			    switch (sqlite3_column_type (stmt, 1 + i))
+			      {
+			      case SQLITE_INTEGER:
+				  rl2_set_variant_int (variant, i, col_name,
+						       sqlite3_column_int64
+						       (stmt, i + 1));
+				  break;
+			      case SQLITE_FLOAT:
+				  rl2_set_variant_double (variant, i, col_name,
+							  sqlite3_column_double
+							  (stmt, i + 1));
+				  break;
+			      case SQLITE_TEXT:
+				  rl2_set_variant_text (variant, i, col_name,
+							(const char *)
+							sqlite3_column_text
+							(stmt, i + 1),
+							sqlite3_column_bytes
+							(stmt, i + 1));
+				  break;
+			      case SQLITE_BLOB:
+				  rl2_set_variant_blob (variant, i, col_name,
+							sqlite3_column_blob
+							(stmt, i + 1),
+							sqlite3_column_bytes
+							(stmt, i + 1));
+				  break;
+			      default:
+				  rl2_set_variant_null (variant, i, col_name);
+				  break;
+			      };
+			}
+		  }
+		if (geom != NULL)
+		  {
+		      /* drawing a styled Feature */
+		      if (lyr_stl != NULL)
+			{
+			    symbolizer =
+				rl2_get_symbolizer_from_feature_type_style
+				(lyr_stl, scale, variant);
+			    if (symbolizer == NULL)
+				goto error;
+			}
+		      rl2_draw_vector_feature (ctx, sqlite, symbolizer, height,
+					       minx, miny, x_res, y_res, geom);
+		      rl2_destroy_geometry (geom);
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+    rl2_destroy_vector_layer (layer);
+    if (lyr_stl != NULL)
+	rl2_destroy_feature_type_style (lyr_stl);
+    if (variant != NULL)
+	rl2_destroy_variant_array (variant);
+
+    rgb = rl2_graph_get_context_rgb_array (ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx);
+    if (rgb == NULL || alpha == NULL)
+	goto error;
+
+    rl2_graph_destroy_context (ctx);
+
+    if (!get_payload_from_rgb_rgba_transparent
+	(width, height, rgb, alpha, format_id, quality, &image, &image_size,
+	 1.0))
+	goto error;
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+
+
+    sqlite3_result_blob (context, image, image_size, free);
+    return;
+
+  error:
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    if (ctx != NULL)
+	rl2_graph_destroy_context (ctx);
+    if (layer != NULL)
+	rl2_destroy_vector_layer (layer);
+    if (lyr_stl != NULL)
+	rl2_destroy_feature_type_style (lyr_stl);
+    if (variant != NULL)
+	rl2_destroy_variant_array (variant);
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
     sqlite3_result_null (context);
 }
 
@@ -8701,6 +9169,38 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_GetMapImageFromRaster, 0, 0);
     sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 11, SQLITE_ANY, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 4, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 4, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 5, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 5, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 6, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 6, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 7, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 7, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 8, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 8, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 9, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 9, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 10, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 10, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "GetMapImageFromVector", 11, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 11, SQLITE_ANY, 0,
+			     fnct_GetMapImageFromVector, 0, 0);
     sqlite3_create_function (db, "GetTileImage", 2, SQLITE_ANY, 0,
 			     fnct_GetTileImage, 0, 0);
     sqlite3_create_function (db, "RL2_GetTileImage", 2, SQLITE_ANY, 0,

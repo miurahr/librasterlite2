@@ -262,6 +262,7 @@ RL2_DECLARE void
 rl2_destroy_feature_type_style (rl2FeatureTypeStylePtr style)
 {
 /* destroying a FeatureTypeStyle object */
+    int i;
     rl2PrivStyleRulePtr pR;
     rl2PrivStyleRulePtr pRn;
     rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
@@ -280,6 +281,15 @@ rl2_destroy_feature_type_style (rl2FeatureTypeStylePtr style)
       }
     if (stl->else_rule != NULL)
 	rl2_destroy_style_rule (stl->else_rule);
+    if (stl->column_names != NULL)
+      {
+	  for (i = 0; i < stl->columns_count; i++)
+	    {
+		if (*(stl->column_names + i) != NULL)
+		    free (*(stl->column_names + i));
+	    }
+	  free (stl->column_names);
+      }
     free (stl);
 }
 
@@ -291,6 +301,30 @@ rl2_get_feature_type_style_name (rl2FeatureTypeStylePtr style)
     if (stl == NULL)
 	return NULL;
     return stl->name;
+}
+
+RL2_DECLARE int
+rl2_get_feature_type_style_columns_count (rl2FeatureTypeStylePtr style)
+{
+/* return the FeatureTypeStyle ColumnsCount */
+    rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
+    if (stl == NULL)
+	return 0;
+    if (stl->column_names == NULL)
+	return 0;
+    return stl->columns_count;
+}
+
+RL2_DECLARE const char *
+rl2_get_feature_type_style_column_name (rl2FeatureTypeStylePtr style, int index)
+{
+/* return the Nth FeatureTypeStyle ColumnName */
+    rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
+    if (stl == NULL)
+	return NULL;
+    if (stl->column_names != NULL && index >= 0 && index < stl->columns_count)
+	return *(stl->column_names + index);
+    return NULL;
 }
 
 static int
@@ -674,14 +708,12 @@ eval_filter_like (rl2PrivStyleRulePtr rule, rl2PrivVariantValuePtr val)
 		if (*in == wild_card)
 		  {
 		      special = *in++;
-		      *out = '\0';
 		      intptr = in;
 		      break;
 		  }
 		if (*in == single_char)
 		  {
 		      special = *in++;
-		      *out = '\0';
 		      intptr = in;
 		      break;
 		  }
@@ -690,6 +722,7 @@ eval_filter_like (rl2PrivStyleRulePtr rule, rl2PrivVariantValuePtr val)
 		else
 		    *out++ = *in++;
 	    }
+	  *out = '\0';
 	  /* substring comparison */
 	  if (*extptr == '\0')
 	    {
@@ -700,7 +733,7 @@ eval_filter_like (rl2PrivStyleRulePtr rule, rl2PrivVariantValuePtr val)
 	    {
 		char *ptr;
 		if (*intptr == '\0' && special != wild_card)
-		      break;
+		    break;
 		ptr = strstr (extptr, intval);
 		if (ptr == NULL)
 		  {
@@ -748,42 +781,54 @@ eval_filter_like (rl2PrivStyleRulePtr rule, rl2PrivVariantValuePtr val)
 }
 
 static int
-eval_filter (rl2PrivStyleRulePtr rule, rl2VariantValuePtr value)
+eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 {
 /* evaluating a Rule Filter */
-    rl2PrivVariantValuePtr val = (rl2PrivVariantValuePtr) value;
-    if (rule == NULL || val == NULL)
+    int i;
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    if (rule == NULL || var == NULL)
 	return 1;
-    switch (rule->comparison_op)
+    for (i = 0; i < var->count; i++)
       {
-      case RL2_COMPARISON_EQ:
-	  return eval_filter_eq (rule, val);
-      case RL2_COMPARISON_NE:
-	  return eval_filter_ne (rule, val);
-      case RL2_COMPARISON_LT:
-	  return eval_filter_lt (rule, val);
-      case RL2_COMPARISON_GT:
-	  return eval_filter_gt (rule, val);
-      case RL2_COMPARISON_LE:
-	  return eval_filter_le (rule, val);
-      case RL2_COMPARISON_GE:
-	  return eval_filter_ge (rule, val);
-      case RL2_COMPARISON_LIKE:
-	  return eval_filter_like (rule, val);
-      case RL2_COMPARISON_BETWEEN:
-	  return eval_filter_between (rule, val);
-      case RL2_COMPARISON_NULL:
-	  if (val->sqlite3_type == SQLITE_NULL)
-	      return 1;
+	  rl2PrivVariantValuePtr val = *(var->array + i);
+	  if (val == NULL)
+	      return 0;
+	  if (rule->column_name == NULL || val->column_name == NULL)
+	      return 0;
+	  if (strcasecmp (rule->column_name, val->column_name) != 0)
+	      continue;
+	  switch (rule->comparison_op)
+	    {
+	    case RL2_COMPARISON_EQ:
+		return eval_filter_eq (rule, val);
+	    case RL2_COMPARISON_NE:
+		return eval_filter_ne (rule, val);
+	    case RL2_COMPARISON_LT:
+		return eval_filter_lt (rule, val);
+	    case RL2_COMPARISON_GT:
+		return eval_filter_gt (rule, val);
+	    case RL2_COMPARISON_LE:
+		return eval_filter_le (rule, val);
+	    case RL2_COMPARISON_GE:
+		return eval_filter_ge (rule, val);
+	    case RL2_COMPARISON_LIKE:
+		return eval_filter_like (rule, val);
+	    case RL2_COMPARISON_BETWEEN:
+		return eval_filter_between (rule, val);
+	    case RL2_COMPARISON_NULL:
+		if (val->sqlite3_type == SQLITE_NULL)
+		    return 1;
+		break;
+	    };
 	  break;
-      };
+      }
     return 0;
 }
 
 RL2_DECLARE rl2VectorSymbolizerPtr
 rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 					    double scale,
-					    rl2VariantValuePtr value)
+					    rl2VariantArrayPtr variant)
 {
 /* return the VectorSymbolizer matching a given scale/filter from a FeatureTypeStyle */
     rl2PrivVectorSymbolizerPtr symbolizer = NULL;
@@ -807,7 +852,7 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 	    {
 		if (scale >= pR->min_scale && scale < pR->max_scale)
 		  {
-		      if (eval_filter (pR, value))
+		      if (eval_filter (pR, variant))
 			{
 			    symbolizer = pR->style;
 			    break;
@@ -818,7 +863,7 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 	    {
 		if (scale >= pR->min_scale)
 		  {
-		      if (eval_filter (pR, value))
+		      if (eval_filter (pR, variant))
 			{
 			    symbolizer = pR->style;
 			    break;
@@ -829,7 +874,7 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 	    {
 		if (scale < pR->max_scale)
 		  {
-		      if (eval_filter (pR, value))
+		      if (eval_filter (pR, variant))
 			{
 			    symbolizer = pR->style;
 			    break;
@@ -838,7 +883,7 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 	    }
 	  else
 	    {
-		if (eval_filter (pR, value))
+		if (eval_filter (pR, variant))
 		  {
 		      symbolizer = pR->style;
 		      break;
@@ -4015,78 +4060,228 @@ rl2_destroy_group_renderer (rl2GroupRendererPtr group)
     free (ptr);
 }
 
-RL2_DECLARE rl2VariantValuePtr
-rl2_create_variant_int (sqlite3_int64 value)
+RL2_DECLARE rl2VariantArrayPtr
+rl2_create_variant_array (int count)
 {
-/* creating an INTEGER VariantValue object */
-    rl2PrivVariantValuePtr val = malloc (sizeof (rl2PrivVariantValue));
+/* creating an array of VariantValues */
+    int i;
+    rl2PrivVariantArrayPtr variant = malloc (sizeof (rl2PrivVariantArray));
+    if (variant == NULL)
+	return NULL;
+    if (count < 1)
+	return NULL;
+    variant->count = count;
+    variant->array = malloc (sizeof (rl2PrivVariantValuePtr) * count);
+    if (variant->array == NULL)
+      {
+	  free (variant);
+	  return NULL;
+      }
+    for (i = 0; i < variant->count; i++)
+	*(variant->array + i) = NULL;
+    return (rl2VariantArrayPtr) variant;
+}
+
+RL2_DECLARE void
+rl2_destroy_variant_array (rl2VariantArrayPtr variant)
+{
+/* destroying an array of VariantValues */
+    int i;
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    if (var == NULL)
+	return;
+    for (i = 0; i < var->count; i++)
+      {
+	  rl2PrivVariantValuePtr val = *(var->array + i);
+	  if (val != NULL)
+	      rl2_destroy_variant_value (val);
+      }
+    free (var->array);
+    free (var);
+}
+
+RL2_DECLARE int
+rl2_set_variant_int (rl2VariantArrayPtr variant, int index, const char *name,
+		     sqlite3_int64 value)
+{
+/* setting an INTEGER VariantValue into a VariantArray object */
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    rl2PrivVariantValuePtr val;
+    if (var == NULL)
+	return RL2_ERROR;
+    if (index >= 0 && index < var->count)
+	;
+    else
+	return RL2_ERROR;
+    val = malloc (sizeof (rl2PrivVariantValue));
+    if (val == NULL)
+	return RL2_ERROR;
+    if (name == NULL)
+	val->column_name = NULL;
+    else
+      {
+	  int len = strlen (name);
+	  val->column_name = malloc (len + 1);
+	  strcpy (val->column_name, name);
+      }
     val->int_value = value;
     val->text_value = NULL;
     val->blob_value = NULL;
     val->sqlite3_type = SQLITE_INTEGER;
-    return (rl2VariantValuePtr) val;
+    if (*(var->array + index) != NULL)
+	rl2_destroy_variant_value (*(var->array + index));
+    *(var->array + index) = val;
+    return RL2_OK;
 }
 
-RL2_DECLARE rl2VariantValuePtr
-rl2_create_variant_double (double value)
+RL2_DECLARE int
+rl2_set_variant_double (rl2VariantArrayPtr variant, int index, const char *name,
+			double value)
 {
-/* creating a DOUBLE VariantValue object */
-    rl2PrivVariantValuePtr val = malloc (sizeof (rl2PrivVariantValue));
+/* setting a DOUBLE VariantValue into a VariantArray object */
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    rl2PrivVariantValuePtr val;
+    if (var == NULL)
+	return RL2_ERROR;
+    if (index >= 0 && index < var->count)
+	;
+    else
+	return RL2_ERROR;
+    val = malloc (sizeof (rl2PrivVariantValue));
+    if (val == NULL)
+	return RL2_ERROR;
+    if (name == NULL)
+	val->column_name = NULL;
+    else
+      {
+	  int len = strlen (name);
+	  val->column_name = malloc (len + 1);
+	  strcpy (val->column_name, name);
+      }
     val->dbl_value = value;
     val->text_value = NULL;
     val->blob_value = NULL;
     val->sqlite3_type = SQLITE_FLOAT;
-    return (rl2VariantValuePtr) val;
+    if (*(var->array + index) != NULL)
+	rl2_destroy_variant_value (*(var->array + index));
+    *(var->array + index) = val;
+    return RL2_OK;
 }
 
-RL2_DECLARE rl2VariantValuePtr
-rl2_create_variant_text (const char *value, int bytes)
+RL2_DECLARE int
+rl2_set_variant_text (rl2VariantArrayPtr variant, int index, const char *name,
+		      const char *value, int bytes)
 {
-/* creating a TEXT VariantValue object */
-    rl2PrivVariantValuePtr val = malloc (sizeof (rl2PrivVariantValue));
+/* setting a TEXT VariantValue into a VariantArray object */
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    rl2PrivVariantValuePtr val;
+    if (var == NULL)
+	return RL2_ERROR;
+    if (index >= 0 && index < var->count)
+	;
+    else
+	return RL2_ERROR;
+    val = malloc (sizeof (rl2PrivVariantValue));
+    if (val == NULL)
+	return RL2_ERROR;
+    if (name == NULL)
+	val->column_name = NULL;
+    else
+      {
+	  int len = strlen (name);
+	  val->column_name = malloc (len + 1);
+	  strcpy (val->column_name, name);
+      }
     val->text_value = malloc (bytes + 1);
     memcpy (val->text_value, value, bytes);
     *(val->text_value + bytes) = '\0';
     val->bytes = bytes;
     val->blob_value = NULL;
     val->sqlite3_type = SQLITE_TEXT;
-    return (rl2VariantValuePtr) val;
+    if (*(var->array + index) != NULL)
+	rl2_destroy_variant_value (*(var->array + index));
+    *(var->array + index) = val;
+    return RL2_OK;
 }
 
-RL2_DECLARE rl2VariantValuePtr
-rl2_create_variant_blob (const unsigned char *value, int bytes)
+RL2_DECLARE int
+rl2_set_variant_blob (rl2VariantArrayPtr variant, int index, const char *name,
+		      const unsigned char *value, int bytes)
 {
-/* creating a BLOB VariantValue object */
-    rl2PrivVariantValuePtr val = malloc (sizeof (rl2PrivVariantValue));
+/* setting a BLOB VariantValue into a VariantArray object */
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    rl2PrivVariantValuePtr val;
+    if (var == NULL)
+	return RL2_ERROR;
+    if (index >= 0 && index < var->count)
+	;
+    else
+	return RL2_ERROR;
+    val = malloc (sizeof (rl2PrivVariantValue));
+    if (val == NULL)
+	return RL2_ERROR;
     val->text_value = NULL;
+    if (name == NULL)
+	val->column_name = NULL;
+    else
+      {
+	  int len = strlen (name);
+	  val->column_name = malloc (len + 1);
+	  strcpy (val->column_name, name);
+      }
     val->blob_value = malloc (bytes);
     memcpy (val->blob_value, value, bytes);
     val->bytes = bytes;
     val->sqlite3_type = SQLITE_BLOB;
-    return (rl2VariantValuePtr) val;
+    if (*(var->array + index) != NULL)
+	rl2_destroy_variant_value (*(var->array + index));
+    *(var->array + index) = val;
+    return RL2_OK;
 }
 
-RL2_DECLARE rl2VariantValuePtr
-rl2_create_variant_null ()
+RL2_DECLARE int
+rl2_set_variant_null (rl2VariantArrayPtr variant, int index, const char *name)
 {
-/* creating a NULL VariantValue object */
-    rl2PrivVariantValuePtr val = malloc (sizeof (rl2PrivVariantValue));
+/* setting a NULL VariantValue into a VariantArray object */
+    rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
+    rl2PrivVariantValuePtr val;
+    if (var == NULL)
+	return RL2_ERROR;
+    if (index >= 0 && index < var->count)
+	;
+    else
+	return RL2_ERROR;
+    val = malloc (sizeof (rl2PrivVariantValue));
+    if (val == NULL)
+	return RL2_ERROR;
+    if (name == NULL)
+	val->column_name = NULL;
+    else
+      {
+	  int len = strlen (name);
+	  val->column_name = malloc (len + 1);
+	  strcpy (val->column_name, name);
+      }
     val->text_value = NULL;
     val->blob_value = NULL;
     val->sqlite3_type = SQLITE_NULL;
-    return (rl2VariantValuePtr) val;
+    if (*(var->array + index) != NULL)
+	rl2_destroy_variant_value (*(var->array + index));
+    *(var->array + index) = val;
+    return RL2_OK;
 }
 
-RL2_DECLARE void
-rl2_destroy_variant_value (rl2VariantValuePtr value)
+RL2_PRIVATE void
+rl2_destroy_variant_value (rl2PrivVariantValuePtr value)
 {
 /* destoying a VariantValue object */
-    rl2PrivVariantValuePtr val = (rl2PrivVariantValuePtr) value;
-    if (val == NULL)
+    if (value == NULL)
 	return;
-    if (val->text_value != NULL)
-	free (val->text_value);
-    if (val->blob_value != NULL)
-	free (val->blob_value);
-    free (val);
+    if (value->column_name != NULL)
+	free (value->column_name);
+    if (value->text_value != NULL)
+	free (value->text_value);
+    if (value->blob_value != NULL)
+	free (value->blob_value);
+    free (value);
 }

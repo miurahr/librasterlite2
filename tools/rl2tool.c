@@ -2271,8 +2271,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 		      double cy = y + (h / 2.0);
 		      gaiaFreeGeomColl (geom);
 		      /* setting up a RED pen */
-		      rl2_graph_set_pen (ctx, 255, 0, 0, 255, 2.0,
-					 RL2_PENSTYLE_SOLID);
+		      rl2_graph_set_solid_pen (ctx, 255, 0, 0, 255, 2.0,
+					 RL2_PEN_CAP_BUTT, RL2_PEN_JOIN_MITER);
 		      /* setting up a Gray solid semi-transparent Brush */
 		      rl2_graph_set_brush (ctx, 255, 255, 255, 204);
 		      rl2_graph_draw_rectangle (ctx, x, y, w, h);
@@ -2280,8 +2280,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 						 &pre_y, &t_width, &t_height,
 						 &post_x, &post_y);
 		      /* setting up a white pen */
-		      rl2_graph_set_pen (ctx, 255, 255, 255, 255, 2.0,
-					 RL2_PENSTYLE_SOLID);
+		      rl2_graph_set_solid_pen (ctx, 255, 255, 255, 255, 2.0,
+					 RL2_PEN_CAP_BUTT, RL2_PEN_JOIN_MITER);
 		      /* setting up a white solid semi-transparent Brush */
 		      rl2_graph_set_brush (ctx, 255, 255, 255, 255);
 		      rl2_graph_draw_rectangle (ctx, cx - (t_width / 2.0),

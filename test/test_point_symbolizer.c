@@ -198,7 +198,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
       {
 	  if (string != NULL)
 	    {
-		if (strcmp (string, "http:/www.acme.com/icon.png") == 0)
+		if (strcmp (string, "http:/www.acme.com/sample.png") == 0)
 		    intval = 1;
 	    }
       }
@@ -715,12 +715,12 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
     intval = 0;
     if (strcmp (style_name, "point_1") == 0)
       {
-	  if (dblval == 12.0)
+	  if (dblval == 48.0)
 	      intval = 1;
       }
     if (strcmp (style_name, "point_2") == 0)
       {
-	  if (dblval == 6.0)
+	  if (dblval == 36.0)
 	      intval = 1;
       }
     if (strcmp (style_name, "point_3") == 0)
@@ -1534,7 +1534,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  *retcode += 12;
 	  return 0;
       }
-    if (type != RL2_GRAPHIC_MARK_CROSS)
+    if (type != RL2_GRAPHIC_MARK_TRIANGLE)
       {
 	  fprintf (stderr,
 		   "Unexpected Point Symbolizer Mark GetWellKnownType #2: %02x\n",
@@ -1675,7 +1675,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  *retcode += 30;
 	  return 0;
       }
-    if (type != RL2_GRAPHIC_MARK_CIRCLE)
+    if (type != RL2_GRAPHIC_MARK_TRIANGLE)
       {
 	  fprintf (stderr,
 		   "Unexpected Point Symbolizer Mark GetWellKnownType #5: %02x\n",
@@ -1816,7 +1816,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
 	  *retcode += 48;
 	  return 0;
       }
-    if (type != RL2_GRAPHIC_MARK_CROSS)
+    if (type != RL2_GRAPHIC_MARK_TRIANGLE)
       {
 	  fprintf (stderr,
 		   "Unexpected Point Symbolizer Mark GetWellKnownType #8: %02x\n",

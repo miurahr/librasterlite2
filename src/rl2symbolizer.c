@@ -68,6 +68,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
+static void parse_graphic (xmlNodePtr node, rl2PrivGraphicPtr graphic);
+
 static void
 dummySilentError (void *ctx, const char *msg, ...)
 {
@@ -1496,6 +1498,34 @@ parse_mark_stroke (xmlNodePtr node, rl2PrivMarkPtr mark)
 			    if (child->type == XML_ELEMENT_NODE)
 			      {
 				  name = (const char *) (child->name);
+				  if (strcmp (name, "GraphicStroke") == 0)
+				    {
+					xmlNodePtr grandchild = child->children;
+					while (grandchild)
+					  {
+					      name =
+						  (const char
+						   *) (grandchild->name);
+					      if (strcmp (name, "Graphic") == 0)
+						{
+						    if (mark->stroke->graphic !=
+							NULL)
+							rl2_destroy_graphic
+							    (mark->
+							     stroke->graphic);
+						    mark->stroke->graphic =
+							rl2_create_default_graphic
+							();
+						    if (mark->stroke->graphic !=
+							NULL)
+							parse_graphic
+							    (grandchild->children,
+							     mark->
+							     stroke->graphic);
+						}
+					      grandchild = grandchild->next;
+					  }
+				    }
 				  if (strcmp (name, "SvgParameter") == 0)
 				    {
 					const char *svg_name;
@@ -1606,6 +1636,34 @@ parse_mark_fill (xmlNodePtr node, rl2PrivMarkPtr mark)
 			    if (child->type == XML_ELEMENT_NODE)
 			      {
 				  name = (const char *) (child->name);
+				  if (strcmp (name, "GraphicFill") == 0)
+				    {
+					xmlNodePtr grandchild = child->children;
+					while (grandchild)
+					  {
+					      name =
+						  (const char
+						   *) (grandchild->name);
+					      if (strcmp (name, "Graphic") == 0)
+						{
+						    if (mark->fill->graphic !=
+							NULL)
+							rl2_destroy_graphic
+							    (mark->
+							     fill->graphic);
+						    mark->fill->graphic =
+							rl2_create_default_graphic
+							();
+						    if (mark->fill->graphic !=
+							NULL)
+							parse_graphic
+							    (grandchild->children,
+							     mark->
+							     fill->graphic);
+						}
+					      grandchild = grandchild->next;
+					  }
+				    }
 				  if (strcmp (name, "SvgParameter") == 0)
 				    {
 					const char *svg_name;

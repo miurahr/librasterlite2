@@ -634,6 +634,10 @@ extern "C"
  to rl2_graph_create_pattern()
  
  \sa rl2_graph_create_pattern
+
+ \note you should always release a Pattern Pen or Pattern Brush from any
+ referencing Graphic Context before attempting to destroy the corresponding
+ Pattern object.
  */
     RL2_DECLARE void rl2_graph_destroy_pattern (rl2GraphicsPatternPtr pattern);
 

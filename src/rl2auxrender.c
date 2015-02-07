@@ -65,6 +65,198 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
 
+typedef struct rl2_multi_stroke_item
+{
+    rl2GraphicsPatternPtr pattern;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    double opacity;
+    double width;
+    int dash_count;
+    double *dash_list;
+    double dash_offset;
+    int pen_cap;
+    int pen_join;
+    struct rl2_multi_stroke_item *next;
+} rl2PrivMultiStrokeItem;
+typedef rl2PrivMultiStrokeItem *rl2PrivMultiStrokeItemPtr;
+
+typedef struct rl2_multi_stroke
+{
+    rl2PrivMultiStrokeItemPtr first;
+    rl2PrivMultiStrokeItemPtr last;
+} rl2PrivMultiStroke;
+typedef rl2PrivMultiStroke *rl2PrivMultiStrokePtr;
+
+static void
+rl2_destroy_multi_stroke_item (rl2PrivMultiStrokeItemPtr item)
+{
+/* destroying a MultiStroke Item */
+    if (item == NULL)
+	return;
+    if (item->pattern != NULL)
+	rl2_graph_destroy_pattern (item->pattern);
+    if (item->dash_list != NULL)
+	free (item->dash_list);
+    free (item);
+}
+
+static rl2PrivMultiStrokePtr
+rl2_create_multi_stroke ()
+{
+/* creating an empty MultiStroke container */
+    rl2PrivMultiStrokePtr multi = malloc (sizeof (rl2PrivMultiStroke));
+    if (multi == NULL)
+	return NULL;
+    multi->first = NULL;
+    multi->last = NULL;
+    return multi;
+}
+
+static void
+rl2_destroy_multi_stroke (rl2PrivMultiStrokePtr multi)
+{
+/* destroying a MultiStroke container */
+    rl2PrivMultiStrokeItemPtr item;
+    rl2PrivMultiStrokeItemPtr item_n;
+    if (multi == NULL)
+	return;
+    item = multi->first;
+    while (item != NULL)
+      {
+	  item_n = item->next;
+	  rl2_destroy_multi_stroke_item (item);
+	  item = item_n;
+      }
+    free (multi);
+}
+
+static void
+rl2_add_pattern_to_multi_stroke (rl2PrivMultiStrokePtr multi,
+				 rl2GraphicsPatternPtr pattern, double width,
+				 int pen_cap, int pen_join)
+{
+/* adding a pattern-based stroke to the MultiStroke container */
+    rl2PrivMultiStrokeItemPtr item;
+    if (multi == NULL || pattern == NULL)
+      {
+	  rl2_graph_destroy_pattern (pattern);
+	  return;
+      }
+
+    item = malloc (sizeof (rl2PrivMultiStrokeItem));
+    item->pattern = pattern;
+    item->width = width;
+    item->pen_cap = pen_cap;
+    item->pen_join = pen_join;
+    item->dash_list = NULL;
+    item->next = NULL;
+    if (multi->first == NULL)
+	multi->first = item;
+    if (multi->last != NULL)
+	multi->last->next = item;
+    multi->last = item;
+}
+
+static void
+rl2_add_pattern_to_multi_stroke_dash (rl2PrivMultiStrokePtr multi,
+				      rl2GraphicsPatternPtr pattern,
+				      double width, int pen_cap, int pen_join,
+				      int dash_count, double *dash_list,
+				      double dash_offset)
+{
+/* adding a pattern-based stroke (dash) to the MultiStroke container */
+    int d;
+    rl2PrivMultiStrokeItemPtr item;
+    if (multi == NULL || pattern == NULL)
+      {
+	  rl2_graph_destroy_pattern (pattern);
+	  return;
+      }
+
+    item = malloc (sizeof (rl2PrivMultiStrokeItem));
+    item->pattern = pattern;
+    item->width = width;
+    item->pen_cap = pen_cap;
+    item->pen_join = pen_join;
+    item->dash_count = dash_count;
+    item->dash_list = malloc (sizeof (double) * dash_count);
+    for (d = 0; d < dash_count; d++)
+	*(item->dash_list + d) = *(dash_list + d);
+    item->dash_offset = dash_offset;
+    item->next = NULL;
+    if (multi->first == NULL)
+	multi->first = item;
+    if (multi->last != NULL)
+	multi->last->next = item;
+    multi->last = item;
+}
+
+static void
+rl2_add_to_multi_stroke (rl2PrivMultiStrokePtr multi, unsigned char red,
+			 unsigned char green, unsigned char blue,
+			 double opacity, double width, int pen_cap,
+			 int pen_join)
+{
+/* adding an RGB stroke to the MultiStroke container */
+    rl2PrivMultiStrokeItemPtr item;
+    if (multi == NULL)
+	return;
+
+    item = malloc (sizeof (rl2PrivMultiStrokeItem));
+    item->pattern = NULL;
+    item->red = red;
+    item->green = green;
+    item->blue = blue;
+    item->opacity = opacity;
+    item->width = width;
+    item->pen_cap = pen_cap;
+    item->pen_join = pen_join;
+    item->dash_list = NULL;
+    item->next = NULL;
+    if (multi->first == NULL)
+	multi->first = item;
+    if (multi->last != NULL)
+	multi->last->next = item;
+    multi->last = item;
+}
+
+static void
+rl2_add_to_multi_stroke_dash (rl2PrivMultiStrokePtr multi, unsigned char red,
+			      unsigned char green, unsigned char blue,
+			      double opacity, double width, int pen_cap,
+			      int pen_join, int dash_count, double *dash_list,
+			      double dash_offset)
+{
+/* adding an RGB stroke (dash) to the MultiStroke container */
+    int d;
+    rl2PrivMultiStrokeItemPtr item;
+    if (multi == NULL)
+	return;
+
+    item = malloc (sizeof (rl2PrivMultiStrokeItem));
+    item->pattern = NULL;
+    item->red = red;
+    item->green = green;
+    item->blue = blue;
+    item->opacity = opacity;
+    item->width = width;
+    item->pen_cap = pen_cap;
+    item->pen_join = pen_join;
+    item->dash_count = dash_count;
+    item->dash_list = malloc (sizeof (double) * dash_count);
+    for (d = 0; d < dash_count; d++)
+	*(item->dash_list + d) = *(dash_list + d);
+    item->dash_offset = dash_offset;
+    item->next = NULL;
+    if (multi->first == NULL)
+	multi->first = item;
+    if (multi->last != NULL)
+	multi->last->next = item;
+    multi->last = item;
+}
+
 static void
 copy_monochrome (unsigned char *rgba, unsigned int width, unsigned int height,
 		 unsigned char *inbuf)
@@ -1540,9 +1732,12 @@ load_external_graphic_from_dbms (sqlite3 * handle, rl2PrivGraphicPtr graphic)
     const char *sql;
     const char *xlink_href = NULL;
     rl2GraphicsPatternPtr pattern = NULL;
-    rl2PrivGraphicItemPtr item = graphic->first;
+    rl2PrivGraphicItemPtr item;
 
-/* searching for an xlink_href pseudo-URL */
+    if (graphic == NULL)
+	return NULL;
+    /* searching for an xlink_href pseudo-URL */
+    item = graphic->first;
     while (item != NULL)
       {
 	  if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
@@ -1631,6 +1826,563 @@ load_external_graphic_from_dbms (sqlite3 * handle, rl2PrivGraphicPtr graphic)
     return NULL;
 }
 
+static rl2GraphicsBitmapPtr
+load_external_bitmap_from_dbms (sqlite3 * handle, const char *xlink_href)
+{
+/* attempting to load an External Graphic from the DBMS */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    rl2GraphicsBitmapPtr bitmap = NULL;
+
+    if (xlink_href == NULL)
+	return NULL;
+
+    sql = "SELECT resource, GetMimeType(resource) FROM SE_external_graphics "
+	"WHERE xlink_href = ?";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return NULL;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, xlink_href, strlen (xlink_href), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		rl2RasterPtr raster = NULL;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB
+		    && sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      const char *mime_type =
+			  (const char *) sqlite3_column_text (stmt, 1);
+		      if (strcmp (mime_type, "image/gif") == 0)
+			  raster = rl2_raster_from_gif (blob, blob_sz);
+		      if (strcmp (mime_type, "image/png") == 0)
+			  raster = rl2_raster_from_png (blob, blob_sz);
+		      if (strcmp (mime_type, "image/jpeg") == 0)
+			  raster = rl2_raster_from_jpeg (blob, blob_sz);
+		      if (strcmp (mime_type, "image/tiff") == 0)
+			  raster = rl2_raster_from_tiff (blob, blob_sz);
+		  }
+		if (raster != NULL)
+		  {
+		      unsigned char *rgba;
+		      int rgba_sz;
+		      unsigned int width;
+		      unsigned int height;
+		      if (rl2_get_raster_size (raster, &width, &height) !=
+			  RL2_OK)
+			{
+			    rl2_destroy_raster (raster);
+			    goto error;
+			}
+		      if (rl2_raster_data_to_RGBA (raster, &rgba, &rgba_sz) !=
+			  RL2_OK)
+			{
+			    rl2_destroy_raster (raster);
+			    goto error;
+			}
+		      bitmap = rl2_graph_create_bitmap (rgba, width, height);
+		      rl2_destroy_raster (raster);
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    return bitmap;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return NULL;
+}
+
+static void
+draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
+	     rl2PrivVectorSymbolizerPtr sym, int height, double minx,
+	     double miny, double x_res, double y_res, rl2GeometryPtr geom)
+{
+/* drawing Point-type features */
+    rl2PrivVectorSymbolizerItemPtr item;
+    rl2PointPtr point;
+
+    item = sym->first;
+    while (item != NULL)
+      {
+	  if (item->symbolizer_type == RL2_POINT_SYMBOLIZER)
+	    {
+		rl2PrivPointSymbolizerPtr point_sym =
+		    (rl2PrivPointSymbolizerPtr) (item->symbolizer);
+		rl2PrivGraphicPtr gr = point_sym->graphic;
+		rl2PrivGraphicItemPtr graphic;
+		if (gr == NULL)
+		  {
+		      item = item->next;
+		      continue;
+		  }
+		graphic = point_sym->graphic->first;
+		while (graphic != NULL)
+		  {
+		      /* looping on Graphic definitions */
+		      int is_mark = 0;
+		      int is_external = 0;
+		      unsigned char well_known_type;
+		      int fill = 0;
+		      int stroke = 0;
+		      int pen_cap;
+		      int pen_join;
+		      double opacity;
+		      unsigned char norm_opacity;
+		      rl2GraphicsBitmapPtr pattern = NULL;
+		      rl2GraphicsPatternPtr pattern_fill = NULL;
+		      rl2GraphicsPatternPtr pattern_stroke = NULL;
+
+		      if (graphic->type == RL2_MARK_GRAPHIC)
+			{
+			    rl2PrivMarkPtr mark =
+				(rl2PrivMarkPtr) (graphic->item);
+			    if (mark != NULL)
+			      {
+				  well_known_type = mark->well_known_type;
+				  is_mark = 1;
+				  if (mark->fill != NULL)
+				    {
+					fprintf (stderr, "MarkFillGraphic %s\n",
+						 mark->fill->graphic);
+					if (mark->fill->graphic != NULL)
+					  {
+					      /* external Graphic fill */
+					      pattern_fill =
+						  load_external_graphic_from_dbms
+						  (handle, mark->fill->graphic);
+					      fprintf (stderr,
+						       "MarkFillGraphic %d\n",
+						       pattern_fill);
+					      if (pattern_fill != NULL)
+						{
+						    rl2_graph_set_pattern_brush
+							(ctx, pattern_fill);
+						    fprintf (stderr,
+							     "MarkFillGraphicOK\n");
+						    fill = 1;
+						}
+					  }
+					else
+					  {
+					      /* solid RGB fill */
+					      if (gr->opacity <= 0.0)
+						  norm_opacity = 0;
+					      else if (gr->opacity >= 1.0)
+						  norm_opacity = 255;
+					      else
+						{
+						    opacity =
+							255.0 * gr->opacity;
+						    if (opacity <= 0.0)
+							norm_opacity = 0;
+						    else if (opacity >= 255.0)
+							norm_opacity = 255;
+						    else
+							norm_opacity = opacity;
+						}
+					      rl2_graph_set_brush (ctx,
+								   mark->
+								   fill->red,
+								   mark->
+								   fill->green,
+								   mark->
+								   fill->blue,
+								   norm_opacity);
+					      fill = 1;
+					  }
+				    }
+				  if (mark->stroke != NULL)
+				    {
+					if (mark->stroke->graphic != NULL)
+					  {
+					      /* external Graphic stroke */
+					      fprintf (stderr,
+						       "MarkStrokeGraphic\n");
+					      pattern_stroke =
+						  load_external_graphic_from_dbms
+						  (handle,
+						   mark->stroke->graphic);
+					      fprintf (stderr,
+						       "MarkStrokePattern=%d\n",
+						       pattern_stroke);
+					      if (pattern_stroke != NULL)
+						{
+						    switch (mark->
+							    stroke->linecap)
+						      {
+						      case RL2_STROKE_LINECAP_ROUND:
+							  pen_cap =
+							      RL2_PEN_CAP_ROUND;
+							  break;
+						      case RL2_STROKE_LINECAP_SQUARE:
+							  pen_cap =
+							      RL2_PEN_CAP_SQUARE;
+							  break;
+						      default:
+							  pen_cap =
+							      RL2_PEN_CAP_BUTT;
+							  break;
+						      };
+						    switch (mark->
+							    stroke->linejoin)
+						      {
+						      case RL2_STROKE_LINEJOIN_BEVEL:
+							  pen_join =
+							      RL2_PEN_JOIN_BEVEL;
+							  break;
+						      case RL2_STROKE_LINEJOIN_ROUND:
+							  pen_join =
+							      RL2_PEN_JOIN_ROUND;
+							  break;
+						      default:
+							  pen_join =
+							      RL2_PEN_JOIN_MITER;
+							  break;
+						      };
+						    if (mark->
+							stroke->dash_count > 0
+							&& mark->
+							stroke->dash_list !=
+							NULL)
+							rl2_graph_set_pattern_dashed_pen
+							    (ctx,
+							     pattern_stroke,
+							     mark->
+							     stroke->width,
+							     pen_cap, pen_join,
+							     mark->
+							     stroke->dash_count,
+							     mark->
+							     stroke->dash_list,
+							     mark->
+							     stroke->dash_offset);
+						    else
+							rl2_graph_set_pattern_solid_pen
+							    (ctx,
+							     pattern_stroke,
+							     mark->
+							     stroke->width,
+							     pen_cap, pen_join);
+						    stroke = 1;
+						}
+					  }
+					else
+					  {
+					      /* solid RGB stroke */
+					      if (gr->opacity <= 0.0)
+						  norm_opacity = 0;
+					      else if (gr->opacity >= 1.0)
+						  norm_opacity = 255;
+					      else
+						{
+						    opacity =
+							255.0 * gr->opacity;
+						    if (opacity <= 0.0)
+							norm_opacity = 0;
+						    else if (opacity >= 255.0)
+							norm_opacity = 255;
+						    else
+							norm_opacity = opacity;
+						}
+					      switch (mark->stroke->linecap)
+						{
+						case RL2_STROKE_LINECAP_ROUND:
+						    pen_cap = RL2_PEN_CAP_ROUND;
+						    break;
+						case RL2_STROKE_LINECAP_SQUARE:
+						    pen_cap =
+							RL2_PEN_CAP_SQUARE;
+						    break;
+						default:
+						    pen_cap = RL2_PEN_CAP_BUTT;
+						    break;
+						};
+					      switch (mark->stroke->linejoin)
+						{
+						case RL2_STROKE_LINEJOIN_BEVEL:
+						    pen_join =
+							RL2_PEN_JOIN_BEVEL;
+						    break;
+						case RL2_STROKE_LINEJOIN_ROUND:
+						    pen_join =
+							RL2_PEN_JOIN_ROUND;
+						    break;
+						default:
+						    pen_join =
+							RL2_PEN_JOIN_MITER;
+						    break;
+						};
+					      if (mark->stroke->dash_count > 0
+						  && mark->stroke->dash_list !=
+						  NULL)
+						  rl2_graph_set_dashed_pen (ctx,
+									    mark->stroke->red,
+									    mark->stroke->green,
+									    mark->stroke->blue,
+									    norm_opacity,
+									    mark->stroke->width,
+									    pen_cap,
+									    pen_join,
+									    mark->stroke->dash_count,
+									    mark->stroke->dash_list,
+									    mark->stroke->dash_offset);
+					      else
+						  rl2_graph_set_solid_pen (ctx,
+									   mark->stroke->red,
+									   mark->stroke->green,
+									   mark->stroke->blue,
+									   norm_opacity,
+									   mark->stroke->width,
+									   pen_cap,
+									   pen_join);
+					      stroke = 1;
+					  }
+				    }
+			      }
+			}
+		      if (graphic->type == RL2_EXTERNAL_GRAPHIC)
+			{
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (graphic->item);
+			    if (ext != NULL)
+			      {
+				  is_external = 1;
+				  pattern =
+				      load_external_bitmap_from_dbms (handle,
+								      ext->xlink_href);
+			      }
+			}
+
+		      /* actual Point rendering */
+		      point = geom->first_point;
+		      while (point)
+			{
+			    /* drawing a POINT */
+			    double x = (point->x - minx) / x_res;
+			    double y =
+				(double) height - ((point->y - miny) / y_res);
+			    double size2 = gr->size / 2.0;
+			    double size4 = gr->size / 4.0;
+			    double size6 = gr->size / 6.0;
+			    double size13 = gr->size / 3.0;
+			    double size23 = (gr->size / 3.0) * 2.0;
+			    int i;
+			    double rads;
+			    if (size2 <= 0.0)
+				size2 = 1.0;
+			    if (size4 <= 0.0)
+				size4 = 1.0;
+			    if (size6 <= 0.0)
+				size6 = 1.0;
+			    if (size13 <= 0.0)
+				size13 = 1.0;
+			    if (size23 <= 0.0)
+				size23 = 1.0;
+			    if (is_mark)
+			      {
+				  /* drawing a well-known Mark */
+				  switch (well_known_type)
+				    {
+				    case RL2_GRAPHIC_MARK_CIRCLE:
+					rads = 0.0;
+					for (i = 0; i < 32; i++)
+					  {
+					      double tic = 6.28318530718 / 32.0;
+					      double cx =
+						  x + (size2 * sin (rads));
+					      double cy =
+						  y + (size2 * cos (rads));
+					      if (i == 0)
+						  rl2_graph_move_to_point (ctx,
+									   cx,
+									   cy);
+					      else
+						  rl2_graph_add_line_to_path
+						      (ctx, cx, cy);
+					      rads += tic;
+					  }
+					rl2_graph_close_subpath (ctx);
+					break;
+				    case RL2_GRAPHIC_MARK_TRIANGLE:
+					rl2_graph_move_to_point (ctx, x,
+								 y - size23);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size2,
+								    y + size13);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y + size13);
+					rl2_graph_close_subpath (ctx);
+					break;
+				    case RL2_GRAPHIC_MARK_STAR:
+					rads = 3.14159265359;
+					for (i = 0; i < 10; i++)
+					  {
+					      double tic =
+						  (i % 2) ? size4 : size2;
+					      double cx =
+						  x + (tic * sin (rads));
+					      double cy =
+						  y + (tic * cos (rads));
+					      if (i == 0)
+						  rl2_graph_move_to_point (ctx,
+									   cx,
+									   cy);
+					      else
+						  rl2_graph_add_line_to_path
+						      (ctx, cx, cy);
+					      rads += 0.628318530718;
+					  }
+					rl2_graph_close_subpath (ctx);
+					break;
+				    case RL2_GRAPHIC_MARK_CROSS:
+					rl2_graph_move_to_point (ctx, x - size4,
+								 y - size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size6,
+								    y - size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size6,
+								    y - size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y - size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y + size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size6,
+								    y + size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size6,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size6,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size6,
+								    y + size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size2,
+								    y + size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size2,
+								    y - size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size6,
+								    y - size6);
+					rl2_graph_close_subpath (ctx);
+					break;
+				    case RL2_GRAPHIC_MARK_X:
+					rl2_graph_move_to_point (ctx, x - size2,
+								 y - size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size4,
+								    y - size2);
+					rl2_graph_add_line_to_path (ctx, x,
+								    y - size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size6,
+								    y - size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y - size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size4,
+								    y);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size4,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx, x,
+								    y + size6);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size6,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size2,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size4,
+								    y);
+					rl2_graph_close_subpath (ctx);
+					break;
+				    case RL2_GRAPHIC_MARK_SQUARE:
+				    default:
+					rl2_graph_move_to_point (ctx, x - size2,
+								 y - size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x - size2,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y + size2);
+					rl2_graph_add_line_to_path (ctx,
+								    x + size2,
+								    y - size2);
+					rl2_graph_close_subpath (ctx);
+					break;
+				    };
+				  if (fill)
+				    {
+					if (stroke)
+					    rl2_graph_fill_path (ctx,
+								 RL2_PRESERVE_PATH);
+					else
+					    rl2_graph_fill_path (ctx,
+								 RL2_CLEAR_PATH);
+				    }
+				  if (stroke)
+				      rl2_graph_stroke_path (ctx,
+							     RL2_CLEAR_PATH);
+			      }
+			    if (is_external && pattern != NULL)
+			      {
+				  /* drawing an External Graphic bitmap */
+				  rl2_graph_draw_bitmap (ctx, pattern, x, y);
+			      }
+			    point = point->next;
+			}
+
+		      /* releasing Patterns */
+		      if (pattern != NULL)
+			  rl2_graph_destroy_bitmap (pattern);
+		      if (pattern_fill != NULL)
+			{
+			    rl2_graph_release_pattern_pen (ctx);
+			    rl2_graph_destroy_pattern (pattern_fill);
+			}
+		      if (pattern_stroke != NULL)
+			{
+			    rl2_graph_release_pattern_pen (ctx);
+			    rl2_graph_destroy_pattern (pattern_stroke);
+			}
+		      graphic = graphic->next;
+		  }
+	    }
+	  item = item->next;
+      }
+}
+
 static void
 draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	    rl2PrivVectorSymbolizerPtr sym, int height, double minx,
@@ -1638,15 +2390,14 @@ draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 {
 /* drawing Linear-type features */
     rl2PrivVectorSymbolizerItemPtr item;
-    int stroke = 0;
     int pen_cap;
     int pen_join;
     double opacity;
     unsigned char norm_opacity;
     rl2LinestringPtr line;
     rl2GraphicsPatternPtr pattern = NULL;
+    rl2PrivMultiStrokePtr multi_stroke = rl2_create_multi_stroke ();
 
-/* selecting the pen requested by the current LineSymbolizer */
     item = sym->first;
     while (item != NULL)
       {
@@ -1687,12 +2438,20 @@ draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 					pen_join = RL2_PEN_JOIN_MITER;
 					break;
 				    };
-				  rl2_graph_set_pattern_solid_pen (ctx, pattern,
-								   line_sym->
-								   stroke->width,
-								   pen_cap,
-								   pen_join);
-				  stroke = 1;
+				  if (line_sym->stroke->dash_count > 0
+				      && line_sym->stroke->dash_list != NULL)
+				      rl2_add_pattern_to_multi_stroke_dash
+					  (multi_stroke, pattern,
+					   line_sym->stroke->width, pen_cap,
+					   pen_join,
+					   line_sym->stroke->dash_count,
+					   line_sym->stroke->dash_list,
+					   line_sym->stroke->dash_offset);
+				  else
+				      rl2_add_pattern_to_multi_stroke
+					  (multi_stroke, pattern,
+					   line_sym->stroke->width, pen_cap,
+					   pen_join);
 			      }
 			}
 		      else
@@ -1736,25 +2495,48 @@ draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 				  pen_join = RL2_PEN_JOIN_MITER;
 				  break;
 			      };
-			    rl2_graph_set_solid_pen (ctx, line_sym->stroke->red,
-						     line_sym->stroke->green,
-						     line_sym->stroke->blue,
-						     norm_opacity,
-						     line_sym->stroke->width,
-						     pen_cap, pen_join);
-			    stroke = 1;
+			    if (line_sym->stroke->dash_count > 0
+				&& line_sym->stroke->dash_list != NULL)
+				rl2_add_to_multi_stroke_dash (multi_stroke,
+							      line_sym->
+							      stroke->red,
+							      line_sym->
+							      stroke->green,
+							      line_sym->
+							      stroke->blue,
+							      norm_opacity,
+							      line_sym->
+							      stroke->width,
+							      pen_cap, pen_join,
+							      line_sym->
+							      stroke->dash_count,
+							      line_sym->
+							      stroke->dash_list,
+							      line_sym->
+							      stroke->dash_offset);
+			    else
+				rl2_add_to_multi_stroke (multi_stroke,
+							 line_sym->stroke->red,
+							 line_sym->
+							 stroke->green,
+							 line_sym->stroke->blue,
+							 norm_opacity,
+							 line_sym->
+							 stroke->width, pen_cap,
+							 pen_join);
 			}
 		  }
 	    }
 	  item = item->next;
       }
-    if (!stroke)
+    if (multi_stroke == NULL)
 	return;
 
     line = geom->first_linestring;
     while (line)
       {
 	  /* drawing a LINESTRING */
+	  rl2PrivMultiStrokeItemPtr stroke_item;
 	  int iv;
 	  double dx;
 	  double dy;
@@ -1785,12 +2567,64 @@ draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 			}
 		  }
 	    }
-	  if (stroke)
-	      rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+	  stroke_item = multi_stroke->first;
+	  while (stroke_item != NULL)
+	    {
+		/* applying all strokes, one after the other */
+		if (stroke_item->dash_count > 0
+		    && stroke_item->dash_list != NULL)
+		  {
+		      if (stroke_item->pattern != NULL)
+			  rl2_graph_set_pattern_dashed_pen (ctx,
+							    stroke_item->pattern,
+							    stroke_item->width,
+							    stroke_item->pen_cap,
+							    stroke_item->pen_join,
+							    stroke_item->dash_count,
+							    stroke_item->dash_list,
+							    stroke_item->dash_offset);
+		      else
+			  rl2_graph_set_dashed_pen (ctx, stroke_item->red,
+						    stroke_item->green,
+						    stroke_item->blue,
+						    stroke_item->opacity,
+						    stroke_item->width,
+						    stroke_item->pen_cap,
+						    stroke_item->pen_join,
+						    stroke_item->dash_count,
+						    stroke_item->dash_list,
+						    stroke_item->dash_offset);
+		  }
+		else
+		  {
+		      if (stroke_item->pattern != NULL)
+			  rl2_graph_set_pattern_solid_pen (ctx,
+							   stroke_item->pattern,
+							   stroke_item->width,
+							   stroke_item->pen_cap,
+							   stroke_item->pen_join);
+		      else
+			  rl2_graph_set_solid_pen (ctx, stroke_item->red,
+						   stroke_item->green,
+						   stroke_item->blue,
+						   stroke_item->opacity,
+						   stroke_item->width,
+						   stroke_item->pen_cap,
+						   stroke_item->pen_join);
+		  }
+
+		if (stroke_item == multi_stroke->last)
+		    rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+		else
+		    rl2_graph_stroke_path (ctx, RL2_PRESERVE_PATH);
+
+		stroke_item = stroke_item->next;
+		if (stroke_item == multi_stroke->last)
+		    rl2_graph_release_pattern_pen (ctx);
+	    }
 	  line = line->next;
       }
-    if (pattern != NULL)
-	rl2_graph_destroy_pattern (pattern);
+    rl2_destroy_multi_stroke (multi_stroke);
 }
 
 static void
@@ -1892,12 +2726,24 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 					pen_join = RL2_PEN_JOIN_MITER;
 					break;
 				    };
-				  rl2_graph_set_pattern_solid_pen (ctx,
-								   pattern_stroke,
-								   polyg_sym->
-								   stroke->width,
-								   pen_cap,
-								   pen_join);
+				  if (polyg_sym->stroke->dash_count > 0
+				      && polyg_sym->stroke->dash_list != NULL)
+				      rl2_graph_set_pattern_dashed_pen (ctx,
+									pattern_stroke,
+									polyg_sym->
+									stroke->width,
+									pen_cap,
+									pen_join,
+									polyg_sym->stroke->dash_count,
+									polyg_sym->stroke->dash_list,
+									polyg_sym->stroke->dash_offset);
+				  else
+				      rl2_graph_set_pattern_solid_pen (ctx,
+								       pattern_stroke,
+								       polyg_sym->
+								       stroke->width,
+								       pen_cap,
+								       pen_join);
 				  stroke = 1;
 			      }
 			}
@@ -1942,13 +2788,36 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 				  pen_join = RL2_PEN_JOIN_MITER;
 				  break;
 			      };
-			    rl2_graph_set_solid_pen (ctx,
-						     polyg_sym->stroke->red,
-						     polyg_sym->stroke->green,
-						     polyg_sym->stroke->blue,
-						     norm_opacity,
-						     polyg_sym->stroke->width,
-						     pen_cap, pen_join);
+			    if (polyg_sym->stroke->dash_count > 0
+				&& polyg_sym->stroke->dash_list != NULL)
+				rl2_graph_set_dashed_pen (ctx,
+							  polyg_sym->
+							  stroke->red,
+							  polyg_sym->
+							  stroke->green,
+							  polyg_sym->
+							  stroke->blue,
+							  norm_opacity,
+							  polyg_sym->
+							  stroke->width,
+							  pen_cap, pen_join,
+							  polyg_sym->
+							  stroke->dash_count,
+							  polyg_sym->
+							  stroke->dash_list,
+							  polyg_sym->
+							  stroke->dash_offset);
+			    else
+				rl2_graph_set_solid_pen (ctx,
+							 polyg_sym->stroke->red,
+							 polyg_sym->
+							 stroke->green,
+							 polyg_sym->
+							 stroke->blue,
+							 norm_opacity,
+							 polyg_sym->
+							 stroke->width, pen_cap,
+							 pen_join);
 			    stroke = 1;
 			}
 		  }
@@ -2037,9 +2906,15 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	  polyg = polyg->next;
       }
     if (pattern_fill != NULL)
-	rl2_graph_destroy_pattern (pattern_fill);
+      {
+	  rl2_graph_release_pattern_brush (ctx);
+	  rl2_graph_destroy_pattern (pattern_fill);
+      }
     if (pattern_stroke != NULL)
-	rl2_graph_destroy_pattern (pattern_stroke);
+      {
+	  rl2_graph_release_pattern_pen (ctx);
+	  rl2_graph_destroy_pattern (pattern_stroke);
+      }
 }
 
 RL2_PRIVATE void
@@ -2063,6 +2938,33 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
 
 	  default_symbolizer = rl2_create_default_vector_symbolizer ();
 	  item = rl2_create_default_point_symbolizer ();
+	  if (item->symbolizer_type == RL2_POINT_SYMBOLIZER
+	      && item->symbolizer != NULL)
+	    {
+		rl2PrivPointSymbolizerPtr s =
+		    (rl2PrivPointSymbolizerPtr) (item->symbolizer);
+		s->graphic = rl2_create_default_graphic ();
+		if (s->graphic != NULL)
+		  {
+		      s->graphic->size = 16.0;
+		      s->graphic->first = rl2_create_default_mark ();
+		      if (s->graphic->first != NULL)
+			{
+			    s->graphic->last = s->graphic->first;
+			    if (s->graphic->first->type == RL2_MARK_GRAPHIC
+				&& s->graphic->first->item != NULL)
+			      {
+				  rl2PrivMarkPtr mark =
+				      (rl2PrivMarkPtr) (s->graphic->
+							first->item);
+				  mark->well_known_type =
+				      RL2_GRAPHIC_MARK_SQUARE;
+				  mark->fill = rl2_create_default_fill ();
+				  mark->stroke = rl2_create_default_stroke ();
+			      }
+			}
+		  }
+	    }
 	  if (default_symbolizer->first == NULL)
 	      default_symbolizer->first = item;
 	  if (default_symbolizer->last != NULL)
@@ -2113,6 +3015,8 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
 		       geom);
     if (geom->first_linestring != NULL)
 	draw_lines (ctx, handle, sym, height, minx, miny, x_res, y_res, geom);
+    if (geom->first_point != NULL)
+	draw_points (ctx, handle, sym, height, minx, miny, x_res, y_res, geom);
 
     if (default_symbolizer != NULL)
 	rl2_destroy_vector_symbolizer (default_symbolizer);

@@ -397,6 +397,128 @@ rl2GeomImport64 (const unsigned char *p, int little_endian,
 }
 
 static void
+rl2GeomExport32 (unsigned char *p, int value, int little_endian,
+		 int little_endian_arch)
+{
+/* stores a 32bit int into a BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[4];
+	int int_value;
+    } convert;
+    convert.int_value = value;
+    if (little_endian_arch)
+      {
+	  /* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 3) = convert.byte[0];
+		*(p + 2) = convert.byte[1];
+		*(p + 1) = convert.byte[2];
+		*(p + 0) = convert.byte[3];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 3) = convert.byte[0];
+		*(p + 2) = convert.byte[1];
+		*(p + 1) = convert.byte[2];
+		*(p + 0) = convert.byte[3];
+	    }
+      }
+}
+
+static void
+rl2GeomExport64 (unsigned char *p, double value, int little_endian,
+		 int little_endian_arch)
+{
+/* stores a 64bit double into a BLOB respecting declared endiannes */
+    union cvt
+    {
+	unsigned char byte[8];
+	double double_value;
+    } convert;
+    convert.double_value = value;
+    if (little_endian_arch)
+      {
+/* Litte-Endian architecture [e.g. x86] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 7) = convert.byte[0];
+		*(p + 6) = convert.byte[1];
+		*(p + 5) = convert.byte[2];
+		*(p + 4) = convert.byte[3];
+		*(p + 3) = convert.byte[4];
+		*(p + 2) = convert.byte[5];
+		*(p + 1) = convert.byte[6];
+		*(p + 0) = convert.byte[7];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+		*(p + 4) = convert.byte[4];
+		*(p + 5) = convert.byte[5];
+		*(p + 6) = convert.byte[6];
+		*(p + 7) = convert.byte[7];
+	    }
+      }
+    else
+      {
+	  /* Big Endian architecture [e.g. PPC] */
+	  if (!little_endian)
+	    {
+		/* Big Endian data */
+		*(p + 0) = convert.byte[0];
+		*(p + 1) = convert.byte[1];
+		*(p + 2) = convert.byte[2];
+		*(p + 3) = convert.byte[3];
+		*(p + 4) = convert.byte[4];
+		*(p + 5) = convert.byte[5];
+		*(p + 6) = convert.byte[6];
+		*(p + 7) = convert.byte[7];
+	    }
+	  else
+	    {
+		/* Little Endian data */
+		*(p + 7) = convert.byte[0];
+		*(p + 6) = convert.byte[1];
+		*(p + 5) = convert.byte[2];
+		*(p + 4) = convert.byte[3];
+		*(p + 3) = convert.byte[4];
+		*(p + 2) = convert.byte[5];
+		*(p + 1) = convert.byte[6];
+		*(p + 0) = convert.byte[7];
+	    }
+      }
+}
+
+static void
 rl2AddPointToGeometry (rl2GeometryPtr p, double x, double y)
 {
 /* adding a LINESTRING to this GEOMETRYCOLLECTION */
@@ -816,7 +938,7 @@ rl2ParseCompressedLine (rl2GeometryPtr geom, const unsigned char *blob,
 		y = last_y + fy;
 		*offset += 8;
 	    }
-	  gaiaSetPoint (line->coords, iv, x, y);
+	  rl2SetPoint (line->coords, iv, x, y);
 	  last_x = x;
 	  last_y = y;
       }
@@ -862,7 +984,7 @@ rl2ParseCompressedLineZ (rl2GeometryPtr geom, const unsigned char *blob,
 		y = last_y + fy;
 		*offset += 12;
 	    }
-	  gaiaSetPoint (line->coords, iv, x, y);
+	  rl2SetPoint (line->coords, iv, x, y);
 	  last_x = x;
 	  last_y = y;
       }
@@ -908,7 +1030,7 @@ rl2ParseCompressedLineM (rl2GeometryPtr geom, const unsigned char *blob,
 		y = last_y + fy;
 		*offset += 16;
 	    }
-	  gaiaSetPoint (line->coords, iv, x, y);
+	  rl2SetPoint (line->coords, iv, x, y);
 	  last_x = x;
 	  last_y = y;
       }
@@ -954,7 +1076,7 @@ rl2ParseCompressedLineZM (rl2GeometryPtr geom, const unsigned char *blob,
 		y = last_y + fy;
 		*offset += 20;
 	    }
-	  gaiaSetPoint (line->coords, iv, x, y);
+	  rl2SetPoint (line->coords, iv, x, y);
 	  last_x = x;
 	  last_y = y;
       }
@@ -1477,4 +1599,126 @@ rl2_destroy_geometry (rl2GeometryPtr geom)
 	  pA = pAn;
       }
     free (geom);
+}
+
+RL2_PRIVATE int
+rl2_serialize_linestring (rl2LinestringPtr line, unsigned char **result,
+			  int *size)
+{
+/* serializing a BLOB Geometry - linestring */
+    int iv;
+    unsigned char *ptr;
+    int endian_arch = rl2GeomEndianArch ();
+    double minx = DBL_MAX;
+    double maxx = 0.0 - DBL_MAX;
+    double miny = DBL_MAX;
+    double maxy = 0.0 - DBL_MAX;
+    double x;
+    double y;
+
+    *result = NULL;
+    *size = 0;
+    if (line == NULL)
+	return 0;
+
+/* computing the MBR */
+    for (iv = 0; iv < line->points; iv++)
+      {
+	  rl2GetPoint (line->coords, iv, &x, &y);
+	  if (x < minx)
+	      minx = x;
+	  if (x > maxx)
+	      maxx = x;
+	  if (y < miny)
+	      miny = y;
+	  if (y > maxy)
+	      maxy = y;
+      }
+/* computing the size of BLOB */
+    *size = 44;			/* header size */
+    *size += (4 + ((sizeof (double) * 2) * line->points));	/* # points + [x,y] for each vertex */
+    *result = malloc (*size);
+    ptr = *result;
+/* building the BLOB */
+    *ptr = GAIA_MARK_START;	/* START signature */
+    *(ptr + 1) = GAIA_LITTLE_ENDIAN;	/* byte ordering */
+    rl2GeomExport32 (ptr + 2, 4326, 1, endian_arch);	/* the SRID */
+    rl2GeomExport64 (ptr + 6, minx, 1, endian_arch);	/* MBR - minimum X */
+    rl2GeomExport64 (ptr + 14, miny, 1, endian_arch);	/* MBR - minimum Y */
+    rl2GeomExport64 (ptr + 22, maxx, 1, endian_arch);	/* MBR - maximum X */
+    rl2GeomExport64 (ptr + 30, maxy, 1, endian_arch);	/* MBR - maximum Y */
+    *(ptr + 38) = GAIA_MARK_MBR;	/* MBR signature */
+    rl2GeomExport32 (ptr + 39, GAIA_LINESTRING, 1, endian_arch);	/* class LINESTRING */
+    rl2GeomExport32 (ptr + 43, line->points, 1, endian_arch);	/* # points */
+    ptr += 47;
+    for (iv = 0; iv < line->points; iv++)
+      {
+	  rl2GetPoint (line->coords, iv, &x, &y);
+	  rl2GeomExport64 (ptr, x, 1, endian_arch);
+	  rl2GeomExport64 (ptr + 8, y, 1, endian_arch);
+	  ptr += 16;
+      }
+    *ptr = GAIA_MARK_END;	/* END signature */
+    return 1;
+}
+
+RL2_PRIVATE int
+rl2_serialize_ring (rl2RingPtr ring, unsigned char **result, int *size)
+{
+/* serializing a BLOB Geometry - polygon ring */
+    int iv;
+    unsigned char *ptr;
+    int endian_arch = rl2GeomEndianArch ();
+    double minx = DBL_MAX;
+    double maxx = 0.0 - DBL_MAX;
+    double miny = DBL_MAX;
+    double maxy = 0.0 - DBL_MAX;
+    double x;
+    double y;
+
+    *result = NULL;
+    *size = 0;
+    if (ring == NULL)
+	return 0;
+
+/* computing the MBR */
+    for (iv = 0; iv < ring->points; iv++)
+      {
+	  rl2GetPoint (ring->coords, iv, &x, &y);
+	  if (x < minx)
+	      minx = x;
+	  if (x > maxx)
+	      maxx = x;
+	  if (y < miny)
+	      miny = y;
+	  if (y > maxy)
+	      maxy = y;
+      }
+/* computing the size of BLOB */
+    *size = 44;			/* header size */
+    *size += (8 + ((sizeof (double) * 2) * ring->points));	/* # rings + # points + [x.y] array - exterior ring */
+    *result = malloc (*size);
+    ptr = *result;
+/* building the BLOB */
+    *ptr = GAIA_MARK_START;	/* START signature */
+    *(ptr + 1) = GAIA_LITTLE_ENDIAN;	/* byte ordering */
+    rl2GeomExport32 (ptr + 2, -1, 1, endian_arch);	/* the SRID */
+    rl2GeomExport64 (ptr + 6, minx, 1, endian_arch);	/* MBR - minimum X */
+    rl2GeomExport64 (ptr + 14, miny, 1, endian_arch);	/* MBR - minimum Y */
+    rl2GeomExport64 (ptr + 22, maxx, 1, endian_arch);	/* MBR - maximum X */
+    rl2GeomExport64 (ptr + 30, maxy, 1, endian_arch);	/* MBR - maximum Y */
+    *(ptr + 38) = GAIA_MARK_MBR;	/* MBR signature */
+    rl2GeomExport32 (ptr + 39, GAIA_POLYGON, 1, endian_arch);	/* class POLYGON */
+    rl2GeomExport32 (ptr + 43, 1, 1, endian_arch);	/* # rings */
+    rl2GeomExport32 (ptr + 47, ring->points, 1, endian_arch);	/* # points - exterior ring */
+    ptr += 51;
+    for (iv = 0; iv < ring->points; iv++)
+      {
+	  rl2GetPoint (ring->coords, iv, &x, &y);
+	  rl2GeomExport64 (ptr, x, 1, endian_arch);	/* X - exterior ring */
+	  rl2GeomExport64 (ptr + 8, y, 1, endian_arch);	/* Y - exterior ring */
+	  ptr += 16;
+      }
+    *ptr = GAIA_MARK_END;	/* END signature */
+    return 1;
 }

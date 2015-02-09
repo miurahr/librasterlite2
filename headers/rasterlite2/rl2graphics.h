@@ -61,6 +61,7 @@ extern "C"
 
 #define RL2_FONTSTYLE_NORMAL	5101
 #define RL2_FONTSTYLE_ITALIC	5102
+#define RL2_FONTSTYLE_OBLIQUE	5103
 
 #define RL2_FONTWEIGHT_NORMAL	5201
 #define RL2_FONTWEIGHT_BOLD	5202
@@ -645,13 +646,14 @@ extern "C"
  Creates a Graphics Font Object
 
  \param size the Graphics Font size (in points).
- \param style one of RL2_FONTSTYLE_NORMAL or RL2_FONTSTYLE_ITALIC
+ \param style one of RL2_FONTSTYLE_NORMAL, RL2_FONTSTYLE_ITALIC or
+ RL2_FONTSTYLE_OBLIQUE
  \param weight one of RL2_FONTWEIGHT_NORMAL or RL2_FONTWEIGHT_BOLD
 
  \return the pointer to the corresponding Font object: NULL on failure
  
  \sa rl2_graph_set_font, rl2_graph_destroy_font, rl2_graph_font_set_color,
- rl2_graph_font_set_color, rl2_graph_font_set_outline
+ rl2_graph_font_set_color, rl2_graph_font_set_halo
  
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_graph_create_font() by invoking rl2_graph_destroy_font().
@@ -682,7 +684,7 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_create_font, rl2_graph_font_set_outline,
+ \sa rl2_graph_create_font, rl2_graph_font_set_halo,
  rl2_graph_set_font
  */
     RL2_DECLARE int rl2_graph_font_set_color (rl2GraphicsFontPtr font,
@@ -692,20 +694,28 @@ extern "C"
 					      unsigned char alpha);
 
 /**
- Selects the currently set Outline for a Graphics Font
+ Selects the currently set Halo for a Graphics Font
 
  \param font the pointer to a valid Graphics Font returned by a previous call
  to rl2_graph_create_font()
- \param width the outline width (in points); declaring a zero or negative value
- will remove any outline from the Font.
+ \param radius the Halo Radius (in points); declaring a zero or negative value
+ will remove the Halo from the Font.
+ \param red Halo color: red component.
+ \param green Halo color: green component.
+ \param blue Halo color: blue component.
+ \param alpha Halo transparency (0 full transparent; 255 full opaque).
 
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_font, rl2_graph_font_set_color,
  rl2_graph_set_font
  */
-    RL2_DECLARE int rl2_graph_font_set_outline (rl2GraphicsFontPtr font,
-						double width);
+    RL2_DECLARE int rl2_graph_font_set_halo (rl2GraphicsFontPtr font,
+						double radius,
+					      unsigned char red,
+					      unsigned char green,
+					      unsigned char blue,
+					      unsigned char alpha);
 
 /**
  Creates a Graphics Bitmap 

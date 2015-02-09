@@ -7317,7 +7317,7 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
 	  columns = rl2_get_feature_type_style_columns_count (lyr_stl);
 	  for (i = 0; i < columns; i++)
 	    {
-		/* adding columns required by some Filter */
+		/* adding columns required by Filters and TextSymbolizers */
 		const char *col_name =
 		    rl2_get_feature_type_style_column_name (lyr_stl, i);
 		oldsql = sql;
@@ -7453,7 +7453,8 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
 				goto error;
 			}
 		      rl2_draw_vector_feature (ctx, sqlite, symbolizer, height,
-					       minx, miny, x_res, y_res, geom);
+					       minx, miny, x_res, y_res, geom,
+					       variant);
 		      rl2_destroy_geometry (geom);
 		  }
 	    }

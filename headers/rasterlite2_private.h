@@ -1879,12 +1879,20 @@ extern "C"
 					      int height, double minx,
 					      double miny, double x_res,
 					      double y_res,
-					      rl2GeometryPtr geom);
+					      rl2GeometryPtr geom,
+					      rl2VariantArrayPtr variant);
 
     RL2_PRIVATE rl2GeometryPtr
 	rl2_geometry_from_blob (const unsigned char *blob, int blob_sz);
 
     RL2_PRIVATE void rl2_destroy_geometry (rl2GeometryPtr geom);
+
+    RL2_PRIVATE int rl2_serialize_linestring (rl2LinestringPtr line,
+					      unsigned char **blob,
+					      int *blob_sz);
+
+    RL2_PRIVATE int rl2_serialize_ring (rl2RingPtr ring, unsigned char **blob,
+					int *blob_sz);
 
 #ifdef __cplusplus
 }

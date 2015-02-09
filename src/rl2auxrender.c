@@ -150,6 +150,7 @@ rl2_add_pattern_to_multi_stroke (rl2PrivMultiStrokePtr multi,
     item->width = width;
     item->pen_cap = pen_cap;
     item->pen_join = pen_join;
+    item->dash_count = 0;
     item->dash_list = NULL;
     item->next = NULL;
     if (multi->first == NULL)
@@ -213,6 +214,7 @@ rl2_add_to_multi_stroke (rl2PrivMultiStrokePtr multi, unsigned char red,
     item->width = width;
     item->pen_cap = pen_cap;
     item->pen_join = pen_join;
+    item->dash_count = 0;
     item->dash_list = NULL;
     item->next = NULL;
     if (multi->first == NULL)
@@ -1959,23 +1961,16 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 				  is_mark = 1;
 				  if (mark->fill != NULL)
 				    {
-					fprintf (stderr, "MarkFillGraphic %s\n",
-						 mark->fill->graphic);
 					if (mark->fill->graphic != NULL)
 					  {
 					      /* external Graphic fill */
 					      pattern_fill =
 						  load_external_graphic_from_dbms
 						  (handle, mark->fill->graphic);
-					      fprintf (stderr,
-						       "MarkFillGraphic %d\n",
-						       pattern_fill);
 					      if (pattern_fill != NULL)
 						{
 						    rl2_graph_set_pattern_brush
 							(ctx, pattern_fill);
-						    fprintf (stderr,
-							     "MarkFillGraphicOK\n");
 						    fill = 1;
 						}
 					  }
@@ -2013,15 +2008,10 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 					if (mark->stroke->graphic != NULL)
 					  {
 					      /* external Graphic stroke */
-					      fprintf (stderr,
-						       "MarkStrokeGraphic\n");
 					      pattern_stroke =
 						  load_external_graphic_from_dbms
 						  (handle,
 						   mark->stroke->graphic);
-					      fprintf (stderr,
-						       "MarkStrokePattern=%d\n",
-						       pattern_stroke);
 					      if (pattern_stroke != NULL)
 						{
 						    switch (mark->
@@ -2917,11 +2907,342 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
       }
 }
 
+static int
+label_get_xy (sqlite3 * handle, const unsigned char *blob, int size, double *x,
+	      double *y)
+{
+/* resolving Point XY coords */
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    int ok = 0;
+
+    sql = "SELECT ST_X(?), ST_Y(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, size, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 2, blob, size, SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		*x = sqlite3_column_double (stmt, 0);
+		*y = sqlite3_column_double (stmt, 1);
+		ok = 1;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return ok;
+}
+
+static int
+label_get_centroid (sqlite3 * handle, rl2PolygonPtr polyg, double *x, double *y)
+{
+/* computing a Polygon Centroid */
+    unsigned char *blob;
+    int blob_sz;
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    int ok = 0;
+
+    if (polyg == NULL)
+	return 0;
+    if (polyg->exterior == NULL)
+	return 0;
+    if (!rl2_serialize_ring (polyg->exterior, &blob, &blob_sz))
+	return 0;
+
+    sql = "SELECT ST_Centroid(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, free);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *g_blob =
+			  (const unsigned char *) sqlite3_column_blob (stmt, 0);
+		      int g_size = sqlite3_column_bytes (stmt, 0);
+		      if (label_get_xy (handle, g_blob, g_size, x, y))
+			  ok = 1;
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return ok;
+}
+
+static int
+label_get_midpoint (sqlite3 * handle, rl2LinestringPtr line, double *x,
+		    double *y)
+{
+/* computing a Linestring MidPoint */
+    unsigned char *blob;
+    int blob_sz;
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    int ok = 0;
+
+    if (line == NULL)
+	return 0;
+    if (!rl2_serialize_linestring (line, &blob, &blob_sz))
+	return 0;
+
+    sql = "SELECT ST_Line_Interpolate_Point(?, 0.5)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, free);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *g_blob =
+			  (const unsigned char *) sqlite3_column_blob (stmt, 0);
+		      int g_size = sqlite3_column_bytes (stmt, 0);
+		      if (label_get_xy (handle, g_blob, g_size, x, y))
+			  ok = 1;
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return ok;
+}
+
+static void
+draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
+	     rl2PrivTextSymbolizerPtr sym, int height, double minx, double miny,
+	     double x_res, double y_res, rl2GeometryPtr geom,
+	     rl2PrivVariantValuePtr value)
+{
+/* drawing TextLabels */
+    rl2GraphicsFontPtr font = NULL;
+    char *dummy = NULL;
+    const char *label = NULL;
+    int font_style;
+    int font_weight;
+    double opacity;
+    unsigned char norm_opacity;
+    rl2PointPtr point;
+    rl2LinestringPtr line;
+    rl2PolygonPtr polyg;
+
+/* preparing the Text */
+    if (value->sqlite3_type == SQLITE_INTEGER)
+      {
+	  dummy = sqlite3_malloc (1024);
+#if defined(_WIN32) && !defined(__MINGW32__)
+	  sprintf (dummy, "%I64d", value->int_value);
+#else
+	  sprintf (dummy, "%lld", value->int_value);
+#endif
+	  label = dummy;
+      }
+    if (value->sqlite3_type == SQLITE_FLOAT)
+      {
+	  dummy = sqlite3_mprintf ("1.2f", value->dbl_value);
+	  label = dummy;
+      }
+    if (value->sqlite3_type == SQLITE_TEXT)
+	label = (const char *) (value->text_value);
+    if (label == NULL)
+	return;
+
+/* setting up the Font */
+    switch (sym->font_style)
+      {
+      case RL2_FONT_STYLE_ITALIC:
+	  font_style = RL2_FONTSTYLE_ITALIC;
+	  break;
+      case RL2_FONT_STYLE_OBLIQUE:
+	  font_style = RL2_FONTSTYLE_OBLIQUE;
+	  break;
+      case RL2_FONT_STYLE_NORMAL:
+      default:
+	  font_style = RL2_FONTSTYLE_NORMAL;
+	  break;
+      };
+    switch (sym->font_weight)
+      {
+      case RL2_FONT_WEIGHT_BOLD:
+	  font_weight = RL2_FONTWEIGHT_BOLD;
+	  break;
+      case RL2_FONT_WEIGHT_NORMAL:
+      default:
+	  font_weight = RL2_FONTWEIGHT_NORMAL;
+	  break;
+      };
+    font = rl2_graph_create_font (sym->font_size, font_style, font_weight);
+    if (font == NULL)
+	goto stop;
+    if (sym->fill != NULL)
+      {
+	  if (sym->fill->opacity <= 0.0)
+	      norm_opacity = 0;
+	  else if (sym->fill->opacity >= 1.0)
+	      norm_opacity = 255;
+	  else
+	    {
+		opacity = 255.0 * sym->fill->opacity;
+		if (opacity <= 0.0)
+		    norm_opacity = 0;
+		else if (opacity >= 255.0)
+		    norm_opacity = 255;
+		else
+		    norm_opacity = opacity;
+	    }
+	  rl2_graph_font_set_color (font, sym->fill->red, sym->fill->green,
+				    sym->fill->blue, norm_opacity);
+      }
+    if (sym->halo != NULL)
+      {
+	  if (sym->halo->fill->opacity <= 0.0)
+	      norm_opacity = 0;
+	  else if (sym->halo->fill->opacity >= 1.0)
+	      norm_opacity = 255;
+	  else
+	    {
+		opacity = 255.0 * sym->halo->fill->opacity;
+		if (opacity <= 0.0)
+		    norm_opacity = 0;
+		else if (opacity >= 255.0)
+		    norm_opacity = 255;
+		else
+		    norm_opacity = opacity;
+	    }
+	  rl2_graph_font_set_halo (font, sym->halo->radius,
+				   sym->halo->fill->red, sym->halo->fill->green,
+				   sym->halo->fill->blue, norm_opacity);
+      }
+    rl2_graph_set_font (ctx, font);
+
+    polyg = geom->first_polygon;
+    while (polyg)
+      {
+	  /* drawing a POLYGON-based text label */
+	  double pre_x;
+	  double pre_y;
+	  double lbl_width = 0.0;
+	  double lbl_height = 0.0;
+	  double post_x;
+	  double post_y;
+	  double shift_x;
+	  double shift_y;
+	  double cx;
+	  double cy;
+	  double x;
+	  double y;
+	  if (!label_get_centroid (handle, polyg, &cx, &cy))
+	    {
+		polyg = polyg->next;
+		continue;
+	    }
+	  x = (cx - minx) / x_res;
+	  y = (double) height - ((cy - miny) / y_res);
+	  rl2_graph_get_text_extent (ctx, label, &pre_x, &pre_y, &lbl_width,
+				     &lbl_height, &post_x, &post_y);
+	  shift_x = 0.0 - (lbl_width / 2.0);
+	  shift_y = 0.0 + (lbl_height / 2.0);
+	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0);
+	  polyg = polyg->next;
+      }
+
+    line = geom->first_linestring;
+    while (line)
+      {
+	  /* drawing a LINESTRING-based text label */
+	  double pre_x;
+	  double pre_y;
+	  double lbl_width = 0.0;
+	  double lbl_height = 0.0;
+	  double post_x;
+	  double post_y;
+	  double shift_x;
+	  double shift_y;
+	  double cx;
+	  double cy;
+	  double x;
+	  double y;
+	  label_get_midpoint (handle, line, &cx, &cy);
+	  if (!rl2_graph_get_text_extent
+	      (ctx, label, &pre_x, &pre_y, &lbl_width, &lbl_height, &post_x,
+	       &post_y))
+	    {
+		line = line->next;
+		continue;
+	    }
+	  x = (cx - minx) / x_res;
+	  y = (double) height - ((cy - miny) / y_res);
+	  shift_x = 0.0 - (lbl_width / 2.0);
+	  shift_y = 0.0 + (lbl_height / 2.0);
+	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0);
+	  line = line->next;
+      }
+
+    point = geom->first_point;
+    while (point)
+      {
+	  /* drawing a POINT-based text label */
+	  double pre_x;
+	  double pre_y;
+	  double lbl_width = 0.0;
+	  double lbl_height = 0.0;
+	  double post_x;
+	  double post_y;
+	  double shift_x;
+	  double shift_y;
+	  double x = (point->x - minx) / x_res;
+	  double y = (double) height - ((point->y - miny) / y_res);
+	  rl2_graph_get_text_extent (ctx, label, &pre_x, &pre_y, &lbl_width,
+				     &lbl_height, &post_x, &post_y);
+	  shift_x = 0.0 - (lbl_width / 2.0);
+	  shift_y = 0.0 + (lbl_height / 2.0);
+	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0);
+	  point = point->next;
+      }
+
+/* final cleanup - relasing resources */
+  stop:
+    if (dummy != NULL)
+	sqlite3_free (dummy);
+    if (font != NULL)
+	rl2_graph_destroy_font (font);
+}
+
 RL2_PRIVATE void
 rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
 			 rl2VectorSymbolizerPtr symbolizer, int height,
 			 double minx, double miny, double x_res, double y_res,
-			 rl2GeometryPtr geom)
+			 rl2GeometryPtr geom, rl2VariantArrayPtr variant)
 {
 /* drawing a vector feature on the current canvass */
     rl2PrivVectorSymbolizerItemPtr item;
@@ -3010,6 +3331,7 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
 	  sym = default_symbolizer;
       }
 
+/* we'll render all geometries first */
     if (geom->first_polygon != NULL)
 	draw_polygons (ctx, handle, sym, height, minx, miny, x_res, y_res,
 		       geom);
@@ -3017,6 +3339,42 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
 	draw_lines (ctx, handle, sym, height, minx, miny, x_res, y_res, geom);
     if (geom->first_point != NULL)
 	draw_points (ctx, handle, sym, height, minx, miny, x_res, y_res, geom);
+
+    if (sym != NULL)
+      {
+	  /* then we'll render any eventual TextSymbolizer */
+	  item = sym->first;
+	  while (item != NULL)
+	    {
+		if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+		    && item->symbolizer != NULL)
+		  {
+		      rl2PrivTextSymbolizerPtr text =
+			  (rl2PrivTextSymbolizerPtr) (item->symbolizer);
+		      if (text->label != NULL)
+			{
+			    int v;
+			    rl2PrivVariantArrayPtr var =
+				(rl2PrivVariantArrayPtr) variant;
+			    for (v = 0; v < var->count; v++)
+			      {
+				  rl2PrivVariantValuePtr val =
+				      *(var->array + v);
+				  if (val == NULL)
+				      continue;
+				  if (val->column_name == NULL)
+				      continue;
+				  if (strcasecmp (text->label, val->column_name)
+				      != 0)
+				      continue;
+				  draw_labels (ctx, handle, text, height, minx,
+					       miny, x_res, y_res, geom, val);
+			      }
+			}
+		  }
+		item = item->next;
+	    }
+      }
 
     if (default_symbolizer != NULL)
 	rl2_destroy_vector_symbolizer (default_symbolizer);

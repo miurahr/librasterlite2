@@ -3155,6 +3155,11 @@ parse_text_halo (xmlNodePtr node, rl2PrivTextSymbolizerPtr sym)
 		      sym->halo = rl2_create_default_halo ();
 		      if (sym->halo == NULL)
 			  return;
+		      sym->halo->fill = rl2_create_default_fill ();
+		      sym->halo->fill->red = 255;
+		      sym->halo->fill->green = 255;
+		      sym->halo->fill->blue = 255;
+		      sym->halo->fill->opacity = 1.0;
 		      while (child)
 			{
 			    if (child->type == XML_ELEMENT_NODE)
@@ -3204,6 +3209,10 @@ parse_text_fill (xmlNodePtr node, rl2PrivTextSymbolizerPtr sym)
 		  {
 		      xmlNodePtr child = node->children;
 		      sym->fill = rl2_create_default_fill ();
+		      sym->fill->red = 0;
+		      sym->fill->green = 0;
+		      sym->fill->blue = 0;
+		      sym->fill->opacity = 1.0;
 		      if (sym->fill == NULL)
 			  return;
 		      while (child)
@@ -3979,14 +3988,63 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
     int i;
     int j;
     rl2PrivStyleRulePtr pR;
+    rl2PrivVectorSymbolizerPtr pV;
+    rl2PrivVectorSymbolizerItemPtr item;
+    rl2PrivTextSymbolizerPtr text;
 
     pR = style->first_rule;
     while (pR != NULL)
       {
 	  /* counting max column names */
 	  if (pR->column_name != NULL)
-	      count++;
+	    {
+		count++;
+		if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+		  {
+		      pV = (rl2PrivVectorSymbolizerPtr) (pR->style);
+		      item = pV->first;
+		      while (item != NULL)
+			{
+			    if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+				&& item->symbolizer != NULL)
+			      {
+				  text =
+				      (rl2PrivTextSymbolizerPtr)
+				      (item->symbolizer);
+				  if (text->label != NULL)
+				      count++;
+			      }
+			    item = item->next;
+			}
+		  }
+	    }
 	  pR = pR->next;
+      }
+    pR = style->else_rule;
+    if (pR != NULL)
+      {
+	  if (pR->column_name != NULL)
+	    {
+		count++;
+		if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+		  {
+		      pV = (rl2PrivVectorSymbolizerPtr) (pR->style);
+		      item = pV->first;
+		      while (item != NULL)
+			{
+			    if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+				&& item->symbolizer != NULL)
+			      {
+				  text =
+				      (rl2PrivTextSymbolizerPtr)
+				      (item->symbolizer);
+				  if (text->label != NULL)
+				      count++;
+			      }
+			    item = item->next;
+			}
+		  }
+	    }
       }
     if (count == 0)
 	return;
@@ -4005,8 +4063,68 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 		strcpy (*(strings + i), pR->column_name);
 		*(dupl + i) = 'N';
 		i++;
+		if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+		  {
+		      pV = (rl2PrivVectorSymbolizerPtr) (pR->style);
+		      item = pV->first;
+		      while (item != NULL)
+			{
+			    if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+				&& item->symbolizer != NULL)
+			      {
+				  text =
+				      (rl2PrivTextSymbolizerPtr)
+				      (item->symbolizer);
+				  if (text->label != NULL)
+				    {
+					len = strlen (text->label);
+					*(strings + i) = malloc (len + 1);
+					strcpy (*(strings + i), text->label);
+					*(dupl + i) = 'N';
+					i++;
+				    }
+			      }
+			    item = item->next;
+			}
+		  }
 	    }
 	  pR = pR->next;
+      }
+    pR = style->else_rule;
+    if (pR != NULL)
+      {
+	  if (pR->column_name != NULL)
+	    {
+		len = strlen (pR->column_name);
+		*(strings + i) = malloc (len + 1);
+		strcpy (*(strings + i), pR->column_name);
+		*(dupl + i) = 'N';
+		i++;
+		if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+		  {
+		      pV = (rl2PrivVectorSymbolizerPtr) (pR->style);
+		      item = pV->first;
+		      while (item != NULL)
+			{
+			    if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+				&& item->symbolizer != NULL)
+			      {
+				  text =
+				      (rl2PrivTextSymbolizerPtr)
+				      (item->symbolizer);
+				  if (text->label != NULL)
+				    {
+					len = strlen (text->label);
+					*(strings + i) = malloc (len + 1);
+					strcpy (*(strings + i), text->label);
+					*(dupl + i) = 'N';
+					i++;
+				    }
+			      }
+			    item = item->next;
+			}
+		  }
+	    }
       }
 
     for (i = 0; i < count; i++)

@@ -417,7 +417,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 	  fprintf (stderr, "Unable to set the font color #2\n");
 	  return -52;
       }
-    if (!rl2_graph_font_set_outline (font, 1.5))
+    if (!rl2_graph_font_set_halo (font, 1.5, 255, 255, 255, 255))
       {
 	  fprintf (stderr, "Unable to set the font outline\n");
 	  return -53;
@@ -1224,7 +1224,7 @@ main (int argc, char *argv[])
     if (ret < 0)
 	return ret;
     rl2_graph_destroy_context (svg);
-    //unlink ("./test_paint.svg");
+    unlink ("./test_paint.svg");
 
 /* testing the PDF backend */
     pdf =
@@ -1239,7 +1239,7 @@ main (int argc, char *argv[])
     if (ret < 0)
 	return ret;
     rl2_graph_destroy_context (pdf);
-    //unlink ("./test_paint.pdf");
+    unlink ("./test_paint.pdf");
 
 /* testing an ordinary graphics backend */
     ctx = rl2_graph_create_context (2048, 2048);
@@ -1289,7 +1289,7 @@ main (int argc, char *argv[])
 	  return -8;
       }
     rl2_destroy_section (img);
-    //unlink ("./test_paint.png");
+    unlink ("./test_paint.png");
 
     return 0;
 }

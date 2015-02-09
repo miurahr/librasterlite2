@@ -880,7 +880,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
       }
     if (strcmp (style_name, "label_2") == 0)
       {
-	  if (intval == 0)
+	  if (intval == 1)
 	      red = 1;
       }
     if (strcmp (style_name, "label_3") == 0)
@@ -895,8 +895,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
       }
 
     ret = rl2_text_symbolizer_get_halo_fill_color (text, &red, &green, &blue);
-    if (strcmp (style_name, "label_2") == 0
-	|| strcmp (style_name, "label_3") == 0)
+    if (strcmp (style_name, "label_3") == 0)
       {
 	  if (ret == RL2_OK)
 	    {

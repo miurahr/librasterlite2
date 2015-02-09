@@ -129,8 +129,12 @@ typedef struct rl2_graphics_context
     double font_green;
     double font_blue;
     double font_alpha;
-    int is_font_outlined;
-    double font_outline_width;
+    int with_font_halo;
+    double halo_radius;
+    double halo_red;
+    double halo_green;
+    double halo_blue;
+    double halo_alpha;
 } RL2GraphContext;
 typedef RL2GraphContext *RL2GraphContextPtr;
 
@@ -149,14 +153,18 @@ typedef struct rl2_graphics_font
 {
 /* a struct wrapping a Cairo Font */
     double size;
-    int is_outlined;
-    double outline_width;
+    double font_red;
+    double font_green;
+    double font_blue;
+    double font_alpha;
+    int with_halo;
+    double halo_radius;
+    double halo_red;
+    double halo_green;
+    double halo_blue;
+    double halo_alpha;
     int style;
     int weight;
-    double red;
-    double green;
-    double blue;
-    double alpha;
 } RL2GraphFont;
 typedef RL2GraphFont *RL2GraphFontPtr;
 
@@ -230,8 +238,12 @@ rl2_graph_create_context (int width, int height)
     ctx->font_green = 0.0;
     ctx->font_blue = 0.0;
     ctx->font_alpha = 1.0;
-    ctx->is_font_outlined = 0;
-    ctx->font_outline_width = 0.0;
+    ctx->with_font_halo = 0;
+    ctx->halo_radius = 0.0;
+    ctx->halo_red = 1.0;
+    ctx->halo_green = 1.0;
+    ctx->halo_blue = 1.0;
+    ctx->halo_alpha = 1.0;
     return (rl2GraphicsContextPtr) ctx;
   error2:
     cairo_destroy (ctx->cairo);
@@ -359,8 +371,12 @@ rl2_graph_create_svg_context (const char *path, int width, int height)
     ctx->font_green = 0.0;
     ctx->font_blue = 0.0;
     ctx->font_alpha = 1.0;
-    ctx->is_font_outlined = 0;
-    ctx->font_outline_width = 0.0;
+    ctx->with_font_halo = 0;
+    ctx->halo_radius = 0.0;
+    ctx->halo_red = 1.0;
+    ctx->halo_green = 1.0;
+    ctx->halo_blue = 1.0;
+    ctx->halo_alpha = 1.0;
     return (rl2GraphicsContextPtr) ctx;
   error2:
     cairo_destroy (ctx->cairo);
@@ -454,8 +470,12 @@ rl2_graph_create_pdf_context (const char *path, int dpi, double page_width,
     ctx->font_green = 0.0;
     ctx->font_blue = 0.0;
     ctx->font_alpha = 1.0;
-    ctx->is_font_outlined = 0;
-    ctx->font_outline_width = 0.0;
+    ctx->with_font_halo = 0;
+    ctx->halo_radius = 0.0;
+    ctx->halo_red = 1.0;
+    ctx->halo_green = 1.0;
+    ctx->halo_blue = 1.0;
+    ctx->halo_alpha = 1.0;
     return (rl2GraphicsContextPtr) ctx;
   error4:
     cairo_destroy (ctx->clip_cairo);
@@ -594,8 +614,12 @@ rl2_graph_create_mem_pdf_context (rl2MemPdfPtr mem_pdf, int dpi,
     ctx->font_green = 0.0;
     ctx->font_blue = 0.0;
     ctx->font_alpha = 1.0;
-    ctx->is_font_outlined = 0;
-    ctx->font_outline_width = 0.0;
+    ctx->with_font_halo = 0;
+    ctx->halo_radius = 0.0;
+    ctx->halo_red = 1.0;
+    ctx->halo_green = 1.0;
+    ctx->halo_blue = 1.0;
+    ctx->halo_alpha = 1.0;
     return (rl2GraphicsContextPtr) ctx;
   error4:
     cairo_destroy (ctx->clip_cairo);
@@ -1092,19 +1116,27 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 
     if (fnt->style == RL2_FONTSTYLE_ITALIC)
 	style = CAIRO_FONT_SLANT_ITALIC;
+    if (fnt->style == RL2_FONTSTYLE_OBLIQUE)
+	style = CAIRO_FONT_SLANT_OBLIQUE;
     if (fnt->weight == RL2_FONTWEIGHT_BOLD)
 	weight = CAIRO_FONT_WEIGHT_BOLD;
     cairo_select_font_face (cairo, "monospace", style, weight);
     size = fnt->size;
-    if (fnt->is_outlined)
-	size += fnt->outline_width;
+    ctx->font_red = fnt->font_red;
+    ctx->font_green = fnt->font_green;
+    ctx->font_blue = fnt->font_blue;
+    ctx->font_alpha = fnt->font_alpha;
+    ctx->with_font_halo = fnt->with_halo;
+    if (fnt->with_halo)
+      {
+	  ctx->halo_radius = fnt->halo_radius;
+	  ctx->halo_red = fnt->halo_red;
+	  ctx->halo_green = fnt->halo_green;
+	  ctx->halo_blue = fnt->halo_blue;
+	  ctx->halo_alpha = fnt->halo_alpha;
+	  size += fnt->halo_radius;
+      }
     cairo_set_font_size (cairo, size);
-    ctx->font_red = fnt->red;
-    ctx->font_green = fnt->green;
-    ctx->font_blue = fnt->blue;
-    ctx->font_alpha = fnt->alpha;
-    ctx->is_font_outlined = fnt->is_outlined;
-    ctx->font_outline_width = fnt->outline_width;
 
     return 1;
 }
@@ -1221,18 +1253,24 @@ rl2_graph_create_font (double size, int style, int weight)
 	fnt->size = size;
     if (style == RL2_FONTSTYLE_ITALIC)
 	fnt->style = RL2_FONTSTYLE_ITALIC;
+    else if (style == RL2_FONTSTYLE_OBLIQUE)
+	fnt->style = RL2_FONTSTYLE_OBLIQUE;
     else
 	fnt->style = RL2_FONTSTYLE_NORMAL;
     if (weight == RL2_FONTWEIGHT_BOLD)
 	fnt->weight = RL2_FONTWEIGHT_BOLD;
     else
 	fnt->weight = RL2_FONTWEIGHT_NORMAL;
-    fnt->is_outlined = 0;
-    fnt->outline_width = 0.0;
-    fnt->red = 0.0;
-    fnt->green = 0.0;
-    fnt->blue = 0.0;
-    fnt->alpha = 1.0;
+    fnt->font_red = 0.0;
+    fnt->font_green = 0.0;
+    fnt->font_blue = 0.0;
+    fnt->font_alpha = 1.0;
+    fnt->with_halo = 0;
+    fnt->halo_radius = 0.0;
+    fnt->halo_red = 0.0;
+    fnt->halo_green = 0.0;
+    fnt->halo_blue = 0.0;
+    fnt->halo_alpha = 1.0;
     return (rl2GraphicsFontPtr) fnt;
 }
 
@@ -1259,31 +1297,37 @@ rl2_graph_font_set_color (rl2GraphicsFontPtr font, unsigned char red,
     if (fnt == NULL)
 	return 0;
 
-    fnt->red = (double) red / 255.0;
-    fnt->green = (double) green / 255.0;
-    fnt->blue = (double) blue / 255.0;
-    fnt->alpha = (double) alpha / 255.0;
+    fnt->font_red = (double) red / 255.0;
+    fnt->font_green = (double) green / 255.0;
+    fnt->font_blue = (double) blue / 255.0;
+    fnt->font_alpha = (double) alpha / 255.0;
     return 1;
 }
 
 RL2_DECLARE int
-rl2_graph_font_set_outline (rl2GraphicsFontPtr font, double width)
+rl2_graph_font_set_halo (rl2GraphicsFontPtr font, double radius,
+			 unsigned char red, unsigned char green,
+			 unsigned char blue, unsigned char alpha)
 {
-/* setting up the font outline */
+/* setting up the font Halo */
     RL2GraphFontPtr fnt = (RL2GraphFontPtr) font;
 
     if (fnt == NULL)
 	return 0;
 
-    if (width <= 0.0)
+    if (radius <= 0.0)
       {
-	  fnt->is_outlined = 0;
-	  fnt->outline_width = 0.0;
+	  fnt->with_halo = 0;
+	  fnt->halo_radius = 0.0;
       }
     else
       {
-	  fnt->is_outlined = 1;
-	  fnt->outline_width = width;
+	  fnt->with_halo = 1;
+	  fnt->halo_radius = radius;
+	  fnt->halo_red = (double) red / 255.0;
+	  fnt->halo_green = (double) green / 255.0;
+	  fnt->halo_blue = (double) blue / 255.0;
+	  fnt->halo_alpha = (double) alpha / 255.0;
       }
     return 1;
 }
@@ -1758,21 +1802,22 @@ rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text, double x,
     cairo_save (cairo);
     cairo_translate (cairo, x, y);
     cairo_rotate (cairo, angle);
-    if (ctx->is_font_outlined)
+    if (ctx->with_font_halo)
       {
-	  /* outlined font */
+	  /* font with Halo */
 	  cairo_move_to (cairo, 0.0, 0.0);
 	  cairo_text_path (cairo, text);
 	  cairo_set_source_rgba (cairo, ctx->font_red, ctx->font_green,
 				 ctx->font_blue, ctx->font_alpha);
 	  cairo_fill_preserve (cairo);
-	  cairo_set_source_rgba (cairo, 1.0, 1.0, 1.0, ctx->font_alpha);
-	  cairo_set_line_width (cairo, ctx->font_outline_width);
+	  cairo_set_source_rgba (cairo, ctx->halo_red, ctx->halo_green,
+				 ctx->halo_blue, ctx->halo_alpha);
+	  cairo_set_line_width (cairo, ctx->halo_radius);
 	  cairo_stroke (cairo);
       }
     else
       {
-	  /* no outline */
+	  /* no Halo */
 	  cairo_set_source_rgba (cairo, ctx->font_red, ctx->font_green,
 				 ctx->font_blue, ctx->font_alpha);
 	  cairo_move_to (cairo, 0.0, 0.0);

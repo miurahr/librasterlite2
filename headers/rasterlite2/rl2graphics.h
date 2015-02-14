@@ -711,11 +711,11 @@ extern "C"
  rl2_graph_set_font
  */
     RL2_DECLARE int rl2_graph_font_set_halo (rl2GraphicsFontPtr font,
-						double radius,
-					      unsigned char red,
-					      unsigned char green,
-					      unsigned char blue,
-					      unsigned char alpha);
+					     double radius,
+					     unsigned char red,
+					     unsigned char green,
+					     unsigned char blue,
+					     unsigned char alpha);
 
 /**
  Creates a Graphics Bitmap 

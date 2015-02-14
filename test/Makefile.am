@@ -21,12 +21,13 @@ check_PROGRAMS = test_coverage test_palette \
 	test_svg test_raw test_openjpeg \
 	test_line_symbolizer test_polygon_symbolizer \
 	test_point_symbolizer test_text_symbolizer \
-	test_vectors
+	test_vectors test_font
 
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
 	@LIBWEBP_LIBS@ @LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ \
-	@LIBCURL_LIBS@ @LIBXML2_LIBS@ $(GCOV_FLAGS)
+	@LIBCURL_LIBS@ @LIBXML2_LIBS@  @LIBFREETYPE2_LIBS@ \
+	$(GCOV_FLAGS)
 
 TESTS = $(check_PROGRAMS)
 
@@ -104,7 +105,7 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	Roundel_of_the_Royal_Canadian_Air_Force_(1946-1965).svg \
 	Roundel_of_the_Syrian_Air_Force.svg \
 	Royal_Coat_of_Arms_of_the_United_Kingdom.svg \
-	supermarket.svg tobacco.svg Cevennes2.jp2
+	supermarket.svg tobacco.svg Cevennes2.jp2 Karla-BoldItalic.ttf
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 

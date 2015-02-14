@@ -137,6 +137,7 @@ PKG_CHECK_MODULES([LIBPNG], [libpng], , AC_MSG_ERROR(['libpng' is required but i
 AC_SUBST(LIBPNG_CFLAGS)
 AC_SUBST(LIBPNG_LIBS)
 
+
 #-----------------------------------------------------------------------
 #   --enable-openjpeg
 #
@@ -234,6 +235,10 @@ AC_SUBST(LIBCURL_LIBS)
 PKG_CHECK_MODULES([LIBXML2], [libxml-2.0], , AC_MSG_ERROR(['libxml2' is required but it doesn't seem to be installed on this system.]))
 AC_SUBST(LIBXML2_CFLAGS)
 AC_SUBST(LIBXML2_LIBS)
+
+PKG_CHECK_MODULES([FREETYPE2], [freetype2], , AC_MSG_ERROR(['freetype2' is required but it doesn't seem to be installed on this system.]))
+AC_SUBST(LIBFREETYPE2_CFLAGS)
+AC_SUBST(LIBFREETYPE2_LIBS)
 
 # Checking for MinGW
 AM_CONDITIONAL([MINGW], [test "$target_alias" = "mingw32"])

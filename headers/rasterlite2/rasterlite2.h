@@ -4376,6 +4376,135 @@ extern "C"
 	rl2_gray_pdf (unsigned int width, unsigned int height,
 		      unsigned char **pdf, int *pdf_size);
 
+/**
+ Encodes a Font into the corresponding BLOB serialized format
+
+ \param font pointer to a memory block containig the Font.
+ \param font_sz the size (in bytes) of the in-memory Font,
+ \param blob on completion will point to the created encoded BLOB.
+ \param blob_sz on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the BLOB.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_font_decode, rl2_is_valid_encoded_font,
+ rl2_get_encoded_font_family, rl2_get_encoded_font_style,
+ rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ BLOB serialized Font.
+ */
+    RL2_DECLARE int
+	rl2_font_encode (const unsigned char *font, int font_sz,
+			 unsigned char **blob, int *blob_sz);
+
+/**
+ Tests a BLOB serialized Font for validity
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_font_encode, rl2_font_decode, rl2_get_encoded_font_family, 
+ rl2_get_encoded_font_style, rl2_is_encoded_font_bold, 
+ rl2_is_encoded_font_italic
+ */
+    RL2_DECLARE int
+	rl2_is_valid_encoded_font (const unsigned char *blob, int blob_sz);
+
+/**
+ Decodes a Font from the corresponding BLOB serialized format
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ \param font on completion will point to a memory block containing the
+ decoded Font.
+ \param font_sz on completion the variable referenced by this
+ pointer will contain the size (in bytes) of in-memory Font.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_font_encode, rl2_is_valid_encoded_font,
+ rl2_get_encoded_font_family, rl2_get_encoded_font_style,
+ rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
+ 
+ \note you are responsible to destroy (before or after) the memory 
+ block created by this function and containing the Font.
+ */
+    RL2_DECLARE int
+	rl2_font_decode (const unsigned char *blob, int blob_sz,
+			 unsigned char **font, int *font_sz);
+
+/**
+ Returns the Family name from a BLOB serialized Font
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ 
+ \return the Family name; or NULL on invalid args.
+
+ \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font,
+ rl2_get_encoded_font_style, rl2_is_encoded_font_bold, 
+ rl2_is_encoded_font_italic
+ 
+ \note you are responsible to destroy (before or after) the text
+ string returned by this function.
+ */
+    RL2_DECLARE char *rl2_get_encoded_font_family (const unsigned char
+						   *blob, int blob_sz);
+
+/**
+ Returns the Style name from a BLOB serialized Font
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ 
+ \return the Style name (could be eventually NULL for some valid fonts).
+
+ \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font, 
+ rl2_get_encoded_font_family, rl2_is_encoded_font_bold, 
+ rl2_is_encoded_font_italic
+ 
+ \note you are responsible to destroy (before or after) the text
+ string returned by this function.
+ */
+    RL2_DECLARE char *rl2_get_encoded_font_style (const unsigned char
+						  *blob, int blob_sz);
+
+/**
+ Tests if a BLOB serialized Font is Bold
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ 
+ \return FALSE (0) if the Font isn't Bold, any otherpositive value 
+ if it's Bold. a negative value will be returned on invalid args.
+
+ \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font, 
+ rl2_get_encoded_font_family, rl2_get_encoded_font_style, 
+ rl2_is_encoded_font_italic
+ */
+    RL2_DECLARE int rl2_is_encoded_font_bold (const unsigned char *blob,
+					      int blob_sz);
+
+/**
+ Tests if a BLOB serialized Font is Italic
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ 
+ \return FALSE (0) if the Font isn't Italic, any other positive value 
+ if it's Italic. a negative value will be returned on invalid args.
+
+ \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font, 
+ rl2_get_encoded_font_family, rl2_get_encoded_font_style, 
+ rl2_is_encoded_font_bold
+ */
+    RL2_DECLARE int rl2_is_encoded_font_italic (const unsigned char
+						*blob, int blob_sz);
+
+
     RL2_DECLARE int
 	rl2_parse_hexrgb (const char *hex, unsigned char *red,
 			  unsigned char *green, unsigned char *blue);

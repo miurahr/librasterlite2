@@ -71,6 +71,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define ERR_FRMT64 "ERROR: unable to decode Tile ID=%lld\n"
 #endif
 
+#define MAX_FONT_SIZE	2*1024*1024
+
 static void
 fnct_rl2_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
@@ -2551,6 +2553,302 @@ fnct_DropRasterCoverage (sqlite3_context * context, int argc,
 	  sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
       }
     return;
+}
+
+static void
+fnct_LoadFontFromFile (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
+{
+/* SQL function:
+/ LoadFontFromFile(text font-path)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    FILE *in = NULL;
+    unsigned char *buffer = NULL;
+    int buf_size;
+    const char *font_path;
+    sqlite3 *sqlite;
+    unsigned char *blob = NULL;
+    int blob_sz;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    sqlite = sqlite3_context_db_handle (context);
+    font_path = (const char *) sqlite3_value_text (argv[0]);
+
+/* loading the font from the external file */
+    in = fopen (font_path, "rb");
+    if (in == NULL)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+    buffer = malloc (MAX_FONT_SIZE);
+    if (buffer == NULL)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+    buf_size = fread (buffer, 1, MAX_FONT_SIZE, in);
+    fclose (in);
+
+/* attempting to encode the Font */
+    if (rl2_font_encode (buffer, buf_size, &blob, &blob_sz) != RL2_OK)
+      {
+	  free (buffer);
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+    free (buffer);
+
+/* attempting to insert/update the Font */
+    if (rl2_load_font_into_dbms (sqlite, blob, blob_sz) != RL2_OK)
+	sqlite3_result_int (context, 0);
+    else
+	sqlite3_result_int (context, 1);
+    return;
+}
+
+static void
+fnct_ExportFontToFile (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
+{
+/* SQL function:
+/ ExportFontToFile(text family, text style_name, text font-path)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    FILE *out = NULL;
+    unsigned char *buffer = NULL;
+    int buf_size;
+    const char *family_name;
+    const char *style_name;
+    const char *font_path;
+    sqlite3 *sqlite;
+    int wr;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    family_name = (const char *) sqlite3_value_text (argv[0]);
+    if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
+	style_name = (const char *) sqlite3_value_text (argv[1]);
+    else if (sqlite3_value_type (argv[1]) == SQLITE_NULL)
+	style_name = NULL;
+    else
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    font_path = (const char *) sqlite3_value_text (argv[2]);
+
+    sqlite = sqlite3_context_db_handle (context);
+
+/* attempting to get the Font */
+    if (rl2_get_font_from_dbms
+	(sqlite, family_name, style_name, &buffer, &buf_size) != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+
+/* creating/opening the external output file */
+    out = fopen (font_path, "wb");
+    if (out == NULL)
+      {
+	  free (buffer);
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+/* exporting the Font */
+    wr = fwrite (buffer, 1, buf_size, out);
+    if (wr != buf_size)
+      {
+	  free (buffer);
+	  fclose (out);
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+    free (buffer);
+    fclose (out);
+    sqlite3_result_int (context, 1);
+}
+
+static void
+fnct_IsValidFont (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsValidFont(BLOB serialized-font)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    blob = (const unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    ret = rl2_is_valid_encoded_font (blob, blob_sz);
+    if (ret == RL2_OK)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+}
+
+static void
+fnct_GetFontFamily (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetFontFamily(BLOB serialized-font)
+/
+/ will return the Font Family name (e.g. Roboto)
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz;
+    char *family_name;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+
+    blob = (const unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    family_name = rl2_get_encoded_font_family (blob, blob_sz);
+    if (family_name == NULL)
+	sqlite3_result_null (context);
+    else
+	sqlite3_result_text (context, family_name, strlen (family_name), free);
+}
+
+static void
+fnct_GetFontFacename (sqlite3_context * context, int argc,
+		      sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetFontFacename(BLOB serialized-font)
+/
+/ will return the Font facename (e.g. Roboto-BoldItalic)
+/ or NULL (INVALID ARGS)
+/
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz;
+    char *family_name;
+    char *style_name;
+    char *facename;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+
+    blob = (const unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    family_name = rl2_get_encoded_font_family (blob, blob_sz);
+    style_name = rl2_get_encoded_font_style (blob, blob_sz);
+    if (family_name == NULL)
+	sqlite3_result_null (context);
+    else
+      {
+	  if (style_name == NULL)
+	      facename = sqlite3_mprintf ("%s", family_name);
+	  else
+	      facename = sqlite3_mprintf ("%s-%s", family_name, style_name);
+	  sqlite3_result_text (context, facename, strlen (facename),
+			       sqlite3_free);
+      }
+    if (family_name != NULL)
+	free (family_name);
+    if (style_name != NULL)
+	free (style_name);
+}
+
+static void
+fnct_IsFontBold (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsFontBold(BLOB serialized-font)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    blob = (const unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    ret = rl2_is_encoded_font_bold (blob, blob_sz);
+    sqlite3_result_int (context, ret);
+}
+
+static void
+fnct_IsFontItalic (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsFontItalic(BLOB serialized-font)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz;
+    int ret;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    blob = (const unsigned char *) sqlite3_value_blob (argv[0]);
+    blob_sz = sqlite3_value_bytes (argv[0]);
+    ret = rl2_is_encoded_font_italic (blob, blob_sz);
+    sqlite3_result_int (context, ret);
 }
 
 static void
@@ -9044,6 +9342,26 @@ register_rl2_sql_functions (void *p_db)
 			     fnct_PixelEquals, 0, 0);
     sqlite3_create_function (db, "RL2_PixelEquals", 2, SQLITE_ANY, 0,
 			     fnct_PixelEquals, 0, 0);
+    sqlite3_create_function (db, "IsValidFont", 1, SQLITE_ANY, 0,
+			     fnct_IsValidFont, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidFont", 1, SQLITE_ANY, 0,
+			     fnct_IsValidFont, 0, 0);
+    sqlite3_create_function (db, "GetFontFamily", 1, SQLITE_ANY, 0,
+			     fnct_GetFontFamily, 0, 0);
+    sqlite3_create_function (db, "RL2_GetFontFamily", 1, SQLITE_ANY, 0,
+			     fnct_GetFontFamily, 0, 0);
+    sqlite3_create_function (db, "GetFontFacename", 1, SQLITE_ANY, 0,
+			     fnct_GetFontFacename, 0, 0);
+    sqlite3_create_function (db, "RL2_GetFontFacename", 1, SQLITE_ANY, 0,
+			     fnct_GetFontFacename, 0, 0);
+    sqlite3_create_function (db, "IsFontBold", 1, SQLITE_ANY, 0,
+			     fnct_IsFontBold, 0, 0);
+    sqlite3_create_function (db, "RL2_IsFontBold", 1, SQLITE_ANY, 0,
+			     fnct_IsFontBold, 0, 0);
+    sqlite3_create_function (db, "IsFontItalic", 1, SQLITE_ANY, 0,
+			     fnct_IsFontItalic, 0, 0);
+    sqlite3_create_function (db, "RL2_IsFontItalic", 1, SQLITE_ANY, 0,
+			     fnct_IsFontItalic, 0, 0);
     sqlite3_create_function (db, "GetRasterStatistics_NoDataPixelsCount", 1,
 			     SQLITE_ANY, 0,
 			     fnct_GetRasterStatistics_NoDataPixelsCount, 0, 0);
@@ -9305,6 +9623,14 @@ register_rl2_sql_functions (void *p_db)
 	;
     else if (strcasecmp (security_level, "relaxed") == 0)
       {
+	  sqlite3_create_function (db, "LoadFontFromFile", 1, SQLITE_ANY, 0,
+				   fnct_LoadFontFromFile, 0, 0);
+	  sqlite3_create_function (db, "RL2_LoadFontFromFile", 1, SQLITE_ANY, 0,
+				   fnct_LoadFontFromFile, 0, 0);
+	  sqlite3_create_function (db, "ExportFontToFile", 3, SQLITE_ANY, 0,
+				   fnct_ExportFontToFile, 0, 0);
+	  sqlite3_create_function (db, "RL2_ExportFontToFile", 3, SQLITE_ANY, 0,
+				   fnct_ExportFontToFile, 0, 0);
 	  sqlite3_create_function (db, "LoadRaster", 2, SQLITE_ANY, 0,
 				   fnct_LoadRaster, 0, 0);
 	  sqlite3_create_function (db, "LoadRaster", 3, SQLITE_ANY, 0,

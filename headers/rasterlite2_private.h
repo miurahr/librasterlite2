@@ -132,6 +132,8 @@ extern "C"
 #define RL2_SAMPLE_END				0x26
 #define RL2_CHARLS_START			0x35
 #define RL2_CHARLS_END				0x79
+#define RL2_FONT_START				0xa7
+#define RL2_FONT_END				0x7b
 
 /* internal ColorSpace forced conversions */
 #define RL2_CONVERT_NO				0x00
@@ -200,25 +202,25 @@ extern "C"
 #define RL2_CONVERT_GRID_DOUBLE_TO_FLOAT	0x3f
 
 /* internal Style Rule constants */
-#define RL2_UNKNOWN_STYLE				0xf0
-#define RL2_VECTOR_STYLE				0xfa
-#define RL2_RASTER_STYLE				0xfb
+#define RL2_UNKNOWN_STYLE			0xf0
+#define RL2_VECTOR_STYLE			0xfa
+#define RL2_RASTER_STYLE			0xfb
 
 /* internal Graphic types */
-#define RL2_UNKNOWN_GRAPHIC		0x8a
-#define RL2_EXTERNAL_GRAPHIC	0x8c
-#define RL2_MARK_GRAPHIC		0x8d
+#define RL2_UNKNOWN_GRAPHIC			0x8a
+#define RL2_EXTERNAL_GRAPHIC			0x8c
+#define RL2_MARK_GRAPHIC			0x8d
 
 /* internal Style Rule comparison Ops */
-#define RL2_COMPARISON_NONE				0xa0
-#define RL2_COMPARISON_EQ				0xa1
-#define RL2_COMPARISON_NE				0xa2
-#define RL2_COMPARISON_LT				0xa3
-#define RL2_COMPARISON_GT				0xa4
-#define RL2_COMPARISON_LE				0xa5
-#define RL2_COMPARISON_GE				0xa6
-#define RL2_COMPARISON_LIKE				0xa7
-#define RL2_COMPARISON_NULL				0xa8
+#define RL2_COMPARISON_NONE			0xa0
+#define RL2_COMPARISON_EQ			0xa1
+#define RL2_COMPARISON_NE			0xa2
+#define RL2_COMPARISON_LT			0xa3
+#define RL2_COMPARISON_GT			0xa4
+#define RL2_COMPARISON_LE			0xa5
+#define RL2_COMPARISON_GE			0xa6
+#define RL2_COMPARISON_LIKE			0xa7
+#define RL2_COMPARISON_NULL			0xa8
 #define RL2_COMPARISON_BETWEEN			0xa9
 
 /* internal RasterSymbolizer constants */
@@ -1893,6 +1895,14 @@ extern "C"
 
     RL2_PRIVATE int rl2_serialize_ring (rl2RingPtr ring, unsigned char **blob,
 					int *blob_sz);
+
+    RL2_PRIVATE int rl2_load_font_into_dbms (sqlite3 * handle,
+					     unsigned char *blob, int blob_sz);
+
+    RL2_PRIVATE int rl2_get_font_from_dbms (sqlite3 * handle,
+					    const char *family_name,
+					    const char *style_name,
+					    unsigned char **font, int *font_sz);
 
 #ifdef __cplusplus
 }

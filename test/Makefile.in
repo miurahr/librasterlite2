@@ -101,7 +101,7 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_svg$(EXEEXT) test_raw$(EXEEXT) test_openjpeg$(EXEEXT) \
 	test_line_symbolizer$(EXEEXT) test_polygon_symbolizer$(EXEEXT) \
 	test_point_symbolizer$(EXEEXT) test_text_symbolizer$(EXEEXT) \
-	test_vectors$(EXEEXT)
+	test_vectors$(EXEEXT) test_font$(EXEEXT)
 subdir = test
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -186,6 +186,9 @@ test9_LDADD = $(LDADD)
 test_coverage_SOURCES = test_coverage.c
 test_coverage_OBJECTS = test_coverage.$(OBJEXT)
 test_coverage_LDADD = $(LDADD)
+test_font_SOURCES = test_font.c
+test_font_OBJECTS = test_font.$(OBJEXT)
+test_font_LDADD = $(LDADD)
 test_gif_SOURCES = test_gif.c
 test_gif_OBJECTS = test_gif.$(OBJEXT)
 test_gif_LDADD = $(LDADD)
@@ -340,23 +343,24 @@ am__v_CCLD_1 =
 SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test14.c test15.c test16.c test17.c test18.c test19.c test2.c \
 	test20.c test3.c test4.c test5.c test6.c test7.c test8.c \
-	test9.c test_coverage.c test_gif.c test_line_symbolizer.c \
-	test_load_wms.c test_map_ascii.c test_map_gray.c \
-	test_map_indiana.c test_map_infrared.c test_map_mono.c \
-	test_map_nile_32.c test_map_nile_8.c test_map_nile_dbl.c \
-	test_map_nile_flt.c test_map_nile_u16.c test_map_nile_u32.c \
-	test_map_nile_u8.c test_map_noref.c test_map_orbetello.c \
-	test_map_rgb.c test_map_srtm.c test_map_trento.c \
-	test_map_trieste.c test_mask.c test_openjpeg.c test_paint.c \
-	test_palette.c test_point_symbolizer.c \
-	test_polygon_symbolizer.c test_raster.c \
-	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
-	test_text_symbolizer.c test_tifin.c test_vectors.c test_webp.c \
-	test_wms1.c test_wms2.c test_wr_tiff.c
+	test9.c test_coverage.c test_font.c test_gif.c \
+	test_line_symbolizer.c test_load_wms.c test_map_ascii.c \
+	test_map_gray.c test_map_indiana.c test_map_infrared.c \
+	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
+	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
+	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
+	test_map_orbetello.c test_map_rgb.c test_map_srtm.c \
+	test_map_trento.c test_map_trieste.c test_mask.c \
+	test_openjpeg.c test_paint.c test_palette.c \
+	test_point_symbolizer.c test_polygon_symbolizer.c \
+	test_raster.c test_raster_symbolizer.c test_raw.c \
+	test_section.c test_svg.c test_text_symbolizer.c test_tifin.c \
+	test_vectors.c test_webp.c test_wms1.c test_wms2.c \
+	test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
-	test8.c test9.c test_coverage.c test_gif.c \
+	test8.c test9.c test_coverage.c test_font.c test_gif.c \
 	test_line_symbolizer.c test_load_wms.c test_map_ascii.c \
 	test_map_gray.c test_map_indiana.c test_map_infrared.c \
 	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
@@ -670,6 +674,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+FREETYPE2_CFLAGS = @FREETYPE2_CFLAGS@
+FREETYPE2_LIBS = @FREETYPE2_LIBS@
 GREP = @GREP@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -682,6 +688,8 @@ LIBCAIRO_CFLAGS = @LIBCAIRO_CFLAGS@
 LIBCAIRO_LIBS = @LIBCAIRO_LIBS@
 LIBCURL_CFLAGS = @LIBCURL_CFLAGS@
 LIBCURL_LIBS = @LIBCURL_LIBS@
+LIBFREETYPE2_CFLAGS = @LIBFREETYPE2_CFLAGS@
+LIBFREETYPE2_LIBS = @LIBFREETYPE2_LIBS@
 LIBLZMA_CFLAGS = @LIBLZMA_CFLAGS@
 LIBLZMA_LIBS = @LIBLZMA_LIBS@
 LIBOBJS = @LIBOBJS@
@@ -781,7 +789,8 @@ top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \
 	@LIBWEBP_LIBS@ @LIBLZMA_LIBS@ @LIBSPATIALITE_LIBS@ \
-	@LIBCURL_LIBS@ @LIBXML2_LIBS@ $(GCOV_FLAGS)
+	@LIBCURL_LIBS@ @LIBXML2_LIBS@  @LIBFREETYPE2_LIBS@ \
+	$(GCOV_FLAGS)
 
 TESTS = $(check_PROGRAMS)
 MOSTLYCLEANFILES = *.gcna *.gcno *.gcda
@@ -857,7 +866,7 @@ EXTRA_DIST = jpeg1.jpg jpeg2.jpg png1.png mask1.png \
 	Roundel_of_the_Royal_Canadian_Air_Force_(1946-1965).svg \
 	Roundel_of_the_Syrian_Air_Force.svg \
 	Royal_Coat_of_Arms_of_the_United_Kingdom.svg \
-	supermarket.svg tobacco.svg Cevennes2.jp2
+	supermarket.svg tobacco.svg Cevennes2.jp2 Karla-BoldItalic.ttf
 
 SUBDIRS = sql_stmt_security_tests sql_stmt_tests 
 all: all-recursive
@@ -991,6 +1000,10 @@ test9$(EXEEXT): $(test9_OBJECTS) $(test9_DEPENDENCIES) $(EXTRA_test9_DEPENDENCIE
 test_coverage$(EXEEXT): $(test_coverage_OBJECTS) $(test_coverage_DEPENDENCIES) $(EXTRA_test_coverage_DEPENDENCIES) 
 	@rm -f test_coverage$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_coverage_OBJECTS) $(test_coverage_LDADD) $(LIBS)
+
+test_font$(EXEEXT): $(test_font_OBJECTS) $(test_font_DEPENDENCIES) $(EXTRA_test_font_DEPENDENCIES) 
+	@rm -f test_font$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_font_OBJECTS) $(test_font_LDADD) $(LIBS)
 
 test_gif$(EXEEXT): $(test_gif_OBJECTS) $(test_gif_DEPENDENCIES) $(EXTRA_test_gif_DEPENDENCIES) 
 	@rm -f test_gif$(EXEEXT)
@@ -1176,6 +1189,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test8.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test9.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_coverage.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_font.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_gif.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_line_symbolizer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_load_wms.Po@am__quote@
@@ -1906,6 +1920,13 @@ test_text_symbolizer.log: test_text_symbolizer$(EXEEXT)
 test_vectors.log: test_vectors$(EXEEXT)
 	@p='test_vectors$(EXEEXT)'; \
 	b='test_vectors'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_font.log: test_font$(EXEEXT)
+	@p='test_font$(EXEEXT)'; \
+	b='test_font'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

@@ -1,5 +1,23 @@
 
-EXTRA_DIST = loadraster1.testcase \
+EXTRA_DIST = exportfont1.testcase \
+	exportfont2.testcase \
+	exportfont3.testcase \
+	exportfont4.testcase \
+	exportfont5.testcase \
+	exportfont6.testcase \
+	exportfont7.testcase \
+	exportfont8.testcase \
+	exportfont9.testcase \
+	exportfont10.testcase \
+	exportfont11.testcase \
+	exportfont12.testcase \
+	exportfont13.testcase \
+	loadfont1.testcase \
+	loadfont2.testcase \
+	loadfont3.testcase \
+	loadfont4.testcase \
+	loadfont5.testcase \
+	loadraster1.testcase \
 	loadraster2.testcase \
 	loadraster3.testcase \
 	loadraster4.testcase \

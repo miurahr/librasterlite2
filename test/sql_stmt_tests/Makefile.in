@@ -141,6 +141,8 @@ ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
+FREETYPE2_CFLAGS = @FREETYPE2_CFLAGS@
+FREETYPE2_LIBS = @FREETYPE2_LIBS@
 GREP = @GREP@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -153,6 +155,8 @@ LIBCAIRO_CFLAGS = @LIBCAIRO_CFLAGS@
 LIBCAIRO_LIBS = @LIBCAIRO_LIBS@
 LIBCURL_CFLAGS = @LIBCURL_CFLAGS@
 LIBCURL_LIBS = @LIBCURL_LIBS@
+LIBFREETYPE2_CFLAGS = @LIBFREETYPE2_CFLAGS@
+LIBFREETYPE2_LIBS = @LIBFREETYPE2_LIBS@
 LIBLZMA_CFLAGS = @LIBLZMA_CFLAGS@
 LIBLZMA_LIBS = @LIBLZMA_LIBS@
 LIBOBJS = @LIBOBJS@
@@ -453,6 +457,16 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	dropcoverage1.testcase \
 	dropcoverage2.testcase \
 	dropcoverage3.testcase \
+	getfontfacename1.testcase \
+	getfontfacename2.testcase \
+	getfontfacename3.testcase \
+	getfontfacename4.testcase \
+	getfontfacename5.testcase \
+	getfontfamily1.testcase \
+	getfontfamily2.testcase \
+	getfontfamily3.testcase \
+	getfontfamily4.testcase \
+	getfontfamily5.testcase \
 	getmapimage1.testcase \
 	getmapimage2.testcase \
 	getmapimage3.testcase \
@@ -624,6 +638,16 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	importraw8.testcase \
 	importraw9.testcase \
 	importraw10.testcase \
+	isfontbold1.testcase \
+	isfontbold2.testcase \
+	isfontbold3.testcase \
+	isfontbold4.testcase \
+	isfontbold5.testcase \
+	isfontitalic1.testcase \
+	isfontitalic2.testcase \
+	isfontitalic3.testcase \
+	isfontitalic4.testcase \
+	isfontitalic5.testcase \
 	ispixelopaque1.testcase \
 	ispixelopaque2.testcase \
 	ispixelopaque3.testcase \
@@ -634,6 +658,11 @@ EXTRA_DIST = createcov_16_mband1.testcase \
 	ispixeltransparent3.testcase \
 	ispixeltransparent4.testcase \
 	ispixeltransparent5.testcase \
+	isvalidfont1.testcase \
+	isvalidfont2.testcase \
+	isvalidfont3.testcase \
+	isvalidfont4.testcase \
+	isvalidfont5.testcase \
 	isvalidpalette1.testcase \
 	isvalidpalette2.testcase \
 	isvalidpalette3.testcase \

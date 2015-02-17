@@ -1335,7 +1335,7 @@ do_sniff_dir (const char *dir_path, const char *file_ext, int worldfile,
 }
 
 static void
-open_db (sqlite3 ** handle, void *cache)
+open_db (sqlite3 ** handle, void *cache, void *priv_data)
 {
 /* opening the DB */
     sqlite3 *db_handle;
@@ -1357,7 +1357,7 @@ open_db (sqlite3 ** handle, void *cache)
 	  return;
       }
     spatialite_init_ex (db_handle, cache, 0);
-    rl2_init (db_handle, 0);
+    rl2_init (db_handle, priv_data, 0);
 
     *handle = db_handle;
     return;
@@ -1396,6 +1396,7 @@ main (int argc, char *argv[])
     int with_md5 = 0;
     int error = 0;
     void *cache;
+    void *priv_data;
 
     for (i = 1; i < argc; i++)
       {
@@ -1465,7 +1466,8 @@ main (int argc, char *argv[])
 
 /* opening the DB */
     cache = spatialite_alloc_connection ();
-    open_db (&handle, cache);
+    priv_data = rl2_alloc_private ();
+    open_db (&handle, cache, priv_data);
     if (!handle)
 	return -1;
 
@@ -1478,6 +1480,7 @@ main (int argc, char *argv[])
 	do_sniff_dir (dir_path, file_ext, worldfile, with_md5);
 
     sqlite3_close (handle);
+    rl2_cleanup_private (priv_data);
     spatialite_cleanup_ex (cache);
     spatialite_shutdown ();
     return 0;

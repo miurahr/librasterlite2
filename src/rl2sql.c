@@ -312,6 +312,55 @@ fnct_rl2_target_cpu (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_GetMaxThreads (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ RL2_GetMaxThreads()
+/
+/ return the currently set Max number of concurrent threads
+*/
+    int max_threads = 1;
+    struct rl2_private_data *priv_data = sqlite3_user_data (context);
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    if (priv_data != NULL)
+	max_threads = priv_data->max_threads;
+    sqlite3_result_int (context, max_threads);
+}
+
+static void
+fnct_SetMaxThreads (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ RL2_SetMaxThreads(INTEGER max)
+/
+/ return the currently set Max number of concurrent threads (after this call)
+/ -1 on invalid arguments
+*/
+    int max_threads = 1;
+    struct rl2_private_data *priv_data = sqlite3_user_data (context);
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    if (sqlite3_value_type (argv[0]) == SQLITE_INTEGER)
+	max_threads = sqlite3_value_int (argv[0]);
+    else
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* normalizing between 1 and 64 */
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+
+    if (priv_data != NULL)
+	priv_data->max_threads = max_threads;
+    else
+	max_threads = 1;
+    sqlite3_result_int (context, max_threads);
+}
+
+static void
 fnct_IsValidPixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -9192,409 +9241,601 @@ fnct_ImportSectionRawPixels (sqlite3_context * context, int argc,
 }
 
 static void
-register_rl2_sql_functions (void *p_db)
+register_rl2_sql_functions (void *p_db, const void *p_data)
 {
     sqlite3 *db = p_db;
+    struct rl2_private_data *priv_data = (struct rl2_private_data *) p_data;
     const char *security_level;
-    sqlite3_create_function (db, "rl2_version", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_version, 0, 0);
-    sqlite3_create_function (db, "rl2_target_cpu", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_target_cpu", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_target_cpu, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_none", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_none", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_none, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_deflate", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_deflate", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_deflate, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_deflate_no", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_deflate_no", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_deflate_no, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_lzma", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_lzma", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_lzma, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_lzma_no", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_lzma_no", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_lzma_no, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_jpeg", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_jpeg", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_jpeg, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_png", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_png", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_png, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_fax4", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_fax4", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_fax4, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_charls", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_charls", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_charls, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_webp", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_webp", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_webp, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_ll_webp", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_ll_webp", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_ll_webp, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_jp2", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_jp2", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_jp2, 0, 0);
-    sqlite3_create_function (db, "rl2_has_codec_ll_jp2", 0, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "rl2_has_codec_ll_jp2", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_has_codec_ll_jp2, 0, 0);
-    sqlite3_create_function (db, "IsValidPixel", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMaxThreads", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetMaxThreads, 0, 0);
+    sqlite3_create_function (db, "RL2_SetMaxThreads", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_SetMaxThreads, 0, 0);
+    sqlite3_create_function (db, "IsValidPixel", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidPixel, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidPixel", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsValidPixel", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidPixel, 0, 0);
-    sqlite3_create_function (db, "IsValidRasterPalette", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsValidRasterPalette", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidRasterPalette", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsValidRasterPalette", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
-    sqlite3_create_function (db, "IsValidRasterStatistics", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsValidRasterStatistics", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterStatistics, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidRasterStatistics", 2, SQLITE_ANY,
-			     0, fnct_IsValidRasterStatistics, 0, 0);
-    sqlite3_create_function (db, "IsValidRasterStatistics", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsValidRasterStatistics", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterStatistics, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidRasterStatistics", 3, SQLITE_ANY,
-			     0, fnct_IsValidRasterStatistics, 0, 0);
-    sqlite3_create_function (db, "IsValidRasterTile", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsValidRasterStatistics", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_IsValidRasterStatistics, 0, 0);
+    sqlite3_create_function (db, "RL2_IsValidRasterStatistics", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_IsValidRasterStatistics, 0, 0);
+    sqlite3_create_function (db, "IsValidRasterTile", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterTile, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidRasterTile", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsValidRasterTile", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterTile, 0, 0);
-    sqlite3_create_function (db, "CreateRasterCoverage", 10, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "CreateRasterCoverage", 10,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "CreateRasterCoverage", 11, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "CreateRasterCoverage", 11,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "CreateRasterCoverage", 12, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "CreateRasterCoverage", 12,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "CreateRasterCoverage", 17, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "CreateRasterCoverage", 17,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 10, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 10,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 11, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 11,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 12, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 12,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 17, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_CreateRasterCoverage", 17,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreateRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "DeleteSection", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DeleteSection", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DeleteSection, 0, 0);
-    sqlite3_create_function (db, "RL2_DeleteSection", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DeleteSection", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DeleteSection, 0, 0);
-    sqlite3_create_function (db, "DeleteSection", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DeleteSection", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DeleteSection, 0, 0);
-    sqlite3_create_function (db, "RL2_DeleteSection", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DeleteSection", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DeleteSection, 0, 0);
-    sqlite3_create_function (db, "DropRasterCoverage", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DropRasterCoverage", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DropRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "RL2_DropRasterCoverage", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DropRasterCoverage", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DropRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "DropRasterCoverage", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DropRasterCoverage", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DropRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "RL2_DropRasterCoverage", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DropRasterCoverage", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DropRasterCoverage, 0, 0);
-    sqlite3_create_function (db, "SetRasterCoverageInfos", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "SetRasterCoverageInfos", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetRasterCoverageInfos, 0, 0);
-    sqlite3_create_function (db, "RL2_SetRasterCoverageInfos", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_SetRasterCoverageInfos", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetRasterCoverageInfos, 0, 0);
-    sqlite3_create_function (db, "GetPaletteNumEntries", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetPaletteNumEntries", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPaletteNumEntries, 0, 0);
-    sqlite3_create_function (db, "RL2_GetPaletteNumEntries", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetPaletteNumEntries", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPaletteNumEntries, 0, 0);
-    sqlite3_create_function (db, "GetPaletteColorEntry", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetPaletteColorEntry", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPaletteColorEntry, 0, 0);
-    sqlite3_create_function (db, "RL2_GetPaletteColorEntry", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetPaletteColorEntry", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPaletteColorEntry, 0, 0);
-    sqlite3_create_function (db, "SetPaletteColorEntry", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "SetPaletteColorEntry", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetPaletteColorEntry, 0, 0);
-    sqlite3_create_function (db, "RL2_SetPaletteColorEntry", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_SetPaletteColorEntry", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetPaletteColorEntry, 0, 0);
-    sqlite3_create_function (db, "PaletteEquals", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "PaletteEquals", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PaletteEquals, 0, 0);
-    sqlite3_create_function (db, "RL2_PaletteEquals", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_PaletteEquals", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PaletteEquals, 0, 0);
-    sqlite3_create_function (db, "CreatePixel", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "CreatePixel", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreatePixel, 0, 0);
-    sqlite3_create_function (db, "RL2_CreatePixel", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_CreatePixel", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreatePixel, 0, 0);
-    sqlite3_create_function (db, "GetPixelType", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetPixelType", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelType, 0, 0);
-    sqlite3_create_function (db, "RL2_GetPixelType", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetPixelType", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelType, 0, 0);
-    sqlite3_create_function (db, "GetPixelSampleType", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetPixelSampleType", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelSampleType, 0, 0);
-    sqlite3_create_function (db, "RL2_GetPixelSampleType", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetPixelSampleType", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelSampleType, 0, 0);
-    sqlite3_create_function (db, "GetPixelNumBands", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetPixelNumBands", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelNumBands, 0, 0);
-    sqlite3_create_function (db, "RL2_GetPixelNumBands", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetPixelNumBands", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelNumBands, 0, 0);
-    sqlite3_create_function (db, "GetPixelValue", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetPixelValue", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelValue, 0, 0);
-    sqlite3_create_function (db, "RL2_GetPixelValue", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetPixelValue", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelValue, 0, 0);
-    sqlite3_create_function (db, "SetPixelValue", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "SetPixelValue", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetPixelValue, 0, 0);
-    sqlite3_create_function (db, "RL2_SetPixelValue", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_SetPixelValue", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetPixelValue, 0, 0);
-    sqlite3_create_function (db, "IsTransparentPixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsTransparentPixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsTransparentPixel, 0, 0);
-    sqlite3_create_function (db, "RL2_IsTransparentPixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsTransparentPixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsTransparentPixel, 0, 0);
-    sqlite3_create_function (db, "IsOpaquePixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsOpaquePixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsOpaquePixel, 0, 0);
-    sqlite3_create_function (db, "RL2_IsOpaquePixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsOpaquePixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsOpaquePixel, 0, 0);
-    sqlite3_create_function (db, "SetTransparentPixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "SetTransparentPixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetTransparentPixel, 0, 0);
-    sqlite3_create_function (db, "RL2_SetTransparentPixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_SetTransparentPixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetTransparentPixel, 0, 0);
-    sqlite3_create_function (db, "SetOpaquePixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "SetOpaquePixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetOpaquePixel, 0, 0);
-    sqlite3_create_function (db, "RL2_SetOpaquePixel", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_SetOpaquePixel", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_SetOpaquePixel, 0, 0);
-    sqlite3_create_function (db, "PixelEquals", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "PixelEquals", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PixelEquals, 0, 0);
-    sqlite3_create_function (db, "RL2_PixelEquals", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_PixelEquals", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PixelEquals, 0, 0);
-    sqlite3_create_function (db, "IsValidFont", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsValidFont", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidFont, 0, 0);
-    sqlite3_create_function (db, "RL2_IsValidFont", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsValidFont", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidFont, 0, 0);
-    sqlite3_create_function (db, "GetFontFamily", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetFontFamily", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetFontFamily, 0, 0);
-    sqlite3_create_function (db, "RL2_GetFontFamily", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetFontFamily", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetFontFamily, 0, 0);
-    sqlite3_create_function (db, "GetFontFacename", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetFontFacename", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetFontFacename, 0, 0);
-    sqlite3_create_function (db, "RL2_GetFontFacename", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetFontFacename", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetFontFacename, 0, 0);
-    sqlite3_create_function (db, "IsFontBold", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsFontBold", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsFontBold, 0, 0);
-    sqlite3_create_function (db, "RL2_IsFontBold", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsFontBold", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsFontBold, 0, 0);
-    sqlite3_create_function (db, "IsFontItalic", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "IsFontItalic", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsFontItalic, 0, 0);
-    sqlite3_create_function (db, "RL2_IsFontItalic", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_IsFontItalic", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsFontItalic, 0, 0);
     sqlite3_create_function (db, "GetRasterStatistics_NoDataPixelsCount", 1,
-			     SQLITE_ANY, 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetRasterStatistics_NoDataPixelsCount, 0, 0);
     sqlite3_create_function (db, "RL2_GetRasterStatistics_NoDataPixelsCount", 1,
-			     SQLITE_ANY, 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetRasterStatistics_NoDataPixelsCount, 0, 0);
     sqlite3_create_function (db, "GetRasterStatistics_ValidPixelsCount", 1,
-			     SQLITE_ANY, 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetRasterStatistics_ValidPixelsCount, 0, 0);
     sqlite3_create_function (db, "RL2_GetRasterStatistics_ValidPixelsCount", 1,
-			     SQLITE_ANY, 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetRasterStatistics_ValidPixelsCount, 0, 0);
     sqlite3_create_function (db, "GetRasterStatistics_SampleType", 1,
-			     SQLITE_ANY, 0, fnct_GetRasterStatistics_SampleType,
-			     0, 0);
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetRasterStatistics_SampleType, 0, 0);
     sqlite3_create_function (db, "RL2_GetRasterStatistics_SampleType", 1,
-			     SQLITE_ANY, 0, fnct_GetRasterStatistics_SampleType,
-			     0, 0);
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetRasterStatistics_SampleType, 0, 0);
     sqlite3_create_function (db, "GetRasterStatistics_BandsCount", 1,
-			     SQLITE_ANY, 0, fnct_GetRasterStatistics_BandsCount,
-			     0, 0);
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetRasterStatistics_BandsCount, 0, 0);
     sqlite3_create_function (db, "RL2_GetRasterStatistics_BandsCount", 1,
-			     SQLITE_ANY, 0, fnct_GetRasterStatistics_BandsCount,
-			     0, 0);
-    sqlite3_create_function (db, "GetBandStatistics_Min", 2, SQLITE_ANY, 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetRasterStatistics_BandsCount, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Min", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Min, 0, 0);
-    sqlite3_create_function (db, "RL2_GetBandStatistics_Min", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Min", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Min, 0, 0);
-    sqlite3_create_function (db, "GetBandStatistics_Max", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetBandStatistics_Max", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Max, 0, 0);
-    sqlite3_create_function (db, "RL2_GetBandStatistics_Max", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Max", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Max, 0, 0);
-    sqlite3_create_function (db, "GetBandStatistics_Avg", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetBandStatistics_Avg", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Avg, 0, 0);
-    sqlite3_create_function (db, "RL2_GetBandStatistics_Avg", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Avg", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Avg, 0, 0);
-    sqlite3_create_function (db, "GetBandStatistics_Var", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetBandStatistics_Var", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Var, 0, 0);
-    sqlite3_create_function (db, "RL2_GetBandStatistics_Var", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetBandStatistics_Var", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_Var, 0, 0);
-    sqlite3_create_function (db, "GetBandStatistics_StdDev", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetBandStatistics_StdDev", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetBandStatistics_StdDev, 0, 0);
-    sqlite3_create_function (db, "RL2_GetBandStatistics_StdDev", 2, SQLITE_ANY,
-			     0, fnct_GetBandStatistics_StdDev, 0, 0);
-    sqlite3_create_function (db, "GetBandStatistics_Histogram", 2, SQLITE_ANY,
-			     0, fnct_GetBandStatistics_Histogram, 0, 0);
+    sqlite3_create_function (db, "RL2_GetBandStatistics_StdDev", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetBandStatistics_StdDev, 0, 0);
+    sqlite3_create_function (db, "GetBandStatistics_Histogram", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetBandStatistics_Histogram, 0, 0);
     sqlite3_create_function (db, "RL2_GetBandStatistics_Histogram", 2,
-			     SQLITE_ANY, 0, fnct_GetBandStatistics_Histogram, 0,
-			     0);
-    sqlite3_create_function (db, "GetBandHistogramFromImage", 3, SQLITE_ANY,
-			     0, fnct_GetBandHistogramFromImage, 0, 0);
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetBandStatistics_Histogram, 0, 0);
+    sqlite3_create_function (db, "GetBandHistogramFromImage", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetBandHistogramFromImage, 0, 0);
     sqlite3_create_function (db, "RL2_GetBandHistogramFromImage", 3,
-			     SQLITE_ANY, 0, fnct_GetBandHistogramFromImage, 0,
-			     0);
-    sqlite3_create_function (db, "Pyramidize", 1, SQLITE_ANY, 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_GetBandHistogramFromImage, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_Pyramidize", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "Pyramidize", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "Pyramidize", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_Pyramidize", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "Pyramidize", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "Pyramidize", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_Pyramidize", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "Pyramidize", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "Pyramidize", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_Pyramidize", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "PyramidizeMonolithic", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "PyramidizeMonolithic", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "PyramidizeMonolithic", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "PyramidizeMonolithic", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "PyramidizeMonolithic", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "PyramidizeMonolithic", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "DePyramidize", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DePyramidize", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_DePyramidize", 1, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DePyramidize", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "DePyramidize", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DePyramidize", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_DePyramidize", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DePyramidize", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "DePyramidize", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "DePyramidize", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_DePyramidize", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_DePyramidize", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 9, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 9,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 9, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 9,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 10, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 10,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 10, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 10,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromRaster", 11, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromRaster", 11,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 11, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromRaster", 11,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromRaster, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 9, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 9,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 9, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 9,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 10, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 10,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 10, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 10,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetMapImageFromVector", 11, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMapImageFromVector", 11,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 11, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMapImageFromVector", 11,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetTileImage", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetTileImage", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTileImage", 2, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetTileImage", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "GetTileImage", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetTileImage", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTileImage", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetTileImage", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "GetTileImage", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetTileImage", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTileImage", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetTileImage", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "GetTripleBandTileImage", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetTripleBandTileImage", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "GetTripleBandTileImage", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetTripleBandTileImage", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "GetTripleBandTileImage", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetTripleBandTileImage", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetTripleBandTileImage", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetTripleBandTileImage, 0, 0);
-    sqlite3_create_function (db, "GetMonoBandTileImage", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMonoBandTileImage", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 3, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 3,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "GetMonoBandTileImage", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMonoBandTileImage", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 4, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "GetMonoBandTileImage", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "GetMonoBandTileImage", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_GetMonoBandTileImage", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetMonoBandTileImage, 0, 0);
-    sqlite3_create_function (db, "ExportRawPixels", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ExportRawPixels", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ExportRawPixels", 5, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ExportRawPixels", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "ExportRawPixels", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ExportRawPixels", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ExportRawPixels", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ExportRawPixels", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "ExportRawPixels", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ExportRawPixels", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ExportRawPixels", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ExportRawPixels", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "ExportSectionRawPixels", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ExportSectionRawPixels", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ExportSectionRawPixels", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ExportSectionRawPixels", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "ExportSectionRawPixels", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ExportSectionRawPixels", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ExportSectionRawPixels", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ExportSectionRawPixels", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "ExportRawPixels", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ExportRawPixels", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ExportSectionRawPixels", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ExportSectionRawPixels", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ExportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "ImportSectionRawPixels", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ImportSectionRawPixels", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 6, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 6,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "ImportSectionRawPixels", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ImportSectionRawPixels", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 7, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 7,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "ImportSectionRawPixels", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ImportSectionRawPixels", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 8, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 8,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "ImportSectionRawPixels", 9, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "ImportSectionRawPixels", 9,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
-    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 9, SQLITE_ANY, 0,
+    sqlite3_create_function (db, "RL2_ImportSectionRawPixels", 9,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_ImportSectionRawPixels, 0, 0);
 
 /*
@@ -9623,546 +9864,561 @@ register_rl2_sql_functions (void *p_db)
 	;
     else if (strcasecmp (security_level, "relaxed") == 0)
       {
-	  sqlite3_create_function (db, "LoadFontFromFile", 1, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadFontFromFile", 1, SQLITE_UTF8, 0,
 				   fnct_LoadFontFromFile, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadFontFromFile", 1, SQLITE_ANY, 0,
-				   fnct_LoadFontFromFile, 0, 0);
-	  sqlite3_create_function (db, "ExportFontToFile", 3, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_LoadFontFromFile", 1, SQLITE_UTF8,
+				   0, fnct_LoadFontFromFile, 0, 0);
+	  sqlite3_create_function (db, "ExportFontToFile", 3, SQLITE_UTF8, 0,
 				   fnct_ExportFontToFile, 0, 0);
-	  sqlite3_create_function (db, "RL2_ExportFontToFile", 3, SQLITE_ANY, 0,
-				   fnct_ExportFontToFile, 0, 0);
-	  sqlite3_create_function (db, "LoadRaster", 2, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_ExportFontToFile", 3, SQLITE_UTF8,
+				   0, fnct_ExportFontToFile, 0, 0);
+	  sqlite3_create_function (db, "LoadRaster", 2, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "LoadRaster", 3, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRaster", 3, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "LoadRaster", 4, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRaster", 4, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "LoadRaster", 5, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRaster", 5, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "LoadRaster", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRaster", 6, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRaster", 2, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_LoadRaster", 2, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRaster", 3, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_LoadRaster", 3, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRaster", 4, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_LoadRaster", 4, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRaster", 5, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_LoadRaster", 5, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRaster", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_LoadRaster", 6, SQLITE_UTF8, 0,
 				   fnct_LoadRaster, 0, 0);
-	  sqlite3_create_function (db, "LoadRastersFromDir", 2, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRastersFromDir", 2, SQLITE_UTF8, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "LoadRastersFromDir", 3, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRastersFromDir", 3, SQLITE_UTF8, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "LoadRastersFromDir", 4, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRastersFromDir", 4, SQLITE_UTF8, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "LoadRastersFromDir", 5, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRastersFromDir", 5, SQLITE_UTF8, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "LoadRastersFromDir", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRastersFromDir", 6, SQLITE_UTF8, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "LoadRastersFromDir", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRastersFromDir", 7, SQLITE_UTF8, 0,
 				   fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 2, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 2, SQLITE_UTF8,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 3, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 3, SQLITE_UTF8,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 4, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 4, SQLITE_UTF8,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 5, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 5, SQLITE_UTF8,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 6, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 6, SQLITE_UTF8,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 7, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRastersFromDir", 7, SQLITE_UTF8,
 				   0, fnct_LoadRastersFromDir, 0, 0);
-	  sqlite3_create_function (db, "LoadRasterFromWMS", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 9, SQLITE_UTF8, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 9, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 9, SQLITE_UTF8,
 				   0, fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "LoadRasterFromWMS", 10, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 10, SQLITE_UTF8, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 10, SQLITE_UTF8,
 				   0, fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "LoadRasterFromWMS", 11, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 11, SQLITE_UTF8, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 11, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 11, SQLITE_UTF8,
 				   0, fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "LoadRasterFromWMS", 12, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 12, SQLITE_UTF8, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 12, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 12, SQLITE_UTF8,
 				   0, fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "LoadRasterFromWMS", 13, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 13, SQLITE_UTF8, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 13, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 13, SQLITE_UTF8,
 				   0, fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "LoadRasterFromWMS", 14, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "LoadRasterFromWMS", 14, SQLITE_UTF8, 0,
 				   fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 14, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_LoadRasterFromWMS", 14, SQLITE_UTF8,
 				   0, fnct_LoadRasterFromWMS, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteGeoTiff", 6, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 6, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteGeoTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteGeoTiff", 8, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 8, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteGeoTiff", 9, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 9, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteGeoTiff", 10, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteGeoTiff", 10, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 10, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteGeoTiff", 10, SQLITE_UTF8, 0,
 				   fnct_WriteGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiffTfw", 6, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 6, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiffTfw", 7, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 7, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiffTfw", 8, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 8, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiffTfw", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiffTfw", 9, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiffTfw", 9, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiff", 6, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiff", 6, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiff", 8, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiff", 8, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTiff", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTiff", 9, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteTiff", 9, SQLITE_UTF8, 0,
 				   fnct_WriteTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionGeoTiff", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteSectionGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 7, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 7,
+				   SQLITE_UTF8, 0, fnct_WriteSectionGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 8, SQLITE_UTF8, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 8,
+				   SQLITE_UTF8, 0, fnct_WriteSectionGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 9, SQLITE_UTF8, 0,
+				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 9,
+				   SQLITE_UTF8, 0, fnct_WriteSectionGeoTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 10, SQLITE_UTF8,
 				   0, fnct_WriteSectionGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionGeoTiff", 8, SQLITE_ANY, 0,
-				   fnct_WriteSectionGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 8, SQLITE_ANY,
-				   0, fnct_WriteSectionGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionGeoTiff", 9, SQLITE_ANY, 0,
-				   fnct_WriteSectionGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 9, SQLITE_ANY,
-				   0, fnct_WriteSectionGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionGeoTiff", 10, SQLITE_ANY, 0,
-				   fnct_WriteSectionGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteSectionGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteSectionGeoTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteSectionGeoTiff", 11, SQLITE_ANY, 0,
-				   fnct_WriteSectionGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionGeoTiff", 11, SQLITE_UTF8,
+				   0, fnct_WriteSectionGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionGeoTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteSectionGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteSectionGeoTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteSectionTiffTfw", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 7, SQLITE_UTF8, 0,
 				   fnct_WriteSectionTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 7, SQLITE_ANY,
-				   0, fnct_WriteSectionTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiffTfw", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 7,
+				   SQLITE_UTF8, 0, fnct_WriteSectionTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 8, SQLITE_UTF8, 0,
 				   fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 8, SQLITE_ANY,
-				   0, fnct_WriteSectionTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiffTfw", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 8,
+				   SQLITE_UTF8, 0, fnct_WriteSectionTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 9, SQLITE_UTF8, 0,
 				   fnct_WriteSectionTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 9, SQLITE_ANY,
-				   0, fnct_WriteSectionTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiffTfw", 10, SQLITE_ANY, 0,
-				   fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 9,
+				   SQLITE_UTF8, 0, fnct_WriteSectionTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionTiffTfw", 10, SQLITE_UTF8,
+				   0, fnct_WriteTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTiffTfw", 10,
-				   SQLITE_ANY, 0, fnct_WriteTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiff", 7, SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0, fnct_WriteTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 7, SQLITE_ANY, 0,
-				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiff", 8, SQLITE_ANY, 0,
-				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 8, SQLITE_ANY, 0,
-				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiff", 9, SQLITE_ANY, 0,
-				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 9, SQLITE_ANY, 0,
-				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionTiff", 10, SQLITE_ANY, 0,
-				   fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 7, SQLITE_UTF8,
 				   0, fnct_WriteSectionTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteJpegJgw", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteSectionTiff", 8, SQLITE_UTF8, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 8, SQLITE_UTF8,
+				   0, fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 9, SQLITE_UTF8, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 9, SQLITE_UTF8,
+				   0, fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionTiff", 10, SQLITE_UTF8, 0,
+				   fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionTiff", 10, SQLITE_UTF8,
+				   0, fnct_WriteSectionTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteJpegJgw", 6, SQLITE_UTF8, 0,
 				   fnct_WriteJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 6, SQLITE_UTF8, 0,
 				   fnct_WriteJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "WriteJpegJgw", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteJpegJgw", 7, SQLITE_UTF8, 0,
 				   fnct_WriteJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 7, SQLITE_UTF8, 0,
 				   fnct_WriteJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "WriteJpegJgw", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteJpegJgw", 8, SQLITE_UTF8, 0,
 				   fnct_WriteJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteJpegJgw", 8, SQLITE_UTF8, 0,
 				   fnct_WriteJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "WriteJpeg", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteJpeg", 6, SQLITE_UTF8, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteJpeg", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteJpeg", 6, SQLITE_UTF8, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteJpeg", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteJpeg", 7, SQLITE_UTF8, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteJpeg", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteJpeg", 7, SQLITE_UTF8, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteJpeg", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteJpeg", 8, SQLITE_UTF8, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteJpeg", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteJpeg", 8, SQLITE_UTF8, 0,
 				   fnct_WriteJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionJpegJgw", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteSectionJpegJgw", 7, SQLITE_UTF8, 0,
 				   fnct_WriteSectionJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 7, SQLITE_ANY,
-				   0, fnct_WriteSectionJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionJpegJgw", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 7,
+				   SQLITE_UTF8, 0, fnct_WriteSectionJpegJgw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionJpegJgw", 8, SQLITE_UTF8, 0,
 				   fnct_WriteSectionJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 8, SQLITE_ANY,
-				   0, fnct_WriteSectionJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionJpegJgw", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 8,
+				   SQLITE_UTF8, 0, fnct_WriteSectionJpegJgw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionJpegJgw", 9, SQLITE_UTF8, 0,
 				   fnct_WriteSectionJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 9, SQLITE_ANY,
-				   0, fnct_WriteSectionJpegJgw, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionJpeg", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionJpegJgw", 9,
+				   SQLITE_UTF8, 0, fnct_WriteSectionJpegJgw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteSectionJpeg", 7, SQLITE_UTF8, 0,
 				   fnct_WriteSectionJpeg, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 7, SQLITE_UTF8,
+				   0, fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpeg", 8, SQLITE_UTF8, 0,
 				   fnct_WriteSectionJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionJpeg", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 8, SQLITE_UTF8,
+				   0, fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionJpeg", 9, SQLITE_UTF8, 0,
 				   fnct_WriteSectionJpeg, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 8, SQLITE_ANY, 0,
-				   fnct_WriteSectionJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionJpeg", 9, SQLITE_ANY, 0,
-				   fnct_WriteSectionJpeg, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 9, SQLITE_ANY, 0,
-				   fnct_WriteSectionJpeg, 0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 9, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteSectionJpeg", 9, SQLITE_UTF8,
+				   0, fnct_WriteSectionJpeg, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 9, SQLITE_UTF8,
 				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 10, SQLITE_ANY,
-				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 10,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 11, SQLITE_ANY,
-				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 11,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 12, SQLITE_ANY,
-				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 12,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 12,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 13, SQLITE_ANY,
-				   0, fnct_WriteTripleBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandGeoTiff", 13,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandGeoTiff", 13,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandGeoTiff,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandGeoTiff,
 				   0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandGeoTiff", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandGeoTiff", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandGeoTiff", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandGeoTiff", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandGeoTiff", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandGeoTiff", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandGeoTiff", 13,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandGeoTiff", 13,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandGeoTiff", 14,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandGeoTiff", 14,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 7, SQLITE_ANY, 0,
-				   fnct_WriteMonoBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 7, SQLITE_UTF8,
+				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 7,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandGeoTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 8, SQLITE_ANY, 0,
-				   fnct_WriteMonoBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 8, SQLITE_UTF8,
+				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandGeoTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 9, SQLITE_ANY, 0,
-				   fnct_WriteMonoBandGeoTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 9, SQLITE_UTF8,
+				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandGeoTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 10, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandGeoTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 11, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandGeoTiff", 11, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandGeoTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandGeoTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandGeoTiff, 0,
 				   0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandGeoTiff", 8,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandGeoTiff", 8,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandGeoTiff", 9,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandGeoTiff", 9,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandGeoTiff", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandGeoTiff", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandGeoTiff", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandGeoTiff", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandGeoTiff", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandGeoTiff", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandGeoTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 9, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 9, SQLITE_UTF8,
 				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 9,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 10, SQLITE_ANY,
-				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 10,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 10,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 11, SQLITE_ANY,
-				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 11,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 11,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 12, SQLITE_ANY,
-				   0, fnct_WriteTripleBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiffTfw", 12,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
+				   0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiffTfw", 12,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiffTfw,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiffTfw,
 				   0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiffTfw", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiffTfw", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiffTfw", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiffTfw", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiffTfw", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiffTfw", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiffTfw", 13,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiffTfw", 13,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiffTfw", 8,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiffTfw", 8,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiffTfw", 9,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiffTfw", 9,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiffTfw", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiffTfw", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiffTfw", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiffTfw", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionMonoBandTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 7,
-				   SQLITE_ANY, 0,
-				   fnct_WriteMonoBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 7, SQLITE_UTF8,
+				   0, fnct_WriteMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 7,
-				   SQLITE_ANY, 0,
-				   fnct_WriteMonoBandTiffTfw, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 8,
-				   SQLITE_ANY, 0,
-				   fnct_WriteMonoBandTiffTfw, 0, 0);
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 8, SQLITE_UTF8,
+				   0, fnct_WriteMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 8,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandTiffTfw, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 9, SQLITE_ANY, 0,
-				   fnct_WriteMonoBandTiffTfw, 0, 0);
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 9, SQLITE_UTF8,
+				   0, fnct_WriteMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 9,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandTiffTfw, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteMonoBandTiffTfw", 10, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandTiffTfw, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteMonoBandTiffTfw", 10,
-				   SQLITE_ANY, 0, fnct_WriteMonoBandTiffTfw, 0,
+				   SQLITE_UTF8, 0, fnct_WriteMonoBandTiffTfw, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 9, SQLITE_UTF8, 0,
 				   fnct_WriteTripleBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 9, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 9,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiff, 0,
+				   0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 10, SQLITE_UTF8,
 				   0, fnct_WriteTripleBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 10, SQLITE_ANY, 0,
-				   fnct_WriteTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 11, SQLITE_ANY, 0,
-				   fnct_WriteTripleBandTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 11, SQLITE_UTF8,
+				   0, fnct_WriteTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiff, 0,
 				   0);
-	  sqlite3_create_function (db, "WriteTripleBandTiff", 12, SQLITE_ANY, 0,
-				   fnct_WriteTripleBandTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteTripleBandTiff", 12, SQLITE_UTF8,
+				   0, fnct_WriteTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteTripleBandTiff", 12,
-				   SQLITE_ANY, 0, fnct_WriteTripleBandTiff, 0,
+				   SQLITE_UTF8, 0, fnct_WriteTripleBandTiff, 0,
 				   0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiff", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiff", 10,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiff", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiff", 11,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiff", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiff", 12,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionTripleBandTiff", 13,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionTripleBandTiff", 13,
-				   SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
 				   fnct_WriteSectionTripleBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 7, SQLITE_UTF8, 0,
 				   fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 7, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 7, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 8, SQLITE_UTF8, 0,
 				   fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 8, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 8, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 9, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 9, SQLITE_UTF8, 0,
 				   fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 9, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 9, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "WriteMonoBandTiff", 10, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteMonoBandTiff", 10, SQLITE_UTF8, 0,
 				   fnct_WriteMonoBandTiff, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 10, SQLITE_ANY,
+	  sqlite3_create_function (db, "RL2_WriteMonoBandTiff", 10, SQLITE_UTF8,
 				   0, fnct_WriteMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiff", 8,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiff", 8,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiff", 9,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiff", 10,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "WriteSectionMonoBandTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionMonoBandTiff", 11,
-				   SQLITE_ANY, 0, fnct_WriteSectionMonoBandTiff,
-				   0, 0);
-	  sqlite3_create_function (db, "WriteAsciiGrid", 6, SQLITE_ANY, 0,
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionMonoBandTiff, 0, 0);
+	  sqlite3_create_function (db, "WriteAsciiGrid", 6, SQLITE_UTF8, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 6, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 6, SQLITE_UTF8, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "WriteAsciiGrid", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteAsciiGrid", 7, SQLITE_UTF8, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 7, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 7, SQLITE_UTF8, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "WriteAsciiGrid", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "WriteAsciiGrid", 8, SQLITE_UTF8, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_ANY, 0,
+	  sqlite3_create_function (db, "RL2_WriteAsciiGrid", 8, SQLITE_UTF8, 0,
 				   fnct_WriteAsciiGrid, 0, 0);
-	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 7, SQLITE_ANY,
+	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 7, SQLITE_UTF8,
 				   0, fnct_WriteSectionAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 7,
-				   SQLITE_ANY, 0, fnct_WriteSectionAsciiGrid, 0,
-				   0);
-	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 8, SQLITE_ANY,
+				   SQLITE_UTF8, 0, fnct_WriteSectionAsciiGrid,
+				   0, 0);
+	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 8, SQLITE_UTF8,
 				   0, fnct_WriteSectionAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 8,
-				   SQLITE_ANY, 0, fnct_WriteSectionAsciiGrid, 0,
-				   0);
-	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 9, SQLITE_ANY,
+				   SQLITE_UTF8, 0, fnct_WriteSectionAsciiGrid,
+				   0, 0);
+	  sqlite3_create_function (db, "WriteSectionAsciiGrid", 9, SQLITE_UTF8,
 				   0, fnct_WriteSectionAsciiGrid, 0, 0);
 	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 9,
-				   SQLITE_ANY, 0, fnct_WriteSectionAsciiGrid, 0,
-				   0);
+				   SQLITE_UTF8, 0, fnct_WriteSectionAsciiGrid,
+				   0, 0);
       }
 }
 
@@ -10180,13 +10436,35 @@ rl2_splash_screen (int verbose)
       }
 }
 
+RL2_DECLARE void *
+rl2_alloc_private (void)
+{
+/* allocating and initializing default private connection data */
+    struct rl2_private_data *priv_data =
+	malloc (sizeof (struct rl2_private_data));
+    if (priv_data == NULL)
+	return NULL;
+    priv_data->max_threads = 1;
+    return priv_data;
+}
+
+RL2_DECLARE void
+rl2_cleanup_private (const void *ptr)
+{
+/* destroying private connection data */
+    struct rl2_private_data *priv_data = (struct rl2_private_data *) ptr;
+    if (priv_data == NULL)
+	return;
+    free (priv_data);
+}
+
 #ifndef LOADABLE_EXTENSION
 
 RL2_DECLARE void
-rl2_init (sqlite3 * handle, int verbose)
+rl2_init (sqlite3 * handle, const void *priv_data, int verbose)
 {
 /* used when SQLite initializes as an ordinary lib */
-    register_rl2_sql_functions (handle);
+    register_rl2_sql_functions (handle, priv_data);
     rl2_splash_screen (verbose);
 }
 
@@ -10196,9 +10474,10 @@ SQLITE_EXTENSION_INIT1 static int
 init_rl2_extension (sqlite3 * db, char **pzErrMsg,
 		    const sqlite3_api_routines * pApi)
 {
+    void *priv_data = rl2_alloc_private ();
     SQLITE_EXTENSION_INIT2 (pApi);
 
-    register_rl2_sql_functions (db);
+    register_rl2_sql_functions (db, priv_data);
     return 0;
 }
 

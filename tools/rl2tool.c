@@ -2272,7 +2272,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 		      gaiaFreeGeomColl (geom);
 		      /* setting up a RED pen */
 		      rl2_graph_set_solid_pen (ctx, 255, 0, 0, 255, 2.0,
-					 RL2_PEN_CAP_BUTT, RL2_PEN_JOIN_MITER);
+					       RL2_PEN_CAP_BUTT,
+					       RL2_PEN_JOIN_MITER);
 		      /* setting up a Gray solid semi-transparent Brush */
 		      rl2_graph_set_brush (ctx, 255, 255, 255, 204);
 		      rl2_graph_draw_rectangle (ctx, x, y, w, h);
@@ -2281,7 +2282,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 						 &post_x, &post_y);
 		      /* setting up a white pen */
 		      rl2_graph_set_solid_pen (ctx, 255, 255, 255, 255, 2.0,
-					 RL2_PEN_CAP_BUTT, RL2_PEN_JOIN_MITER);
+					       RL2_PEN_CAP_BUTT,
+					       RL2_PEN_JOIN_MITER);
 		      /* setting up a white solid semi-transparent Brush */
 		      rl2_graph_set_brush (ctx, 255, 255, 255, 255);
 		      rl2_graph_draw_rectangle (ctx, cx - (t_width / 2.0),
@@ -2543,7 +2545,8 @@ spatialite_autocreate (sqlite3 * db)
 }
 
 static void
-open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
+open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache,
+	 void *priv_data)
 {
 /* opening the DB */
     sqlite3 *db_handle;
@@ -2592,7 +2595,7 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
 	  sprintf (sql, "PRAGMA cache_size=%d", cache_size);
 	  sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
       }
-    rl2_init (db_handle, 0);
+    rl2_init (db_handle, priv_data, 0);
 
 /* checking the GEOMETRY_COLUMNS table */
     strcpy (sql, "PRAGMA table_info(geometry_columns)");
@@ -4640,6 +4643,7 @@ main (int argc, char *argv[])
     int error = 0;
     int mode = ARG_NONE;
     void *cache;
+    void *priv_data;
     void *cache_mem = NULL;
     char *hist_path = NULL;
     int strict_resolution = 0;
@@ -5261,7 +5265,8 @@ main (int argc, char *argv[])
     if (in_memory)
 	cache_size = 0;
     cache = spatialite_alloc_connection ();
-    open_db (db_path, &handle, cache_size, cache);
+    priv_data = rl2_alloc_private ();
+    open_db (db_path, &handle, cache_size, cache, priv_data);
     if (!handle)
 	return -1;
     if (in_memory)
@@ -5300,6 +5305,7 @@ main (int argc, char *argv[])
 	  handle = mem_db_handle;
 	  printf ("\nusing IN-MEMORY database\n");
 	  spatialite_cleanup_ex (cache);
+	  cache = NULL;
 	  cache_mem = spatialite_alloc_connection ();
 	  spatialite_init_ex (handle, cache_mem, 0);
       }
@@ -5500,7 +5506,9 @@ main (int argc, char *argv[])
     if (hist_path != NULL)
 	sqlite3_free (hist_path);
     sqlite3_close (handle);
-    spatialite_cleanup_ex (cache);
+    rl2_cleanup_private (priv_data);
+    if (cache != NULL)
+	spatialite_cleanup_ex (cache);
     spatialite_shutdown ();
     return retcode;
 }

@@ -667,15 +667,38 @@ extern "C"
 #endif
 
 /**
+ Initializes the internal private memory block supporting each RL2 connection
+
+ \sa rl2_init, rl2_private_cleanup
+
+ */
+    RL2_DECLARE void *rl2_alloc_private (void);
+
+/**
  Initializes the library
  
  \param db_handle handle to the current SQLite connection
+ \param ptr a memory pointer returned by rl2_alloc_private()
  \param verbose if TRUE a short start-up message is shown on stderr
 
  \note you are always expected to explicitly call this function
  before attempting to call any RasterLite-2 own function.
  */
-    RL2_DECLARE void rl2_init (sqlite3 * db_handle, int verbose);
+    RL2_DECLARE void rl2_init (sqlite3 * db_handle, const void *ptr,
+			       int verbose);
+
+/**
+ Cleanup the internal private memory block supporting each RL2 connection
+
+ This function performs general cleanup, essentially undoing the effect
+ of rl2_init().
+
+ \param ptr the same memory pointer passed to the corresponding call to
+ rl2_init() and rl2_alloc_private()
+
+ \sa rl2_init_ex, rl2_alloc_private
+*/
+    RL2_DECLARE void rl2_cleanup_private (const void *ptr);
 
 /**
  Testing if a given codec/compressor is actually supported by the library

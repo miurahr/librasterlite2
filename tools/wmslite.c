@@ -116,6 +116,7 @@ struct glob_var
     struct wms_list *list;
     struct connections_pool *pool;
     void *cache;
+    void *priv_data;
 } glob;
 
 struct neutral_socket
@@ -168,6 +169,7 @@ struct wms_layer
 struct read_connection
 {
     void *cache;
+    void *priv_data;
     sqlite3 *handle;
     sqlite3_stmt *stmt_get_map;
     int status;
@@ -705,6 +707,8 @@ close_connection (struct read_connection *conn)
 	sqlite3_close (conn->handle);
     if (conn->cache != NULL)
 	spatialite_cleanup_ex (conn->cache);
+    if (conn->priv_data != NULL)
+	rl2_cleanup_private (conn->priv_data);
     conn->status = CONNECTION_INVALID;
 }
 
@@ -734,6 +738,7 @@ connection_init (struct read_connection *conn, const char *path)
     sqlite3 *db_handle;
     sqlite3_stmt *stmt;
     void *cache;
+    void *priv_data;
     const char *sql;
 
     ret =
@@ -749,7 +754,8 @@ connection_init (struct read_connection *conn, const char *path)
       }
     cache = spatialite_alloc_connection ();
     spatialite_init_ex (db_handle, cache, 0);
-    rl2_init (db_handle, 0);
+    priv_data = rl2_alloc_private ();
+    rl2_init (db_handle, priv_data, 0);
 
 /* creating the GetMap SQL statement */
     sql =
@@ -763,6 +769,7 @@ connection_init (struct read_connection *conn, const char *path)
     conn->handle = db_handle;
     conn->stmt_get_map = stmt;
     conn->cache = cache;
+    conn->priv_data = priv_data;
     conn->status = CONNECTION_AVAILABLE;
 }
 
@@ -1193,6 +1200,8 @@ clean_shutdown ()
 	sqlite3_close (glob.handle);
     if (glob.cache != NULL)
 	spatialite_cleanup_ex (glob.cache);
+    if (glob.priv_data != NULL)
+	rl2_cleanup_private (glob.priv_data);
     spatialite_shutdown ();
     fprintf (stderr, "wmslite shutdown completed ... bye bye\n\n");
 }
@@ -3964,7 +3973,8 @@ get_group_styles (sqlite3 * handle, struct wms_list *list)
 }
 
 static void
-open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
+open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache,
+	 void *priv_data)
 {
 /* opening the DB */
     sqlite3 *db_handle;
@@ -4005,7 +4015,7 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache)
 	  return;
       }
     spatialite_init_ex (db_handle, cache, 0);
-    rl2_init (db_handle, 0);
+    rl2_init (db_handle, priv_data, 0);
 /* enabling WAL journaling */
     sprintf (sql, "PRAGMA journal_mode=WAL");
     sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
@@ -4052,6 +4062,7 @@ main (int argc, char *argv[])
     int port_no = 8080;
     int cache_size = 0;
     void *cache;
+    void *priv_data;
     struct wms_list *list = NULL;
     struct connections_pool *pool;
     struct server_log *log;
@@ -4066,6 +4077,7 @@ main (int argc, char *argv[])
     glob.list = NULL;
     glob.pool = NULL;
     glob.cache = NULL;
+    glob.priv_data = NULL;
 #ifdef _WIN32
     SetConsoleCtrlHandler (signal_handler, TRUE);
 #else
@@ -4148,7 +4160,9 @@ main (int argc, char *argv[])
 /* opening the DB */
     cache = spatialite_alloc_connection ();
     glob.cache = cache;
-    open_db (db_path, &handle, cache_size, cache);
+    priv_data = rl2_alloc_private ();
+    glob.priv_data = priv_data;
+    open_db (db_path, &handle, cache_size, cache, priv_data);
     if (!handle)
 	return -1;
     glob.handle = handle;

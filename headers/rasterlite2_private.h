@@ -230,6 +230,11 @@ extern "C"
 /* internal TextSymbolizer constants */
 #define RL2_MAX_FONT_FAMILIES	16
 
+    struct rl2_private_data
+    {
+	int max_threads;
+    };
+
     typedef union rl2_priv_sample
     {
 	char int8;

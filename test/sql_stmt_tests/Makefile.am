@@ -1,5 +1,13 @@
 
-EXTRA_DIST = createcov_16_mband1.testcase \
+EXTRA_DIST = getmaxthreads1.testcase \
+	setmaxthreads1.testcase \
+	setmaxthreads2.testcase \
+	setmaxthreads3.testcase \
+	setmaxthreads4.testcase \
+	setmaxthreads5.testcase \
+	setmaxthreads6.testcase \
+	setmaxthreads7.testcase \
+    createcov_16_mband1.testcase \
 	createcov_16_mband_deflate.testcase \
 	createcov_16_mband_deflateno.testcase \
 	createcov_16_mband_fax3.testcase \

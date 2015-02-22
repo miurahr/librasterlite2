@@ -62,10 +62,129 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/sqlite.h"
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+#else
+#include <pthread.h>
+#endif
+
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2/rl2tiff.h"
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
+
+static void
+destroyAuxImporterTile (rl2AuxImporterTilePtr tile)
+{
+/* destroying an AuxImporter Tile */
+    if (tile == NULL)
+	return;
+    if (tile->opaque_thread_id != NULL)
+	free (tile->opaque_thread_id);
+    if (tile->raster != NULL)
+	rl2_destroy_raster (tile->raster);
+    if (tile->blob_odd != NULL)
+	free (tile->blob_odd);
+    if (tile->blob_even != NULL)
+	free (tile->blob_even);
+    free (tile);
+}
+
+static void
+doAuxImporterTileCleanup (rl2AuxImporterTilePtr tile)
+{
+/* AuxTile cleanup */
+    if (tile == NULL)
+	return;
+    tile->blob_odd = NULL;
+    tile->blob_even = NULL;
+    rl2_destroy_raster (tile->raster);
+    tile->raster = NULL;
+}
+
+static void
+addTile2AuxImporter (rl2AuxImporterPtr aux, unsigned int row, unsigned int col,
+		     double minx, double maxy)
+{
+/* adding a Tile to some AuxImporter container */
+    rl2AuxImporterTilePtr tile;
+    if (aux == NULL)
+	return;
+
+    tile = malloc (sizeof (rl2AuxImporterTile));
+    tile->opaque_thread_id = NULL;
+    tile->mother = aux;
+    tile->raster = NULL;
+    tile->row = row;
+    tile->col = col;
+    tile->minx = minx;
+    tile->maxx = minx + ((double) (aux->tile_w) * aux->res_x);
+    if (tile->maxx > aux->maxx)
+	tile->maxx = aux->maxx;
+    tile->maxy = maxy;
+    tile->miny = tile->maxy - ((double) (aux->tile_h) * aux->res_y);
+    if (tile->miny < aux->miny)
+	tile->miny = aux->miny;
+    tile->retcode = RL2_ERROR;
+    tile->blob_odd = NULL;
+    tile->blob_even = NULL;
+    tile->blob_odd_sz = 0;
+    tile->blob_even_sz = 0;
+    tile->next = NULL;
+/* appending to the double linked list */
+    if (aux->first == NULL)
+	aux->first = tile;
+    if (aux->last != NULL)
+	aux->last->next = tile;
+    aux->last = tile;
+}
+
+static rl2AuxImporterPtr
+createAuxImporter (rl2PrivCoveragePtr coverage, int srid, double maxx,
+		   double miny, unsigned int tile_w, unsigned int tile_h,
+		   double res_x, double res_y, unsigned char origin_type,
+		   const void *origin, unsigned char forced_conversion,
+		   int verbose, unsigned char compression, int quality)
+{
+/* creating an AuxImporter container */
+    rl2AuxImporterPtr aux = malloc (sizeof (rl2AuxImporter));
+    aux->coverage = coverage;
+    aux->srid = srid;
+    aux->maxx = maxx;
+    aux->miny = miny;
+    aux->tile_w = tile_w;
+    aux->tile_h = tile_h;
+    aux->res_x = res_x;
+    aux->res_y = res_y;
+    aux->origin_type = origin_type;
+    aux->origin = origin;
+    aux->forced_conversion = forced_conversion;
+    aux->verbose = verbose;
+    aux->compression = compression;
+    aux->quality = quality;
+    aux->first = NULL;
+    aux->last = NULL;
+    return aux;
+}
+
+static void
+destroyAuxImporter (rl2AuxImporterPtr aux)
+{
+/* destroying an AuxImporter container */
+    rl2AuxImporterTilePtr tile;
+    rl2AuxImporterTilePtr tile_n;
+    if (aux == NULL)
+	return;
+    tile = aux->first;
+    while (tile != NULL)
+      {
+	  tile_n = tile->next;
+	  destroyAuxImporterTile (tile);
+	  tile = tile_n;
+      }
+    free (aux);
+}
 
 static char *
 formatFloat (double value)
@@ -125,12 +244,11 @@ formatLat (double value)
 static int
 do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
 		unsigned char *blob_even, int blob_even_sz,
-		sqlite3_int64 section_id, int srid, double res_x, double res_y,
-		unsigned int tile_w, unsigned int tile_h, double miny,
-		double maxx, double *tile_minx, double *tile_miny,
-		double *tile_maxx, double *tile_maxy, rl2PalettePtr aux_palette,
-		rl2PixelPtr no_data, sqlite3_stmt * stmt_tils,
-		sqlite3_stmt * stmt_data, rl2RasterStatisticsPtr section_stats)
+		sqlite3_int64 section_id, int srid, double tile_minx,
+		double tile_miny, double tile_maxx, double tile_maxy,
+		rl2PalettePtr aux_palette, rl2PixelPtr no_data,
+		sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_data,
+		rl2RasterStatisticsPtr section_stats)
 {
 /* INSERTing the tile */
     int ret;
@@ -145,16 +263,10 @@ do_insert_tile (sqlite3 * handle, unsigned char *blob_odd, int blob_odd_sz,
     sqlite3_reset (stmt_tils);
     sqlite3_clear_bindings (stmt_tils);
     sqlite3_bind_int64 (stmt_tils, 1, section_id);
-    *tile_maxx = *tile_minx + ((double) tile_w * res_x);
-    if (*tile_maxx > maxx)
-	*tile_maxx = maxx;
-    *tile_miny = *tile_maxy - ((double) tile_h * res_y);
-    if (*tile_miny < miny)
-	*tile_miny = miny;
-    sqlite3_bind_double (stmt_tils, 2, *tile_minx);
-    sqlite3_bind_double (stmt_tils, 3, *tile_miny);
-    sqlite3_bind_double (stmt_tils, 4, *tile_maxx);
-    sqlite3_bind_double (stmt_tils, 5, *tile_maxy);
+    sqlite3_bind_double (stmt_tils, 2, tile_minx);
+    sqlite3_bind_double (stmt_tils, 3, tile_miny);
+    sqlite3_bind_double (stmt_tils, 4, tile_maxx);
+    sqlite3_bind_double (stmt_tils, 5, tile_maxy);
     sqlite3_bind_int (stmt_tils, 6, srid);
     ret = sqlite3_step (stmt_tils);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
@@ -219,8 +331,166 @@ compute_aggregate_sq_diff (rl2RasterStatisticsPtr section_stats)
       }
 }
 
+static void
+do_get_tile (rl2AuxImporterTilePtr tile)
+{
+/* loading data required by an AuxImporter Tile */
+    rl2AsciiGridOriginPtr ascii_grid_origin = NULL;
+    rl2TiffOriginPtr tiff_origin;
+    rl2RasterPtr raster_origin;
+    rl2AuxImporterPtr aux;
+    if (tile == NULL)
+	return;
+
+    aux = tile->mother;
+    switch (aux->origin_type)
+      {
+      case RL2_ORIGIN_ASCII_GRID:
+	  ascii_grid_origin = (rl2AsciiGridOriginPtr) (aux->origin);
+	  tile->raster =
+	      rl2_get_tile_from_ascii_grid_origin ((rl2CoveragePtr)
+						   (aux->coverage),
+						   ascii_grid_origin, tile->row,
+						   tile->col, aux->verbose);
+	  break;
+      case RL2_ORIGIN_JPEG:
+	  raster_origin = (rl2RasterPtr) (aux->origin);
+	  tile->raster =
+	      rl2_get_tile_from_jpeg_origin ((rl2CoveragePtr) (aux->coverage),
+					     raster_origin, tile->row,
+					     tile->col, aux->forced_conversion,
+					     aux->verbose);
+	  break;
+      case RL2_ORIGIN_JPEG2000:
+	  raster_origin = (rl2RasterPtr) (aux->origin);
+	  tile->raster =
+	      rl2_get_tile_from_jpeg2000_origin ((rl2CoveragePtr)
+						 (aux->coverage), raster_origin,
+						 tile->row, tile->col,
+						 aux->forced_conversion,
+						 aux->verbose);
+	  break;
+      case RL2_ORIGIN_TIFF:
+	  tiff_origin = (rl2TiffOriginPtr) (aux->origin);
+	  tile->raster =
+	      rl2_get_tile_from_tiff_origin ((rl2CoveragePtr) (aux->coverage),
+					     tiff_origin, tile->row, tile->col,
+					     aux->srid, aux->verbose);
+	  break;
+      case RL2_ORIGIN_RAW:
+	  raster_origin = (rl2RasterPtr) (aux->origin);
+	  tile->raster =
+	      rl2_get_tile_from_raw_pixels ((rl2CoveragePtr) (aux->coverage),
+					    raster_origin, tile->row,
+					    tile->col);
+	  break;
+      };
+}
+
+static void
+do_encode_tile (rl2AuxImporterTilePtr tile)
+{
+/* servicising an AuxImporter Tile request */
+    rl2AuxImporterPtr aux;
+    if (tile == NULL)
+	goto error;
+
+    aux = tile->mother;
+    if (tile->raster == NULL)
+      {
+	  fprintf (stderr,
+		   "ERROR: unable to get a tile [Row=%d Col=%d]\n",
+		   tile->row, tile->col);
+	  goto error;
+      }
+    if (rl2_raster_encode
+	(tile->raster, aux->compression, &(tile->blob_odd),
+	 &(tile->blob_odd_sz), &(tile->blob_even), &(tile->blob_even_sz),
+	 aux->quality, 1) != RL2_OK)
+      {
+	  fprintf (stderr,
+		   "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
+		   tile->row, tile->col);
+	  goto error;
+      }
+    tile->retcode = RL2_OK;
+    return;
+
+  error:
+    doAuxImporterTileCleanup (tile);
+    tile->retcode = RL2_ERROR;
+}
+
+#ifdef _WIN32
+DWORD WINAPI
+doRunImportThread (void *arg)
+#else
+void *
+doRunImportThread (void *arg)
+#endif
+{
+/* threaded function: preparing a compressed Tile to be imported */
+    rl2AuxImporterTilePtr aux_tile = (rl2AuxImporterTilePtr) arg;
+    do_encode_tile (aux_tile);
+#ifdef _WIN32
+    return 0;
+#else
+    pthread_exit (NULL);
+#endif
+}
+
+static void
+start_tile_thread (rl2AuxImporterTilePtr aux_tile)
+{
+/* starting a concurrent thread */
+#ifdef _WIN32
+    HANDLE thread_handle;
+    HANDLE *p_thread;
+    DWORD dwThreadId;
+    thread_handle =
+	CreateThread (NULL, 0, doRunImportThread, aux_tile, 0, &dwThreadId);
+    SetThreadPriority (thread_handle, THREAD_PRIORITY_IDLE);
+    p_thread = malloc (sizeof (HANDLE));
+    *p_thread = thread_handle;
+    aux_tile->opaque_thread_id = p_thread;
+#else
+    pthread_t thread_id;
+    pthread_t *p_thread;
+    int ok_prior = 0;
+    int policy;
+    int min_prio;
+    pthread_attr_t attr;
+    struct sched_param sp;
+    pthread_attr_init (&attr);
+    if (pthread_attr_setschedpolicy (&attr, SCHED_RR) == 0)
+      {
+	  /* attempting to set the lowest priority */
+	  if (pthread_attr_getschedpolicy (&attr, &policy) == 0)
+	    {
+		min_prio = sched_get_priority_min (policy);
+		sp.sched_priority = min_prio;
+		if (pthread_attr_setschedparam (&attr, &sp) == 0)
+		  {
+		      /* ok, setting the lowest priority */
+		      ok_prior = 1;
+		      pthread_create (&thread_id, &attr, doRunImportThread,
+				      aux_tile);
+		  }
+	    }
+      }
+    if (!ok_prior)
+      {
+	  /* failure: using standard priority */
+	  pthread_create (&thread_id, NULL, doRunImportThread, aux_tile);
+      }
+    p_thread = malloc (sizeof (pthread_t));
+    *p_thread = thread_id;
+    aux_tile->opaque_thread_id = p_thread;
+#endif
+}
+
 static int
-do_import_ascii_grid (sqlite3 * handle, const char *src_path,
+do_import_ascii_grid (sqlite3 * handle, int max_threads, const char *src_path,
 		      rl2CoveragePtr cvg, const char *section, int srid,
 		      unsigned int tile_w, unsigned int tile_h,
 		      int pyramidize, unsigned char sample_type,
@@ -240,13 +510,7 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     unsigned int col;
     unsigned int width;
     unsigned int height;
-    unsigned char *blob_odd = NULL;
-    unsigned char *blob_even = NULL;
-    int blob_odd_sz;
-    int blob_even_sz;
     double tile_minx;
-    double tile_miny;
-    double tile_maxx;
     double tile_maxy;
     double minx;
     double miny;
@@ -266,6 +530,10 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     int mins;
     int secs;
     char *xml_summary = NULL;
+    rl2AuxImporterPtr aux = NULL;
+    rl2AuxImporterTilePtr aux_tile;
+    rl2AuxImporterTilePtr *thread_slots = NULL;
+    int thread_count;
 
     time (&start);
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
@@ -396,55 +664,148 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	      goto error;
       }
 
+/* preparing all Tile Requests */
+    aux =
+	createAuxImporter (coverage, srid, maxx, miny, tile_w, tile_h, res_x,
+			   res_y, RL2_ORIGIN_ASCII_GRID, origin, RL2_CONVERT_NO,
+			   verbose, compression, 100);
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
       {
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster =
-		    rl2_get_tile_from_ascii_grid_origin (cvg, origin, row, col,
-							 verbose);
-		if (raster == NULL)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		if (rl2_raster_encode
-		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
-		     &blob_even_sz, 100, 1) != RL2_OK)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-
-		/* INSERTing the tile */
-		if (!do_insert_tile
-		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
-		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
-		     NULL, no_data, stmt_tils, stmt_data, section_stats))
-		  {
-		      blob_odd = NULL;
-		      blob_even = NULL;
-		      goto error;
-		  }
-		blob_odd = NULL;
-		blob_even = NULL;
-		rl2_destroy_raster (raster);
-		raster = NULL;
+		/* adding a Tile request */
+		addTile2AuxImporter (aux, row, col, tile_minx, tile_maxy);
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
-	  if (verbose && isatty (STDOUT_FILENO))
-	    {
-		printf (">> Imported row %u of %u\r", row + tile_h, height);
-	    }
       }
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* prepating the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxImporterTilePtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
+    aux_tile = aux->first;
+    while (aux_tile != NULL)
+      {
+	  /* processing a Tile request (may be under parallel execution) */
+	  if (max_threads > 1)
+	    {
+		/* adopting a multithreaded strategy */
+		do_get_tile (aux_tile);
+		*(thread_slots + thread_count) = aux_tile;
+		thread_count++;
+		start_tile_thread (aux_tile);
+		if (thread_count == max_threads || aux_tile->next == NULL)
+		  {
+		      /* waiting until all child threads exit */
+#ifdef _WIN32
+		      HANDLE *handles;
+		      int z;
+		      int cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* counting how many active threads we currently have */
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    cnt++;
+			}
+		      handles = malloc (sizeof (HANDLE) * cnt);
+		      cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* initializing the HANDLEs array */
+			    HANDLE *pOpaque;
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (HANDLE *) (pTile->opaque_thread_id);
+			    *(handles + cnt) = *pOpaque;
+			    cnt++;
+			}
+		      WaitForMultipleObjects (cnt, handles, TRUE, INFINITE);
+#else
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    pthread_t *pOpaque;
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (pthread_t *) (pTile->opaque_thread_id);
+			    pthread_join (*pOpaque, NULL);
+			}
+#endif
+
+		      /* all children threads have now finished: resuming the main thread */
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    /* checking for eventual errors */
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    if (pTile->retcode != RL2_OK)
+				goto error;
+			}
+#ifdef _WIN32
+		      free (handles);
+#endif
+		      thread_count = 0;
+		      /* we can now continue by inserting all tiles into the DBMS */
+		  }
+		else
+		  {
+		      aux_tile = aux_tile->next;
+		      continue;
+		  }
+	    }
+	  else
+	    {
+		/* single thread execution */
+		do_get_tile (aux_tile);
+		*(thread_slots + 0) = aux_tile;
+		do_encode_tile (aux_tile);
+		if (aux_tile->retcode != RL2_OK)
+		    goto error;
+	    }
+
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	    {
+		/* INSERTing the tile(s) */
+		rl2AuxImporterTilePtr pTile = *(thread_slots + thread_count);
+		if (pTile == NULL)
+		    continue;
+		if (!do_insert_tile
+		    (handle, pTile->blob_odd, pTile->blob_odd_sz,
+		     pTile->blob_even, pTile->blob_even_sz, section_id, srid,
+		     pTile->minx, pTile->miny, pTile->maxx, pTile->maxy,
+		     NULL, no_data, stmt_tils, stmt_data, section_stats))
+		  {
+		      pTile->blob_odd = NULL;
+		      pTile->blob_even = NULL;
+		      goto error;
+		  }
+		doAuxImporterTileCleanup (pTile);
+	    }
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	      *(thread_slots + thread_count) = NULL;
+	  thread_count = 0;
+	  aux_tile = aux_tile->next;
+      }
+    destroyAuxImporter (aux);
+    aux = NULL;
+    free (thread_slots);
+    thread_slots = NULL;
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
@@ -469,7 +830,8 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
 	  if (coverage_name == NULL)
 	      goto error;
 	  if (rl2_build_section_pyramid
-	      (handle, coverage_name, section_id, 1, verbose) != RL2_OK)
+	      (handle, max_threads, coverage_name, section_id, 1,
+	       verbose) != RL2_OK)
 	    {
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
@@ -479,10 +841,10 @@ do_import_ascii_grid (sqlite3 * handle, const char *src_path,
     return 1;
 
   error:
-    if (blob_odd != NULL)
-	free (blob_odd);
-    if (blob_even != NULL)
-	free (blob_even);
+    if (aux != NULL)
+	destroyAuxImporter (aux);
+    if (thread_slots != NULL)
+	free (thread_slots);
     if (origin != NULL)
 	rl2_destroy_ascii_grid_origin (origin);
     if (raster != NULL)
@@ -782,15 +1144,15 @@ write_jgw_worldfile (const char *path, double minx, double maxy, double x_res,
 }
 
 static int
-do_import_jpeg_image (sqlite3 * handle, const char *src_path,
+do_import_jpeg_image (sqlite3 * handle, int max_threads, const char *src_path,
 		      rl2CoveragePtr cvg, const char *section, int srid,
 		      unsigned int tile_w, unsigned int tile_h,
 		      int pyramidize, unsigned char sample_type,
 		      unsigned char num_bands, unsigned char compression,
-		      sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
-		      sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
-		      sqlite3_stmt * stmt_upd_sect, int verbose, int current,
-		      int total)
+		      int quality, sqlite3_stmt * stmt_data,
+		      sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
+		      sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect,
+		      int verbose, int current, int total)
 {
 /* importing a JPEG image file [with optional WorldFile */
     rl2SectionPtr origin = NULL;
@@ -803,13 +1165,7 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     unsigned int col;
     unsigned int width;
     unsigned int height;
-    unsigned char *blob_odd = NULL;
-    unsigned char *blob_even = NULL;
-    int blob_odd_sz;
-    int blob_even_sz;
     double tile_minx;
-    double tile_miny;
-    double tile_maxx;
     double tile_maxy;
     double minx;
     double miny;
@@ -832,6 +1188,10 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     int mins;
     int secs;
     char *xml_summary = NULL;
+    rl2AuxImporterPtr aux = NULL;
+    rl2AuxImporterTilePtr aux_tile;
+    rl2AuxImporterTilePtr *thread_slots = NULL;
+    int thread_count;
 
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
       {
@@ -976,55 +1336,147 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 	      goto error;
       }
 
+/* preparing all Tile Requests */
+    aux =
+	createAuxImporter (coverage, srid, maxx, miny, tile_w, tile_h, res_x,
+			   res_y, RL2_ORIGIN_JPEG, rst_in, forced_conversion,
+			   verbose, compression, quality);
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
       {
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster =
-		    rl2_get_tile_from_jpeg_origin (cvg, rst_in, row, col,
-						   forced_conversion, verbose);
-		if (raster == NULL)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		if (rl2_raster_encode
-		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
-		     &blob_even_sz, 100, 1) != RL2_OK)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-
-		/* INSERTing the tile */
-		if (!do_insert_tile
-		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
-		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
-		     NULL, no_data, stmt_tils, stmt_data, section_stats))
-		  {
-		      blob_odd = NULL;
-		      blob_even = NULL;
-		      goto error;
-		  }
-		blob_odd = NULL;
-		blob_even = NULL;
-		rl2_destroy_raster (raster);
-		raster = NULL;
+		/* adding a Tile request */
+		addTile2AuxImporter (aux, row, col, tile_minx, tile_maxy);
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
-	  if (verbose && isatty (STDOUT_FILENO))
-	    {
-		printf (">> Imported row %u of %u\r", row + tile_h, height);
-	    }
       }
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* prepating the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxImporterTilePtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
+    aux_tile = aux->first;
+    while (aux_tile != NULL)
+      {
+	  /* processing a Tile request (may be under parallel execution) */
+	  if (max_threads > 1)
+	    {
+		/* adopting a multithreaded strategy */
+		do_get_tile (aux_tile);
+		*(thread_slots + thread_count) = aux_tile;
+		thread_count++;
+		start_tile_thread (aux_tile);
+		if (thread_count == max_threads || aux_tile->next == NULL)
+		  {
+		      /* waiting until all child threads exit */
+#ifdef _WIN32
+		      HANDLE *handles;
+		      int z;
+		      int cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* counting how many active threads we currently have */
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    cnt++;
+			}
+		      handles = malloc (sizeof (HANDLE) * cnt);
+		      cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* initializing the HANDLEs array */
+			    HANDLE *pOpaque;
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (HANDLE *) (pTile->opaque_thread_id);
+			    *(handles + cnt) = *pOpaque;
+			    cnt++;
+			}
+		      WaitForMultipleObjects (cnt, handles, TRUE, INFINITE);
+#else
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    pthread_t *pOpaque;
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (pthread_t *) (pTile->opaque_thread_id);
+			    pthread_join (*pOpaque, NULL);
+			}
+#endif
+
+		      /* all children threads have now finished: resuming the main thread */
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    if (pTile->retcode != RL2_OK)
+				goto error;
+			}
+#ifdef _WIN32
+		      free (handles);
+#endif
+		      thread_count = 0;
+		      /* we can now continue by inserting all tiles into the DBMS */
+		  }
+		else
+		  {
+		      aux_tile = aux_tile->next;
+		      continue;
+		  }
+	    }
+	  else
+	    {
+		/* single thread execution */
+		do_get_tile (aux_tile);
+		*(thread_slots + 0) = aux_tile;
+		do_encode_tile (aux_tile);
+		if (aux_tile->retcode != RL2_OK)
+		    goto error;
+	    }
+
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	    {
+		/* INSERTing the tile(s) */
+		rl2AuxImporterTilePtr pTile = *(thread_slots + thread_count);
+		if (pTile == NULL)
+		    continue;
+		if (!do_insert_tile
+		    (handle, pTile->blob_odd, pTile->blob_odd_sz,
+		     pTile->blob_even, pTile->blob_even_sz, section_id, srid,
+		     pTile->minx, pTile->miny, pTile->maxx, pTile->maxy,
+		     NULL, no_data, stmt_tils, stmt_data, section_stats))
+		  {
+		      pTile->blob_odd = NULL;
+		      pTile->blob_even = NULL;
+		      goto error;
+		  }
+		doAuxImporterTileCleanup (pTile);
+	    }
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	      *(thread_slots + thread_count) = NULL;
+	  thread_count = 0;
+	  aux_tile = aux_tile->next;
+      }
+    destroyAuxImporter (aux);
+    aux = NULL;
+    free (thread_slots);
+    thread_slots = NULL;
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
@@ -1049,7 +1501,8 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
 	  if (coverage_name == NULL)
 	      goto error;
 	  if (rl2_build_section_pyramid
-	      (handle, coverage_name, section_id, 1, verbose) != RL2_OK)
+	      (handle, max_threads, coverage_name, section_id, 1,
+	       verbose) != RL2_OK)
 	    {
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
@@ -1059,10 +1512,10 @@ do_import_jpeg_image (sqlite3 * handle, const char *src_path,
     return 1;
 
   error:
-    if (blob_odd != NULL)
-	free (blob_odd);
-    if (blob_even != NULL)
-	free (blob_even);
+    if (aux != NULL)
+	destroyAuxImporter (aux);
+    if (thread_slots != NULL)
+	free (thread_slots);
     if (origin != NULL)
 	rl2_destroy_section (origin);
     if (raster != NULL)
@@ -1121,11 +1574,12 @@ read_j2w_worldfile (const char *src_path, double *minx, double *maxy,
 }
 
 static int
-do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
-			  rl2CoveragePtr cvg, const char *section, int srid,
-			  unsigned int tile_w, unsigned int tile_h,
-			  int pyramidize, unsigned char sample_type,
-			  unsigned char num_bands, unsigned char compression,
+do_import_jpeg2000_image (sqlite3 * handle, int max_threads,
+			  const char *src_path, rl2CoveragePtr cvg,
+			  const char *section, int srid, unsigned int tile_w,
+			  unsigned int tile_h, int pyramidize,
+			  unsigned char sample_type, unsigned char num_bands,
+			  unsigned char compression, int quality,
 			  sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
 			  sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
 			  sqlite3_stmt * stmt_upd_sect, int verbose,
@@ -1143,13 +1597,7 @@ do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
     unsigned int col;
     unsigned int width;
     unsigned int height;
-    unsigned char *blob_odd = NULL;
-    unsigned char *blob_even = NULL;
-    int blob_odd_sz;
-    int blob_even_sz;
     double tile_minx;
-    double tile_miny;
-    double tile_maxx;
     double tile_maxy;
     double minx;
     double miny;
@@ -1178,6 +1626,10 @@ do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
     unsigned int tile_height;
     unsigned char num_levels;
     char *xml_summary = NULL;
+    rl2AuxImporterPtr aux = NULL;
+    rl2AuxImporterTilePtr aux_tile;
+    rl2AuxImporterTilePtr *thread_slots = NULL;
+    int thread_count;
 
     if (rl2_get_coverage_resolution (cvg, &base_res_x, &base_res_y) != RL2_OK)
       {
@@ -1334,56 +1786,147 @@ do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
 	      goto error;
       }
 
+/* preparing all Tile Requests */
+    aux =
+	createAuxImporter (coverage, srid, maxx, miny, tile_w, tile_h, res_x,
+			   res_y, RL2_ORIGIN_JPEG2000, rst_in,
+			   forced_conversion, verbose, compression, quality);
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
       {
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster =
-		    rl2_get_tile_from_jpeg2000_origin (cvg, rst_in, row, col,
-						       forced_conversion,
-						       verbose);
-		if (raster == NULL)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		if (rl2_raster_encode
-		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
-		     &blob_even_sz, 100, 1) != RL2_OK)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-
-		/* INSERTing the tile */
-		if (!do_insert_tile
-		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
-		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
-		     NULL, no_data, stmt_tils, stmt_data, section_stats))
-		  {
-		      blob_odd = NULL;
-		      blob_even = NULL;
-		      goto error;
-		  }
-		blob_odd = NULL;
-		blob_even = NULL;
-		rl2_destroy_raster (raster);
-		raster = NULL;
+		/* adding a Tile request */
+		addTile2AuxImporter (aux, row, col, tile_minx, tile_maxy);
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
-	  if (verbose && isatty (STDOUT_FILENO))
-	    {
-		printf (">> Imported row %u of %u\r", row + tile_h, height);
-	    }
       }
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* prepating the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxImporterTilePtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
+    aux_tile = aux->first;
+    while (aux_tile != NULL)
+      {
+	  /* processing a Tile request (may be under parallel execution) */
+	  if (max_threads > 1)
+	    {
+		/* adopting a multithreaded strategy */
+		do_get_tile (aux_tile);
+		*(thread_slots + thread_count) = aux_tile;
+		thread_count++;
+		start_tile_thread (aux_tile);
+		if (thread_count == max_threads || aux_tile->next == NULL)
+		  {
+		      /* waiting until all child threads exit */
+#ifdef _WIN32
+		      HANDLE *handles;
+		      int z;
+		      int cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* counting how many active threads we currently have */
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    cnt++;
+			}
+		      handles = malloc (sizeof (HANDLE) * cnt);
+		      cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* initializing the HANDLEs array */
+			    HANDLE *pOpaque;
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (HANDLE *) (pTile->opaque_thread_id);
+			    *(handles + cnt) = *pOpaque;
+			    cnt++;
+			}
+		      WaitForMultipleObjects (cnt, handles, TRUE, INFINITE);
+#else
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    pthread_t *pOpaque;
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (pthread_t *) (pTile->opaque_thread_id);
+			    pthread_join (*pOpaque, NULL);
+			}
+#endif
+
+		      /* all children threads have now finished: resuming the main thread */
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    if (pTile->retcode != RL2_OK)
+				goto error;
+			}
+#ifdef _WIN32
+		      free (handles);
+#endif
+		      thread_count = 0;
+		      /* we can now continue by inserting all tiles into the DBMS */
+		  }
+		else
+		  {
+		      aux_tile = aux_tile->next;
+		      continue;
+		  }
+	    }
+	  else
+	    {
+		/* single thread execution */
+		do_get_tile (aux_tile);
+		*(thread_slots + 0) = aux_tile;
+		do_encode_tile (aux_tile);
+		if (aux_tile->retcode != RL2_OK)
+		    goto error;
+	    }
+
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	    {
+		/* INSERTing the tile(s) */
+		rl2AuxImporterTilePtr pTile = *(thread_slots + thread_count);
+		if (pTile == NULL)
+		    continue;
+		if (!do_insert_tile
+		    (handle, pTile->blob_odd, pTile->blob_odd_sz,
+		     pTile->blob_even, pTile->blob_even_sz, section_id, srid,
+		     pTile->minx, pTile->miny, pTile->maxx, pTile->maxy,
+		     NULL, no_data, stmt_tils, stmt_data, section_stats))
+		  {
+		      pTile->blob_odd = NULL;
+		      pTile->blob_even = NULL;
+		      goto error;
+		  }
+		doAuxImporterTileCleanup (pTile);
+	    }
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	      *(thread_slots + thread_count) = NULL;
+	  thread_count = 0;
+	  aux_tile = aux_tile->next;
+      }
+    destroyAuxImporter (aux);
+    aux = NULL;
+    free (thread_slots);
+    thread_slots = NULL;
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
@@ -1408,7 +1951,8 @@ do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
 	  if (coverage_name == NULL)
 	      goto error;
 	  if (rl2_build_section_pyramid
-	      (handle, coverage_name, section_id, 1, verbose) != RL2_OK)
+	      (handle, max_threads, coverage_name, section_id, 1,
+	       verbose) != RL2_OK)
 	    {
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
@@ -1418,10 +1962,10 @@ do_import_jpeg2000_image (sqlite3 * handle, const char *src_path,
     return 1;
 
   error:
-    if (blob_odd != NULL)
-	free (blob_odd);
-    if (blob_even != NULL)
-	free (blob_even);
+    if (aux != NULL)
+	destroyAuxImporter (aux);
+    if (thread_slots != NULL)
+	free (thread_slots);
     if (origin != NULL)
 	rl2_destroy_section (origin);
     if (raster != NULL)
@@ -1477,7 +2021,7 @@ is_jpeg2000_image (const char *path)
 #endif /* end OpenJpeg conditional */
 
 static int
-do_import_file (sqlite3 * handle, const char *src_path,
+do_import_file (sqlite3 * handle, int max_threads, const char *src_path,
 		rl2CoveragePtr cvg, const char *section, int worldfile,
 		int force_srid, int pyramidize, unsigned char sample_type,
 		unsigned char pixel_type, unsigned char num_bands,
@@ -1492,7 +2036,6 @@ do_import_file (sqlite3 * handle, const char *src_path,
     rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
     int ret;
     rl2TiffOriginPtr origin = NULL;
-    rl2RasterPtr raster = NULL;
     rl2PalettePtr aux_palette = NULL;
     rl2RasterStatisticsPtr section_stats = NULL;
     rl2PixelPtr no_data = NULL;
@@ -1500,15 +2043,9 @@ do_import_file (sqlite3 * handle, const char *src_path,
     unsigned int col;
     unsigned int width;
     unsigned int height;
-    unsigned char *blob_odd = NULL;
-    unsigned char *blob_even = NULL;
-    int blob_odd_sz;
-    int blob_even_sz;
     int srid;
     int xsrid;
     double tile_minx;
-    double tile_miny;
-    double tile_maxx;
     double tile_maxy;
     double minx;
     double miny;
@@ -1528,29 +2065,35 @@ do_import_file (sqlite3 * handle, const char *src_path,
     int mins;
     int secs;
     char *xml_summary = NULL;
+    rl2AuxImporterPtr aux = NULL;
+    rl2AuxImporterTilePtr aux_tile;
+    rl2AuxImporterTilePtr *thread_slots = NULL;
+    int thread_count;
 
     if (is_ascii_grid (src_path))
-	return do_import_ascii_grid (handle, src_path, cvg, section, force_srid,
-				     tile_w, tile_h, pyramidize, sample_type,
-				     compression, stmt_data, stmt_tils,
-				     stmt_sect, stmt_levl,
+	return do_import_ascii_grid (handle, max_threads, src_path, cvg,
+				     section, force_srid, tile_w, tile_h,
+				     pyramidize, sample_type, compression,
+				     stmt_data, stmt_tils, stmt_sect, stmt_levl,
 				     stmt_upd_sect, verbose, current, total);
 
     if (is_jpeg_image (src_path))
-	return do_import_jpeg_image (handle, src_path, cvg, section, force_srid,
-				     tile_w, tile_h, pyramidize, sample_type,
-				     num_bands, compression, stmt_data,
-				     stmt_tils, stmt_sect, stmt_levl,
-				     stmt_upd_sect, verbose, current, total);
+	return do_import_jpeg_image (handle, max_threads, src_path, cvg,
+				     section, force_srid, tile_w, tile_h,
+				     pyramidize, sample_type, num_bands,
+				     compression, quality, stmt_data, stmt_tils,
+				     stmt_sect, stmt_levl, stmt_upd_sect,
+				     verbose, current, total);
 
 #ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     if (is_jpeg2000_image (src_path))
-	return do_import_jpeg2000_image (handle, src_path, cvg, section,
-					 force_srid, tile_w, tile_h, pyramidize,
-					 sample_type, num_bands, compression,
-					 stmt_data, stmt_tils, stmt_sect,
-					 stmt_levl, stmt_upd_sect, verbose,
-					 current, total);
+	return do_import_jpeg2000_image (handle, max_threads, src_path, cvg,
+					 section, force_srid, tile_w, tile_h,
+					 pyramidize, sample_type, num_bands,
+					 compression, quality, stmt_data,
+					 stmt_tils, stmt_sect, stmt_levl,
+					 stmt_upd_sect, verbose, current,
+					 total);
 #endif /* end OpenJpeg conditonal */
 
     time (&start);
@@ -1713,57 +2256,150 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	      goto error;
       }
 
+/* preparing all Tile Requests */
+    aux =
+	createAuxImporter (coverage, srid, maxx, miny, tile_w, tile_h, res_x,
+			   res_y, RL2_ORIGIN_TIFF, origin, RL2_CONVERT_NO,
+			   verbose, compression, quality);
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
       {
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster =
-		    rl2_get_tile_from_tiff_origin (cvg, origin, row, col, srid,
-						   verbose);
-		if (raster == NULL)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		if (rl2_raster_encode
-		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
-		     &blob_even_sz, quality, 1) != RL2_OK)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		/* INSERTing the tile */
-		aux_palette =
-		    rl2_clone_palette (rl2_get_raster_palette (raster));
-
-		if (!do_insert_tile
-		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
-		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
-		     aux_palette, no_data, stmt_tils, stmt_data, section_stats))
-		  {
-		      blob_odd = NULL;
-		      blob_even = NULL;
-		      goto error;
-		  }
-		blob_odd = NULL;
-		blob_even = NULL;
-		rl2_destroy_raster (raster);
-		raster = NULL;
+		/* adding a Tile request */
+		addTile2AuxImporter (aux, row, col, tile_minx, tile_maxy);
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
-	  if (verbose && isatty (STDOUT_FILENO))
-	    {
-		printf (">> Imported row %u of %u\r", row + tile_h, height);
-	    }
       }
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* prepating the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxImporterTilePtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
+    aux_tile = aux->first;
+    while (aux_tile != NULL)
+      {
+	  /* processing a Tile request (may be under parallel execution) */
+	  if (max_threads > 1)
+	    {
+		/* adopting a multithreaded strategy */
+		do_get_tile (aux_tile);
+		*(thread_slots + thread_count) = aux_tile;
+		thread_count++;
+		start_tile_thread (aux_tile);
+		if (thread_count == max_threads || aux_tile->next == NULL)
+		  {
+		      /* waiting until all child threads exit */
+#ifdef _WIN32
+		      HANDLE *handles;
+		      int z;
+		      int cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* counting how many active threads we currently have */
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    cnt++;
+			}
+		      handles = malloc (sizeof (HANDLE) * cnt);
+		      cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* initializing the HANDLEs array */
+			    HANDLE *pOpaque;
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (HANDLE *) (pTile->opaque_thread_id);
+			    *(handles + cnt) = *pOpaque;
+			    cnt++;
+			}
+		      WaitForMultipleObjects (cnt, handles, TRUE, INFINITE);
+#else
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    pthread_t *pOpaque;
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (pthread_t *) (pTile->opaque_thread_id);
+			    pthread_join (*pOpaque, NULL);
+			}
+#endif
+
+		      /* all children threads have now finished: resuming the main thread */
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    if (pTile->retcode != RL2_OK)
+				goto error;
+			}
+#ifdef _WIN32
+		      free (handles);
+#endif
+		      thread_count = 0;
+		      /* we can now continue by inserting all tiles into the DBMS */
+		  }
+		else
+		  {
+		      aux_tile = aux_tile->next;
+		      continue;
+		  }
+	    }
+	  else
+	    {
+		/* single thread execution */
+		do_get_tile (aux_tile);
+		*(thread_slots + 0) = aux_tile;
+		do_encode_tile (aux_tile);
+		if (aux_tile->retcode != RL2_OK)
+		    goto error;
+	    }
+
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	    {
+		/* INSERTing the tile(s) */
+		rl2AuxImporterTilePtr pTile = *(thread_slots + thread_count);
+		if (pTile == NULL)
+		    continue;
+		aux_palette =
+		    rl2_clone_palette (rl2_get_raster_palette
+				       (aux_tile->raster));
+		if (!do_insert_tile
+		    (handle, pTile->blob_odd, pTile->blob_odd_sz,
+		     pTile->blob_even, pTile->blob_even_sz, section_id, srid,
+		     pTile->minx, pTile->miny, pTile->maxx, pTile->maxy,
+		     aux_palette, no_data, stmt_tils, stmt_data, section_stats))
+		  {
+		      pTile->blob_odd = NULL;
+		      pTile->blob_even = NULL;
+		      goto error;
+		  }
+		doAuxImporterTileCleanup (pTile);
+	    }
+	  for (thread_count = 0; thread_count < max_threads; thread_count++)
+	      *(thread_slots + thread_count) = NULL;
+	  thread_count = 0;
+	  aux_tile = aux_tile->next;
+      }
+    destroyAuxImporter (aux);
+    aux = NULL;
+    free (thread_slots);
+    thread_slots = NULL;
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
@@ -1788,7 +2424,8 @@ do_import_file (sqlite3 * handle, const char *src_path,
 	  if (coverage_name == NULL)
 	      goto error;
 	  if (rl2_build_section_pyramid
-	      (handle, coverage_name, section_id, 1, verbose) != RL2_OK)
+	      (handle, max_threads, coverage_name, section_id, 1,
+	       verbose) != RL2_OK)
 	    {
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
@@ -1798,14 +2435,10 @@ do_import_file (sqlite3 * handle, const char *src_path,
     return 1;
 
   error:
-    if (blob_odd != NULL)
-	free (blob_odd);
-    if (blob_even != NULL)
-	free (blob_even);
-    if (origin != NULL)
-	rl2_destroy_tiff_origin (origin);
-    if (raster != NULL)
-	rl2_destroy_raster (raster);
+    if (aux != NULL)
+	destroyAuxImporter (aux);
+    if (thread_slots != NULL)
+	free (thread_slots);
     if (section_stats != NULL)
 	rl2_destroy_raster_statistics (section_stats);
     return 0;
@@ -1856,15 +2489,15 @@ check_extension_match (const char *file_name, const char *file_ext)
 }
 
 static int
-do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
-	       rl2CoveragePtr cvg, const char *section, int worldfile,
-	       int force_srid, int pyramidize, unsigned char sample_type,
-	       unsigned char pixel_type, unsigned char num_bands,
-	       unsigned int tile_w, unsigned int tile_h,
-	       unsigned char compression, int quality, sqlite3_stmt * stmt_data,
-	       sqlite3_stmt * stmt_tils, sqlite3_stmt * stmt_sect,
-	       sqlite3_stmt * stmt_levl, sqlite3_stmt * stmt_upd_sect,
-	       int verbose)
+do_import_dir (sqlite3 * handle, int max_threads, const char *dir_path,
+	       const char *file_ext, rl2CoveragePtr cvg, const char *section,
+	       int worldfile, int force_srid, int pyramidize,
+	       unsigned char sample_type, unsigned char pixel_type,
+	       unsigned char num_bands, unsigned int tile_w,
+	       unsigned int tile_h, unsigned char compression, int quality,
+	       sqlite3_stmt * stmt_data, sqlite3_stmt * stmt_tils,
+	       sqlite3_stmt * stmt_sect, sqlite3_stmt * stmt_levl,
+	       sqlite3_stmt * stmt_upd_sect, int verbose)
 {
 /* importing a whole directory */
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -1905,8 +2538,8 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 				sqlite3_mprintf ("%s/%s", dir_path,
 						 c_file.name);
 			    ret =
-				do_import_file (handle, path, cvg, section,
-						worldfile, force_srid,
+				do_import_file (handle, max_threads, path, cvg,
+						section, worldfile, force_srid,
 						pyramidize, sample_type,
 						pixel_type, num_bands, tile_w,
 						tile_h, compression, quality,
@@ -1957,11 +2590,12 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 	      continue;
 	  path = sqlite3_mprintf ("%s/%s", dir_path, entry->d_name);
 	  ret =
-	      do_import_file (handle, path, cvg, section, worldfile, force_srid,
-			      pyramidize, sample_type, pixel_type, num_bands,
-			      tile_w, tile_h, compression, quality, stmt_data,
-			      stmt_tils, stmt_sect, stmt_levl,
-			      stmt_upd_sect, verbose, cnt + 1, total);
+	      do_import_file (handle, max_threads, path, cvg, section,
+			      worldfile, force_srid, pyramidize, sample_type,
+			      pixel_type, num_bands, tile_w, tile_h,
+			      compression, quality, stmt_data, stmt_tils,
+			      stmt_sect, stmt_levl, stmt_upd_sect, verbose,
+			      cnt + 1, total);
 	  sqlite3_free (path);
 	  if (!ret)
 	      goto error;
@@ -1974,9 +2608,10 @@ do_import_dir (sqlite3 * handle, const char *dir_path, const char *file_ext,
 }
 
 static int
-do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
-		  const char *file_ext, rl2CoveragePtr cvg, const char *section,
-		  int worldfile, int force_srid, int pyramidize, int verbose)
+do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
+		  const char *dir_path, const char *file_ext,
+		  rl2CoveragePtr cvg, const char *section, int worldfile,
+		  int force_srid, int pyramidize, int verbose)
 {
 /* main IMPORT Raster function */
     rl2PrivCoveragePtr privcvg = (rl2PrivCoveragePtr) cvg;
@@ -2131,20 +2766,20 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
       {
 	  /* importing a single Image file */
 	  if (!do_import_file
-	      (handle, src_path, cvg, section, worldfile, force_srid,
-	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
-	       compression, quality, stmt_data, stmt_tils, stmt_sect,
-	       stmt_levl, stmt_upd_sect, verbose, -1, -1))
+	      (handle, max_threads, src_path, cvg, section, worldfile,
+	       force_srid, pyramidize, sample_type, pixel_type, num_bands,
+	       tile_w, tile_h, compression, quality, stmt_data, stmt_tils,
+	       stmt_sect, stmt_levl, stmt_upd_sect, verbose, -1, -1))
 	      goto error;
       }
     else
       {
 	  /* importing all Image files from a whole directory */
 	  if (!do_import_dir
-	      (handle, dir_path, file_ext, cvg, section, worldfile, force_srid,
-	       pyramidize, sample_type, pixel_type, num_bands, tile_w, tile_h,
-	       compression, quality, stmt_data, stmt_tils, stmt_sect,
-	       stmt_levl, stmt_upd_sect, verbose))
+	      (handle, max_threads, dir_path, file_ext, cvg, section, worldfile,
+	       force_srid, pyramidize, sample_type, pixel_type, num_bands,
+	       tile_w, tile_h, compression, quality, stmt_data, stmt_tils,
+	       stmt_sect, stmt_levl, stmt_upd_sect, verbose))
 	      goto error;
       }
 
@@ -2182,28 +2817,29 @@ do_import_common (sqlite3 * handle, const char *src_path, const char *dir_path,
 }
 
 RL2_DECLARE int
-rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
-			   rl2CoveragePtr coverage, int worldfile,
-			   int force_srid, int pyramidize, int verbose)
+rl2_load_raster_into_dbms (sqlite3 * handle, int max_threads,
+			   const char *src_path, rl2CoveragePtr coverage,
+			   int worldfile, int force_srid, int pyramidize,
+			   int verbose)
 {
 /* importing a single Raster file */
     if (!do_import_common
-	(handle, src_path, NULL, NULL, coverage, NULL, worldfile, force_srid,
-	 pyramidize, verbose))
+	(handle, max_threads, src_path, NULL, NULL, coverage, NULL, worldfile,
+	 force_srid, pyramidize, verbose))
 	return RL2_ERROR;
     return RL2_OK;
 }
 
 RL2_DECLARE int
-rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
-			     const char *file_ext,
+rl2_load_mrasters_into_dbms (sqlite3 * handle, int max_threads,
+			     const char *dir_path, const char *file_ext,
 			     rl2CoveragePtr coverage, int worldfile,
 			     int force_srid, int pyramidize, int verbose)
 {
 /* importing multiple Raster files from dir */
     if (!do_import_common
-	(handle, NULL, dir_path, file_ext, coverage, NULL, worldfile,
-	 force_srid, pyramidize, verbose))
+	(handle, max_threads, NULL, dir_path, file_ext, coverage, NULL,
+	 worldfile, force_srid, pyramidize, verbose))
 	return RL2_ERROR;
     return RL2_OK;
 }
@@ -2547,7 +3183,7 @@ copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
 }
 
 static int
-export_geotiff_common (sqlite3 * handle, const char *dst_path,
+export_geotiff_common (sqlite3 * handle, int max_threads, const char *dst_path,
 		       rl2CoveragePtr cvg, int by_section,
 		       sqlite3_int64 section_id, double x_res, double y_res,
 		       double minx, double miny, double maxx, double maxy,
@@ -2622,8 +3258,8 @@ export_geotiff_common (sqlite3 * handle, const char *dst_path,
       {
 	  /* just a single Section */
 	  if (rl2_get_section_raw_raster_data
-	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
-	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, xx_res, yy_res, &outbuf, &outbuf_size, &palette,
 	       pixel_type) != RL2_OK)
 	      goto error;
       }
@@ -2631,8 +3267,9 @@ export_geotiff_common (sqlite3 * handle, const char *dst_path,
       {
 	  /* whole Coverage */
 	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	       yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	       pixel_type) != RL2_OK)
 	      goto error;
       }
 
@@ -2727,22 +3364,23 @@ export_geotiff_common (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
-			      rl2CoveragePtr cvg, double x_res, double y_res,
-			      double minx, double miny, double maxx,
-			      double maxy, unsigned int width,
-			      unsigned int height, unsigned char compression,
-			      unsigned int tile_sz, int with_worldfile)
+rl2_export_geotiff_from_dbms (sqlite3 * handle, int max_threads,
+			      const char *dst_path, rl2CoveragePtr cvg,
+			      double x_res, double y_res, double minx,
+			      double miny, double maxx, double maxy,
+			      unsigned int width, unsigned int height,
+			      unsigned char compression, unsigned int tile_sz,
+			      int with_worldfile)
 {
 /* exporting a GeoTIFF from the DBMS into the file-system */
-    return export_geotiff_common (handle, dst_path, cvg, 0, 0, x_res, y_res,
-				  minx, miny, maxx, maxy, width, height,
-				  compression, tile_sz, with_worldfile);
+    return export_geotiff_common (handle, max_threads, dst_path, cvg, 0, 0,
+				  x_res, y_res, minx, miny, maxx, maxy, width,
+				  height, compression, tile_sz, with_worldfile);
 }
 
 RL2_DECLARE int
-rl2_export_section_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
-				      rl2CoveragePtr cvg,
+rl2_export_section_geotiff_from_dbms (sqlite3 * handle, int max_threads,
+				      const char *dst_path, rl2CoveragePtr cvg,
 				      sqlite3_int64 section_id, double x_res,
 				      double y_res, double minx, double miny,
 				      double maxx, double maxy,
@@ -2751,19 +3389,20 @@ rl2_export_section_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
 				      unsigned int tile_sz, int with_worldfile)
 {
 /* exporting a GeoTIFF - Section*/
-    return export_geotiff_common (handle, dst_path, cvg, 1, section_id, x_res,
-				  y_res, minx, miny, maxx, maxy, width, height,
-				  compression, tile_sz, with_worldfile);
+    return export_geotiff_common (handle, max_threads, dst_path, cvg, 1,
+				  section_id, x_res, y_res, minx, miny, maxx,
+				  maxy, width, height, compression, tile_sz,
+				  with_worldfile);
 }
 
 static int
-export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
-			     rl2CoveragePtr cvg, int by_section,
-			     sqlite3_int64 section_id, double x_res,
-			     double y_res, double minx, double miny,
-			     double maxx, double maxy, unsigned int width,
-			     unsigned int height, unsigned char compression,
-			     unsigned int tile_sz)
+export_tiff_worlfile_common (sqlite3 * handle, int max_threads,
+			     const char *dst_path, rl2CoveragePtr cvg,
+			     int by_section, sqlite3_int64 section_id,
+			     double x_res, double y_res, double minx,
+			     double miny, double maxx, double maxy,
+			     unsigned int width, unsigned int height,
+			     unsigned char compression, unsigned int tile_sz)
 {
 /* exporting a TIFF+TFW common implementation */
     rl2RasterPtr raster = NULL;
@@ -2832,8 +3471,8 @@ export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
       {
 	  /* just a single select Section */
 	  if (rl2_get_section_raw_raster_data
-	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
-	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, xx_res, yy_res, &outbuf, &outbuf_size, &palette,
 	       pixel_type) != RL2_OK)
 	      goto error;
       }
@@ -2841,8 +3480,9 @@ export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
       {
 	  /* whole Coverage */
 	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	       yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	       pixel_type) != RL2_OK)
 	      goto error;
       }
 
@@ -2934,23 +3574,22 @@ export_tiff_worlfile_common (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, const char *dst_path,
-				     rl2CoveragePtr cvg, double x_res,
-				     double y_res, double minx, double miny,
-				     double maxx, double maxy,
-				     unsigned int width,
-				     unsigned int height,
+rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, int max_threads,
+				     const char *dst_path, rl2CoveragePtr cvg,
+				     double x_res, double y_res, double minx,
+				     double miny, double maxx, double maxy,
+				     unsigned int width, unsigned int height,
 				     unsigned char compression,
 				     unsigned int tile_sz)
 {
 /* exporting a TIFF+TFW from the DBMS into the file-system */
-    return export_tiff_worlfile_common (handle, dst_path, cvg, 0, 0, x_res,
-					y_res, minx, miny, maxx, maxy, width,
-					height, compression, tile_sz);
+    return export_tiff_worlfile_common (handle, max_threads, dst_path, cvg, 0,
+					0, x_res, y_res, minx, miny, maxx, maxy,
+					width, height, compression, tile_sz);
 }
 
 RL2_DECLARE int
-rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle,
+rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle, int max_threads,
 					     const char *dst_path,
 					     rl2CoveragePtr cvg,
 					     sqlite3_int64 section_id,
@@ -2963,13 +3602,14 @@ rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle,
 					     unsigned int tile_sz)
 {
 /* exporting a TIFF+TFW - single Section */
-    return export_tiff_worlfile_common (handle, dst_path, cvg, 1, section_id,
-					x_res, y_res, minx, miny, maxx, maxy,
-					width, height, compression, tile_sz);
+    return export_tiff_worlfile_common (handle, max_threads, dst_path, cvg, 1,
+					section_id, x_res, y_res, minx, miny,
+					maxx, maxy, width, height, compression,
+					tile_sz);
 }
 
 static int
-export_tiff_common (sqlite3 * handle, const char *dst_path,
+export_tiff_common (sqlite3 * handle, int max_threads, const char *dst_path,
 		    rl2CoveragePtr cvg, int by_section,
 		    sqlite3_int64 section_id, double x_res, double y_res,
 		    double minx, double miny, double maxx, double maxy,
@@ -3045,8 +3685,8 @@ export_tiff_common (sqlite3 * handle, const char *dst_path,
       {
 	  /* just a single Section */
 	  if (rl2_get_section_raw_raster_data
-	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
-	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, xx_res, yy_res, &outbuf, &outbuf_size, &palette,
 	       pixel_type) != RL2_OK)
 	      goto error;
       }
@@ -3054,8 +3694,9 @@ export_tiff_common (sqlite3 * handle, const char *dst_path,
       {
 	  /* whole Coverage */
 	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	       yy_res, &outbuf, &outbuf_size, &palette, pixel_type) != RL2_OK)
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, &palette,
+	       pixel_type) != RL2_OK)
 	      goto error;
       }
 
@@ -3141,32 +3782,33 @@ export_tiff_common (sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-			   rl2CoveragePtr cvg, double x_res, double y_res,
-			   double minx, double miny, double maxx,
-			   double maxy, unsigned int width,
+rl2_export_tiff_from_dbms (sqlite3 * handle, int max_threads,
+			   const char *dst_path, rl2CoveragePtr cvg,
+			   double x_res, double y_res, double minx, double miny,
+			   double maxx, double maxy, unsigned int width,
 			   unsigned int height, unsigned char compression,
 			   unsigned int tile_sz)
 {
 /* exporting a plain TIFF from the DBMS into the file-system */
-    return export_tiff_common (handle, dst_path, cvg, 0, 0, x_res, y_res, minx,
-			       miny, maxx, maxy, width, height, compression,
-			       tile_sz);
+    return export_tiff_common (handle, max_threads, dst_path, cvg, 0, 0, x_res,
+			       y_res, minx, miny, maxx, maxy, width, height,
+			       compression, tile_sz);
 }
 
 RL2_DECLARE int
-rl2_export_section_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
-				   rl2CoveragePtr cvg, sqlite3_int64 section_id,
-				   double x_res, double y_res, double minx,
-				   double miny, double maxx, double maxy,
-				   unsigned int width, unsigned int height,
+rl2_export_section_tiff_from_dbms (sqlite3 * handle, int max_threads,
+				   const char *dst_path, rl2CoveragePtr cvg,
+				   sqlite3_int64 section_id, double x_res,
+				   double y_res, double minx, double miny,
+				   double maxx, double maxy, unsigned int width,
+				   unsigned int height,
 				   unsigned char compression,
 				   unsigned int tile_sz)
 {
 /* exporting a plain TIFF - single Section*/
-    return export_tiff_common (handle, dst_path, cvg, 1, section_id, x_res,
-			       y_res, minx, miny, maxx, maxy, width, height,
-			       compression, tile_sz);
+    return export_tiff_common (handle, max_threads, dst_path, cvg, 1,
+			       section_id, x_res, y_res, minx, miny, maxx, maxy,
+			       width, height, compression, tile_sz);
 }
 
 static int
@@ -4319,7 +4961,7 @@ rl2_export_section_mono_band_tiff_from_dbms (sqlite3 * handle,
 }
 
 static int
-export_ascii_grid_common (int by_section, sqlite3 * handle,
+export_ascii_grid_common (int by_section, sqlite3 * handle, int max_threads,
 			  const char *dst_path, rl2CoveragePtr cvg,
 			  sqlite3_int64 section_id, double res, double minx,
 			  double miny, double maxx, double maxy,
@@ -4423,8 +5065,8 @@ export_ascii_grid_common (int by_section, sqlite3 * handle,
       {
 	  /* single Section */
 	  if (rl2_get_section_raw_raster_data
-	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
-	       res, res, &pixels, &pixels_size, &palette,
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, res, res, &pixels, &pixels_size, &palette,
 	       RL2_PIXEL_DATAGRID) != RL2_OK)
 	      goto error;
       }
@@ -4432,8 +5074,9 @@ export_ascii_grid_common (int by_section, sqlite3 * handle,
       {
 	  /* whole Coverage */
 	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, miny, maxx, maxy, res, res,
-	       &pixels, &pixels_size, &palette, RL2_PIXEL_DATAGRID) != RL2_OK)
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       res, res, &pixels, &pixels_size, &palette,
+	       RL2_PIXEL_DATAGRID) != RL2_OK)
 	      goto error;
       }
 
@@ -4472,21 +5115,22 @@ export_ascii_grid_common (int by_section, sqlite3 * handle,
 }
 
 RL2_DECLARE int
-rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
-				 rl2CoveragePtr cvg, double res,
-				 double minx, double miny, double maxx,
-				 double maxy, unsigned int width,
+rl2_export_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
+				 const char *dst_path, rl2CoveragePtr cvg,
+				 double res, double minx, double miny,
+				 double maxx, double maxy, unsigned int width,
 				 unsigned int height, int is_centered,
 				 int decimal_digits)
 {
 /* exporting an ASCII Grid from the DBMS into the file-system */
-    return export_ascii_grid_common (0, handle, dst_path, cvg, 0, res, minx,
-				     miny, maxx, maxy, width, height,
+    return export_ascii_grid_common (0, handle, max_threads, dst_path, cvg, 0,
+				     res, minx, miny, maxx, maxy, width, height,
 				     is_centered, decimal_digits);
 }
 
 RL2_DECLARE int
-rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
+rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
+					 const char *dst_path,
 					 rl2CoveragePtr cvg,
 					 sqlite3_int64 section_id, double res,
 					 double minx, double miny, double maxx,
@@ -4495,18 +5139,19 @@ rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
 					 int decimal_digits)
 {
 /* exporting an ASCII Grid - Section */
-    return export_ascii_grid_common (1, handle, dst_path, cvg, section_id, res,
-				     minx, miny, maxx, maxy, width, height,
-				     is_centered, decimal_digits);
+    return export_ascii_grid_common (1, handle, max_threads, dst_path, cvg,
+				     section_id, res, minx, miny, maxx, maxy,
+				     width, height, is_centered,
+				     decimal_digits);
 }
 
 static int
-export_jpeg_common (int by_section, sqlite3 * handle, const char *dst_path,
-		    rl2CoveragePtr cvg, sqlite3_int64 section_id, double x_res,
-		    double y_res, double minx, double miny,
-		    double maxx, double maxy,
-		    unsigned int width,
-		    unsigned int height, int quality, int with_worldfile)
+export_jpeg_common (int by_section, sqlite3 * handle, int max_threads,
+		    const char *dst_path, rl2CoveragePtr cvg,
+		    sqlite3_int64 section_id, double x_res, double y_res,
+		    double minx, double miny, double maxx, double maxy,
+		    unsigned int width, unsigned int height, int quality,
+		    int with_worldfile)
 {
 /* common implementation for Write JPEG */
     rl2SectionPtr section = NULL;
@@ -4546,8 +5191,8 @@ export_jpeg_common (int by_section, sqlite3 * handle, const char *dst_path,
       {
 	  /* single Section */
 	  if (rl2_get_section_raw_raster_data
-	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
-	       xx_res, yy_res, &outbuf, &outbuf_size, NULL,
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, xx_res, yy_res, &outbuf, &outbuf_size, NULL,
 	       pixel_type) != RL2_OK)
 	      goto error;
       }
@@ -4555,8 +5200,9 @@ export_jpeg_common (int by_section, sqlite3 * handle, const char *dst_path,
       {
 	  /* whole Coverage */
 	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	       yy_res, &outbuf, &outbuf_size, NULL, pixel_type) != RL2_OK)
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, NULL,
+	       pixel_type) != RL2_OK)
 	      goto error;
       }
 
@@ -4594,39 +5240,40 @@ export_jpeg_common (int by_section, sqlite3 * handle, const char *dst_path,
 }
 
 RL2_DECLARE int
-rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
-			   rl2CoveragePtr cvg, double x_res,
-			   double y_res, double minx, double miny,
-			   double maxx, double maxy,
-			   unsigned int width,
+rl2_export_jpeg_from_dbms (sqlite3 * handle, int max_threads,
+			   const char *dst_path, rl2CoveragePtr cvg,
+			   double x_res, double y_res, double minx, double miny,
+			   double maxx, double maxy, unsigned int width,
 			   unsigned int height, int quality, int with_worldfile)
 {
 /* exporting a JPEG (with possible JGW) from the DBMS into the file-system */
-    return export_jpeg_common (0, handle, dst_path, cvg, 0, x_res, y_res, minx,
-			       miny, maxx, maxy, width, height, quality,
-			       with_worldfile);
-}
-
-RL2_DECLARE int
-rl2_export_section_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
-				   rl2CoveragePtr cvg, sqlite3_int64 section_id,
-				   double x_res, double y_res, double minx,
-				   double miny, double maxx, double maxy,
-				   unsigned int width, unsigned int height,
-				   int quality, int with_worldfile)
-{
-/* exporting a JPEG (with possible JGW) - Section */
-    return export_jpeg_common (1, handle, dst_path, cvg, section_id, x_res,
+    return export_jpeg_common (0, handle, max_threads, dst_path, cvg, 0, x_res,
 			       y_res, minx, miny, maxx, maxy, width, height,
 			       quality, with_worldfile);
 }
 
+RL2_DECLARE int
+rl2_export_section_jpeg_from_dbms (sqlite3 * handle, int max_threads,
+				   const char *dst_path, rl2CoveragePtr cvg,
+				   sqlite3_int64 section_id, double x_res,
+				   double y_res, double minx, double miny,
+				   double maxx, double maxy, unsigned int width,
+				   unsigned int height, int quality,
+				   int with_worldfile)
+{
+/* exporting a JPEG (with possible JGW) - Section */
+    return export_jpeg_common (1, handle, max_threads, dst_path, cvg,
+			       section_id, x_res, y_res, minx, miny, maxx, maxy,
+			       width, height, quality, with_worldfile);
+}
+
 static int
-export_raw_pixels_common (int by_section, sqlite3 * handle, rl2CoveragePtr cvg,
-			  sqlite3_int64 section_id, double x_res, double y_res,
-			  double minx, double miny, double maxx, double maxy,
-			  unsigned int width, unsigned int height,
-			  int big_endian, unsigned char **blob, int *blob_size)
+export_raw_pixels_common (int by_section, sqlite3 * handle, int max_threads,
+			  rl2CoveragePtr cvg, sqlite3_int64 section_id,
+			  double x_res, double y_res, double minx, double miny,
+			  double maxx, double maxy, unsigned int width,
+			  unsigned int height, int big_endian,
+			  unsigned char **blob, int *blob_size)
 {
 /* common implementation for Export RAW pixels */
     unsigned char level;
@@ -4657,8 +5304,8 @@ export_raw_pixels_common (int by_section, sqlite3 * handle, rl2CoveragePtr cvg,
       {
 	  /* single Section */
 	  if (rl2_get_section_raw_raster_data
-	      (handle, cvg, section_id, width, height, minx, miny, maxx, maxy,
-	       xx_res, yy_res, &outbuf, &outbuf_size, NULL,
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, xx_res, yy_res, &outbuf, &outbuf_size, NULL,
 	       pixel_type) != RL2_OK)
 	      goto error;
       }
@@ -4666,8 +5313,9 @@ export_raw_pixels_common (int by_section, sqlite3 * handle, rl2CoveragePtr cvg,
       {
 	  /* whole Coverage */
 	  if (rl2_get_raw_raster_data
-	      (handle, cvg, width, height, minx, miny, maxx, maxy, xx_res,
-	       yy_res, &outbuf, &outbuf_size, NULL, pixel_type) != RL2_OK)
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       xx_res, yy_res, &outbuf, &outbuf_size, NULL,
+	       pixel_type) != RL2_OK)
 	      goto error;
       }
     bufpix =
@@ -4687,7 +5335,7 @@ export_raw_pixels_common (int by_section, sqlite3 * handle, rl2CoveragePtr cvg,
 }
 
 RL2_DECLARE int
-rl2_export_raw_pixels_from_dbms (sqlite3 * handle,
+rl2_export_raw_pixels_from_dbms (sqlite3 * handle, int max_threads,
 				 rl2CoveragePtr coverage, double x_res,
 				 double y_res, double minx, double miny,
 				 double maxx, double maxy,
@@ -4696,13 +5344,13 @@ rl2_export_raw_pixels_from_dbms (sqlite3 * handle,
 				 unsigned char **blob, int *blob_size)
 {
 /* exporting RAW pixel buffer and Transparency Mask from the DBMS */
-    return export_raw_pixels_common (0, handle, coverage, 0, x_res, y_res, minx,
-				     miny, maxx, maxy, width, height,
-				     big_endian, blob, blob_size);
+    return export_raw_pixels_common (0, handle, max_threads, coverage, 0, x_res,
+				     y_res, minx, miny, maxx, maxy, width,
+				     height, big_endian, blob, blob_size);
 }
 
 RL2_DECLARE int
-rl2_export_section_raw_pixels_from_dbms (sqlite3 * handle,
+rl2_export_section_raw_pixels_from_dbms (sqlite3 * handle, int max_threads,
 					 rl2CoveragePtr coverage,
 					 sqlite3_int64 section_id,
 					 double x_res, double y_res,
@@ -4714,20 +5362,20 @@ rl2_export_section_raw_pixels_from_dbms (sqlite3 * handle,
 					 unsigned char **blob, int *blob_size)
 {
 /* exporting RAW pixel buffer and Transparency Mask - Section */
-    return export_raw_pixels_common (1, handle, coverage, section_id, x_res,
-				     y_res, minx, miny, maxx, maxy, width,
-				     height, big_endian, blob, blob_size);
+    return export_raw_pixels_common (1, handle, max_threads, coverage,
+				     section_id, x_res, y_res, minx, miny, maxx,
+				     maxy, width, height, big_endian, blob,
+				     blob_size);
 }
 
 RL2_DECLARE int
-rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
-			       const char *section, rl2RasterPtr rst,
-			       int pyramidize)
+rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
+			       rl2CoveragePtr cvg, const char *section,
+			       rl2RasterPtr rst, int pyramidize)
 {
 /* main IMPORT Raster function */
     rl2PrivCoveragePtr privcvg = (rl2PrivCoveragePtr) cvg;
     rl2PrivRasterPtr privrst = (rl2PrivRasterPtr) rst;
-    rl2RasterPtr raster = NULL;
     int ret;
     char *sql;
     const char *coverage;
@@ -4749,13 +5397,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
     double miny;
     double maxx;
     double maxy;
-    unsigned char *blob_odd = NULL;
-    unsigned char *blob_even = NULL;
-    int blob_odd_sz;
-    int blob_even_sz;
     double tile_minx;
-    double tile_miny;
-    double tile_maxx;
     double tile_maxy;
     rl2RasterStatisticsPtr section_stats = NULL;
     rl2PixelPtr no_data = NULL;
@@ -4773,6 +5415,10 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
     sqlite3_stmt *stmt_levl = NULL;
     sqlite3_stmt *stmt_upd_sect = NULL;
     sqlite3_int64 section_id;
+    rl2AuxImporterPtr aux = NULL;
+    rl2AuxImporterTilePtr aux_tile;
+    rl2AuxImporterTilePtr *thread_slots = NULL;
+    int thread_count;
 
     if (cvg == NULL)
 	goto error;
@@ -4941,51 +5587,141 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
 	      goto error;
       }
 
+/* preparing all Tile Requests */
+    aux =
+	createAuxImporter (privcvg, srid, maxx, miny, tile_w, tile_h, res_x,
+			   res_y, RL2_ORIGIN_RAW, rst, RL2_CONVERT_NO, 1,
+			   compression, quality);
     tile_maxy = maxy;
     for (row = 0; row < height; row += tile_h)
       {
 	  tile_minx = minx;
 	  for (col = 0; col < width; col += tile_w)
 	    {
-		raster = rl2_get_tile_from_raw_pixels (cvg, rst, row, col);
-		if (raster == NULL)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to get a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		if (rl2_raster_encode
-		    (raster, compression, &blob_odd, &blob_odd_sz, &blob_even,
-		     &blob_even_sz, quality, 1) != RL2_OK)
-		  {
-		      fprintf (stderr,
-			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
-			       row, col);
-		      goto error;
-		  }
-		/* INSERTing the tile */
-		aux_palette =
-		    rl2_clone_palette (rl2_get_raster_palette (raster));
-
-		if (!do_insert_tile
-		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
-		     section_id, srid, res_x, res_y, tile_w, tile_h, miny,
-		     maxx, &tile_minx, &tile_miny, &tile_maxx, &tile_maxy,
-		     aux_palette, no_data, stmt_tils, stmt_data, section_stats))
-		  {
-		      blob_odd = NULL;
-		      blob_even = NULL;
-		      goto error;
-		  }
-		blob_odd = NULL;
-		blob_even = NULL;
-		rl2_destroy_raster (raster);
-		raster = NULL;
+		/* adding a Tile request */
+		addTile2AuxImporter (aux, row, col, tile_minx, tile_maxy);
 		tile_minx += (double) tile_w *res_x;
 	    }
 	  tile_maxy -= (double) tile_h *res_y;
       }
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* prepating the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxImporterTilePtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
+    aux_tile = aux->first;
+    while (aux_tile != NULL)
+      {
+	  /* processing a Tile request (may be under parallel execution) */
+	  if (max_threads > 1)
+	    {
+		/* adopting a multithreaded strategy */
+		do_get_tile (aux_tile);
+		*(thread_slots + thread_count) = aux_tile;
+		thread_count++;
+		start_tile_thread (aux_tile);
+		if (thread_count == max_threads || aux_tile->next == NULL)
+		  {
+		      /* waiting until all child threads exit */
+#ifdef _WIN32
+		      HANDLE *handles;
+		      int z;
+		      int cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* counting how many active threads we currently have */
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    cnt++;
+			}
+		      handles = malloc (sizeof (HANDLE) * cnt);
+		      cnt = 0;
+		      for (z = 0; z < max_threads; z++)
+			{
+			    /* initializing the HANDLEs array */
+			    HANDLE *pOpaque;
+			    rl2AuxImporterTilePtr pTile = *(thread_slots + z);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (HANDLE *) (pTile->opaque_thread_id);
+			    *(handles + cnt) = *pOpaque;
+			    cnt++;
+			}
+		      WaitForMultipleObjects (cnt, handles, TRUE, INFINITE);
+#else
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    pthread_t *pOpaque;
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    pOpaque = (pthread_t *) (pTile->opaque_thread_id);
+			    pthread_join (*pOpaque, NULL);
+			}
+#endif
+
+		      /* all children threads have now finished: resuming the main thread */
+		      for (thread_count = 0; thread_count < max_threads;
+			   thread_count++)
+			{
+			    /* checking for eventual errors */
+			    rl2AuxImporterTilePtr pTile =
+				*(thread_slots + thread_count);
+			    if (pTile == NULL)
+				continue;
+			    if (pTile->retcode != RL2_OK)
+				goto error;
+			}
+#ifdef _WIN32
+		      free (handles);
+#endif
+		      thread_count = 0;
+		      /* we can now continue by inserting all tiles into the DBMS */
+		  }
+		else
+		  {
+		      aux_tile = aux_tile->next;
+		      continue;
+		  }
+	    }
+	  else
+	    {
+		/* single thread execution */
+		do_get_tile (aux_tile);
+		*(thread_slots + 0) = aux_tile;
+		do_encode_tile (aux_tile);
+		if (aux_tile->retcode != RL2_OK)
+		    goto error;
+	    }
+
+	  /* INSERTing the tile */
+	  aux_palette =
+	      rl2_clone_palette (rl2_get_raster_palette (aux_tile->raster));
+	  if (!do_insert_tile
+	      (handle, aux_tile->blob_odd, aux_tile->blob_odd_sz,
+	       aux_tile->blob_even, aux_tile->blob_even_sz, section_id, srid,
+	       aux_tile->minx, aux_tile->miny, aux_tile->maxx, aux_tile->maxy,
+	       aux_palette, no_data, stmt_tils, stmt_data, section_stats))
+	    {
+		aux_tile->blob_odd = NULL;
+		aux_tile->blob_even = NULL;
+		goto error;
+	    }
+	  doAuxImporterTileCleanup (aux_tile);
+	  aux_tile = aux_tile->next;
+      }
+    destroyAuxImporter (aux);
+    aux = NULL;
+    free (thread_slots);
+    thread_slots = NULL;
 
 /* updating the Section's Statistics */
     compute_aggregate_sq_diff (section_stats);
@@ -5002,7 +5738,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
 	  if (coverage_name == NULL)
 	      goto error;
 	  if (rl2_build_section_pyramid
-	      (handle, coverage_name, section_id, 1, 0) != RL2_OK)
+	      (handle, max_threads, coverage_name, section_id, 1, 0) != RL2_OK)
 	    {
 		fprintf (stderr, "unable to build the Section's Pyramid\n");
 		goto error;
@@ -5029,6 +5765,10 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, rl2CoveragePtr cvg,
     return RL2_OK;
 
   error:
+    if (aux != NULL)
+	destroyAuxImporter (aux);
+    if (thread_slots != NULL)
+	free (thread_slots);
     if (stmt_upd_sect != NULL)
 	sqlite3_finalize (stmt_upd_sect);
     if (stmt_sect != NULL)

@@ -4220,12 +4220,13 @@ shaded_relief_value (double relief_factor, double scale_factor,
 }
 
 RL2_PRIVATE int
-rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
-			      double relief_factor, double scale_factor,
-			      unsigned int width, unsigned int height,
-			      double minx, double miny, double maxx,
-			      double maxy, double x_res, double y_res,
-			      float **shaded_relief, int *shaded_relief_sz)
+rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
+			      rl2CoveragePtr cvg, double relief_factor,
+			      double scale_factor, unsigned int width,
+			      unsigned int height, double minx, double miny,
+			      double maxx, double maxy, double x_res,
+			      double y_res, float **shaded_relief,
+			      int *shaded_relief_sz)
 {
 /* attempting to return a Shaded Relief mask from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
@@ -4362,9 +4363,10 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, rl2CoveragePtr cvg,
       }
     void_raw_buffer (rawbuf, width + 2, height + 2, sample_type, 1, no_data);
     if (!rl2_load_dbms_tiles
-	(handle, stmt_tiles, stmt_data, rawbuf, width + 2, height + 2,
-	 sample_type, 1, xx_res, yy_res, minx - xx_res, miny - yy_res,
-	 maxx + xx_res, maxy + yy_res, level, scale, NULL, no_data, NULL, NULL))
+	(handle, max_threads, stmt_tiles, stmt_data, rawbuf, width + 2,
+	 height + 2, sample_type, 1, xx_res, yy_res, minx - xx_res,
+	 miny - yy_res, maxx + xx_res, maxy + yy_res, level, scale, NULL,
+	 no_data, NULL, NULL))
 	goto error;
     sqlite3_finalize (stmt_tiles);
     sqlite3_finalize (stmt_data);

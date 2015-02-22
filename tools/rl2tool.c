@@ -89,6 +89,7 @@
 #define ARG_MD5			43
 #define ARG_SUMMARY		44
 
+#define ARG_MAX_THREADS		98
 #define ARG_CACHE_SIZE		99
 
 #ifdef _WIN32
@@ -397,8 +398,8 @@ exec_create (sqlite3 * handle, const char *coverage,
 }
 
 static int
-exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
-	     const char *file_ext, const char *coverage,
+exec_import (sqlite3 * handle, int max_threads, const char *src_path,
+	     const char *dir_path, const char *file_ext, const char *coverage,
 	     int worldfile, int force_srid, int pyramidize)
 {
 /* performing IMPORT */
@@ -422,12 +423,13 @@ exec_import (sqlite3 * handle, const char *src_path, const char *dir_path,
 
     if (src_path != NULL)
 	ret =
-	    rl2_load_raster_into_dbms (handle, src_path, cvg, worldfile,
-				       force_srid, pyramidize, 1);
+	    rl2_load_raster_into_dbms (handle, max_threads, src_path, cvg,
+				       worldfile, force_srid, pyramidize, 1);
     else
 	ret =
-	    rl2_load_mrasters_into_dbms (handle, dir_path, file_ext, cvg,
-					 worldfile, force_srid, pyramidize, 1);
+	    rl2_load_mrasters_into_dbms (handle, max_threads, dir_path,
+					 file_ext, cvg, worldfile, force_srid,
+					 pyramidize, 1);
     rl2_destroy_coverage (cvg);
 
     if (ret == RL2_OK)
@@ -491,10 +493,11 @@ is_tiff_image (const char *path)
 }
 
 static int
-exec_export (sqlite3 * handle, const char *dst_path, unsigned char compression,
-	     const char *coverage, int base_resolution, double x_res,
-	     double y_res, double cx, double cy, double minx, double miny,
-	     double maxx, double maxy, unsigned int width, unsigned int height)
+exec_export (sqlite3 * handle, int max_threads, const char *dst_path,
+	     unsigned char compression, const char *coverage,
+	     int base_resolution, double x_res, double y_res, double cx,
+	     double cy, double minx, double miny, double maxx, double maxy,
+	     unsigned int width, unsigned int height)
 {
 /* performing EXPORT */
     rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
@@ -660,8 +663,8 @@ exec_export (sqlite3 * handle, const char *dst_path, unsigned char compression,
       {
 	  /* export an ASCII Grid */
 	  if (rl2_export_ascii_grid_from_dbms
-	      (handle, dst_path, cvg, x_res, minx, miny, maxx, maxy, width,
-	       height, 0, 4) != RL2_OK)
+	      (handle, max_threads, dst_path, cvg, x_res, minx, miny, maxx,
+	       maxy, width, height, 0, 4) != RL2_OK)
 	      goto error;
       }
     else if (is_jpeg_image (dst_path))
@@ -675,16 +678,16 @@ exec_export (sqlite3 * handle, const char *dst_path, unsigned char compression,
 		    with_worldfile = 1;
 	    }
 	  if (rl2_export_jpeg_from_dbms
-	      (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
-	       width, height, 85, with_worldfile) != RL2_OK)
+	      (handle, max_threads, dst_path, cvg, x_res, y_res, minx, miny,
+	       maxx, maxy, width, height, 85, with_worldfile) != RL2_OK)
 	      goto error;
       }
     else
       {
 	  /* export a GeoTIFF */
 	  if (rl2_export_geotiff_from_dbms
-	      (handle, dst_path, cvg, x_res, y_res, minx, miny, maxx, maxy,
-	       width, height, compression, 256, 0) != RL2_OK)
+	      (handle, max_threads, dst_path, cvg, x_res, y_res, minx, miny,
+	       maxx, maxy, width, height, compression, 256, 0) != RL2_OK)
 	      goto error;
       }
     rl2_destroy_coverage (cvg);
@@ -695,7 +698,7 @@ exec_export (sqlite3 * handle, const char *dst_path, unsigned char compression,
 }
 
 static int
-exec_section_export (sqlite3 * handle, const char *dst_path,
+exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 		     unsigned char compression, const char *coverage,
 		     const char *section, int ok_section_id,
 		     sqlite3_int64 section_id, int base_resolution,
@@ -933,8 +936,8 @@ exec_section_export (sqlite3 * handle, const char *dst_path,
       {
 	  /* export an ASCII Grid */
 	  if (rl2_export_section_ascii_grid_from_dbms
-	      (handle, dst_path, cvg, section_id, x_res, minx, miny, maxx, maxy,
-	       width, height, 0, 4) != RL2_OK)
+	      (handle, max_threads, dst_path, cvg, section_id, x_res, minx,
+	       miny, maxx, maxy, width, height, 0, 4) != RL2_OK)
 	      goto error;
       }
     else if (is_jpeg_image (dst_path))
@@ -948,16 +951,18 @@ exec_section_export (sqlite3 * handle, const char *dst_path,
 		    with_worldfile = 1;
 	    }
 	  if (rl2_export_section_jpeg_from_dbms
-	      (handle, dst_path, cvg, section_id, x_res, y_res, minx, miny,
-	       maxx, maxy, width, height, 85, with_worldfile) != RL2_OK)
+	      (handle, max_threads, dst_path, cvg, section_id, x_res, y_res,
+	       minx, miny, maxx, maxy, width, height, 85,
+	       with_worldfile) != RL2_OK)
 	      goto error;
       }
     else
       {
 	  /* export a GeoTIFF */
 	  if (rl2_export_section_geotiff_from_dbms
-	      (handle, dst_path, cvg, section_id, x_res, y_res, minx, miny,
-	       maxx, maxy, width, height, compression, 256, 0) != RL2_OK)
+	      (handle, max_threads, dst_path, cvg, section_id, x_res, y_res,
+	       minx, miny, maxx, maxy, width, height, compression, 256,
+	       0) != RL2_OK)
 	      goto error;
       }
     rl2_destroy_coverage (cvg);
@@ -1032,14 +1037,16 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section,
 }
 
 static int
-exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
-		 int ok_section_id, sqlite3_int64 section_id, int force_pyramid)
+exec_pyramidize (sqlite3 * handle, int max_threads, const char *coverage,
+		 const char *section, int ok_section_id,
+		 sqlite3_int64 section_id, int force_pyramid)
 {
 /* building Pyramid levels */
     int ret;
     if (section == NULL && !ok_section_id)
 	ret =
-	    rl2_build_all_section_pyramids (handle, coverage, force_pyramid, 1);
+	    rl2_build_all_section_pyramids (handle, max_threads, coverage,
+					    force_pyramid, 1);
     else
       {
 	  if (!ok_section_id)
@@ -1062,8 +1069,8 @@ exec_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
 		  }
 	    }
 	  ret =
-	      rl2_build_section_pyramid (handle, coverage, section_id,
-					 force_pyramid, 1);
+	      rl2_build_section_pyramid (handle, max_threads, coverage,
+					 section_id, force_pyramid, 1);
       }
     if (ret == RL2_OK)
 	return 1;
@@ -4584,6 +4591,8 @@ do_help (int mode)
 	  fprintf (stderr,
 		   "==============================================================\n");
 	  fprintf (stderr,
+		   "-mt or --max-threads   num      max number of concurrent threads\n");
+	  fprintf (stderr,
 		   "-cs or --cache-size    num      DB cache size (how many pages)\n");
 	  fprintf (stderr,
 		   "-m or --in-memory               using IN-MEMORY database\n");
@@ -4597,6 +4606,7 @@ main (int argc, char *argv[])
 {
 /* the MAIN function simply perform arguments checking */
     sqlite3 *handle;
+    char *sql;
     int ret;
     char *sql_err = NULL;
     int i;
@@ -4652,6 +4662,7 @@ main (int argc, char *argv[])
     int section_md5 = 1;
     int section_summary = 1;
     int retcode = 0;
+    int max_threads = 1;
 
     if (argc >= 2)
       {
@@ -4852,6 +4863,9 @@ main (int argc, char *argv[])
 		      break;
 		  case ARG_CACHE_SIZE:
 		      cache_size = atoi (argv[i]);
+		      break;
+		  case ARG_MAX_THREADS:
+		      max_threads = atoi (argv[i]);
 		      break;
 		  };
 		next_arg = ARG_NONE;
@@ -5111,6 +5125,12 @@ main (int argc, char *argv[])
 		section_summary = 0;
 		continue;
 	    }
+	  if (strcasecmp (argv[i], "--max-threads") == 0
+	      || strcmp (argv[i], "-mt") == 0)
+	    {
+		next_arg = ARG_MAX_THREADS;
+		continue;
+	    }
 	  if (strcasecmp (argv[i], "--cache-size") == 0
 	      || strcmp (argv[i], "-cs") == 0)
 	    {
@@ -5317,6 +5337,15 @@ main (int argc, char *argv[])
 	  goto stop;
       }
 
+/* setting up MaxThreads */
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+    sql = sqlite3_mprintf ("SELECT RL2_SetMaxThreads(%d)", max_threads);
+    sqlite3_exec (handle, sql, NULL, NULL, NULL);
+    sqlite3_free (sql);
+
 /* the complete operation is handled as an unique SQL Transaction */
     ret = sqlite3_exec (handle, "BEGIN", NULL, NULL, &sql_err);
     if (ret != SQLITE_OK)
@@ -5343,19 +5372,19 @@ main (int argc, char *argv[])
 	  break;
       case ARG_MODE_IMPORT:
 	  ret =
-	      exec_import (handle, src_path, dir_path, file_ext, coverage,
-			   worldfile, srid, pyramidize);
+	      exec_import (handle, max_threads, src_path, dir_path, file_ext,
+			   coverage, worldfile, srid, pyramidize);
 	  break;
       case ARG_MODE_EXPORT:
 	  ret =
-	      exec_export (handle, dst_path, compression, coverage,
+	      exec_export (handle, max_threads, dst_path, compression, coverage,
 			   base_resolution, x_res, y_res, cx, cy, minx, miny,
 			   maxx, maxy, width, height);
 	  break;
       case ARG_MODE_SECT_EXPORT:
 	  ret =
-	      exec_section_export (handle, dst_path, compression, coverage,
-				   section, ok_section_id, section_id,
+	      exec_section_export (handle, max_threads, dst_path, compression,
+				   coverage, section, ok_section_id, section_id,
 				   base_resolution, x_res, y_res, cx, cy, minx,
 				   miny, maxx, maxy, width, height,
 				   full_section);
@@ -5367,8 +5396,8 @@ main (int argc, char *argv[])
 	  break;
       case ARG_MODE_PYRAMIDIZE:
 	  ret =
-	      exec_pyramidize (handle, coverage, section, ok_section_id,
-			       section_id, force_pyramid);
+	      exec_pyramidize (handle, max_threads, coverage, section,
+			       ok_section_id, section_id, force_pyramid);
 	  break;
       case ARG_MODE_PYRMONO:
 	  ret = exec_pyramidize_monolithic (handle, coverage, virt_levels);

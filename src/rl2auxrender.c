@@ -978,9 +978,10 @@ aux_shaded_relief_mask (struct aux_renderer *aux, double relief_factor,
     scale_factor = rl2_get_shaded_relief_scale_factor (aux->sqlite, coverage);
 
     if (rl2_build_shaded_relief_mask
-	(aux->sqlite, aux->coverage, relief_factor, scale_factor,
-	 aux->base_width, aux->base_height, aux->minx, aux->miny, aux->maxx,
-	 aux->maxy, aux->xx_res, aux->yy_res, &shr_mask, &shr_size) != RL2_OK)
+	(aux->sqlite, aux->max_threads, aux->coverage, relief_factor,
+	 scale_factor, aux->base_width, aux->base_height, aux->minx, aux->miny,
+	 aux->maxx, aux->maxy, aux->xx_res, aux->yy_res, &shr_mask,
+	 &shr_size) != RL2_OK)
 	return 0;
 
 /* allocating the RGBA buffer */
@@ -1084,6 +1085,17 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
     rl2PrivRasterSymbolizerPtr symbolizer = NULL;
     int by_section = 0;
     sqlite3 *sqlite = sqlite3_context_db_handle (auxgrp->context);
+    int max_threads = 1;
+    const void *data = sqlite3_user_data (auxgrp->context);
+    if (data != NULL)
+      {
+	  struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
+	  max_threads = priv_data->max_threads;
+	  if (max_threads < 1)
+	      max_threads = 1;
+	  if (max_threads > 64)
+	      max_threads = 64;
+      }
 
     ext_x = auxgrp->maxx - auxgrp->minx;
     ext_y = auxgrp->maxy - auxgrp->miny;
@@ -1251,10 +1263,10 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		if (rl2_get_coverage_srid (lyr->coverage, &srid) != RL2_OK)
 		    srid = -1;
 		if (rl2_get_raw_raster_data_bgcolor
-		    (sqlite, lyr->coverage, base_width, base_height,
-		     auxgrp->minx, auxgrp->miny, auxgrp->maxx, auxgrp->maxy,
-		     xx_res, yy_res, &outbuf, &outbuf_size, &palette,
-		     &out_pixel, auxgrp->bg_red, auxgrp->bg_green,
+		    (sqlite, max_threads, lyr->coverage, base_width,
+		     base_height, auxgrp->minx, auxgrp->miny, auxgrp->maxx,
+		     auxgrp->maxy, xx_res, yy_res, &outbuf, &outbuf_size,
+		     &palette, &out_pixel, auxgrp->bg_red, auxgrp->bg_green,
 		     auxgrp->bg_blue, (rl2RasterSymbolizerPtr) symbolizer,
 		     (rl2RasterStatisticsPtr) (lyr->raster_stats)) != RL2_OK)
 		    goto error;
@@ -1266,6 +1278,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 
 /* preparing the aux struct for passing rendering arguments */
 	  aux.sqlite = sqlite;
+	  aux.max_threads = max_threads;
 	  aux.width = auxgrp->width;
 	  aux.height = auxgrp->height;
 	  aux.base_width = base_width;
@@ -1509,7 +1522,8 @@ do_copy_gray (unsigned char *out, const unsigned char *in, unsigned int width,
 }
 
 RL2_DECLARE int
-rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, rl2CoveragePtr cvg,
+rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
+					   rl2CoveragePtr cvg,
 					   unsigned int width,
 					   unsigned int height, double minx,
 					   double miny, double maxx,
@@ -1687,9 +1701,9 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, rl2CoveragePtr cvg,
 		base_x = (int) ((mnx - minx) / img_res_x);
 		base_y = (int) ((maxy - mxy) / img_res_y);
 		if (rl2_get_raw_raster_data_common
-		    (handle, cvg, 1, section_id, w, h, mnx, mny, mxx, mxy,
-		     xx_res, yy_res, &bufpix, &bufpix_size, palette, *out_pixel,
-		     no_data, xstyle, stats) != RL2_OK)
+		    (handle, max_threads, cvg, 1, section_id, w, h, mnx, mny,
+		     mxx, mxy, xx_res, yy_res, &bufpix, &bufpix_size, palette,
+		     *out_pixel, no_data, xstyle, stats) != RL2_OK)
 		    goto error;
 		if (*out_pixel == RL2_PIXEL_RGB)
 		    do_copy_rgb (outbuf, bufpix, width, height, w, h, base_x,

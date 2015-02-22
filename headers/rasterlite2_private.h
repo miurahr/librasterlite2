@@ -230,6 +230,14 @@ extern "C"
 /* internal TextSymbolizer constants */
 #define RL2_MAX_FONT_FAMILIES	16
 
+/* internal origin type constants */
+#define RL2_ORIGIN_UNKNOWN		0x4a
+#define RL2_ORIGIN_JPEG			0x4b
+#define RL2_ORIGIN_JPEG2000		0x4c
+#define RL2_ORIGIN_ASCII_GRID	0x4d
+#define RL2_ORIGIN_RAW			0x4e
+#define RL2_ORIGIN_TIFF			0x4f
+
     struct rl2_private_data
     {
 	int max_threads;
@@ -1012,6 +1020,7 @@ extern "C"
     {
 	/* helper struct for passing arguments to aux_render_image */
 	sqlite3 *sqlite;
+	int max_threads;
 	int width;
 	int height;
 	int base_width;
@@ -1106,6 +1115,76 @@ extern "C"
 	rl2PolygonPtr last_polygon;
     } rl2Geometry;
     typedef rl2Geometry *rl2GeometryPtr;
+
+    typedef struct rl2_aux_importer_tile
+    {
+	struct rl2_aux_importer *mother;
+	void *opaque_thread_id;
+	rl2RasterPtr raster;
+	unsigned int row;
+	unsigned int col;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
+	int retcode;
+	unsigned char *blob_odd;
+	unsigned char *blob_even;
+	int blob_odd_sz;
+	int blob_even_sz;
+	struct rl2_aux_importer_tile *next;
+    } rl2AuxImporterTile;
+    typedef rl2AuxImporterTile *rl2AuxImporterTilePtr;
+
+    typedef struct rl2_aux_importer
+    {
+	rl2PrivCoveragePtr coverage;
+	int srid;
+	double maxx;
+	double miny;
+	unsigned int tile_w;
+	unsigned int tile_h;
+	double res_x;
+	double res_y;
+	unsigned char origin_type;
+	const void *origin;
+	unsigned char forced_conversion;
+	int verbose;
+	unsigned char compression;
+	int quality;
+	rl2AuxImporterTilePtr first;
+	rl2AuxImporterTilePtr last;
+    } rl2AuxImporter;
+    typedef rl2AuxImporter *rl2AuxImporterPtr;
+
+    typedef struct rl2_aux_decoder
+    {
+	void *opaque_thread_id;
+	sqlite3_int64 tile_id;
+	unsigned char *blob_odd;
+	unsigned char *blob_even;
+	int blob_odd_sz;
+	int blob_even_sz;
+	unsigned char *outbuf;
+	unsigned int width;
+	unsigned int height;
+	unsigned char sample_type;
+	unsigned char num_bands;
+	double x_res;
+	double y_res;
+	int scale;
+	double minx;
+	double maxy;
+	double tile_minx;
+	double tile_maxy;
+	rl2PrivPixelPtr no_data;
+	rl2PrivRasterSymbolizerPtr style;
+	rl2PrivRasterStatisticsPtr stats;
+	rl2PrivRasterPtr raster;
+	rl2PrivPalettePtr palette;
+	int retcode;
+    } rl2AuxDecoder;
+    typedef rl2AuxDecoder *rl2AuxDecoderPtr;
 
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
@@ -1217,7 +1296,7 @@ extern "C"
 				      unsigned char num_bands,
 				      rl2PixelPtr no_data);
 
-    RL2_PRIVATE int rl2_load_dbms_tiles (sqlite3 * handle,
+    RL2_PRIVATE int rl2_load_dbms_tiles (sqlite3 * handle, int max_threads,
 					 sqlite3_stmt * stmt_tiles,
 					 sqlite3_stmt * stmt_data,
 					 unsigned char *outbuf,
@@ -1233,6 +1312,7 @@ extern "C"
 					 rl2RasterStatisticsPtr stats);
 
     RL2_PRIVATE int rl2_load_dbms_tiles_section (sqlite3 * handle,
+						 int max_threads,
 						 sqlite3_int64 section_id,
 						 sqlite3_stmt * stmt_tiles,
 						 sqlite3_stmt * stmt_data,
@@ -1761,6 +1841,7 @@ extern "C"
 							   int big_endian);
 
     RL2_PRIVATE int rl2_build_shaded_relief_mask (sqlite3 * handle,
+						  int max_threads,
 						  rl2CoveragePtr cvg,
 						  double relief_factor,
 						  double scale_factor,
@@ -1813,6 +1894,7 @@ extern "C"
     RL2_PRIVATE int rl2_has_styled_rgb_colors (rl2RasterSymbolizerPtr style);
 
     RL2_PRIVATE int rl2_get_raw_raster_data_common (sqlite3 * handle,
+						    int max_threads,
 						    rl2CoveragePtr cvg,
 						    int by_section,
 						    sqlite3_int64 section_id,

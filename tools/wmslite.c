@@ -52,7 +52,8 @@
 #define ARG_NONE		0
 #define ARG_DB_PATH		1
 #define ARG_IP_PORT		2
-#define ARG_CACHE_SIZE		3
+#define ARG_MAX_THREADS		3
+#define ARG_CACHE_SIZE		4
 
 #define WMS_ILLEGAL_REQUEST	0
 #define WMS_GET_CAPABILITIES	1
@@ -731,7 +732,7 @@ destroy_connections_pool (struct connections_pool *pool)
 }
 
 static void
-connection_init (struct read_connection *conn, const char *path)
+connection_init (struct read_connection *conn, const char *path, int max_threads)
 {
 /* creating a read connection */
     int ret;
@@ -739,7 +740,7 @@ connection_init (struct read_connection *conn, const char *path)
     sqlite3_stmt *stmt;
     void *cache;
     void *priv_data;
-    const char *sql;
+    char *sql;
 
     ret =
 	sqlite3_open_v2 (path, &db_handle,
@@ -756,6 +757,15 @@ connection_init (struct read_connection *conn, const char *path)
     spatialite_init_ex (db_handle, cache, 0);
     priv_data = rl2_alloc_private ();
     rl2_init (db_handle, priv_data, 0);
+    
+/* setting up MaxThreads */
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+    sql = sqlite3_mprintf ("SELECT RL2_SetMaxThreads(%d)", max_threads);
+    sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
+    sqlite3_free (sql);
 
 /* creating the GetMap SQL statement */
     sql =
@@ -774,7 +784,7 @@ connection_init (struct read_connection *conn, const char *path)
 }
 
 static struct connections_pool *
-alloc_connections_pool (const char *path)
+alloc_connections_pool (const char *path, int max_threads)
 {
 /* creating and initializing the connections pool */
     int i;
@@ -797,7 +807,7 @@ alloc_connections_pool (const char *path)
       {
 	  /* creating the connections */
 	  conn = &(pool->connections[i]);
-	  connection_init (conn, path);
+	  connection_init (conn, path, max_threads);
       }
     count = 0;
     for (i = 0; i < MAX_CONN; i++)
@@ -3337,7 +3347,7 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
 }
 
 static int
-do_start_http (int port_no, struct neutral_socket *srv_skt)
+do_start_http (int port_no, struct neutral_socket *srv_skt, int max_threads)
 {
 /* starting the HTTP server */
 #ifdef _WIN32
@@ -3404,6 +3414,9 @@ do_start_http (int port_no, struct neutral_socket *srv_skt)
     fprintf (stderr,
 	     "======================================================\n");
     fprintf (stderr, "    HTTP micro-server listening on port: %d\n", port_no);
+    fprintf (stderr,
+	     "======================================================\n");
+    fprintf (stderr, "                 RasterLite2 MaxThreads: %d\n", max_threads);
     fprintf (stderr,
 	     "======================================================\n");
     return 1;
@@ -4040,6 +4053,8 @@ do_help ()
     fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
     fprintf (stderr,
 	     "-p or --ip-port       number    IP port number [default: 8080]\n\n");
+	  fprintf (stderr,
+		   "-mt or --max-threads   num      max number of concurrent threads\n");
     fprintf (stderr,
 	     "-cs or --cache-size    num      DB cache size (how many pages)\n");
     fprintf (stderr,
@@ -4068,6 +4083,7 @@ main (int argc, char *argv[])
     struct server_log *log;
     char *cached_capabilities = NULL;
     int cached_capabilities_len = 0;
+    int max_threads = 1;
 
 /* installing the signal handlers */
     glob.handle = NULL;
@@ -4101,6 +4117,9 @@ main (int argc, char *argv[])
 		  case ARG_CACHE_SIZE:
 		      cache_size = atoi (argv[i]);
 		      break;
+		  case ARG_MAX_THREADS:
+		      max_threads = atoi (argv[i]);
+		      break;
 		  };
 		next_arg = ARG_NONE;
 		continue;
@@ -4122,6 +4141,12 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--ip-port") == 0)
 	    {
 		next_arg = ARG_IP_PORT;
+		continue;
+	    }
+	  if (strcasecmp (argv[i], "--max-threads") == 0
+	      || strcmp (argv[i], "-mt") == 0)
+	    {
+		next_arg = ARG_MAX_THREADS;
 		continue;
 	    }
 	  if (strcasecmp (argv[i], "--cache-size") == 0
@@ -4156,6 +4181,12 @@ main (int argc, char *argv[])
 	  do_help ();
 	  return -1;
       }
+      
+/* normalizing MaxThreads */
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
 
 /* opening the DB */
     cache = spatialite_alloc_connection ();
@@ -4185,7 +4216,7 @@ main (int argc, char *argv[])
     glob.cached_capabilities = cached_capabilities;
 
 /* creating the read connections pool */
-    pool = alloc_connections_pool (db_path);
+    pool = alloc_connections_pool (db_path, max_threads);
     if (pool == NULL)
       {
 	  fprintf (stderr, "ERROR: unable to initialize a connections pool\n");
@@ -4203,7 +4234,7 @@ main (int argc, char *argv[])
     glob.log = log;
 
 /* starting the HTTP server */
-    if (!do_start_http (port_no, &skt_ptr))
+    if (!do_start_http (port_no, &skt_ptr, max_threads))
 	goto stop;
 
 /* starting the logging facility */

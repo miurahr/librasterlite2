@@ -4952,12 +4952,13 @@ find_section_base_resolution (sqlite3 * handle, const char *coverage,
 }
 
 static int
-get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
-			     sqlite3_int64 sect_id, unsigned int width,
-			     unsigned int height, unsigned char sample_type,
+get_section_raw_raster_data (sqlite3 * handle, int max_threads,
+			     const char *coverage, sqlite3_int64 sect_id,
+			     unsigned int width, unsigned int height,
+			     unsigned char sample_type,
 			     unsigned char pixel_type, unsigned char num_bands,
-			     double minx, double maxy,
-			     double x_res, double y_res, unsigned char **buffer,
+			     double minx, double maxy, double x_res,
+			     double y_res, unsigned char **buffer,
 			     int *buf_size, rl2PalettePtr palette,
 			     rl2PixelPtr no_data)
 {
@@ -5038,9 +5039,9 @@ get_section_raw_raster_data (sqlite3 * handle, const char *coverage,
 	void_raw_buffer (bufpix, width, height, sample_type, num_bands,
 			 no_data);
     if (!rl2_load_dbms_tiles_section
-	(handle, sect_id, stmt_tiles, stmt_data, bufpix, width, height,
-	 sample_type, num_bands, x_res, y_res, minx, maxy, RL2_SCALE_1, palette,
-	 no_data))
+	(handle, max_threads, sect_id, stmt_tiles, stmt_data, bufpix, width,
+	 height, sample_type, num_bands, x_res, y_res, minx, maxy, RL2_SCALE_1,
+	 palette, no_data))
 	goto error;
     sqlite3_finalize (stmt_tiles);
     sqlite3_finalize (stmt_data);
@@ -5351,8 +5352,8 @@ copy_124_tile (unsigned char pixel_type, const unsigned char *outbuf,
 }
 
 static int
-do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
-				  int mixed_resolutions,
+do_build_124_bit_section_pyramid (sqlite3 * handle, int max_threads,
+				  const char *coverage, int mixed_resolutions,
 				  sqlite3_int64 section_id,
 				  unsigned char sample_type,
 				  unsigned char pixel_type,
@@ -5420,8 +5421,8 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 	      goto error;
       }
     if (!get_section_raw_raster_data
-	(handle, coverage, section_id, sect_width, sect_height, sample_type,
-	 pixel_type, num_samples, minx, maxy, base_res_x,
+	(handle, max_threads, coverage, section_id, sect_width, sect_height,
+	 sample_type, pixel_type, num_samples, minx, maxy, base_res_x,
 	 base_res_y, &inbuf, &inbuf_size, palette, no_data))
 	goto error;
 
@@ -5631,8 +5632,8 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, const char *coverage,
 }
 
 static int
-do_build_palette_section_pyramid (sqlite3 * handle, const char *coverage,
-				  int mixed_resolutions,
+do_build_palette_section_pyramid (sqlite3 * handle, int max_threads,
+				  const char *coverage, int mixed_resolutions,
 				  sqlite3_int64 section_id, int srid,
 				  unsigned int tileWidth,
 				  unsigned int tileHeight, unsigned char bgRed,
@@ -5699,7 +5700,7 @@ do_build_palette_section_pyramid (sqlite3 * handle, const char *coverage,
 	      goto error;
       }
     if (!get_section_raw_raster_data
-	(handle, coverage, section_id, sect_width, sect_height,
+	(handle, max_threads, coverage, section_id, sect_width, sect_height,
 	 RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE, 1, minx, maxy, base_res_x,
 	 base_res_y, &inbuf, &inbuf_size, palette, no_data))
 	goto error;
@@ -5965,9 +5966,9 @@ get_background_color (sqlite3 * handle, rl2CoveragePtr coverage,
 }
 
 RL2_DECLARE int
-rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
-			   sqlite3_int64 section_id, int forced_rebuild,
-			   int verbose)
+rl2_build_section_pyramid (sqlite3 * handle, int max_threads,
+			   const char *coverage, sqlite3_int64 section_id,
+			   int forced_rebuild, int verbose)
 {
 /* (re)building section-level pyramid for a single Section */
     rl2CoveragePtr cvg = NULL;
@@ -6029,9 +6030,9 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		/* special case: 1,2,4 bit Pyramid */
 		get_background_color (handle, cvg, &bgRed, &bgGreen, &bgBlue);
 		if (!do_build_124_bit_section_pyramid
-		    (handle, coverage, ptrcvg->mixedResolutions, section_id,
-		     sample_type, pixel_type, num_bands, srid, tileWidth,
-		     tileHeight, bgRed, bgGreen, bgBlue))
+		    (handle, max_threads, coverage, ptrcvg->mixedResolutions,
+		     section_id, sample_type, pixel_type, num_bands, srid,
+		     tileWidth, tileHeight, bgRed, bgGreen, bgBlue))
 		    goto error;
 	    }
 	  else if (sample_type == RL2_SAMPLE_UINT8
@@ -6040,8 +6041,9 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		/* special case: 8 bit Palette Pyramid */
 		get_background_color (handle, cvg, &bgRed, &bgGreen, &bgBlue);
 		if (!do_build_palette_section_pyramid
-		    (handle, coverage, ptrcvg->mixedResolutions, section_id,
-		     srid, tileWidth, tileHeight, bgRed, bgGreen, bgBlue))
+		    (handle, max_threads, coverage, ptrcvg->mixedResolutions,
+		     section_id, srid, tileWidth, tileHeight, bgRed, bgGreen,
+		     bgBlue))
 		    goto error;
 	    }
 	  else
@@ -6078,8 +6080,9 @@ rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
-rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
-				int forced_rebuild, int verbose)
+rl2_build_all_section_pyramids (sqlite3 * handle, int max_threads,
+				const char *coverage, int forced_rebuild,
+				int verbose)
 {
 /* (re)building section-level pyramids for a whole Coverage */
     char *table;
@@ -6106,7 +6109,7 @@ rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
 	    {
 		sqlite3_int64 section_id = sqlite3_column_int64 (stmt, 0);
 		if (rl2_build_section_pyramid
-		    (handle, coverage, section_id, forced_rebuild,
+		    (handle, max_threads, coverage, section_id, forced_rebuild,
 		     verbose) != RL2_OK)
 		    goto error;
 	    }

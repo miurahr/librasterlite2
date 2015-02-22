@@ -46,6 +46,14 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+#else
+#include <unistd.h>
+#include <pthread.h>
+#endif
+
 #include "config.h"
 
 #ifdef LOADABLE_EXTENSION
@@ -2522,21 +2530,247 @@ void_raw_buffer_palette (unsigned char *buffer, unsigned int width,
       }
 }
 
+static void
+do_decode_tile (rl2AuxDecoderPtr decoder)
+{
+/* servicing an AuxDecoder Tile request */
+    decoder->raster =
+	(rl2PrivRasterPtr) rl2_raster_decode (decoder->scale, decoder->blob_odd,
+					      decoder->blob_odd_sz,
+					      decoder->blob_even,
+					      decoder->blob_even_sz,
+					      (rl2PalettePtr)
+					      (decoder->palette));
+    decoder->palette = NULL;
+    if (decoder->raster == NULL)
+      {
+	  decoder->retcode = RL2_ERROR;
+	  return;
+      }
+    if (!rl2_copy_raw_pixels
+	((rl2RasterPtr) (decoder->raster), decoder->outbuf, decoder->width,
+	 decoder->height, decoder->sample_type, decoder->num_bands,
+	 decoder->x_res, decoder->y_res, decoder->minx, decoder->maxy,
+	 decoder->tile_minx, decoder->tile_maxy,
+	 (rl2PixelPtr) (decoder->no_data),
+	 (rl2RasterSymbolizerPtr) (decoder->style),
+	 (rl2RasterStatisticsPtr) (decoder->stats)))
+      {
+	  decoder->retcode = RL2_ERROR;
+	  return;
+      }
+    rl2_destroy_raster ((rl2RasterPtr) (decoder->raster));
+    decoder->raster = NULL;
+    decoder->retcode = RL2_OK;
+}
+
+#ifdef _WIN32
+DWORD WINAPI
+doRunDecoderThread (void *arg)
+#else
+void *
+doRunDecoderThread (void *arg)
+#endif
+{
+/* threaded function: decoding a Tile */
+    rl2AuxDecoderPtr decoder = (rl2AuxDecoderPtr) arg;
+    do_decode_tile (decoder);
+#ifdef _WIN32
+    return 0;
+#else
+    pthread_exit (NULL);
+#endif
+}
+
+static void
+start_decoder_thread (rl2AuxDecoderPtr decoder)
+{
+/* starting a concurrent thread */
+#ifdef _WIN32
+    HANDLE thread_handle;
+    HANDLE *p_thread;
+    DWORD dwThreadId;
+    thread_handle =
+	CreateThread (NULL, 0, doRunDecoderThread, decoder, 0, &dwThreadId);
+    SetThreadPriority (thread_handle, THREAD_PRIORITY_IDLE);
+    p_thread = malloc (sizeof (HANDLE));
+    *p_thread = thread_handle;
+    decoder->opaque_thread_id = p_thread;
+#else
+    pthread_t thread_id;
+    pthread_t *p_thread;
+    int ok_prior = 0;
+    int policy;
+    int min_prio;
+    pthread_attr_t attr;
+    struct sched_param sp;
+    pthread_attr_init (&attr);
+    if (pthread_attr_setschedpolicy (&attr, SCHED_RR) == 0)
+      {
+	  /* attempting to set the lowest priority */
+	  if (pthread_attr_getschedpolicy (&attr, &policy) == 0)
+	    {
+		min_prio = sched_get_priority_min (policy);
+		sp.sched_priority = min_prio;
+		if (pthread_attr_setschedparam (&attr, &sp) == 0)
+		  {
+		      /* ok, setting the lowest priority */
+		      ok_prior = 1;
+		      pthread_create (&thread_id, &attr, doRunDecoderThread,
+				      decoder);
+		  }
+	    }
+      }
+    if (!ok_prior)
+      {
+	  /* failure: using standard priority */
+	  pthread_create (&thread_id, NULL, doRunDecoderThread, decoder);
+      }
+    p_thread = malloc (sizeof (pthread_t));
+    *p_thread = thread_id;
+    decoder->opaque_thread_id = p_thread;
+#endif
+}
+
 static int
-rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
-			    sqlite3_stmt * stmt_data, unsigned char *outbuf,
-			    unsigned int width,
+do_run_decoder_children (rl2AuxDecoderPtr * thread_slots, int thread_count)
+{
+/* concurrent execution of all decoder children threads */
+    rl2AuxDecoderPtr decoder;
+    int i;
+#ifdef _WIN32
+    HANDLE *handles;
+#endif
+
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* starting all children threads */
+	  decoder = *(thread_slots + i);
+	  start_decoder_thread (decoder);
+      }
+
+/* waiting until all child threads exit */
+#ifdef _WIN32
+    handles = malloc (sizeof (HANDLE) * thread_count);
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* initializing the HANDLEs array */
+	  HANDLE *pOpaque;
+	  decoder = *(thread_slots + i);
+	  pOpaque = (HANDLE *) (decoder->opaque_thread_id);
+	  *(handles + i) = *pOpaque;
+      }
+    WaitForMultipleObjects (thread_count, handles, TRUE, INFINITE);
+    free (handles);
+#else
+    for (i = 0; i < thread_count; i++)
+      {
+	  pthread_t *pOpaque;
+	  decoder = *(thread_slots + i);
+	  pOpaque = (pthread_t *) (decoder->opaque_thread_id);
+	  pthread_join (*pOpaque, NULL);
+      }
+#endif
+
+/* all children threads have now finished: resuming the main thread */
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* cleaning up a request slot */
+	  decoder = *(thread_slots + i);
+	  if (decoder->blob_odd != NULL)
+	      free (decoder->blob_odd);
+	  if (decoder->blob_even != NULL)
+	      free (decoder->blob_even);
+	  if (decoder->raster != NULL)
+	      rl2_destroy_raster ((rl2RasterPtr) (decoder->raster));
+	  if (decoder->palette != NULL)
+	      rl2_destroy_palette ((rl2PalettePtr) (decoder->palette));
+	  if (decoder->opaque_thread_id != NULL)
+	      free (decoder->opaque_thread_id);
+	  decoder->blob_odd = NULL;
+	  decoder->blob_even = NULL;
+	  decoder->blob_odd_sz = 0;
+	  decoder->blob_even_sz = 0;
+	  decoder->raster = NULL;
+	  decoder->palette = NULL;
+	  decoder->opaque_thread_id = NULL;
+      }
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* checking for eventual errors */
+	  decoder = *(thread_slots + i);
+	  if (decoder->retcode != RL2_OK)
+	    {
+		fprintf (stderr, ERR_FRMT64, decoder->tile_id);
+		goto error;
+	    }
+      }
+    return 1;
+
+  error:
+    return 0;
+}
+
+static int
+rl2_load_dbms_tiles_common (sqlite3 * handle, int max_threads,
+			    sqlite3_stmt * stmt_tiles, sqlite3_stmt * stmt_data,
+			    unsigned char *outbuf, unsigned int width,
 			    unsigned int height, unsigned char sample_type,
 			    unsigned char num_bands, double x_res, double y_res,
-			    double minx, double maxy,
-			    int scale, rl2PalettePtr palette,
-			    rl2PixelPtr no_data, rl2RasterSymbolizerPtr style,
+			    double minx, double maxy, int scale,
+			    rl2PalettePtr palette, rl2PixelPtr no_data,
+			    rl2RasterSymbolizerPtr style,
 			    rl2RasterStatisticsPtr stats)
 {
 /* retrieving a full image from DBMS tiles */
     rl2RasterPtr raster = NULL;
     rl2PalettePtr plt = NULL;
     int ret;
+    rl2AuxDecoderPtr aux = NULL;
+    rl2AuxDecoderPtr decoder;
+    rl2AuxDecoderPtr *thread_slots = NULL;
+    int thread_count;
+    int iaux;
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* allocating the AuxDecoder array */
+    aux = malloc (sizeof (rl2AuxDecoder) * max_threads);
+    if (aux == NULL)
+	return 0;
+    for (iaux = 0; iaux < max_threads; iaux++)
+      {
+	  /* initializing an empty AuxDecoder */
+	  decoder = aux + iaux;
+	  decoder->opaque_thread_id = NULL;
+	  decoder->blob_odd = NULL;
+	  decoder->blob_even = NULL;
+	  decoder->blob_odd_sz = 0;
+	  decoder->blob_even_sz = 0;
+	  decoder->outbuf = outbuf;
+	  decoder->width = width;
+	  decoder->height = height;
+	  decoder->sample_type = sample_type;
+	  decoder->num_bands = num_bands;
+	  decoder->x_res = x_res;
+	  decoder->y_res = y_res;
+	  decoder->scale = scale;
+	  decoder->minx = minx;
+	  decoder->maxy = maxy;
+	  decoder->no_data = (rl2PrivPixelPtr) no_data;
+	  decoder->style = (rl2PrivRasterSymbolizerPtr) style;
+	  decoder->stats = (rl2PrivRasterStatisticsPtr) stats;
+	  decoder->raster = NULL;
+	  decoder->palette = NULL;
+      }
+
+/* prepating the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxDecoderPtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
 
 /* querying the tiles */
     while (1)
@@ -2546,6 +2780,7 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 	      break;
 	  if (ret == SQLITE_ROW)
 	    {
+		int ok = 0;
 		const unsigned char *blob_odd = NULL;
 		int blob_odd_sz = 0;
 		const unsigned char *blob_even = NULL;
@@ -2553,6 +2788,10 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		sqlite3_int64 tile_id = sqlite3_column_int64 (stmt_tiles, 0);
 		double tile_minx = sqlite3_column_double (stmt_tiles, 1);
 		double tile_maxy = sqlite3_column_double (stmt_tiles, 2);
+		decoder = aux + thread_count;
+		decoder->tile_id = tile_id;
+		decoder->tile_minx = tile_minx;
+		decoder->tile_maxy = tile_maxy;
 
 		/* retrieving tile raw data from BLOBs */
 		sqlite3_reset (stmt_data);
@@ -2563,10 +2802,17 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		    break;
 		if (ret == SQLITE_ROW)
 		  {
+		      /* decoding a Tile - may be by using concurrent multithreading */
 		      if (sqlite3_column_type (stmt_data, 0) == SQLITE_BLOB)
 			{
 			    blob_odd = sqlite3_column_blob (stmt_data, 0);
 			    blob_odd_sz = sqlite3_column_bytes (stmt_data, 0);
+			    decoder->blob_odd = malloc (blob_odd_sz);
+			    if (decoder->blob_odd == NULL)
+				goto error;
+			    memcpy (decoder->blob_odd, blob_odd, blob_odd_sz);
+			    decoder->blob_odd_sz = blob_odd_sz;
+			    ok = 1;
 			}
 		      if (scale == RL2_SCALE_1)
 			{
@@ -2577,6 +2823,12 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 				      sqlite3_column_blob (stmt_data, 1);
 				  blob_even_sz =
 				      sqlite3_column_bytes (stmt_data, 1);
+				  decoder->blob_even = malloc (blob_even_sz);
+				  if (decoder->blob_even == NULL)
+				      goto error;
+				  memcpy (decoder->blob_even, blob_even,
+					  blob_even_sz);
+				  decoder->blob_even_sz = blob_even_sz;
 			      }
 			}
 		  }
@@ -2587,23 +2839,46 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 			       sqlite3_errmsg (handle));
 		      goto error;
 		  }
-		plt = rl2_clone_palette (palette);
-		raster =
-		    rl2_raster_decode (scale, blob_odd, blob_odd_sz, blob_even,
-				       blob_even_sz, plt);
-		plt = NULL;
-		if (raster == NULL)
+		if (!ok)
 		  {
-		      fprintf (stderr, ERR_FRMT64, tile_id);
-		      goto error;
+		      if (decoder->blob_odd != NULL)
+			  free (decoder->blob_odd);
+		      if (decoder->blob_even != NULL)
+			  free (decoder->blob_even);
+		      decoder->blob_odd = NULL;
+		      decoder->blob_even = NULL;
+		      decoder->blob_odd_sz = 0;
+		      decoder->blob_even_sz = 0;
 		  }
-		if (!rl2_copy_raw_pixels
-		    (raster, outbuf, width, height, sample_type,
-		     num_bands, x_res, y_res, minx, maxy, tile_minx, tile_maxy,
-		     no_data, style, stats))
-		    goto error;
-		rl2_destroy_raster (raster);
-		raster = NULL;
+		else
+		  {
+		      /* processing a Tile request (may be under parallel execution) */
+		      decoder->palette =
+			  (rl2PrivPalettePtr) rl2_clone_palette (palette);
+		      if (max_threads > 1)
+			{
+			    /* adopting a multithreaded strategy */
+			    *(thread_slots + thread_count) = decoder;
+			    thread_count++;
+			    if (thread_count == max_threads)
+			      {
+				  if (!do_run_decoder_children
+				      (thread_slots, thread_count))
+				      goto error;
+				  thread_count = 0;
+			      }
+			}
+		      else
+			{
+			    /* single thread execution */
+			    do_decode_tile (decoder);
+			    if (decoder->retcode != RL2_OK)
+			      {
+				  fprintf (stderr, ERR_FRMT64, tile_id);
+				  goto error;
+			      }
+			}
+		  }
 	    }
 	  else
 	    {
@@ -2613,10 +2888,39 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 		goto error;
 	    }
       }
+    if (max_threads > 1 && thread_count > 0)
+      {
+	  /* launching the last multithreaded burst */
+	  if (!do_run_decoder_children (thread_slots, thread_count))
+	      goto error;
+      }
 
+    free (aux);
+    free (thread_slots);
     return 1;
 
   error:
+    if (aux != NULL)
+      {
+	  /* AuxDecoder cleanup */
+	  for (iaux = 0; iaux < max_threads; iaux++)
+	    {
+		decoder = aux + iaux;
+		if (decoder->blob_odd != NULL)
+		    free (decoder->blob_odd);
+		if (decoder->blob_even != NULL)
+		    free (decoder->blob_even);
+		if (decoder->raster != NULL)
+		    rl2_destroy_raster ((rl2RasterPtr) (decoder->raster));
+		if (decoder->palette != NULL)
+		    rl2_destroy_palette ((rl2PalettePtr) (decoder->palette));
+		if (decoder->opaque_thread_id != NULL)
+		    free (decoder->opaque_thread_id);
+	    }
+	  free (aux);
+      }
+    if (thread_slots != NULL)
+	free (thread_slots);
     if (raster != NULL)
 	rl2_destroy_raster (raster);
     if (plt != NULL)
@@ -3423,9 +3727,9 @@ load_mono_band_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 }
 
 RL2_PRIVATE int
-rl2_load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
-		     sqlite3_stmt * stmt_data, unsigned char *outbuf,
-		     unsigned int width,
+rl2_load_dbms_tiles (sqlite3 * handle, int max_threads,
+		     sqlite3_stmt * stmt_tiles, sqlite3_stmt * stmt_data,
+		     unsigned char *outbuf, unsigned int width,
 		     unsigned int height, unsigned char sample_type,
 		     unsigned char num_bands, double x_res, double y_res,
 		     double minx, double miny, double maxx, double maxy,
@@ -3443,7 +3747,7 @@ rl2_load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
     sqlite3_bind_double (stmt_tiles, 5, maxy);
 
     if (!rl2_load_dbms_tiles_common
-	(handle, stmt_tiles, stmt_data, outbuf, width, height,
+	(handle, max_threads, stmt_tiles, stmt_data, outbuf, width, height,
 	 sample_type, num_bands, x_res, y_res, minx, maxy, scale,
 	 palette, no_data, style, stats))
 	return 0;
@@ -3451,7 +3755,8 @@ rl2_load_dbms_tiles (sqlite3 * handle, sqlite3_stmt * stmt_tiles,
 }
 
 RL2_PRIVATE int
-rl2_load_dbms_tiles_section (sqlite3 * handle, sqlite3_int64 section_id,
+rl2_load_dbms_tiles_section (sqlite3 * handle, int max_threads,
+			     sqlite3_int64 section_id,
 			     sqlite3_stmt * stmt_tiles,
 			     sqlite3_stmt * stmt_data, unsigned char *outbuf,
 			     unsigned int width, unsigned int height,
@@ -3466,7 +3771,7 @@ rl2_load_dbms_tiles_section (sqlite3 * handle, sqlite3_int64 section_id,
     sqlite3_bind_int (stmt_tiles, 1, section_id);
 
     if (!rl2_load_dbms_tiles_common
-	(handle, stmt_tiles, stmt_data, outbuf, width, height,
+	(handle, max_threads, stmt_tiles, stmt_data, outbuf, width, height,
 	 sample_type, num_bands, x_res, y_res, minx, maxy, scale,
 	 palette, no_data, NULL, NULL))
 	return 0;
@@ -3760,13 +4065,13 @@ rl2_get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
 }
 
 RL2_PRIVATE int
-rl2_get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
-				int by_section, sqlite3_int64 section_id,
-				unsigned int width, unsigned int height,
-				double minx, double miny, double maxx,
-				double maxy, double x_res, double y_res,
-				unsigned char **buffer, int *buf_size,
-				rl2PalettePtr * palette,
+rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
+				rl2CoveragePtr cvg, int by_section,
+				sqlite3_int64 section_id, unsigned int width,
+				unsigned int height, double minx, double miny,
+				double maxx, double maxy, double x_res,
+				double y_res, unsigned char **buffer,
+				int *buf_size, rl2PalettePtr * palette,
 				unsigned char out_pixel, rl2PixelPtr bgcolor,
 				rl2RasterSymbolizerPtr style,
 				rl2RasterStatisticsPtr stats)
@@ -3988,9 +4293,9 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 		    (style, &brightness_only, &relief_factor) != RL2_OK)
 		    goto error;
 		if (rl2_build_shaded_relief_mask
-		    (handle, cvg, relief_factor, scale_factor, width, height,
-		     minx, miny, maxx, maxy, x_res, y_res, &shaded_relief,
-		     &shaded_relief_sz) != RL2_OK)
+		    (handle, max_threads, cvg, relief_factor, scale_factor,
+		     width, height, minx, miny, maxx, maxy, x_res, y_res,
+		     &shaded_relief, &shaded_relief_sz) != RL2_OK)
 		    goto error;
 
 		if (brightness_only || !rl2_has_styled_rgb_colors (style))
@@ -4121,9 +4426,9 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 			       no_data);
       }
     if (!rl2_load_dbms_tiles
-	(handle, stmt_tiles, stmt_data, bufpix, width, height, sample_type,
-	 num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level, scale, plt,
-	 no_data, style, stats))
+	(handle, max_threads, stmt_tiles, stmt_data, bufpix, width, height,
+	 sample_type, num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level,
+	 scale, plt, no_data, style, stats))
 	goto error;
     if (kill_no_data != NULL)
 	rl2_destroy_pixel (kill_no_data);
@@ -4179,7 +4484,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, rl2CoveragePtr cvg,
 }
 
 RL2_DECLARE int
-rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+rl2_get_raw_raster_data (sqlite3 * handle, int max_threads, rl2CoveragePtr cvg,
 			 unsigned int width, unsigned int height,
 			 double minx, double miny, double maxx, double maxy,
 			 double x_res, double y_res, unsigned char **buffer,
@@ -4187,27 +4492,29 @@ rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 			 unsigned char out_pixel)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
-    return rl2_get_raw_raster_data_common (handle, cvg, 0, 0, width, height,
-					   minx, miny, maxx, maxy, x_res, y_res,
-					   buffer, buf_size, palette, out_pixel,
-					   NULL, NULL, NULL);
+    return rl2_get_raw_raster_data_common (handle, max_threads, cvg, 0, 0,
+					   width, height, minx, miny, maxx,
+					   maxy, x_res, y_res, buffer, buf_size,
+					   palette, out_pixel, NULL, NULL,
+					   NULL);
 }
 
 RL2_DECLARE int
-rl2_get_section_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-				 sqlite3_int64 section_id, unsigned int width,
-				 unsigned int height, double minx, double miny,
-				 double maxx, double maxy, double x_res,
-				 double y_res, unsigned char **buffer,
-				 int *buf_size, rl2PalettePtr * palette,
+rl2_get_section_raw_raster_data (sqlite3 * handle, int max_threads,
+				 rl2CoveragePtr cvg, sqlite3_int64 section_id,
+				 unsigned int width, unsigned int height,
+				 double minx, double miny, double maxx,
+				 double maxy, double x_res, double y_res,
+				 unsigned char **buffer, int *buf_size,
+				 rl2PalettePtr * palette,
 				 unsigned char out_pixel)
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage/Section */
-    return rl2_get_raw_raster_data_common (handle, cvg, 1, section_id, width,
-					   height, minx, miny, maxx, maxy,
-					   x_res, y_res, buffer, buf_size,
-					   palette, out_pixel, NULL, NULL,
-					   NULL);
+    return rl2_get_raw_raster_data_common (handle, max_threads, cvg, 1,
+					   section_id, width, height, minx,
+					   miny, maxx, maxy, x_res, y_res,
+					   buffer, buf_size, palette, out_pixel,
+					   NULL, NULL, NULL);
 }
 
 static int
@@ -4598,12 +4905,12 @@ rl2_get_section_mono_band_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
 }
 
 RL2_DECLARE int
-rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
-				 unsigned int width, unsigned int height,
-				 double minx, double miny, double maxx,
-				 double maxy, double x_res, double y_res,
-				 unsigned char **buffer, int *buf_size,
-				 rl2PalettePtr * palette,
+rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
+				 rl2CoveragePtr cvg, unsigned int width,
+				 unsigned int height, double minx, double miny,
+				 double maxx, double maxy, double x_res,
+				 double y_res, unsigned char **buffer,
+				 int *buf_size, rl2PalettePtr * palette,
 				 unsigned char *out_pixel, unsigned char bg_red,
 				 unsigned char bg_green, unsigned char bg_blue,
 				 rl2RasterSymbolizerPtr style,
@@ -4838,10 +5145,10 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
     if (pixel_type == RL2_PIXEL_MONOCHROME)
 	xstyle = NULL;
     ret =
-	rl2_get_raw_raster_data_common (handle, cvg, 0, 0, width, height, minx,
-					miny, maxx, maxy, x_res, y_res, buffer,
-					buf_size, palette, *out_pixel, no_data,
-					xstyle, stats);
+	rl2_get_raw_raster_data_common (handle, max_threads, cvg, 0, 0, width,
+					height, minx, miny, maxx, maxy, x_res,
+					y_res, buffer, buf_size, palette,
+					*out_pixel, no_data, xstyle, stats);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
     if (*out_pixel == RL2_PIXEL_GRAYSCALE && pixel_type == RL2_PIXEL_DATAGRID)

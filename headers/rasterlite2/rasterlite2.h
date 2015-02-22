@@ -3410,22 +3410,24 @@ extern "C"
 				      unsigned char *scale);
 
     RL2_DECLARE int rl2_load_raw_raster_into_dbms (sqlite3 * sqlite,
+						   int max_threads,
 						   rl2CoveragePtr cvg,
 						   const char *sctn_name,
 						   rl2RasterPtr rst,
 						   int pyramidize);
 
     RL2_DECLARE int
-	rl2_get_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
-				 unsigned int width, unsigned int height,
-				 double minx, double miny, double maxx,
-				 double maxy, double x_res, double y_res,
-				 unsigned char **buffer, int *buf_size,
-				 rl2PalettePtr * palette,
+	rl2_get_raw_raster_data (sqlite3 * handle, int max_threads,
+				 rl2CoveragePtr cvg, unsigned int width,
+				 unsigned int height, double minx, double miny,
+				 double maxx, double maxy, double x_res,
+				 double y_res, unsigned char **buffer,
+				 int *buf_size, rl2PalettePtr * palette,
 				 unsigned char out_pixel);
 
     RL2_DECLARE int
-	rl2_get_section_raw_raster_data (sqlite3 * handle, rl2CoveragePtr cvg,
+	rl2_get_section_raw_raster_data (sqlite3 * handle, int max_threads,
+					 rl2CoveragePtr cvg,
 					 sqlite3_int64 section_id,
 					 unsigned int width,
 					 unsigned int height, double minx,
@@ -3493,8 +3495,8 @@ extern "C"
 						   rl2PixelPtr no_data);
 
     RL2_DECLARE int
-	rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, rl2CoveragePtr cvg,
-					 unsigned int width,
+	rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
+					 rl2CoveragePtr cvg, unsigned int width,
 					 unsigned int height, double minx,
 					 double miny, double maxx, double maxy,
 					 double x_res, double y_res,
@@ -3509,6 +3511,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle,
+						   int max_threads,
 						   rl2CoveragePtr cvg,
 						   unsigned int width,
 						   unsigned int height,
@@ -3743,29 +3746,30 @@ extern "C"
 						      unsigned int tile_height);
 
     RL2_DECLARE int
-	rl2_load_raster_into_dbms (sqlite3 * handle, const char *src_path,
+	rl2_load_raster_into_dbms (sqlite3 * handle, int max_threads,
+				   const char *src_path,
 				   rl2CoveragePtr coverage, int worldfile,
 				   int force_srid, int pyramidize, int verbose);
 
     RL2_DECLARE int
-	rl2_load_mrasters_into_dbms (sqlite3 * handle, const char *dir_path,
-				     const char *file_ext,
+	rl2_load_mrasters_into_dbms (sqlite3 * handle, int max_threads,
+				     const char *dir_path, const char *file_ext,
 				     rl2CoveragePtr coverage, int worldfile,
 				     int force_srid, int pyramidize,
 				     int verbose);
 
     RL2_DECLARE int
-	rl2_export_geotiff_from_dbms (sqlite3 * handle, const char *dst_path,
+	rl2_export_geotiff_from_dbms (sqlite3 * handle, int max_threads,
+				      const char *dst_path,
 				      rl2CoveragePtr coverage, double x_res,
 				      double y_res, double minx, double miny,
 				      double maxx, double maxy,
-				      unsigned int width,
-				      unsigned int height,
+				      unsigned int width, unsigned int height,
 				      unsigned char compression,
 				      unsigned int tile_sz, int with_worldfile);
 
     RL2_DECLARE int
-	rl2_export_section_geotiff_from_dbms (sqlite3 * handle,
+	rl2_export_section_geotiff_from_dbms (sqlite3 * handle, int max_threads,
 					      const char *dst_path,
 					      rl2CoveragePtr coverage,
 					      sqlite3_int64 section_id,
@@ -3779,7 +3783,7 @@ extern "C"
 					      int with_worldfile);
 
     RL2_DECLARE int
-	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle,
+	rl2_export_tiff_worldfile_from_dbms (sqlite3 * handle, int max_threads,
 					     const char *dst_path,
 					     rl2CoveragePtr coverage,
 					     double x_res, double y_res,
@@ -3791,17 +3795,18 @@ extern "C"
 					     unsigned int tile_sz);
 
     RL2_DECLARE int
-	rl2_export_tiff_from_dbms (sqlite3 * handle, const char *dst_path,
+	rl2_export_tiff_from_dbms (sqlite3 * handle, int max_threads,
+				   const char *dst_path,
 				   rl2CoveragePtr coverage, double x_res,
 				   double y_res, double minx, double miny,
-				   double maxx, double maxy,
-				   unsigned int width,
+				   double maxx, double maxy, unsigned int width,
 				   unsigned int height,
 				   unsigned char compression,
 				   unsigned int tile_sz);
 
     RL2_DECLARE int
 	rl2_export_section_tiff_worldfile_from_dbms (sqlite3 * handle,
+						     int max_threads,
 						     const char *dst_path,
 						     rl2CoveragePtr coverage,
 						     sqlite3_int64 section_id,
@@ -3814,7 +3819,7 @@ extern "C"
 						     unsigned int tile_sz);
 
     RL2_DECLARE int
-	rl2_export_section_tiff_from_dbms (sqlite3 * handle,
+	rl2_export_section_tiff_from_dbms (sqlite3 * handle, int max_threads,
 					   const char *dst_path,
 					   rl2CoveragePtr coverage,
 					   sqlite3_int64 section_id,
@@ -4058,7 +4063,8 @@ extern "C"
 						     unsigned int tile_sz);
 
     RL2_DECLARE int
-	rl2_export_ascii_grid_from_dbms (sqlite3 * handle, const char *dst_path,
+	rl2_export_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
+					 const char *dst_path,
 					 rl2CoveragePtr coverage, double res,
 					 double minx, double miny, double maxx,
 					 double maxy, unsigned int width,
@@ -4067,6 +4073,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle,
+						 int max_threads,
 						 const char *dst_path,
 						 rl2CoveragePtr coverage,
 						 sqlite3_int64 section_id,
@@ -4079,15 +4086,16 @@ extern "C"
 						 int decimal_digits);
 
     RL2_DECLARE int
-	rl2_export_jpeg_from_dbms (sqlite3 * handle, const char *dst_path,
+	rl2_export_jpeg_from_dbms (sqlite3 * handle, int max_threads,
+				   const char *dst_path,
 				   rl2CoveragePtr coverage, double x_res,
 				   double y_res, double minx, double miny,
-				   double maxx, double maxy,
-				   unsigned int width, unsigned int height,
-				   int quality, int with_worldfile);
+				   double maxx, double maxy, unsigned int width,
+				   unsigned int height, int quality,
+				   int with_worldfile);
 
     RL2_DECLARE int
-	rl2_export_section_jpeg_from_dbms (sqlite3 * handle,
+	rl2_export_section_jpeg_from_dbms (sqlite3 * handle, int max_threads,
 					   const char *dst_path,
 					   rl2CoveragePtr coverage,
 					   sqlite3_int64 section_id,
@@ -4099,7 +4107,7 @@ extern "C"
 					   int with_worldfile);
 
     RL2_DECLARE int
-	rl2_export_raw_pixels_from_dbms (sqlite3 * handle,
+	rl2_export_raw_pixels_from_dbms (sqlite3 * handle, int max_threads,
 					 rl2CoveragePtr coverage, double x_res,
 					 double y_res, double minx, double miny,
 					 double maxx, double maxy,
@@ -4109,6 +4117,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_export_section_raw_pixels_from_dbms (sqlite3 * handle,
+						 int max_threads,
 						 rl2CoveragePtr coverage,
 						 sqlite3_int64 section_id,
 						 double x_res, double y_res,
@@ -4121,16 +4130,18 @@ extern "C"
 						 int *blob_size);
 
     RL2_DECLARE int
-	rl2_build_section_pyramid (sqlite3 * handle, const char *coverage,
-				   sqlite3_int64 section_id,
-				   int forced_rebuild, int verbose);
+	rl2_build_section_pyramid (sqlite3 * handle, int max_threads,
+				   const char *coverage,
+				   sqlite3_int64 section_id, int forced_rebuild,
+				   int verbose);
 
     RL2_DECLARE int
 	rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 				      int virtual_levels, int verbose);
 
     RL2_DECLARE int
-	rl2_build_all_section_pyramids (sqlite3 * handle, const char *coverage,
+	rl2_build_all_section_pyramids (sqlite3 * handle, int max_threads,
+					const char *coverage,
 					int forced_rebuild, int verbose);
 
     RL2_DECLARE int

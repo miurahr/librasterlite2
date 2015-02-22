@@ -57,6 +57,9 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define TILE_256	256
 #define TILE_1024	1024
 
+/* global variable used to alternatively enable/disable multithreading */
+int multithreading = 1;
+
 static int
 execute_check (sqlite3 * sqlite, const char *sql)
 {
@@ -772,6 +775,19 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  tile_size = 1024;
 	  break;
       };
+      
+/* setting the MultiThreading mode alternatively on/off */
+	if (multithreading)
+	{
+		sql = "SELECT RL2_SetMaxThreads(2)";
+		multithreading = 0;
+	}
+	else
+	{
+		sql = "SELECT RL2_SetMaxThreads(1)";
+		multithreading = 1;
+	}
+    execute_check (sqlite, sql);
 
 /* creating the DBMS Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_CreateRasterCoverage("

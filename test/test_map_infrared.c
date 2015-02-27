@@ -1157,6 +1157,112 @@ do_export_map_image (sqlite3 * sqlite, const char *coverage,
     return retcode;
 }
 
+static int
+do_export_ndvi (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom)
+{
+/* exporting an NDVI Ascii Grid */
+    char *sql;
+    const char *path = "./ndvi_ascii_grid.asc";
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    double scale = 1.0;
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+    if (xx_res != yy_res)
+	xx_res = (xx_res + yy_res) / 2.0;
+
+    sql = "SELECT RL2_WriteNdviAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 0);	/* red band */
+    sqlite3_bind_int (stmt, 6, 3);	/* NIR band */
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 7, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 8, xx_res);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    return retcode;
+}
+
+static int
+do_export_section_ndvi (sqlite3 * sqlite, const char *coverage,
+			gaiaGeomCollPtr geom)
+{
+/* exporting a Section NDVI Ascii Grid */
+    char *sql;
+    const char *path = "./ndvi_ascii_grid_section.asc";
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    double scale = 1.0;
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+    if (xx_res != yy_res)
+	xx_res = (xx_res + yy_res) / 2.0;
+
+    sql = "SELECT RL2_WriteSectionNdviAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_int64 (stmt, 2, 1);
+    sqlite3_bind_text (stmt, 3, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 1024);
+    sqlite3_bind_int (stmt, 6, 0);	/* red band */
+    sqlite3_bind_int (stmt, 7, 3);	/* NIR band */
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 8, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 9, xx_res);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    return retcode;
+}
+
 static gaiaGeomCollPtr
 get_center_point (sqlite3 * sqlite, const char *coverage)
 {
@@ -1195,7 +1301,7 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 
 static int
 test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
-	       int *retcode)
+	       int ndvi, int *retcode)
 {
 /* testing some DBMS Coverage */
     int ret;
@@ -1561,6 +1667,15 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  *retcode += -41;
 	  return 0;
       }
+    if (ndvi)
+      {
+	  /* NDVI Ascii Grid */
+	  if (!do_export_ndvi (sqlite, coverage, geom))
+	    {
+		*retcode += -101;
+		return 0;
+	    }
+      }
     if (!test_map_image)
 	goto skip;
 
@@ -1825,7 +1940,7 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  gaiaFreeGeomColl (geom);
       }
 
-    if (strcmp (coverage, "infrared_zip_1024") == 0)
+    if (strcmp (coverage, "infrared_png_512") == 0)
       {
 	  /* testing Band Composed Section */
 	  geom = get_center_point (sqlite, coverage);
@@ -1959,6 +2074,15 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	    {
 		*retcode += -100;
 		return 0;
+	    }
+	  if (ndvi)
+	    {
+		/* Section NDVI Ascii Grid */
+		if (!do_export_section_ndvi (sqlite, coverage, geom))
+		  {
+		      *retcode += -102;
+		      return 0;
+		  }
 	    }
 	  gaiaFreeGeomColl (geom);
       }
@@ -2212,36 +2336,39 @@ main (int argc, char *argv[])
 /* tests */
 #ifndef OMIT_CHARLS		/* only if CharLS is enabled */
     ret = -100;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_256, 0, &ret))
 	return ret;
     ret = -120;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_512, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_512, 0, &ret))
 	return ret;
     ret = -140;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_CHARLS, TILE_1024, 0, &ret))
 	return ret;
 #endif /* end CharLS conditional */
 
 #ifndef OMIT_OPENJPEG		/* only if OpenJpeg is enabled */
     ret = -200;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, &ret))
+    if (!test_coverage
+	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_256, 0, &ret))
 	return ret;
     ret = -220;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_512, &ret))
+    if (!test_coverage
+	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_512, 0, &ret))
 	return ret;
     ret = -240;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, &ret))
+    if (!test_coverage
+	(db_handle, RL2_COMPRESSION_LOSSY_JP2, TILE_1024, 0, &ret))
 	return ret;
 #endif /* end OpenJpeg conditional */
 
     ret = -300;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_256, 0, &ret))
 	return ret;
     ret = -320;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_512, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_512, 1, &ret))
 	return ret;
     ret = -340;
-    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, &ret))
+    if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, 0, &ret))
 	return ret;
 
 /* dropping all Coverages */

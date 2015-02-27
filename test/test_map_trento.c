@@ -690,18 +690,18 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  break;
       };
     tile_size = 512;
-      
+
 /* setting the MultiThreading mode alternatively on/off */
-	if (multithreading)
-	{
-		sql = "SELECT RL2_SetMaxThreads(2)";
-		multithreading = 0;
-	}
-	else
-	{
-		sql = "SELECT RL2_SetMaxThreads(1)";
-		multithreading = 1;
-	}
+    if (multithreading)
+      {
+	  sql = "SELECT RL2_SetMaxThreads(2)";
+	  multithreading = 0;
+      }
+    else
+      {
+	  sql = "SELECT RL2_SetMaxThreads(1)";
+	  multithreading = 1;
+      }
     execute_check (sqlite, sql);
 
 /* creating the DBMS Coverage */

@@ -123,6 +123,44 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionascii17.testcase \
 	writesectionascii18.testcase \
 	writesectionascii18.testcase \
+	writendviascii1.testcase \
+	writendviascii2.testcase \
+	writendviascii3.testcase \
+	writendviascii4.testcase \
+	writendviascii5.testcase \
+	writendviascii6.testcase \
+	writendviascii7.testcase \
+	writendviascii8.testcase \
+	writendviascii9.testcase \
+	writendviascii10.testcase \
+	writendviascii11.testcase \
+	writendviascii12.testcase \
+	writendviascii13.testcase \
+	writendviascii14.testcase \
+	writendviascii15.testcase \
+	writendviascii16.testcase \
+	writendviascii17.testcase \
+	writendviascii18.testcase \
+	writesectionndviascii1.testcase \
+	writesectionndviascii2.testcase \
+	writesectionndviascii3.testcase \
+	writesectionndviascii4.testcase \
+	writesectionndviascii5.testcase \
+	writesectionndviascii6.testcase \
+	writesectionndviascii7.testcase \
+	writesectionndviascii8.testcase \
+	writesectionndviascii9.testcase \
+	writesectionndviascii10.testcase \
+	writesectionndviascii11.testcase \
+	writesectionndviascii12.testcase \
+	writesectionndviascii13.testcase \
+	writesectionndviascii14.testcase \
+	writesectionndviascii15.testcase \
+	writesectionndviascii16.testcase \
+	writesectionndviascii17.testcase \
+	writesectionndviascii18.testcase \
+	writesectionndviascii19.testcase \
+	writesectionndviascii20.testcase \
 	writebandtiff1.testcase \
 	writebandtiff2.testcase \
 	writebandtiff3.testcase \

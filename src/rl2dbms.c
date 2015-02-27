@@ -2541,6 +2541,12 @@ do_decode_tile (rl2AuxDecoderPtr decoder)
 					      decoder->blob_even_sz,
 					      (rl2PalettePtr)
 					      (decoder->palette));
+    if (decoder->blob_odd != NULL)
+	free (decoder->blob_odd);
+    if (decoder->blob_even != NULL)
+	free (decoder->blob_even);
+    decoder->blob_odd = NULL;
+    decoder->blob_even = NULL;
     decoder->palette = NULL;
     if (decoder->raster == NULL)
       {

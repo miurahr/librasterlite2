@@ -46,6 +46,14 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+#else
+#include <unistd.h>
+#include <pthread.h>
+#endif
+
 #include "config.h"
 
 #ifdef LOADABLE_EXTENSION
@@ -3433,286 +3441,232 @@ destroy_mono_handling (rl2BandHandlingPtr mono)
     free (mono);
 }
 
-RL2_PRIVATE int
-rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
-		     unsigned int width,
-		     unsigned int height, unsigned char sample_type,
-		     unsigned char num_bands, double x_res, double y_res,
-		     double minx, double maxy, double tile_minx,
-		     double tile_maxy, rl2PixelPtr no_data,
-		     rl2RasterSymbolizerPtr style, rl2RasterStatisticsPtr stats)
+static int
+do_copy_raw_selected_pixels (rl2PrivRasterPtr rst, unsigned char *outbuf,
+			     unsigned int width, unsigned int height,
+			     double x_res, double y_res, double minx,
+			     double maxy, double tile_minx, double tile_maxy,
+			     unsigned int tile_width, unsigned int tile_height,
+			     rl2PixelPtr no_data, unsigned char red_band,
+			     unsigned char green_band, unsigned char blue_band,
+			     rl2BandHandlingPtr red_handling,
+			     rl2BandHandlingPtr green_handling,
+			     rl2BandHandlingPtr blue_handling)
 {
-/* copying raw pixels into the output buffer */
-    unsigned int tile_width;
-    unsigned int tile_height;
-    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
-
-    if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
-	return 0;
-    if (style != NULL && stats != NULL)
+    switch (rst->sampleType)
       {
-	  /* attempting to apply a RasterSymbolizer */
-	  int yes_no;
-	  if (rl2_is_raster_symbolizer_triple_band_selected (style, &yes_no) ==
-	      RL2_OK)
-	    {
-		if ((rst->sampleType == RL2_SAMPLE_UINT8
-		     || rst->sampleType == RL2_SAMPLE_UINT16)
-		    && (rst->pixelType == RL2_PIXEL_RGB
-			|| rst->pixelType == RL2_PIXEL_MULTIBAND) && yes_no)
-		  {
-		      /* triple band selection - false color RGB */
-		      unsigned char red_band;
-		      unsigned char green_band;
-		      unsigned char blue_band;
-		      rl2BandHandlingPtr red_handling = NULL;
-		      rl2BandHandlingPtr green_handling = NULL;
-		      rl2BandHandlingPtr blue_handling = NULL;
-		      if (rl2_get_raster_symbolizer_triple_band_selection
-			  (style, &red_band, &green_band, &blue_band) != RL2_OK)
-			  return 0;
-		      if (red_band >= rst->nBands)
-			  return 0;
-		      if (green_band >= rst->nBands)
-			  return 0;
-		      if (blue_band >= rst->nBands)
-			  return 0;
-		      build_triple_band_handling ((rl2PrivRasterSymbolizerPtr)
-						  style,
-						  (rl2PrivRasterStatisticsPtr)
-						  stats, red_band, green_band,
-						  blue_band, &red_handling,
-						  &green_handling,
-						  &blue_handling);
-		      if (red_handling == NULL || green_handling == NULL
-			  || blue_handling == NULL)
-			  return 0;
-		      switch (rst->sampleType)
-			{
-			case RL2_SAMPLE_UINT8:
-			    copy_uint8_raw_selected_pixels ((const unsigned char
-							     *)
-							    (rst->rasterBuffer),
-							    (const unsigned char
-							     *)
-							    (rst->maskBuffer),
-							    (unsigned char *)
-							    outbuf, width,
-							    height, rst->nBands,
-							    x_res, y_res, minx,
-							    maxy, tile_minx,
-							    tile_maxy,
-							    tile_width,
-							    tile_height,
-							    no_data, red_band,
-							    green_band,
-							    blue_band,
-							    red_handling,
-							    green_handling,
-							    blue_handling);
-			    if (red_handling != NULL)
-				free (red_handling);
-			    if (green_handling != NULL)
-				free (green_handling);
-			    if (blue_handling != NULL)
-				free (blue_handling);
-			    return 1;
-			case RL2_SAMPLE_UINT16:
-			    copy_uint16_raw_selected_pixels ((const unsigned
-							      short
-							      *)
-							     (rst->rasterBuffer),
-							     (const unsigned
-							      char
-							      *)
-							     (rst->maskBuffer),
-							     (unsigned char *)
-							     outbuf, width,
-							     height,
-							     rst->nBands, x_res,
-							     y_res, minx, maxy,
-							     tile_minx,
-							     tile_maxy,
-							     tile_width,
-							     tile_height,
-							     no_data, red_band,
-							     green_band,
-							     blue_band,
-							     red_handling,
-							     green_handling,
-							     blue_handling);
-			    if (red_handling != NULL)
-				free (red_handling);
-			    if (green_handling != NULL)
-				free (green_handling);
-			    if (blue_handling != NULL)
-				free (blue_handling);
-			    return 1;
-			};
-		  }
-	    }
-	  if (rl2_is_raster_symbolizer_mono_band_selected (style, &yes_no) ==
-	      RL2_OK)
-	    {
-		if (((rst->sampleType == RL2_SAMPLE_UINT8
-		      || rst->sampleType == RL2_SAMPLE_UINT16)
-		     || rst->pixelType == RL2_PIXEL_DATAGRID) && yes_no)
-		  {
-		      /* mono band selection - false color Grayscale */
-		      unsigned char mono_band;
-		      rl2BandHandlingPtr mono_handling = NULL;
-		      if (rl2_get_raster_symbolizer_mono_band_selection
-			  (style, &mono_band) != RL2_OK)
-			  return 0;
-		      if (mono_band >= rst->nBands)
-			  return 0;
-		      build_mono_band_handling ((rl2PrivRasterSymbolizerPtr)
-						style,
-						(rl2PrivRasterStatisticsPtr)
-						stats, mono_band,
-						&mono_handling);
-		      if (mono_handling == NULL)
-			  return 0;
-		      switch (rst->sampleType)
-			{
-			case RL2_SAMPLE_INT8:
-			    copy_int8_raw_mono_pixels ((const char
-							*) (rst->rasterBuffer),
-						       (const unsigned char
-							*) (rst->maskBuffer),
-						       (unsigned char *) outbuf,
-						       width, height, num_bands,
-						       x_res, y_res, minx, maxy,
-						       tile_minx, tile_maxy,
-						       tile_width, tile_height,
-						       no_data, mono_band,
-						       mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_UINT8:
-			    copy_uint8_raw_mono_pixels ((const unsigned char
-							 *) (rst->rasterBuffer),
-							(const unsigned char
-							 *) (rst->maskBuffer),
-							(unsigned char *)
-							outbuf, width, height,
-							num_bands, rst->nBands,
-							x_res, y_res, minx,
-							maxy, tile_minx,
-							tile_maxy, tile_width,
-							tile_height, no_data,
-							mono_band,
-							mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_INT16:
-			    copy_int16_raw_mono_pixels ((const short
-							 *) (rst->rasterBuffer),
-							(const unsigned char
-							 *) (rst->maskBuffer),
-							(unsigned char *)
-							outbuf, width, height,
-							num_bands, x_res, y_res,
-							minx, maxy, tile_minx,
-							tile_maxy, tile_width,
-							tile_height, no_data,
-							mono_band,
-							mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_UINT16:
-			    copy_uint16_raw_mono_pixels ((const unsigned short
-							  *)
-							 (rst->rasterBuffer),
-							 (const unsigned char
-							  *) (rst->maskBuffer),
-							 (unsigned char *)
-							 outbuf, width, height,
-							 num_bands, rst->nBands,
-							 x_res, y_res, minx,
-							 maxy, tile_minx,
-							 tile_maxy, tile_width,
-							 tile_height, no_data,
-							 mono_band,
-							 mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_INT32:
-			    copy_int32_raw_mono_pixels ((const int
-							 *) (rst->rasterBuffer),
-							(const unsigned char
-							 *) (rst->maskBuffer),
-							(unsigned char *)
-							outbuf, width, height,
-							num_bands, x_res, y_res,
-							minx, maxy, tile_minx,
-							tile_maxy, tile_width,
-							tile_height, no_data,
-							mono_band,
-							mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_UINT32:
-			    copy_uint32_raw_mono_pixels ((const unsigned int
-							  *)
-							 (rst->rasterBuffer),
-							 (const unsigned char
-							  *) (rst->maskBuffer),
-							 (unsigned char *)
-							 outbuf, width, height,
-							 num_bands, x_res,
-							 y_res, minx, maxy,
-							 tile_minx, tile_maxy,
-							 tile_width,
-							 tile_height, no_data,
-							 mono_band,
-							 mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_FLOAT:
-			    copy_float_raw_mono_pixels ((const float
-							 *) (rst->rasterBuffer),
-							(const unsigned char
-							 *) (rst->maskBuffer),
-							(unsigned char *)
-							outbuf, width, height,
-							num_bands, x_res, y_res,
-							minx, maxy, tile_minx,
-							tile_maxy, tile_width,
-							tile_height, no_data,
-							mono_band,
-							mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			case RL2_SAMPLE_DOUBLE:
-			    copy_double_raw_mono_pixels ((const double
-							  *)
-							 (rst->rasterBuffer),
-							 (const unsigned char
-							  *) (rst->maskBuffer),
-							 (unsigned char *)
-							 outbuf, width, height,
-							 num_bands, x_res,
-							 y_res, minx, maxy,
-							 tile_minx, tile_maxy,
-							 tile_width,
-							 tile_height, no_data,
-							 mono_band,
-							 mono_handling);
-			    if (mono_handling != NULL)
-				destroy_mono_handling (mono_handling);
-			    return 1;
-			};
-		  }
-	    }
-      }
+      case RL2_SAMPLE_UINT8:
+	  copy_uint8_raw_selected_pixels ((const unsigned char
+					   *)
+					  (rst->rasterBuffer),
+					  (const unsigned char
+					   *)
+					  (rst->maskBuffer),
+					  (unsigned char *)
+					  outbuf, width,
+					  height, rst->nBands,
+					  x_res, y_res, minx,
+					  maxy, tile_minx,
+					  tile_maxy,
+					  tile_width,
+					  tile_height,
+					  no_data, red_band,
+					  green_band,
+					  blue_band,
+					  red_handling,
+					  green_handling, blue_handling);
+	  if (red_handling != NULL)
+	      free (red_handling);
+	  if (green_handling != NULL)
+	      free (green_handling);
+	  if (blue_handling != NULL)
+	      free (blue_handling);
+	  return 1;
+      case RL2_SAMPLE_UINT16:
+	  copy_uint16_raw_selected_pixels ((const unsigned
+					    short
+					    *)
+					   (rst->rasterBuffer),
+					   (const unsigned
+					    char
+					    *)
+					   (rst->maskBuffer),
+					   (unsigned char *)
+					   outbuf, width,
+					   height,
+					   rst->nBands, x_res,
+					   y_res, minx, maxy,
+					   tile_minx,
+					   tile_maxy,
+					   tile_width,
+					   tile_height,
+					   no_data, red_band,
+					   green_band,
+					   blue_band,
+					   red_handling,
+					   green_handling, blue_handling);
+	  if (red_handling != NULL)
+	      free (red_handling);
+	  if (green_handling != NULL)
+	      free (green_handling);
+	  if (blue_handling != NULL)
+	      free (blue_handling);
+	  return 1;
+      };
+    return 0;
+}
+
+static int
+do_copy_raw_mono_pixels (rl2PrivRasterPtr rst, unsigned char *outbuf,
+			 unsigned int width, unsigned int height,
+			 unsigned char num_bands, double x_res, double y_res,
+			 double minx, double maxy, double tile_minx,
+			 double tile_maxy, unsigned int tile_width,
+			 unsigned int tile_height, rl2PixelPtr no_data,
+			 unsigned char mono_band,
+			 rl2BandHandlingPtr mono_handling)
+{
+    switch (rst->sampleType)
+      {
+      case RL2_SAMPLE_INT8:
+	  copy_int8_raw_mono_pixels ((const char
+				      *) (rst->rasterBuffer),
+				     (const unsigned char
+				      *) (rst->maskBuffer),
+				     (unsigned char *) outbuf,
+				     width, height, num_bands,
+				     x_res, y_res, minx, maxy,
+				     tile_minx, tile_maxy,
+				     tile_width, tile_height,
+				     no_data, mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_UINT8:
+	  copy_uint8_raw_mono_pixels ((const unsigned char
+				       *) (rst->rasterBuffer),
+				      (const unsigned char
+				       *) (rst->maskBuffer),
+				      (unsigned char *)
+				      outbuf, width, height,
+				      num_bands, rst->nBands,
+				      x_res, y_res, minx,
+				      maxy, tile_minx,
+				      tile_maxy, tile_width,
+				      tile_height, no_data,
+				      mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_INT16:
+	  copy_int16_raw_mono_pixels ((const short
+				       *) (rst->rasterBuffer),
+				      (const unsigned char
+				       *) (rst->maskBuffer),
+				      (unsigned char *)
+				      outbuf, width, height,
+				      num_bands, x_res, y_res,
+				      minx, maxy, tile_minx,
+				      tile_maxy, tile_width,
+				      tile_height, no_data,
+				      mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_UINT16:
+	  copy_uint16_raw_mono_pixels ((const unsigned short
+					*)
+				       (rst->rasterBuffer),
+				       (const unsigned char
+					*) (rst->maskBuffer),
+				       (unsigned char *)
+				       outbuf, width, height,
+				       num_bands, rst->nBands,
+				       x_res, y_res, minx,
+				       maxy, tile_minx,
+				       tile_maxy, tile_width,
+				       tile_height, no_data,
+				       mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_INT32:
+	  copy_int32_raw_mono_pixels ((const int
+				       *) (rst->rasterBuffer),
+				      (const unsigned char
+				       *) (rst->maskBuffer),
+				      (unsigned char *)
+				      outbuf, width, height,
+				      num_bands, x_res, y_res,
+				      minx, maxy, tile_minx,
+				      tile_maxy, tile_width,
+				      tile_height, no_data,
+				      mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_UINT32:
+	  copy_uint32_raw_mono_pixels ((const unsigned int
+					*)
+				       (rst->rasterBuffer),
+				       (const unsigned char
+					*) (rst->maskBuffer),
+				       (unsigned char *)
+				       outbuf, width, height,
+				       num_bands, x_res,
+				       y_res, minx, maxy,
+				       tile_minx, tile_maxy,
+				       tile_width,
+				       tile_height, no_data,
+				       mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_FLOAT:
+	  copy_float_raw_mono_pixels ((const float
+				       *) (rst->rasterBuffer),
+				      (const unsigned char
+				       *) (rst->maskBuffer),
+				      (unsigned char *)
+				      outbuf, width, height,
+				      num_bands, x_res, y_res,
+				      minx, maxy, tile_minx,
+				      tile_maxy, tile_width,
+				      tile_height, no_data,
+				      mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      case RL2_SAMPLE_DOUBLE:
+	  copy_double_raw_mono_pixels ((const double
+					*)
+				       (rst->rasterBuffer),
+				       (const unsigned char
+					*) (rst->maskBuffer),
+				       (unsigned char *)
+				       outbuf, width, height,
+				       num_bands, x_res,
+				       y_res, minx, maxy,
+				       tile_minx, tile_maxy,
+				       tile_width,
+				       tile_height, no_data,
+				       mono_band, mono_handling);
+	  if (mono_handling != NULL)
+	      destroy_mono_handling (mono_handling);
+	  return 1;
+      };
+    return 0;
+}
+
+static int
+do_copy_raw_pixels (rl2PrivRasterPtr rst, unsigned char *outbuf,
+		    unsigned int width, unsigned int height,
+		    unsigned char sample_type, unsigned char num_bands,
+		    double x_res, double y_res, double minx, double maxy,
+		    double tile_minx, double tile_maxy, unsigned int tile_width,
+		    unsigned int tile_height, rl2PixelPtr no_data)
+{
+
 
     switch (sample_type)
       {
@@ -3776,6 +3730,115 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 				 tile_maxy, tile_width, tile_height, no_data);
 	  return 1;
       };
+    return 0;
+}
+
+RL2_PRIVATE int
+rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
+		     unsigned int width,
+		     unsigned int height, unsigned char sample_type,
+		     unsigned char num_bands, double x_res, double y_res,
+		     double minx, double maxy, double tile_minx,
+		     double tile_maxy, rl2PixelPtr no_data,
+		     rl2RasterSymbolizerPtr style, rl2RasterStatisticsPtr stats)
+{
+/* copying raw pixels into the output buffer */
+    unsigned int tile_width;
+    unsigned int tile_height;
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+
+    if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
+	return 0;
+    if (style != NULL && stats != NULL)
+      {
+	  /* attempting to apply a RasterSymbolizer */
+	  int yes_no;
+	  if (rl2_is_raster_symbolizer_triple_band_selected (style, &yes_no) ==
+	      RL2_OK)
+	    {
+		if ((rst->sampleType == RL2_SAMPLE_UINT8
+		     || rst->sampleType == RL2_SAMPLE_UINT16)
+		    && (rst->pixelType == RL2_PIXEL_RGB
+			|| rst->pixelType == RL2_PIXEL_MULTIBAND) && yes_no)
+		  {
+		      /* triple band selection - false color RGB */
+		      unsigned char red_band;
+		      unsigned char green_band;
+		      unsigned char blue_band;
+		      rl2BandHandlingPtr red_handling = NULL;
+		      rl2BandHandlingPtr green_handling = NULL;
+		      rl2BandHandlingPtr blue_handling = NULL;
+		      if (rl2_get_raster_symbolizer_triple_band_selection
+			  (style, &red_band, &green_band, &blue_band) != RL2_OK)
+			  return 0;
+		      if (red_band >= rst->nBands)
+			  return 0;
+		      if (green_band >= rst->nBands)
+			  return 0;
+		      if (blue_band >= rst->nBands)
+			  return 0;
+		      build_triple_band_handling ((rl2PrivRasterSymbolizerPtr)
+						  style,
+						  (rl2PrivRasterStatisticsPtr)
+						  stats, red_band, green_band,
+						  blue_band, &red_handling,
+						  &green_handling,
+						  &blue_handling);
+		      if (red_handling == NULL || green_handling == NULL
+			  || blue_handling == NULL)
+			  return 0;
+		      if (do_copy_raw_selected_pixels
+			  (rst, outbuf, width, height, x_res, y_res, minx, maxy,
+			   tile_minx, tile_maxy, tile_width, tile_height,
+			   no_data, red_band, green_band, blue_band,
+			   red_handling, green_handling, blue_handling))
+			  return 1;
+		      if (red_handling != NULL)
+			  free (red_handling);
+		      if (green_handling != NULL)
+			  free (green_handling);
+		      if (blue_handling != NULL)
+			  free (blue_handling);
+
+		  }
+	    }
+	  if (rl2_is_raster_symbolizer_mono_band_selected (style, &yes_no) ==
+	      RL2_OK)
+	    {
+		if (((rst->sampleType == RL2_SAMPLE_UINT8
+		      || rst->sampleType == RL2_SAMPLE_UINT16)
+		     || rst->pixelType == RL2_PIXEL_DATAGRID) && yes_no)
+		  {
+		      /* mono band selection - false color Grayscale */
+		      unsigned char mono_band;
+		      rl2BandHandlingPtr mono_handling = NULL;
+		      if (rl2_get_raster_symbolizer_mono_band_selection
+			  (style, &mono_band) != RL2_OK)
+			  return 0;
+		      if (mono_band >= rst->nBands)
+			  return 0;
+		      build_mono_band_handling ((rl2PrivRasterSymbolizerPtr)
+						style,
+						(rl2PrivRasterStatisticsPtr)
+						stats, mono_band,
+						&mono_handling);
+		      if (mono_handling == NULL)
+			  return 0;
+		      if (do_copy_raw_mono_pixels
+			  (rst, outbuf, width, height, num_bands, x_res, y_res,
+			   minx, maxy, tile_minx, tile_maxy, tile_width,
+			   tile_height, no_data, mono_band, mono_handling))
+			  return 1;
+		      if (mono_handling != NULL)
+			  destroy_mono_handling (mono_handling);
+		  }
+	    }
+      }
+
+    if (do_copy_raw_pixels
+	(rst, outbuf, width, height, sample_type, num_bands, x_res, y_res, minx,
+	 maxy, tile_minx, tile_maxy, tile_width, tile_height, no_data))
+	return 1;
 
     return 0;
 }
@@ -4219,6 +4282,140 @@ shaded_relief_value (double relief_factor, double scale_factor,
 				  azRadians, ennuple);
 }
 
+#ifdef _WIN32
+DWORD WINAPI
+doRunShadowerThread (void *arg)
+#else
+void *
+doRunShadowerThread (void *arg)
+#endif
+{
+/* threaded function: decoding a Tile */
+    float *p_out;
+    unsigned short row;
+    unsigned short col;
+    rl2AuxShadowerPtr shadower = (rl2AuxShadowerPtr) arg;
+    for (row = shadower->start_row; row < shadower->height;
+	 row += shadower->row_increment)
+      {
+	  p_out = shadower->sr_mask + (row * shadower->width);
+	  for (col = 0; col < shadower->width; col++)
+	      *p_out++ =
+		  shaded_relief_value (shadower->relief_factor,
+				       shadower->scale_factor,
+				       shadower->altRadians,
+				       shadower->azRadians, shadower->rawbuf,
+				       row, col, shadower->row_stride,
+				       shadower->sample_type,
+				       (rl2PixelPtr) (shadower->no_data));
+      }
+#ifdef _WIN32
+    return 0;
+#else
+    pthread_exit (NULL);
+#endif
+}
+
+static void
+start_shadower_thread (rl2AuxShadowerPtr shadower)
+{
+/* starting a concurrent thread */
+#ifdef _WIN32
+    HANDLE thread_handle;
+    HANDLE *p_thread;
+    DWORD dwThreadId;
+    thread_handle =
+	CreateThread (NULL, 0, doRunShadowerThread, shadower, 0, &dwThreadId);
+    SetThreadPriority (thread_handle, THREAD_PRIORITY_IDLE);
+    p_thread = malloc (sizeof (HANDLE));
+    *p_thread = thread_handle;
+    shadower->opaque_thread_id = p_thread;
+#else
+    pthread_t thread_id;
+    pthread_t *p_thread;
+    int ok_prior = 0;
+    int policy;
+    int min_prio;
+    pthread_attr_t attr;
+    struct sched_param sp;
+    pthread_attr_init (&attr);
+    if (pthread_attr_setschedpolicy (&attr, SCHED_RR) == 0)
+      {
+	  /* attempting to set the lowest priority */
+	  if (pthread_attr_getschedpolicy (&attr, &policy) == 0)
+	    {
+		min_prio = sched_get_priority_min (policy);
+		sp.sched_priority = min_prio;
+		if (pthread_attr_setschedparam (&attr, &sp) == 0)
+		  {
+		      /* ok, setting the lowest priority */
+		      ok_prior = 1;
+		      pthread_create (&thread_id, &attr, doRunShadowerThread,
+				      shadower);
+		  }
+	    }
+      }
+    if (!ok_prior)
+      {
+	  /* failure: using standard priority */
+	  pthread_create (&thread_id, NULL, doRunShadowerThread, shadower);
+      }
+    p_thread = malloc (sizeof (pthread_t));
+    *p_thread = thread_id;
+    shadower->opaque_thread_id = p_thread;
+#endif
+}
+
+static void
+do_run_concurrent_shadower (rl2AuxShadowerPtr aux, int max_threads)
+{
+/* concurrent execution of all shadower children threads */
+    rl2AuxShadowerPtr shadower;
+    int i;
+#ifdef _WIN32
+    HANDLE *handles;
+#endif
+
+    for (i = 0; i < max_threads; i++)
+      {
+	  /* starting all children threads */
+	  shadower = aux + i;
+	  start_shadower_thread (shadower);
+      }
+
+/* waiting until all child threads exit */
+#ifdef _WIN32
+    handles = malloc (sizeof (HANDLE) * max_threads);
+    for (i = 0; i < max_threads; i++)
+      {
+	  /* initializing the HANDLEs array */
+	  HANDLE *pOpaque;
+	  decoder = *(thread_slots + i);
+	  pOpaque = (HANDLE *) (decoder->opaque_thread_id);
+	  *(handles + i) = *pOpaque;
+      }
+    WaitForMultipleObjects (thread_count, handles, TRUE, INFINITE);
+    free (handles);
+#else
+    for (i = 0; i < max_threads; i++)
+      {
+	  pthread_t *pOpaque;
+	  shadower = aux + i;
+	  pOpaque = (pthread_t *) (shadower->opaque_thread_id);
+	  pthread_join (*pOpaque, NULL);
+      }
+#endif
+
+/* all children threads have now finished: resuming the main thread */
+    for (i = 0; i < max_threads; i++)
+      {
+	  /* cleaning up a request slot */
+	  if (shadower->opaque_thread_id != NULL)
+	      free (shadower->opaque_thread_id);
+	  shadower->opaque_thread_id = NULL;
+      }
+}
+
 RL2_PRIVATE int
 rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
 			      rl2CoveragePtr cvg, double relief_factor,
@@ -4373,6 +4570,11 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
     stmt_tiles = NULL;
     stmt_data = NULL;
 
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+
 /* preparing the Shaded Relief mask */
     sr_mask_size = sizeof (float) * width * height;
     sr_mask = malloc (sr_mask_size);
@@ -4382,14 +4584,50 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
 		   "rl2_build_shaded_relief_mask: Insufficient Memory !!!\n");
 	  goto error;
       }
-    p_out = sr_mask;
-    for (row = 0; row < height; row++)
+    if (max_threads == 1)
       {
-	  for (col = 0; col < width; col++)
-	      *p_out++ =
-		  shaded_relief_value (relief_factor, scale_factor, altRadians,
-				       azRadians, rawbuf, row, col, row_stride,
-				       sample_type, no_data);
+	  /* executing in a single thread */
+	  p_out = sr_mask;
+	  for (row = 0; row < height; row++)
+	    {
+		for (col = 0; col < width; col++)
+		    *p_out++ =
+			shaded_relief_value (relief_factor, scale_factor,
+					     altRadians, azRadians, rawbuf, row,
+					     col, row_stride, sample_type,
+					     no_data);
+	    }
+      }
+    else
+      {
+	  /* executing as many concurrent threads */
+	  rl2AuxShadowerPtr aux = NULL;
+	  rl2AuxShadowerPtr shadower;
+	  int iaux;
+	  aux = malloc (sizeof (rl2AuxShadower) * max_threads);
+	  if (aux == NULL)
+	      return 0;
+	  for (iaux = 0; iaux < max_threads; iaux++)
+	    {
+		/* initializing an empty AuxShadower slot */
+		shadower = aux + iaux;
+		shadower->opaque_thread_id = NULL;
+		shadower->width = width;
+		shadower->height = height;
+		shadower->relief_factor = relief_factor;
+		shadower->scale_factor = scale_factor;
+		shadower->altRadians = altRadians;
+		shadower->azRadians = azRadians;
+		shadower->rawbuf = rawbuf;
+		shadower->start_row = iaux;
+		shadower->row_increment = max_threads;
+		shadower->row_stride = row_stride;
+		shadower->sample_type = sample_type;
+		shadower->no_data = (rl2PrivPixelPtr) no_data;
+		shadower->sr_mask = sr_mask;
+	    }
+	  do_run_concurrent_shadower (aux, max_threads);
+	  free (aux);
       }
 
     free (rawbuf);

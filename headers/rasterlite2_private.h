@@ -1186,6 +1186,25 @@ extern "C"
     } rl2AuxDecoder;
     typedef rl2AuxDecoder *rl2AuxDecoderPtr;
 
+    typedef struct rl2_aux_shadower
+    {
+	void *opaque_thread_id;
+	unsigned int width;
+	unsigned int height;
+	double relief_factor;
+	double scale_factor;
+	double altRadians;
+	double azRadians;
+	void *rawbuf;
+	unsigned short start_row;
+	unsigned short row_increment;
+	unsigned short row_stride;
+	unsigned char sample_type;
+	rl2PrivPixelPtr no_data;
+	float *sr_mask;
+    } rl2AuxShadower;
+    typedef rl2AuxShadower *rl2AuxShadowerPtr;
+
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
 			    int *blob_size);

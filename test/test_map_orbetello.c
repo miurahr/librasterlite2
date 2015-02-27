@@ -855,6 +855,58 @@ do_export_map_image (sqlite3 * sqlite, const char *coverage,
     return retcode;
 }
 
+static int
+do_export_ndvi (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom)
+{
+/* exporting an NDVI Ascii Grid */
+    char *sql;
+    const char *path = "./ndvi16_ascii_grid.asc";
+    sqlite3_stmt *stmt;
+    int ret;
+    double x_res;
+    double y_res;
+    double xx_res;
+    double yy_res;
+    unsigned char *blob;
+    int blob_size;
+    int retcode = 0;
+    double scale = 1.0;
+
+    if (!get_base_resolution (sqlite, coverage, &x_res, &y_res))
+	return 0;
+    xx_res = x_res * (double) scale;
+    yy_res = y_res * (double) scale;
+    if (xx_res != yy_res)
+	xx_res = (xx_res + yy_res) / 2.0;
+
+    sql = "SELECT RL2_WriteNdviAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, path, strlen (path), SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, 1024);
+    sqlite3_bind_int (stmt, 4, 1024);
+    sqlite3_bind_int (stmt, 5, 2);	/* red band */
+    sqlite3_bind_int (stmt, 6, 3);	/* NIR band */
+    gaiaToSpatiaLiteBlobWkb (geom, &blob, &blob_size);
+    sqlite3_bind_blob (stmt, 7, blob, blob_size, free);
+    sqlite3_bind_double (stmt, 8, xx_res);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_int (stmt, 0) == 1)
+	      retcode = 1;
+      }
+    sqlite3_finalize (stmt);
+    unlink (path);
+    if (!retcode)
+	fprintf (stderr, "ERROR: unable to export \"%s\"\n", path);
+    return retcode;
+}
+
 static gaiaGeomCollPtr
 get_center_point (sqlite3 * sqlite, const char *coverage)
 {
@@ -1417,6 +1469,13 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -54;
+	  return 0;
+      }
+
+/* testing NDVI Ascii Grid */
+    if (!do_export_ndvi (sqlite, coverage, geom))
+      {
+	  *retcode += -165;
 	  return 0;
       }
 

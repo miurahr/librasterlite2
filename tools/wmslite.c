@@ -732,7 +732,8 @@ destroy_connections_pool (struct connections_pool *pool)
 }
 
 static void
-connection_init (struct read_connection *conn, const char *path, int max_threads)
+connection_init (struct read_connection *conn, const char *path,
+		 int max_threads)
 {
 /* creating a read connection */
     int ret;
@@ -757,7 +758,7 @@ connection_init (struct read_connection *conn, const char *path, int max_threads
     spatialite_init_ex (db_handle, cache, 0);
     priv_data = rl2_alloc_private ();
     rl2_init (db_handle, priv_data, 0);
-    
+
 /* setting up MaxThreads */
     if (max_threads < 1)
 	max_threads = 1;
@@ -3416,7 +3417,8 @@ do_start_http (int port_no, struct neutral_socket *srv_skt, int max_threads)
     fprintf (stderr, "    HTTP micro-server listening on port: %d\n", port_no);
     fprintf (stderr,
 	     "======================================================\n");
-    fprintf (stderr, "                 RasterLite2 MaxThreads: %d\n", max_threads);
+    fprintf (stderr, "                 RasterLite2 MaxThreads: %d\n",
+	     max_threads);
     fprintf (stderr,
 	     "======================================================\n");
     return 1;
@@ -4053,8 +4055,8 @@ do_help ()
     fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
     fprintf (stderr,
 	     "-p or --ip-port       number    IP port number [default: 8080]\n\n");
-	  fprintf (stderr,
-		   "-mt or --max-threads   num      max number of concurrent threads\n");
+    fprintf (stderr,
+	     "-mt or --max-threads   num      max number of concurrent threads\n");
     fprintf (stderr,
 	     "-cs or --cache-size    num      DB cache size (how many pages)\n");
     fprintf (stderr,
@@ -4181,7 +4183,7 @@ main (int argc, char *argv[])
 	  do_help ();
 	  return -1;
       }
-      
+
 /* normalizing MaxThreads */
     if (max_threads < 1)
 	max_threads = 1;

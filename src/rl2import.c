@@ -5146,6 +5146,246 @@ rl2_export_section_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
 }
 
 static int
+is_ndvi_nodata_u8 (rl2PrivPixelPtr no_data, const unsigned char *p_in)
+{
+/* testing for NO-DATA */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->uint8)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static int
+is_ndvi_nodata_u16 (rl2PrivPixelPtr no_data, const unsigned short *p_in)
+{
+/* testing for NO-DATA */
+    if (no_data != NULL)
+      {
+	  unsigned char band;
+	  int match = 0;
+	  rl2PrivSamplePtr sample;
+	  for (band = 0; band < no_data->nBands; band++)
+	    {
+		sample = no_data->Samples + band;
+		if (*(p_in + band) == sample->uint16)
+		    match++;
+	    }
+	  if (match == no_data->nBands)
+	      return 1;
+      }
+    return 0;
+}
+
+static float
+compute_ndvi (void *pixels, unsigned char sample_type, unsigned char num_bands,
+	      unsigned short width, unsigned char red_band,
+	      unsigned char nir_band, unsigned short row, unsigned short col,
+	      rl2PrivPixelPtr in_no_data, float out_no_data)
+{
+/* computing a Normalized Difference Vegetaion Index -NDVI */
+    float red;
+    float nir;
+    unsigned char *p8;
+    unsigned short *p16;
+    if (sample_type == RL2_SAMPLE_UINT16)
+      {
+	  /* UINT16 samples */
+	  p16 = (unsigned short *) pixels;
+	  p16 += (row * width * num_bands) + (col * num_bands);
+	  if (is_ndvi_nodata_u16 (in_no_data, p16))
+	      return out_no_data;
+	  red = *(p16 + red_band);
+	  nir = *(p16 + nir_band);
+      }
+    else
+      {
+	  /* assuming UINT8 samples */
+	  p8 = (unsigned char *) pixels;
+	  p8 += (row * width * num_bands) + (col * num_bands);
+	  if (is_ndvi_nodata_u8 (in_no_data, p8))
+	      return out_no_data;
+	  red = *(p8 + red_band);
+	  nir = *(p8 + nir_band);
+      }
+    return (nir - red) / (nir + red);
+}
+
+static int
+export_ndvi_ascii_grid_common (int by_section, sqlite3 * handle,
+			       int max_threads, const char *dst_path,
+			       rl2CoveragePtr cvg, sqlite3_int64 section_id,
+			       double res, double minx, double miny,
+			       double maxx, double maxy, unsigned int width,
+			       unsigned int height, int red_band, int nir_band,
+			       int is_centered, int decimal_digits)
+{
+/* exporting an NDVI ASCII Grid common implementation */
+    rl2PalettePtr palette = NULL;
+    rl2PixelPtr in_no_data;
+    rl2AsciiGridDestinationPtr ascii = NULL;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = res;
+    double yy_res = res;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    float out_no_data = -2.0;
+    unsigned short row;
+    unsigned short col;
+    unsigned int base_y;
+    unsigned char *pixels = NULL;
+    int pixels_size;
+    unsigned char *out_pixels = NULL;
+    int out_pixels_size;
+    float *po;
+
+    if (rl2_find_matching_resolution
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
+	return RL2_ERROR;
+
+    if (mismatching_size
+	(width, height, xx_res, yy_res, minx, miny, maxx, maxy))
+	goto error;
+
+    if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
+	RL2_OK)
+	goto error;
+    in_no_data = rl2_get_coverage_no_data (cvg);
+
+    if (pixel_type != RL2_PIXEL_MULTIBAND)
+	goto error;
+
+    if (red_band < 0 || red_band >= num_bands)
+	goto error;
+
+    if (nir_band < 0 || nir_band >= num_bands)
+	goto error;
+
+    if (red_band == nir_band)
+	goto error;
+
+    if (by_section)
+      {
+	  /* single Section */
+	  if (rl2_get_section_raw_raster_data
+	      (handle, max_threads, cvg, section_id, width, height, minx, miny,
+	       maxx, maxy, res, res, &pixels, &pixels_size, &palette,
+	       RL2_PIXEL_MULTIBAND) != RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (rl2_get_raw_raster_data
+	      (handle, max_threads, cvg, width, height, minx, miny, maxx, maxy,
+	       res, res, &pixels, &pixels_size, &palette,
+	       RL2_PIXEL_MULTIBAND) != RL2_OK)
+	      goto error;
+      }
+
+/* creating the output NDVI raster */
+    out_pixels_size = width * height * sizeof (float);
+    out_pixels = malloc (out_pixels_size);
+    if (out_pixels == NULL)
+	goto error;
+    po = (float *) out_pixels;
+    for (row = 0; row < height; row++)
+      {
+	  /* computing NDVI */
+	  for (col = 0; col < width; col++)
+	      *po++ =
+		  compute_ndvi (pixels, sample_type, num_bands, width, red_band,
+				nir_band, row, col,
+				(rl2PrivPixelPtr) in_no_data, out_no_data);
+      }
+    free (pixels);
+    pixels = NULL;
+
+    ascii =
+	rl2_create_ascii_grid_destination (dst_path, width, height,
+					   xx_res, minx, miny, is_centered,
+					   out_no_data, decimal_digits,
+					   out_pixels, out_pixels_size,
+					   RL2_SAMPLE_FLOAT);
+    if (ascii == NULL)
+	goto error;
+    out_pixels = NULL;		/* pix-buffer ownership now belongs to the ASCII object */
+/* writing the ASCII Grid header */
+    if (rl2_write_ascii_grid_header (ascii) != RL2_OK)
+	goto error;
+    for (base_y = 0; base_y < height; base_y++)
+      {
+	  /* exporting all scanlines from the output buffer */
+	  unsigned int line_no;
+	  if (rl2_write_ascii_grid_scanline (ascii, &line_no) != RL2_OK)
+	      goto error;
+      }
+
+    rl2_destroy_ascii_grid_destination (ascii);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_OK;
+
+  error:
+    if (ascii != NULL)
+	rl2_destroy_ascii_grid_destination (ascii);
+    if (pixels != NULL)
+	free (pixels);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_export_ndvi_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
+				      const char *dst_path, rl2CoveragePtr cvg,
+				      double res, double minx, double miny,
+				      double maxx, double maxy,
+				      unsigned int width, unsigned int height,
+				      int red_band, int nir_band,
+				      int is_centered, int decimal_digits)
+{
+/* exporting an ASCII Grid from the DBMS into the file-system */
+    return export_ndvi_ascii_grid_common (0, handle, max_threads, dst_path, cvg,
+					  0, res, minx, miny, maxx, maxy, width,
+					  height, red_band, nir_band,
+					  is_centered, decimal_digits);
+}
+
+RL2_DECLARE int
+rl2_export_section_ndvi_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
+					      const char *dst_path,
+					      rl2CoveragePtr cvg,
+					      sqlite3_int64 section_id,
+					      double res, double minx,
+					      double miny, double maxx,
+					      double maxy, unsigned int width,
+					      unsigned int height, int red_band,
+					      int nir_band, int is_centered,
+					      int decimal_digits)
+{
+/* exporting an ASCII Grid - Section */
+    return export_ndvi_ascii_grid_common (1, handle, max_threads, dst_path, cvg,
+					  section_id, res, minx, miny, maxx,
+					  maxy, width, height, red_band,
+					  nir_band, is_centered,
+					  decimal_digits);
+}
+
+static int
 export_jpeg_common (int by_section, sqlite3 * handle, int max_threads,
 		    const char *dst_path, rl2CoveragePtr cvg,
 		    sqlite3_int64 section_id, double x_res, double y_res,

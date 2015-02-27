@@ -222,7 +222,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 
 /* testing Child Layer */
     count = get_wms_layer_children_count (layer);
-    if (count != 12)
+    if (count != 13)
       {
 	  fprintf (stderr, "GetWmsLayerChildrenCount: unexpected result %d\n",
 		   count);
@@ -1819,7 +1819,7 @@ main (int argc, char *argv[])
 	  return -95;
       }
     dblval = get_wms_total_download_size (cache);
-    if (dblval != 53668.00)
+    if (dblval != 57552.00)
       {
 	  fprintf (stderr, "GetWmsTotalDownloadSize: unexpected result %1.2f\n",
 		   dblval);

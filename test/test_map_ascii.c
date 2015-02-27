@@ -777,18 +777,18 @@ test_coverage (sqlite3 * sqlite, unsigned char sample,
 	  tile_size = 1024;
 	  break;
       };
-      
+
 /* setting the MultiThreading mode alternatively on/off */
-	if (multithreading)
-	{
-		sql = "SELECT RL2_SetMaxThreads(2)";
-		multithreading = 0;
-	}
-	else
-	{
-		sql = "SELECT RL2_SetMaxThreads(1)";
-		multithreading = 1;
-	}
+    if (multithreading)
+      {
+	  sql = "SELECT RL2_SetMaxThreads(2)";
+	  multithreading = 0;
+      }
+    else
+      {
+	  sql = "SELECT RL2_SetMaxThreads(1)";
+	  multithreading = 1;
+      }
     execute_check (sqlite, sql);
 
 /* creating the DBMS Coverage */
@@ -1552,6 +1552,7 @@ main (int argc, char *argv[])
 	  return 510;
       }
     rl2_destroy_ascii_grid_destination (ascii);
+    unlink ("test_ascii.asc");
 
 /* closing the DB */
     sqlite3_close (db_handle);

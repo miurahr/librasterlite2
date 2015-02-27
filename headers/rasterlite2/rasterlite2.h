@@ -4086,6 +4086,33 @@ extern "C"
 						 int decimal_digits);
 
     RL2_DECLARE int
+	rl2_export_ndvi_ascii_grid_from_dbms (sqlite3 * handle, int max_threads,
+					      const char *dst_path,
+					      rl2CoveragePtr coverage,
+					      double res, double minx,
+					      double miny, double maxx,
+					      double maxy, unsigned int width,
+					      unsigned int height, int red_band,
+					      int nir_band, int is_centered,
+					      int decimal_digits);
+
+    RL2_DECLARE int
+	rl2_export_section_ndvi_ascii_grid_from_dbms (sqlite3 * handle,
+						      int max_threads,
+						      const char *dst_path,
+						      rl2CoveragePtr coverage,
+						      sqlite3_int64 section_id,
+						      double res, double minx,
+						      double miny, double maxx,
+						      double maxy,
+						      unsigned int width,
+						      unsigned int height,
+						      int red_band,
+						      int nir_band,
+						      int is_centered,
+						      int decimal_digits);
+
+    RL2_DECLARE int
 	rl2_export_jpeg_from_dbms (sqlite3 * handle, int max_threads,
 				   const char *dst_path,
 				   rl2CoveragePtr coverage, double x_res,

@@ -6976,7 +6976,7 @@ static void
 fnct_WriteAsciiGrid (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ WriteAsciiGrid(text coverage, text ascuu_path, int width,
+/ WriteAsciiGrid(text coverage, text ascii_path, int width,
 /                int height, BLOB geom, double resolution)
 / WriteAsciiGrid(text coverage, text ascii_path, int width,
 /                int height, BLOB geom, double resolution, 
@@ -7013,6 +7013,304 @@ fnct_WriteSectionAsciiGrid (sqlite3_context * context, int argc,
 /
 */
     common_write_ascii_grid (1, context, argc, argv);
+}
+
+static void
+common_write_ndvi_ascii_grid (int by_section, sqlite3_context * context,
+			      int argc, sqlite3_value ** argv)
+{
+/* common export NDVI ASCII Grid implementation */
+    int err = 0;
+    const char *cvg_name;
+    const char *path;
+    sqlite3_int64 section_id = 0;
+    int width;
+    int height;
+    int red_band;
+    int nir_band;
+    const unsigned char *blob;
+    int blob_sz;
+    double resolution;
+    rl2CoveragePtr coverage = NULL;
+    sqlite3 *sqlite;
+    const void *data;
+    int max_threads = 1;
+    int ret;
+    int errcode = -1;
+    double pt_x;
+    double pt_y;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    int is_centered = 1;
+    int decimal_digits = 4;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (by_section)
+      {
+	  /* single Section */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[6]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[7]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[8]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[8]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (argc > 10 && sqlite3_value_type (argv[10]) != SQLITE_INTEGER)
+	      err = 1;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	      err = 1;
+	  if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[5]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (sqlite3_value_type (argv[6]) != SQLITE_BLOB)
+	      err = 1;
+	  if (sqlite3_value_type (argv[7]) != SQLITE_INTEGER
+	      && sqlite3_value_type (argv[7]) != SQLITE_FLOAT)
+	      err = 1;
+	  if (argc > 8 && sqlite3_value_type (argv[8]) != SQLITE_INTEGER)
+	      err = 1;
+	  if (argc > 9 && sqlite3_value_type (argv[9]) != SQLITE_INTEGER)
+	      err = 1;
+      }
+    if (err)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+/* retrieving all arguments */
+    if (by_section)
+      {
+	  /* single Section */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  section_id = sqlite3_value_int64 (argv[1]);
+	  path = (const char *) sqlite3_value_text (argv[2]);
+	  width = sqlite3_value_int (argv[3]);
+	  height = sqlite3_value_int (argv[4]);
+	  red_band = sqlite3_value_int (argv[5]);
+	  nir_band = sqlite3_value_int (argv[6]);
+	  blob = sqlite3_value_blob (argv[7]);
+	  blob_sz = sqlite3_value_bytes (argv[7]);
+	  if (sqlite3_value_type (argv[8]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[8]);
+		resolution = ival;
+	    }
+	  else
+	      resolution = sqlite3_value_double (argv[8]);
+	  if (argc > 9)
+	      is_centered = sqlite3_value_int (argv[9]);
+	  if (argc > 10)
+	      decimal_digits = sqlite3_value_int (argv[10]);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  cvg_name = (const char *) sqlite3_value_text (argv[0]);
+	  path = (const char *) sqlite3_value_text (argv[1]);
+	  width = sqlite3_value_int (argv[2]);
+	  height = sqlite3_value_int (argv[3]);
+	  red_band = sqlite3_value_int (argv[4]);
+	  nir_band = sqlite3_value_int (argv[5]);
+	  blob = sqlite3_value_blob (argv[6]);
+	  blob_sz = sqlite3_value_bytes (argv[6]);
+	  if (sqlite3_value_type (argv[7]) == SQLITE_INTEGER)
+	    {
+		int ival = sqlite3_value_int (argv[7]);
+		resolution = ival;
+	    }
+	  else
+	      resolution = sqlite3_value_double (argv[7]);
+	  if (argc > 8)
+	      is_centered = sqlite3_value_int (argv[8]);
+	  if (argc > 9)
+	      decimal_digits = sqlite3_value_int (argv[9]);
+      }
+
+    if (decimal_digits < 1)
+	decimal_digits = 0;
+    if (decimal_digits > 18)
+	decimal_digits = 18;
+
+/* coarse args validation */
+    if (width < 0)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+    if (height < 0)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+
+    sqlite = sqlite3_context_db_handle (context);
+    data = sqlite3_user_data (context);
+    if (data != NULL)
+      {
+	  struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
+	  max_threads = priv_data->max_threads;
+	  if (max_threads < 1)
+	      max_threads = 1;
+	  if (max_threads > 64)
+	      max_threads = 64;
+      }
+    data = sqlite3_user_data (context);
+    if (data != NULL)
+      {
+	  struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
+	  max_threads = priv_data->max_threads;
+	  if (max_threads < 1)
+	      max_threads = 1;
+	  if (max_threads > 64)
+	      max_threads = 64;
+      }
+    if (!by_section)
+      {
+	  /* excluding any Mixed Resolution Coverage */
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg_name) > 0)
+	      goto error;
+      }
+
+/* checking the Geometry */
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+      {
+	  /* assumed to be the GeoTiff Center Point */
+	  double ext_x = (double) width * resolution;
+	  double ext_y = (double) height * resolution;
+	  minx = pt_x - ext_x / 2.0;
+	  maxx = minx + ext_x;
+	  miny = pt_y - ext_y / 2.0;
+	  maxy = miny + ext_y;
+      }
+    else if (rl2_parse_bbox (sqlite, blob, blob_sz, &minx, &miny, &maxx, &maxy)
+	     != RL2_OK)
+      {
+	  errcode = -1;
+	  goto error;
+      }
+
+/* attempting to load the Coverage definitions from the DBMS */
+    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    if (coverage == NULL)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    if (by_section)
+      {
+	  /* single Section */
+	  ret =
+	      rl2_export_section_ndvi_ascii_grid_from_dbms (sqlite, max_threads,
+							    path, coverage,
+							    section_id,
+							    resolution, minx,
+							    miny, maxx, maxy,
+							    width, height,
+							    red_band, nir_band,
+							    is_centered,
+							    decimal_digits);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  ret =
+	      rl2_export_ndvi_ascii_grid_from_dbms (sqlite, max_threads, path,
+						    coverage, resolution, minx,
+						    miny, maxx, maxy, width,
+						    height, red_band, nir_band,
+						    is_centered,
+						    decimal_digits);
+      }
+    if (ret != RL2_OK)
+      {
+	  errcode = 0;
+	  goto error;
+      }
+    rl2_destroy_coverage (coverage);
+    sqlite3_result_int (context, 1);
+    return;
+
+  error:
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    sqlite3_result_int (context, errcode);
+}
+
+static void
+fnct_WriteNdviAsciiGrid (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteNdviAsciiGrid(text coverage, text ascii_path, int width,
+/                int height, int red_band, int nir_band, BLOB geom,
+/                double resolution)
+/ WriteNdviAsciiGrid(text coverage, text ascii_path, int width,
+/                int height, int red_band, int nir_band, BLOB geom,
+/                double resolution, int is_centered)
+/ WriteNdviAsciiGrid(text coverage, text ascii_path, int width,
+/                int height, int red_band, int nir_band, BLOB geom,
+/                double resolution, int is_centered, int decimal_digits)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_ndvi_ascii_grid (0, context, argc, argv);
+}
+
+static void
+fnct_WriteSectionNdviAsciiGrid (sqlite3_context * context, int argc,
+				sqlite3_value ** argv)
+{
+/* SQL function:
+/ WriteSectionNdviAsciiGrid(text coverage, int section_id,
+/                       text ascii_path, int width, int height, 
+/                       int red_band, int nir_band, 
+/                       BLOB geom, double resolution)
+/ WriteSectionNdviAsciiGrid(text coverage, int section_id,
+/                       text ascii_path, int width, int height,
+/                       int red_band, int nir_band,
+/                       BLOB geom, double resolution, int is_centered)
+/ WriteSectionNdviAsciiGrid(text coverage, int section_id,
+/                       text ascii_path, int width, int height,
+/                       int red_band, int nir_band,
+/                       BLOB geom, double resolution, int is_centered,
+/                       int decimal_digits)
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    common_write_ndvi_ascii_grid (1, context, argc, argv);
 }
 
 static void
@@ -10522,6 +10820,37 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
 	  sqlite3_create_function (db, "RL2_WriteSectionAsciiGrid", 9,
 				   SQLITE_UTF8, priv_data,
 				   fnct_WriteSectionAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteNdviAsciiGrid", 8, SQLITE_UTF8,
+				   priv_data, fnct_WriteNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteNdviAsciiGrid", 8, SQLITE_UTF8,
+				   priv_data, fnct_WriteNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteNdviAsciiGrid", 9, SQLITE_UTF8,
+				   priv_data, fnct_WriteNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteNdviAsciiGrid", 9, SQLITE_UTF8,
+				   priv_data, fnct_WriteNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteNdviAsciiGrid", 10, SQLITE_UTF8,
+				   priv_data, fnct_WriteNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteNdviAsciiGrid", 10,
+				   SQLITE_UTF8, priv_data,
+				   fnct_WriteNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionNdviAsciiGrid", 9,
+				   SQLITE_UTF8, priv_data,
+				   fnct_WriteSectionNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionNdviAsciiGrid", 9,
+				   SQLITE_UTF8, priv_data,
+				   fnct_WriteSectionNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionNdviAsciiGrid", 10,
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionNdviAsciiGrid", 10,
+				   SQLITE_UTF8, priv_data,
+				   fnct_WriteSectionNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "WriteSectionNdviAsciiGrid", 11,
+				   SQLITE_UTF8, 0,
+				   fnct_WriteSectionNdviAsciiGrid, 0, 0);
+	  sqlite3_create_function (db, "RL2_WriteSectionNdviAsciiGrid", 11,
+				   SQLITE_UTF8, priv_data,
+				   fnct_WriteSectionNdviAsciiGrid, 0, 0);
       }
 }
 

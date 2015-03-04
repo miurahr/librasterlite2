@@ -88,6 +88,11 @@
 #define ARG_PATHS		42
 #define ARG_MD5			43
 #define ARG_SUMMARY		44
+#define ARG_RED_BAND	45
+#define ARG_GREEN_BAND	46
+#define ARG_BLUE_BAND	47
+#define ARG_NIR_BAND	48
+#define ARG_AUTO_NDVI	49
 
 #define ARG_MAX_THREADS		98
 #define ARG_CACHE_SIZE		99
@@ -363,8 +368,10 @@ exec_create (sqlite3 * handle, const char *coverage,
 	     unsigned char sample, unsigned char pixel, unsigned char num_bands,
 	     unsigned char compression, int quality, unsigned short tile_width,
 	     unsigned short tile_height, int srid, double x_res, double y_res,
-	     rl2PixelPtr no_data, int strict_resolution, int mixed_resolutions,
-	     int section_paths, int section_md5, int section_summary)
+	     rl2PixelPtr no_data, int red_band, int green_band, int blue_band,
+	     int nir_band, int auto_ndvi, int strict_resolution,
+	     int mixed_resolutions, int section_paths, int section_md5,
+	     int section_summary)
 {
 /* performing CREATE */
     rl2PalettePtr palette = NULL;
@@ -392,6 +399,24 @@ exec_create (sqlite3 * handle, const char *coverage,
 	 palette, strict_resolution, mixed_resolutions, section_paths,
 	 section_md5, section_summary) != RL2_OK)
 	return 0;
+
+    if (pixel == RL2_PIXEL_MULTIBAND)
+      {
+	  if (red_band >= 0 && green_band >= 0 && blue_band >= 0
+	      && nir_band >= 0)
+	    {
+		if (rl2_set_dbms_coverage_default_bands
+		    (handle, coverage, red_band, green_band, blue_band,
+		     nir_band) != RL2_OK)
+		    return 0;
+		if (auto_ndvi >= 0)
+		  {
+		      if (rl2_enable_dbms_coverage_auto_ndvi
+			  (handle, coverage, auto_ndvi) != RL2_OK)
+			  return 0;
+		  }
+	    }
+      }
 
     printf ("\rRaster Coverage \"%s\" successfully created\n", coverage);
     return 1;
@@ -1364,6 +1389,30 @@ get_pyramid_infos (sqlite3 * handle, const char *coverage)
 }
 
 static int
+valid_default_band_settings (int num_bands, int red_band, int green_band,
+			     int blue_band, int nir_band)
+{
+/* testing if the default band settings have to be considered valid */
+    if (num_bands < 4)
+	return 0;
+    if (red_band < 0 || red_band >= num_bands)
+	return 0;
+    if (green_band < 0 || green_band >= num_bands)
+	return 0;
+    if (blue_band < 0 || blue_band >= num_bands)
+	return 0;
+    if (nir_band < 0 || nir_band >= num_bands)
+	return 0;
+    if (red_band == green_band || red_band == blue_band || red_band == nir_band)
+	return 0;
+    if (green_band == blue_band || green_band == nir_band)
+	return 0;
+    if (blue_band == nir_band)
+	return 0;
+    return 1;
+}
+
+static int
 exec_catalog (sqlite3 * handle)
 {
 /* Rasterlite-2 datasources Catalog */
@@ -1383,7 +1432,8 @@ exec_catalog (sqlite3 * handle)
 	"num_bands, compression, quality, tile_width, tile_height, "
 	"horz_resolution, vert_resolution, srid, auth_name, auth_srid, "
 	"ref_sys_name, extent_minx, extent_miny, extent_maxx, extent_maxy, "
-	"nodata_pixel, palette, statistics "
+	"nodata_pixel, palette, statistics, red_band_index, green_band_index, "
+	"blue_band_index, nir_band_index, eneble_auto_ndvi "
 	"FROM raster_coverages_ref_sys ORDER BY coverage_name";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -1431,6 +1481,11 @@ exec_catalog (sqlite3 * handle)
 		double mxy = DBL_MAX;
 		const unsigned char *blob;
 		int blob_sz;
+		int red_band = -1;
+		int green_band = -1;
+		int blue_band = -1;
+		int nir_band = -1;
+		int auto_ndvi = -1;
 		if (sqlite3_column_type (stmt, 16) == SQLITE_FLOAT)
 		  {
 		      mnx = sqlite3_column_double (stmt, 16);
@@ -1479,6 +1534,16 @@ exec_catalog (sqlite3 * handle)
 			  rl2_deserialize_dbms_raster_statistics (blob,
 								  blob_sz);
 		  }
+		if (sqlite3_column_type (stmt, 23) == SQLITE_INTEGER)
+		    red_band = sqlite3_column_int (stmt, 23);
+		if (sqlite3_column_type (stmt, 24) == SQLITE_INTEGER)
+		    green_band = sqlite3_column_int (stmt, 24);
+		if (sqlite3_column_type (stmt, 25) == SQLITE_INTEGER)
+		    blue_band = sqlite3_column_int (stmt, 25);
+		if (sqlite3_column_type (stmt, 26) == SQLITE_INTEGER)
+		    nir_band = sqlite3_column_int (stmt, 26);
+		if (sqlite3_column_type (stmt, 27) == SQLITE_INTEGER)
+		    auto_ndvi = sqlite3_column_int (stmt, 27);
 		pyramid = get_pyramid_infos (handle, name);
 		count++;
 		printf
@@ -1638,6 +1703,33 @@ exec_catalog (sqlite3 * handle)
 			}
 		      printf ("\n");
 
+		  }
+		if (strcmp (pixel, "MULTIBAND") == 0)
+		  {
+		      printf
+			  ("-------------------------------------------------------------------------------\n");
+		      if (valid_default_band_settings
+			  (bands, red_band, green_band, blue_band, nir_band))
+			{
+			    printf ("       Red band index: %d\n", red_band);
+			    printf ("     Green band index: %d\n", green_band);
+			    printf ("      Blue band index: %d\n", blue_band);
+			    printf ("       NIR band index: %d\n", nir_band);
+			    if (auto_ndvi >= 0)
+				printf ("            Auto NDVI: %s\n",
+					auto_ndvi ? "Enabled" : "Disabled");
+			}
+		      else
+			{
+			    printf
+				("       Red band index: *** undefined ***\n");
+			    printf
+				("     Green band index: *** undefined ***\n");
+			    printf
+				("      Blue band index: *** undefined ***\n");
+			    printf
+				("       NIR band index: *** undefined ***\n");
+			}
 		  }
 		if (palette != NULL)
 		  {
@@ -2688,9 +2780,10 @@ static int
 check_create_args (const char *db_path, const char *coverage, int sample,
 		   int pixel, int num_bands, int compression, int *quality,
 		   int tile_width, int tile_height, int srid, double x_res,
-		   double y_res, rl2PixelPtr pxl, int strict_resolution,
-		   int mixed_resolutions, int section_paths, int section_md5,
-		   int section_summary)
+		   double y_res, rl2PixelPtr pxl, int red_band, int green_band,
+		   int blue_band, int nir_band, int auto_ndvi,
+		   int strict_resolution, int mixed_resolutions,
+		   int section_paths, int section_md5, int section_summary)
 {
 /* checking/printing CREATE args */
     int err = 0;
@@ -2857,17 +2950,38 @@ check_create_args (const char *db_path, const char *coverage, int sample,
 			    rl2_get_pixel_sample_float (pxl, &flt_value);
 			    dummy = formatFloat (flt_value);
 			    printf ("%s", dummy);
-			    free (dummy);
+			    sqlite3_free (dummy);
 			    break;
 			case RL2_SAMPLE_DOUBLE:
 			    rl2_get_pixel_sample_double (pxl, &dbl_value);
 			    dummy = formatFloat (dbl_value);
 			    printf ("%s", dummy);
-			    free (dummy);
+			    sqlite3_free (dummy);
 			    break;
 			};
 		  }
-		fprintf (stderr, "\n");
+		printf ("\n");
+	    }
+      }
+    if (pixel == RL2_PIXEL_MULTIBAND)
+      {
+	  if (valid_default_band_settings
+	      (num_bands, red_band, green_band, blue_band, nir_band))
+	    {
+		printf ("       Red band index: %d\n", red_band);
+		printf ("     Green band index: %d\n", green_band);
+		printf ("      Blue band index: %d\n", blue_band);
+		printf ("       NIR band index: %d\n", nir_band);
+		if (auto_ndvi >= 0)
+		    printf ("            Auto NDVI: %s\n",
+			    auto_ndvi ? "Enabled" : "Disabled");
+	    }
+	  else
+	    {
+		printf ("       Red band index: unknown\n");
+		printf ("     Green band index: unknown\n");
+		printf ("      Blue band index: unknown\n");
+		printf ("       NIR band index: unknown\n");
 	    }
       }
     if (rl2_is_supported_codec (compression) != 1)
@@ -4278,6 +4392,15 @@ do_help (int mode)
 	  fprintf (stderr, "----------------------------------\n");
 	  fprintf (stderr,
 		   "NONE DEFLATE DEFLATE_NO LZMA LZMA_NO PNG JPEG WEBP LL_WEBP FAX4 CHARLS JP2 LL_JP2\n\n");
+	  fprintf (stderr, "Extra args supported by MULTIBAND:\n");
+	  fprintf (stderr, "----------------------------------\n");
+	  fprintf (stderr, "-red or --red-band     pixel    RED band index\n");
+	  fprintf (stderr,
+		   "-green or --green-band pixel    GREEN band index\n");
+	  fprintf (stderr, "-blue or --blue-band   pixel    BLUE band index\n");
+	  fprintf (stderr, "-nir or --nir-band     pixel    NIR band index\n");
+	  fprintf (stderr,
+		   "-ndvi or --auto-ndvi   boolean  Enabling/Disabling Auto NDVI\n\n");
 	  fprintf (stderr,
 		   "-strict or --strict-resolution  Enables Strict Resolution\n");
 	  fprintf (stderr,
@@ -4661,6 +4784,11 @@ main (int argc, char *argv[])
     int section_paths = 0;
     int section_md5 = 1;
     int section_summary = 1;
+    int red_band = -1;
+    int green_band = -1;
+    int blue_band = -1;
+    int nir_band = -1;
+    int auto_ndvi = -1;
     int retcode = 0;
     int max_threads = 1;
 
@@ -4860,6 +4988,21 @@ main (int argc, char *argv[])
 		      break;
 		  case ARG_IMG_HEIGHT:
 		      height = atoi (argv[i]);
+		      break;
+		  case ARG_RED_BAND:
+		      red_band = atoi (argv[i]);
+		      break;
+		  case ARG_GREEN_BAND:
+		      green_band = atoi (argv[i]);
+		      break;
+		  case ARG_BLUE_BAND:
+		      blue_band = atoi (argv[i]);
+		      break;
+		  case ARG_NIR_BAND:
+		      nir_band = atoi (argv[i]);
+		      break;
+		  case ARG_AUTO_NDVI:
+		      auto_ndvi = atoi (argv[i]);
 		      break;
 		  case ARG_CACHE_SIZE:
 		      cache_size = atoi (argv[i]);
@@ -5070,6 +5213,36 @@ main (int argc, char *argv[])
 		next_arg = ARG_NO_DATA;
 		continue;
 	    }
+	  if (strcmp (argv[i], "-red") == 0
+	      || strcasecmp (argv[i], "--red-band") == 0)
+	    {
+		next_arg = ARG_RED_BAND;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-green") == 0
+	      || strcasecmp (argv[i], "--green-band") == 0)
+	    {
+		next_arg = ARG_GREEN_BAND;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-blue") == 0
+	      || strcasecmp (argv[i], "--blue-band") == 0)
+	    {
+		next_arg = ARG_BLUE_BAND;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-nir") == 0
+	      || strcasecmp (argv[i], "--nir-band") == 0)
+	    {
+		next_arg = ARG_NIR_BAND;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-ndvi") == 0
+	      || strcasecmp (argv[i], "--auto-ndvi") == 0)
+	    {
+		next_arg = ARG_AUTO_NDVI;
+		continue;
+	    }
 	  if (strcmp (argv[i], "-f") == 0
 	      || strcasecmp (argv[i], "--force") == 0)
 	    {
@@ -5192,9 +5365,10 @@ main (int argc, char *argv[])
 	  error =
 	      check_create_args (db_path, coverage, sample, pixel, num_bands,
 				 compression, &quality, tile_width, tile_height,
-				 srid, x_res, y_res, no_data, strict_resolution,
-				 mixed_resolutions, section_paths, section_md5,
-				 section_summary);
+				 srid, x_res, y_res, no_data, red_band,
+				 green_band, blue_band, nir_band, auto_ndvi,
+				 strict_resolution, mixed_resolutions,
+				 section_paths, section_md5, section_summary);
 	  break;
       case ARG_MODE_DROP:
 	  error = check_drop_args (db_path, coverage);
@@ -5363,7 +5537,8 @@ main (int argc, char *argv[])
 	  ret =
 	      exec_create (handle, coverage, sample, pixel,
 			   num_bands, compression, quality, tile_width,
-			   tile_height, srid, x_res, y_res, no_data,
+			   tile_height, srid, x_res, y_res, no_data, red_band,
+			   green_band, blue_band, nir_band, auto_ndvi,
 			   strict_resolution, mixed_resolutions, section_paths,
 			   section_md5, section_summary);
 	  break;
@@ -5532,6 +5707,8 @@ main (int argc, char *argv[])
       }
 
   stop:
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
     if (hist_path != NULL)
 	sqlite3_free (hist_path);
     sqlite3_close (handle);

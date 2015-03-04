@@ -1021,7 +1021,8 @@ rl2_get_raster_symbolizer_opacity (rl2RasterSymbolizerPtr style,
 
 RL2_DECLARE int
 rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr style,
-					     int *selected)
+					     int *selected, int *categorize,
+					     int *interpolate)
 {
 /* return if the RasterSymbolizer has a MonoBand selection */
     rl2PrivRasterSymbolizerPtr stl = (rl2PrivRasterSymbolizerPtr) style;
@@ -1031,6 +1032,8 @@ rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr style,
       {
 	  /* Shaded Relief */
 	  *selected = 1;
+	  *categorize = 0;
+	  *interpolate = 0;
 	  return RL2_OK;
       }
     if (stl->bandSelection == NULL)
@@ -1039,12 +1042,16 @@ rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr style,
 	    {
 		/* Categorize Color Map */
 		*selected = 1;
+		*categorize = 1;
+		*interpolate = 0;
 		return RL2_OK;
 	    }
 	  if (stl->interpolate != NULL)
 	    {
 		/* Interpolate Color Map */
 		*selected = 1;
+		*categorize = 0;
+		*interpolate = 1;
 		return RL2_OK;
 	    }
 	  if (stl->contrastEnhancement == RL2_CONTRAST_ENHANCEMENT_NORMALIZE ||
@@ -1053,6 +1060,8 @@ rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr style,
 	    {
 		/* Contrast Enhancement */
 		*selected = 1;
+		*categorize = 0;
+		*interpolate = 0;
 		return RL2_OK;
 	    }
       }
@@ -1062,6 +1071,8 @@ rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr style,
 	*selected = 1;
     else
 	*selected = 0;
+    *categorize = 0;
+    *interpolate = 0;
     return RL2_OK;
 }
 

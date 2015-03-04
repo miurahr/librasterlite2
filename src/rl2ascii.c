@@ -1163,6 +1163,7 @@ rl2_create_ascii_grid_destination (const char *path, unsigned int width,
     if (pixels_size != (int) (width * height * pix_sz))
 	return NULL;
 
+/* creating the output File */
     out = fopen (path, "w");
     if (out == NULL)
       {
@@ -1176,10 +1177,6 @@ rl2_create_ascii_grid_destination (const char *path, unsigned int width,
     if (ascii == NULL)
 	goto error;
 
-/* creating the output File */
-    out = fopen (path, "wb");
-    if (out == NULL)
-	goto error;
     ascii->out = out;
     ascii->pixels = pixels;
     ascii->sampleType = sample_type;

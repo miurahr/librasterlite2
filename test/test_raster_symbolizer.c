@@ -478,6 +478,8 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
     rl2RasterSymbolizerPtr symbolizer;
     double value;
     int intval;
+    int categorize;
+    int interpolate;
     unsigned char enhancement;
     unsigned char red;
     unsigned char green;
@@ -513,8 +515,8 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    if (rl2_is_raster_symbolizer_mono_band_selected (symbolizer, &intval) !=
-	RL2_OK)
+    if (rl2_is_raster_symbolizer_mono_band_selected
+	(symbolizer, &intval, &categorize, &interpolate) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get IsMonoBandSelected\n");
 	  *retcode += 5;
@@ -815,6 +817,8 @@ test_symbolizer_2 (sqlite3 * db_handle, const char *coverage,
     rl2RasterSymbolizerPtr symbolizer;
     double value;
     int intval;
+    int categorize;
+    int interpolate;
     unsigned char enhancement;
     unsigned char red;
     unsigned char green;
@@ -1099,8 +1103,8 @@ test_symbolizer_2 (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    if (rl2_is_raster_symbolizer_mono_band_selected (symbolizer, &intval) !=
-	RL2_OK)
+    if (rl2_is_raster_symbolizer_mono_band_selected
+	(symbolizer, &intval, &categorize, &interpolate) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get IsMonoBandSelected\n");
 	  *retcode += 39;
@@ -1137,6 +1141,8 @@ test_symbolizer_3 (sqlite3 * db_handle, const char *coverage,
     unsigned char green;
     unsigned char blue;
     int intval;
+    int categorize;
+    int interpolate;
     double value;
     style =
 	rl2_create_coverage_style_from_dbms (db_handle, coverage, style_name);
@@ -1164,8 +1170,8 @@ test_symbolizer_3 (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    if (rl2_is_raster_symbolizer_mono_band_selected (symbolizer, &intval) !=
-	RL2_OK)
+    if (rl2_is_raster_symbolizer_mono_band_selected
+	(symbolizer, &intval, &categorize, &interpolate) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to get IsMonoBandSelected\n");
 	  *retcode += 4;
@@ -1351,6 +1357,8 @@ test_symbolizer_null (int *retcode)
 /* testing a NULL RasterSymbolizer */
     double value;
     int intval;
+    int categorize;
+    int interpolate;
     unsigned char enhancement;
     unsigned char red;
     unsigned char green;
@@ -1363,7 +1371,8 @@ test_symbolizer_null (int *retcode)
 	  return 0;
       }
 
-    if (rl2_is_raster_symbolizer_mono_band_selected (NULL, &intval) == RL2_OK)
+    if (rl2_is_raster_symbolizer_mono_band_selected
+	(NULL, &intval, &categorize, &interpolate) == RL2_OK)
       {
 	  fprintf (stderr, "Unexpected IsMonoBandSelected\n");
 	  *retcode += 2;

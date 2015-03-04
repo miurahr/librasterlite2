@@ -944,6 +944,44 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 }
 
 static int
+set_default_bands (sqlite3 * sqlite, const char *coverage)
+{
+/* enabling default bands and Auto NDVI */
+    int ret;
+    char *sql;
+    char *err_msg = NULL;
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 2, 1, 0, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_EnableRasterCoverageAutoNDVI(%Q, 1)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "EnableRasterCoverageAutoNDVI #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    return 1;
+}
+
+static int
 test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	       int *retcode)
 {
@@ -1471,11 +1509,36 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  *retcode += -54;
 	  return 0;
       }
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 13)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #13 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -167;
+	  return 0;
+      }
 
 /* testing NDVI Ascii Grid */
     if (!do_export_ndvi (sqlite, coverage, geom))
       {
 	  *retcode += -165;
+	  return 0;
+      }
+/* enabling auto NDVI */
+    if (!set_default_bands (sqlite, coverage))
+      {
+	  *retcode += -166;
+	  return 0;
+      }
+/* testing GetMapImage - NDVI */
+    if (!do_export_map_image (sqlite, coverage, geom, "ndvi", "png", 0))
+      {
+	  *retcode += 168;
 	  return 0;
       }
 
@@ -2113,6 +2176,25 @@ register_raster_symbolizers (sqlite3 * sqlite, int no_web_connection,
 	  fprintf (stderr, "RegisterRasterStyle #12 error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -12;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "ndvi.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "ndvi.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #13 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -13;
 	  return 0;
       }
 

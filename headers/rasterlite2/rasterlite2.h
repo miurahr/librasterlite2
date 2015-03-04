@@ -3543,6 +3543,30 @@ extern "C"
 				  int section_summary);
 
     RL2_DECLARE int
+	rl2_set_dbms_coverage_default_bands (sqlite3 * handle,
+					     const char *coverage,
+					     unsigned char red_band,
+					     unsigned char green_band,
+					     unsigned char blue_band,
+					     unsigned char nir_band);
+
+    RL2_DECLARE int
+	rl2_get_dbms_coverage_default_bands (sqlite3 * handle,
+					     const char *coverage,
+					     unsigned char *red_band,
+					     unsigned char *green_band,
+					     unsigned char *blue_band,
+					     unsigned char *nir_band);
+
+    RL2_DECLARE int
+	rl2_enable_dbms_coverage_auto_ndvi (sqlite3 * handle,
+					    const char *coverage, int on_off);
+
+    RL2_DECLARE int
+	rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite3 * handle,
+						const char *coverage);
+
+    RL2_DECLARE int
 	rl2_delete_dbms_section (sqlite3 * handle, const char *coverage,
 				 sqlite3_int64 section_id);
 
@@ -4617,7 +4641,9 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_is_raster_symbolizer_mono_band_selected (rl2RasterSymbolizerPtr
-						     style, int *selected);
+						     style, int *selected,
+						     int *categorize,
+						     int *interpolate);
 
     RL2_DECLARE int
 	rl2_get_raster_symbolizer_mono_band_selection (rl2RasterSymbolizerPtr

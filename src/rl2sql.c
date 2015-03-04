@@ -2454,6 +2454,165 @@ fnct_SetRasterCoverageInfos (sqlite3_context * context, int argc,
 }
 
 static void
+fnct_SetRasterCoverageDefaultBands (sqlite3_context * context, int argc,
+				    sqlite3_value ** argv)
+{
+/* SQL function:
+/ SetRasterCoverageDefaultBands(String coverage_name, int red_band,
+/                               green_band, blue_band, nir_band)
+/
+/ inserts or updates the default band mapping supporting a Raster
+/ Coverage of the MULTIBAND type
+/ returns 1 on success
+/ 0 on failure, -1 on invalid arguments
+*/
+    const char *coverage_name;
+    int red;
+    int green;
+    int blue;
+    int nir;
+    sqlite3 *sqlite = sqlite3_context_db_handle (context);
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    coverage_name = (const char *) sqlite3_value_text (argv[0]);
+    red = sqlite3_value_int (argv[1]);
+    green = sqlite3_value_int (argv[2]);
+    blue = sqlite3_value_int (argv[3]);
+    nir = sqlite3_value_int (argv[4]);
+    if (red < 0 || red > 255)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (green < 0 || green > 255)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (blue < 0 || blue > 255)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (nir < 0 || nir > 255)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (red == green || red == blue || red == nir)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (green == blue || green == nir)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (blue == nir)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (rl2_set_dbms_coverage_default_bands
+	(sqlite, coverage_name, red, green, blue, nir) == RL2_OK)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+}
+
+static void
+fnct_EnableRasterCoverageAutoNDVI (sqlite3_context * context, int argc,
+				   sqlite3_value ** argv)
+{
+/* SQL function:
+/ EnableRasterCoverageAutoNDVI(String coverage_name, int on_off)
+/
+/ enables or disables the AutoNDVI feature on a Raster
+/ Coverage of the MULTIBAND type and explicitly declaring
+/ a default band mapping
+/ returns 1 on success
+/ 0 on failure, -1 on invalid arguments
+*/
+    const char *coverage_name;
+    int on_off;
+    sqlite3 *sqlite = sqlite3_context_db_handle (context);
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    coverage_name = (const char *) sqlite3_value_text (argv[0]);
+    on_off = sqlite3_value_int (argv[1]);
+    if (rl2_enable_dbms_coverage_auto_ndvi (sqlite, coverage_name, on_off) ==
+	RL2_OK)
+	sqlite3_result_int (context, 1);
+    else
+	sqlite3_result_int (context, 0);
+}
+
+static void
+fnct_IsRasterCoverageAutoNdviEnabled (sqlite3_context * context, int argc,
+				      sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsRasterCoverageAutoNdviEnabled(String coverage_name)
+/
+/ checks if a Raster Coverage do actually supports the AutoNDVI feature
+/ returns 1 (TRUE) or 0 (FALSE)
+/ -1 on invalid arguments or if the Raster Coverage isn't of the
+/ MULTIBAND type and explicitly declaring a default band mapping
+*/
+    const char *coverage_name;
+    int ret;
+    sqlite3 *sqlite = sqlite3_context_db_handle (context);
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    coverage_name = (const char *) sqlite3_value_text (argv[0]);
+    ret = rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite, coverage_name);
+    if (ret == RL2_TRUE)
+	sqlite3_result_int (context, 1);
+    else if (ret == RL2_FALSE)
+	sqlite3_result_int (context, 0);
+    else
+	sqlite3_result_int (context, -1);
+}
+
+static void
 fnct_DeleteSection (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -7572,6 +7731,47 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
     if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
 	out_pixel = RL2_PIXEL_MONOCHROME;
 
+    if (cvg->pixelType == RL2_PIXEL_MULTIBAND && cvg_stl == NULL)
+      {
+	  /* attempting to create a default RGB Coverage Style */
+	  unsigned char red_band;
+	  unsigned char green_band;
+	  unsigned char blue_band;
+	  unsigned char nir_band;
+	  if (rl2_get_dbms_coverage_default_bands
+	      (sqlite, cvg_name, &red_band, &green_band, &blue_band,
+	       &nir_band) == RL2_OK)
+	    {
+		/* ok, using the declared default bands */
+		rl2PrivCoverageStylePtr stl =
+		    rl2_create_default_coverage_style ();
+		rl2PrivStyleRulePtr rule = rl2_create_default_style_rule ();
+		rl2PrivRasterSymbolizerPtr symb =
+		    rl2_create_default_raster_symbolizer ();
+		symb->bandSelection = malloc (sizeof (rl2PrivBandSelection));
+		symb->bandSelection->selectionType = RL2_BAND_SELECTION_TRIPLE;
+		symb->bandSelection->redBand = red_band;
+		symb->bandSelection->greenBand = green_band;
+		symb->bandSelection->blueBand = blue_band;
+		symb->bandSelection->grayContrast =
+		    RL2_CONTRAST_ENHANCEMENT_NONE;
+		rule->style_type = RL2_RASTER_STYLE;
+		rule->style = symbolizer;
+		stl->first_rule = rule;
+		stl->last_rule = rule;
+		cvg_stl = (rl2CoverageStylePtr) stl;
+		symbolizer = (rl2RasterSymbolizerPtr) symb;
+		if (stats == NULL)
+		  {
+		      stats =
+			  rl2_create_raster_statistics_from_dbms (sqlite,
+								  cvg_name);
+		      if (stats == NULL)
+			  goto error;
+		  }
+	    }
+      }
+
     if ((cvg->pixelType == RL2_PIXEL_DATAGRID
 	 || cvg->pixelType == RL2_PIXEL_MULTIBAND) && cvg_stl == NULL)
       {
@@ -7603,6 +7803,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
       {
 	  /* applying a RasterSymbolizer */
 	  int yes_no;
+	  int categorize;
+	  int interpolate;
 	  if (rl2_is_raster_symbolizer_triple_band_selected
 	      (symbolizer, &yes_no) == RL2_OK)
 	    {
@@ -7612,8 +7814,8 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 			|| cvg->pixelType == RL2_PIXEL_MULTIBAND) && yes_no)
 		    out_pixel = RL2_PIXEL_RGB;
 	    }
-	  if (rl2_is_raster_symbolizer_mono_band_selected (symbolizer, &yes_no)
-	      == RL2_OK)
+	  if (rl2_is_raster_symbolizer_mono_band_selected
+	      (symbolizer, &yes_no, &categorize, &interpolate) == RL2_OK)
 	    {
 		if ((cvg->sampleType == RL2_SAMPLE_UINT8
 		     || cvg->sampleType == RL2_SAMPLE_UINT16)
@@ -7621,6 +7823,11 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
 			|| cvg->pixelType == RL2_PIXEL_MULTIBAND
 			|| cvg->pixelType == RL2_PIXEL_GRAYSCALE) && yes_no)
 		    out_pixel = RL2_PIXEL_GRAYSCALE;
+		if ((cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT16)
+		    && cvg->pixelType == RL2_PIXEL_MULTIBAND && yes_no
+		    && (categorize || interpolate))
+		    out_pixel = RL2_PIXEL_RGB;
 		if ((cvg->sampleType == RL2_SAMPLE_INT8
 		     || cvg->sampleType == RL2_SAMPLE_UINT8
 		     || cvg->sampleType == RL2_SAMPLE_INT16
@@ -7670,7 +7877,7 @@ fnct_GetMapImageFromRaster (sqlite3_context * context, int argc,
     if ((base_width <= 0 && base_width >= USHRT_MAX)
 	|| (base_height <= 0 && base_height >= USHRT_MAX))
 	goto error;
-    if (base_width > 8192 || base_height > 8192)
+    if ((base_width * base_height) > (8192 * 8192))
       {
 	  /* warning: this usually implies missing Pyramid support */
 	  fprintf (stderr,
@@ -9799,6 +10006,24 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
 			     SQLITE_UTF8, 0, fnct_SetRasterCoverageInfos, 0, 0);
     sqlite3_create_function (db, "RL2_SetRasterCoverageInfos", 3,
 			     SQLITE_UTF8, 0, fnct_SetRasterCoverageInfos, 0, 0);
+    sqlite3_create_function (db, "SetRasterCoverageDefaultBands", 5,
+			     SQLITE_UTF8, 0, fnct_SetRasterCoverageDefaultBands,
+			     0, 0);
+    sqlite3_create_function (db, "RL2_SetRasterCoverageDefaultBands", 5,
+			     SQLITE_UTF8, 0, fnct_SetRasterCoverageDefaultBands,
+			     0, 0);
+    sqlite3_create_function (db, "EnableRasterCoverageAutoNDVI", 2,
+			     SQLITE_UTF8, 0, fnct_EnableRasterCoverageAutoNDVI,
+			     0, 0);
+    sqlite3_create_function (db, "RL2_EnableRasterCoverageAutoNDVI", 2,
+			     SQLITE_UTF8, 0, fnct_EnableRasterCoverageAutoNDVI,
+			     0, 0);
+    sqlite3_create_function (db, "IsRasterCoverageAutoNdviEnabled", 1,
+			     SQLITE_UTF8, 0,
+			     fnct_IsRasterCoverageAutoNdviEnabled, 0, 0);
+    sqlite3_create_function (db, "RL2_IsRasterCoverageAutoNdviEnabled", 1,
+			     SQLITE_UTF8, 0,
+			     fnct_IsRasterCoverageAutoNdviEnabled, 0, 0);
     sqlite3_create_function (db, "GetPaletteNumEntries", 1,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPaletteNumEntries, 0, 0);
@@ -9988,44 +10213,44 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
     sqlite3_create_function (db, "Pyramidize", 1,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 1,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "Pyramidize", 2,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 2,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "Pyramidize", 3,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 3,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "Pyramidize", 4,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_Pyramidize", 4,
-			     SQLITE_UTF8, priv_data, fnct_Pyramidize, 0, 0);
-    sqlite3_create_function (db, "PyramidizeMonolithic", 1,
-			     SQLITE_UTF8, 0, fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 1,
-			     SQLITE_UTF8, 0, fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "PyramidizeMonolithic", 2,
-			     SQLITE_UTF8, 0, fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 2,
-			     SQLITE_UTF8, 0, fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "PyramidizeMonolithic", 3,
-			     SQLITE_UTF8, 0, fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 3,
-			     SQLITE_UTF8, 0, fnct_PyramidizeMonolithic, 0, 0);
-    sqlite3_create_function (db, "DePyramidize", 1,
-			     SQLITE_UTF8, 0, fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_DePyramidize", 1,
-			     SQLITE_UTF8, 0, fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "DePyramidize", 2,
-			     SQLITE_UTF8, 0, fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_DePyramidize", 2,
-			     SQLITE_UTF8, 0, fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "DePyramidize", 3,
-			     SQLITE_UTF8, 0, fnct_DePyramidize, 0, 0);
-    sqlite3_create_function (db, "RL2_DePyramidize", 3,
-			     SQLITE_UTF8, 0, fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 1, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 2, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 2, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 3, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 3, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "Pyramidize", 4, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_Pyramidize", 4, SQLITE_UTF8, priv_data,
+			     fnct_Pyramidize, 0, 0);
+    sqlite3_create_function (db, "PyramidizeMonolithic", 1, SQLITE_UTF8, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 1, SQLITE_UTF8, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "PyramidizeMonolithic", 2, SQLITE_UTF8, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 2, SQLITE_UTF8, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "PyramidizeMonolithic", 3, SQLITE_UTF8, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "RL2_PyramidizeMonolithic", 3, SQLITE_UTF8, 0,
+			     fnct_PyramidizeMonolithic, 0, 0);
+    sqlite3_create_function (db, "DePyramidize", 1, SQLITE_UTF8, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_DePyramidize", 1, SQLITE_UTF8, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "DePyramidize", 2, SQLITE_UTF8, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_DePyramidize", 2, SQLITE_UTF8, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "DePyramidize", 3, SQLITE_UTF8, 0,
+			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "RL2_DePyramidize", 3, SQLITE_UTF8, 0,
+			     fnct_DePyramidize, 0, 0);
     sqlite3_create_function (db, "GetMapImageFromRaster", 4,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_GetMapImageFromRaster, 0, 0);

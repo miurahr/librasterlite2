@@ -365,6 +365,9 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	getrasterstats24.testcase \
 	getrasterstats25.testcase \
 	getrasterstats26.testcase \
+	enableautondvi1.testcase \
+	enableautondvi2.testcase \
+	enableautondvi3.testcase \
 	exportraw1.testcase \
 	exportraw2.testcase \
 	exportraw3.testcase \
@@ -392,6 +395,11 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	importraw8.testcase \
 	importraw9.testcase \
 	importraw10.testcase \
+	isautondvienabled1.testcase \
+	isautondvienabled2.testcase \
+	isautondvienabled3.testcase \
+	isautondvienabled4.testcase \
+	isautondvienabled5.testcase \
 	isfontbold1.testcase \
 	isfontbold2.testcase \
 	isfontbold3.testcase \
@@ -507,6 +515,26 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	setcoverageinfos2.testcase \
 	setcoverageinfos3.testcase \
 	setcoverageinfos4.testcase \
+	setdefaultbands1.testcase \
+	setdefaultbands2.testcase \
+	setdefaultbands3.testcase \
+	setdefaultbands4.testcase \
+	setdefaultbands5.testcase \
+	setdefaultbands6.testcase \
+	setdefaultbands7.testcase \
+	setdefaultbands8.testcase \
+	setdefaultbands9.testcase \
+	setdefaultbands10.testcase \
+	setdefaultbands11.testcase \
+	setdefaultbands12.testcase \
+	setdefaultbands13.testcase \
+	setdefaultbands14.testcase \
+	setdefaultbands15.testcase \
+	setdefaultbands16.testcase \
+	setdefaultbands17.testcase \
+	setdefaultbands18.testcase \
+	setdefaultbands19.testcase \
+	setdefaultbands20.testcase \
 	setpalettecolorentry1.testcase \
 	setpalettecolorentry2.testcase \
 	setpalettecolorentry3.testcase \

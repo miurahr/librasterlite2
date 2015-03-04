@@ -1156,6 +1156,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 	    {
 		/* applying a RasterSymbolizer */
 		int yes_no;
+		int categorize;
+		int interpolate;
 		if (lyr->raster_symbolizer->shadedRelief)
 		    is_shaded_relief = 1;
 		if (!is_shaded_relief)
@@ -1173,7 +1175,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 			}
 		      if (rl2_is_raster_symbolizer_mono_band_selected
 			  ((rl2RasterSymbolizerPtr) (lyr->raster_symbolizer),
-			   &yes_no) == RL2_OK)
+			   &yes_no, &categorize, &interpolate) == RL2_OK)
 			{
 			    if ((cvg->sampleType == RL2_SAMPLE_UINT8
 				 || cvg->sampleType == RL2_SAMPLE_UINT16)
@@ -1182,6 +1184,11 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 				    || cvg->pixelType == RL2_PIXEL_GRAYSCALE)
 				&& yes_no)
 				out_pixel = RL2_PIXEL_GRAYSCALE;
+			    if ((cvg->sampleType == RL2_SAMPLE_UINT8
+				 || cvg->sampleType == RL2_SAMPLE_UINT16)
+				&& cvg->pixelType == RL2_PIXEL_MULTIBAND
+				&& yes_no && (categorize || interpolate))
+				out_pixel = RL2_PIXEL_RGB;
 			    if ((cvg->sampleType == RL2_SAMPLE_INT8
 				 || cvg->sampleType == RL2_SAMPLE_UINT8
 				 || cvg->sampleType == RL2_SAMPLE_INT16

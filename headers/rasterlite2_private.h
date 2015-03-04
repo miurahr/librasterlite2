@@ -1170,6 +1170,9 @@ extern "C"
 	unsigned int height;
 	unsigned char sample_type;
 	unsigned char num_bands;
+	unsigned char auto_ndvi;
+	unsigned char red_band_index;
+	unsigned char nir_band_index;
 	double x_res;
 	double y_res;
 	int scale;
@@ -1322,10 +1325,14 @@ extern "C"
 					 unsigned int width,
 					 unsigned int height,
 					 unsigned char sample_type,
-					 unsigned char num_bands, double x_res,
-					 double y_res, double minx, double miny,
-					 double maxx, double maxy, int level,
-					 int scale, rl2PalettePtr palette,
+					 unsigned char num_bands,
+					 unsigned char auto_ndvi,
+					 unsigned char red_band_index,
+					 unsigned char nir_band_index,
+					 double x_res, double y_res,
+					 double minx, double miny, double maxx,
+					 double maxy, int level, int scale,
+					 rl2PalettePtr palette,
 					 rl2PixelPtr no_data,
 					 rl2RasterSymbolizerPtr style,
 					 rl2RasterStatisticsPtr stats);
@@ -1340,6 +1347,9 @@ extern "C"
 						 unsigned int height,
 						 unsigned char sample_type,
 						 unsigned char num_bands,
+						 unsigned char auto_ndvi,
+						 unsigned char red_band_index,
+						 unsigned char nir_band_index,
 						 double x_res, double y_res,
 						 double minx, double maxy,
 						 int scale,
@@ -1841,8 +1851,12 @@ extern "C"
 					 unsigned int width,
 					 unsigned int height,
 					 unsigned char sample_type,
-					 unsigned char num_bands, double x_res,
-					 double y_res, double minx, double maxy,
+					 unsigned char num_bands,
+					 unsigned char auto_ndvi,
+					 unsigned char red_band_index,
+					 unsigned char nir_band_index,
+					 double x_res, double y_res,
+					 double minx, double maxy,
 					 double tile_minx, double tile_maxy,
 					 rl2PixelPtr no_data,
 					 rl2RasterSymbolizerPtr style,

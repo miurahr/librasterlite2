@@ -82,6 +82,37 @@ execute_check (sqlite3 * sqlite, const char *sql)
 }
 
 static int
+execute_check_boolean (sqlite3 * sqlite, const char *sql)
+{
+/* executing an SQL statement returning True/False */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = -1;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return -1;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
+	    {
+		int value = sqlite3_column_int (stmt, 0);
+		if (value < 0)
+		    retcode = -1;
+		else if (value == 0)
+		    retcode = 0;
+		else
+		    retcode = 1;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (retcode >= 0)
+	return retcode;
+    return -1;
+}
+
+static int
 get_max_tile_id (sqlite3 * sqlite, const char *coverage)
 {
 /* retriving the Max tile_id for a given Coverage */
@@ -1300,6 +1331,266 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 }
 
 static int
+test_default_bands (sqlite3 * sqlite, const char *coverage)
+{
+/* testing default bands SQL functions */
+    int ret;
+    char *sql;
+    char *err_msg = NULL;
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 4, 1, 2, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 4, 2, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #2 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 4, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 4, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #4 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 2, 4)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #5 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 0, 2, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #6 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 0, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #7 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 2, 0)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #8 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 1, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #9 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 2, 1)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #10 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 2, 2)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #11 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_EnableRasterCoverageAutoNDVI(%Q, 1)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret == SQLITE_OK)
+      {
+	  fprintf (stderr, "EnableRasterCoverageAutoNDVI #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled(%Q)",
+			 coverage);
+    ret = execute_check_boolean (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret >= 0)
+      {
+	  fprintf (stderr,
+		   "IsRasterCoverageAutoNdviEnabled #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf
+	("SELECT RL2_SetRasterCoverageDefaultBands(%Q, 0, 1, 2, 3)", coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr,
+		   "SetRasterCoverageDefaultBands #12 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_EnableRasterCoverageAutoNDVI(%Q, 0)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "EnableRasterCoverageAutoNDVI #2 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled(%Q)",
+			 coverage);
+    ret = execute_check_boolean (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != 0)
+      {
+	  fprintf (stderr,
+		   "IsRasterCoverageAutoNdviEnabled #2 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_EnableRasterCoverageAutoNDVI(%Q, 1)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "EnableRasterCoverageAutoNDVI #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    sql =
+	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled(%Q)",
+			 coverage);
+    ret = execute_check_boolean (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != 1)
+      {
+	  fprintf (stderr,
+		   "IsRasterCoverageAutoNdviEnabled #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  return 0;
+      }
+
+    return 1;
+}
+
+static int
 test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	       int ndvi, int *retcode)
 {
@@ -1730,6 +2021,31 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -45;
+	  return 0;
+      }
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterStyledLayer(%Q, 5)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyledLayer #5 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -103;
+	  return 0;
+      }
+
+/* testing GetMapImage - NDVI */
+    if (!test_default_bands (sqlite, coverage))
+      {
+	  *retcode += -102;
+	  return 0;
+      }
+    if (!do_export_map_image (sqlite, coverage, geom, "ndvi", "jpg", 0))
+      {
+	  *retcode += 104;
 	  return 0;
       }
 
@@ -2173,6 +2489,25 @@ register_raster_symbolizers (sqlite3 * sqlite, int no_web_connection,
 	  fprintf (stderr, "RegisterRasterStyledLayer #4 error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -4;
+	  return 0;
+      }
+    if (no_web_connection)
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1))",
+	     "ndvi.xml");
+    else
+	sql =
+	    sqlite3_mprintf
+	    ("SELECT SE_RegisterRasterStyle(XB_Create(XB_LoadXML(%Q), 1, 1))",
+	     "ndvi.xml");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "RegisterRasterStyle #5 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -5;
 	  return 0;
       }
 

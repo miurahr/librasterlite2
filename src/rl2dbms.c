@@ -819,6 +819,363 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
     return RL2_ERROR;
 }
 
+RL2_DECLARE int
+rl2_set_dbms_coverage_default_bands (sqlite3 * handle, const char *coverage,
+				     unsigned char red_band,
+				     unsigned char green_band,
+				     unsigned char blue_band,
+				     unsigned char nir_band)
+{
+/* 
+/  setting up the default Red, Green, Blue and NIR bands
+/  will work only for a MULTIBAND coverage 
+*/
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int num_bands;
+    int count = 0;
+
+    sql = "SELECT num_bands FROM raster_coverages "
+	"WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT MultiBand # Bands SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* querying the covrage */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		num_bands = sqlite3_column_int (stmt, 0);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT MultiBand # Bands; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+/* validation checks */
+    if (count != 1)
+	goto error;
+    if (red_band >= num_bands)
+	goto error;
+    if (green_band >= num_bands)
+	goto error;
+    if (blue_band >= num_bands)
+	goto error;
+    if (nir_band >= num_bands)
+	goto error;
+    if (red_band == green_band || red_band == blue_band || red_band == nir_band)
+	goto error;
+    if (green_band == blue_band || green_band == nir_band)
+	goto error;
+    if (blue_band == nir_band)
+	goto error;
+
+/* updating the Coverage */
+    sql = "UPDATE raster_coverages SET red_band_index = ?, "
+	"green_band_index = ?, blue_band_index = ?, nir_band_index = ? "
+	"WHERE Lower(coverage_name) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE MultiBand default Bands SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int (stmt, 1, red_band);
+    sqlite3_bind_int (stmt, 2, green_band);
+    sqlite3_bind_int (stmt, 3, blue_band);
+    sqlite3_bind_int (stmt, 4, nir_band);
+    sqlite3_bind_text (stmt, 5, coverage, strlen (coverage), SQLITE_STATIC);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "sqlite3_step() error: UPDATE MultiBand default Bands \"%s\"\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_finalize (stmt);
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_get_dbms_coverage_default_bands (sqlite3 * handle, const char *coverage,
+				     unsigned char *red_band,
+				     unsigned char *green_band,
+				     unsigned char *blue_band,
+				     unsigned char *nir_band)
+{
+/* 
+/  attempring to retrieve the default Red, Green, Blue and NIR bands
+/  will work only for a MULTIBAND coverage 
+*/
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int num_bands;
+    int red = -1;
+    int green = -1;
+    int blue = -1;
+    int nir = -1;
+    int count = 0;
+
+    sql = "SELECT num_bands, red_band_index, green_band_index, "
+	"blue_band_index, nir_band_index FROM raster_coverages "
+	"WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT MultiBand default Bands SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* querying the covrage */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		num_bands = sqlite3_column_int (stmt, 0);
+		if (sqlite3_column_type (stmt, 1) == SQLITE_INTEGER)
+		    red = sqlite3_column_int (stmt, 1);
+		if (sqlite3_column_type (stmt, 2) == SQLITE_INTEGER)
+		    green = sqlite3_column_int (stmt, 2);
+		if (sqlite3_column_type (stmt, 3) == SQLITE_INTEGER)
+		    blue = sqlite3_column_int (stmt, 3);
+		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
+		    nir = sqlite3_column_int (stmt, 4);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT MultiBand default Bands; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+/* validation checks */
+    if (count != 1)
+	goto error;
+    if (red < 0 || red >= num_bands)
+	goto error;
+    if (green < 0 || green >= num_bands)
+	goto error;
+    if (blue < 0 || blue >= num_bands)
+	goto error;
+    if (nir < 0 || nir >= num_bands)
+	goto error;
+    if (red == green || red == blue || red == nir)
+	goto error;
+    if (green == blue || green == nir)
+	goto error;
+    if (blue == nir)
+	goto error;
+
+    *red_band = red;
+    *green_band = green;
+    *blue_band = blue;
+    *nir_band = nir;
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_enable_dbms_coverage_auto_ndvi (sqlite3 * handle, const char *coverage,
+				    int on_off)
+{
+/* 
+/  enabling / disabling the Auto NDVI capability
+/  will work only for a MULTIBAND coverage explicitly declaring
+/  default Red, Green, Blue and NIR bands
+*/
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    unsigned char red_band;
+    unsigned char green_band;
+    unsigned char blue_band;
+    unsigned char nir_band;
+
+    if (rl2_get_dbms_coverage_default_bands
+	(handle, coverage, &red_band, &green_band, &blue_band,
+	 &nir_band) != RL2_OK)
+	goto error;
+
+/* updating the Coverage */
+    sql = "UPDATE raster_coverages SET enable_auto_ndvi = ? "
+	"WHERE Lower(coverage_name) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE Enable Auto NDVI SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    if (on_off)
+	sqlite3_bind_int (stmt, 1, 1);
+    else
+	sqlite3_bind_int (stmt, 1, 0);
+    sqlite3_bind_text (stmt, 2, coverage, strlen (coverage), SQLITE_STATIC);
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	;
+    else
+      {
+	  fprintf (stderr,
+		   "sqlite3_step() error: UPDATE Enable Auto NDVI \"%s\"\n",
+		   sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_finalize (stmt);
+    return RL2_OK;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite3 * handle, const char *coverage)
+{
+/* 
+/  attempring to retrieve if the Auto NDVI feature is enabled
+/  will work only for a MULTIBAND coverage 
+*/
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int num_bands;
+    int red = -1;
+    int green = -1;
+    int blue = -1;
+    int nir = -1;
+    int enabled = -1;
+    int count = 0;
+
+    sql = "SELECT num_bands, red_band_index, green_band_index, "
+	"blue_band_index, nir_band_index, enable_auto_ndvi FROM raster_coverages "
+	"WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT IsEnabled Auto NDVI SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* querying the covrage */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		num_bands = sqlite3_column_int (stmt, 0);
+		if (sqlite3_column_type (stmt, 1) == SQLITE_INTEGER)
+		    red = sqlite3_column_int (stmt, 1);
+		if (sqlite3_column_type (stmt, 2) == SQLITE_INTEGER)
+		    green = sqlite3_column_int (stmt, 2);
+		if (sqlite3_column_type (stmt, 3) == SQLITE_INTEGER)
+		    blue = sqlite3_column_int (stmt, 3);
+		if (sqlite3_column_type (stmt, 4) == SQLITE_INTEGER)
+		    nir = sqlite3_column_int (stmt, 4);
+		if (sqlite3_column_type (stmt, 5) == SQLITE_INTEGER)
+		    enabled = sqlite3_column_int (stmt, 5);
+		count++;
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT IsEnabled Auto NDVI; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+/* validation checks */
+    if (count != 1)
+	goto error;
+    if (red < 0 || red >= num_bands)
+	goto error;
+    if (green < 0 || green >= num_bands)
+	goto error;
+    if (blue < 0 || blue >= num_bands)
+	goto error;
+    if (nir < 0 || nir >= num_bands)
+	goto error;
+    if (red == green || red == blue || red == nir)
+	goto error;
+    if (green == blue || green == nir)
+	goto error;
+    if (blue == nir)
+	goto error;
+    if (enabled < 0)
+	goto error;
+
+    if (enabled)
+	return RL2_TRUE;
+    else
+	return RL2_FALSE;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
 static int
 resolve_base_resolution_section (sqlite3 * handle, const char *coverage,
 				 sqlite3_int64 section_id, double *x_res,
@@ -2556,6 +2913,7 @@ do_decode_tile (rl2AuxDecoderPtr decoder)
     if (!rl2_copy_raw_pixels
 	((rl2RasterPtr) (decoder->raster), decoder->outbuf, decoder->width,
 	 decoder->height, decoder->sample_type, decoder->num_bands,
+	 decoder->auto_ndvi, decoder->red_band_index, decoder->nir_band_index,
 	 decoder->x_res, decoder->y_res, decoder->minx, decoder->maxy,
 	 decoder->tile_minx, decoder->tile_maxy,
 	 (rl2PixelPtr) (decoder->no_data),
@@ -2722,8 +3080,10 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, int max_threads,
 			    sqlite3_stmt * stmt_tiles, sqlite3_stmt * stmt_data,
 			    unsigned char *outbuf, unsigned int width,
 			    unsigned int height, unsigned char sample_type,
-			    unsigned char num_bands, double x_res, double y_res,
-			    double minx, double maxy, int scale,
+			    unsigned char num_bands, unsigned char auto_ndvi,
+			    unsigned char red_band_index,
+			    unsigned char nir_band_index, double x_res,
+			    double y_res, double minx, double maxy, int scale,
 			    rl2PalettePtr palette, rl2PixelPtr no_data,
 			    rl2RasterSymbolizerPtr style,
 			    rl2RasterStatisticsPtr stats)
@@ -2760,6 +3120,9 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, int max_threads,
 	  decoder->height = height;
 	  decoder->sample_type = sample_type;
 	  decoder->num_bands = num_bands;
+	  decoder->auto_ndvi = auto_ndvi;
+	  decoder->red_band_index = red_band_index;
+	  decoder->nir_band_index = nir_band_index;
 	  decoder->x_res = x_res;
 	  decoder->y_res = y_res;
 	  decoder->scale = scale;
@@ -2772,7 +3135,7 @@ rl2_load_dbms_tiles_common (sqlite3 * handle, int max_threads,
 	  decoder->palette = NULL;
       }
 
-/* prepating the thread_slots stuct */
+/* preparing the thread_slots stuct */
     thread_slots = malloc (sizeof (rl2AuxDecoderPtr) * max_threads);
     for (thread_count = 0; thread_count < max_threads; thread_count++)
 	*(thread_slots + thread_count) = NULL;
@@ -3737,11 +4100,12 @@ rl2_load_dbms_tiles (sqlite3 * handle, int max_threads,
 		     sqlite3_stmt * stmt_tiles, sqlite3_stmt * stmt_data,
 		     unsigned char *outbuf, unsigned int width,
 		     unsigned int height, unsigned char sample_type,
-		     unsigned char num_bands, double x_res, double y_res,
-		     double minx, double miny, double maxx, double maxy,
-		     int level, int scale, rl2PalettePtr palette,
-		     rl2PixelPtr no_data, rl2RasterSymbolizerPtr style,
-		     rl2RasterStatisticsPtr stats)
+		     unsigned char num_bands, unsigned char auto_ndvi,
+		     unsigned char red_band_index, unsigned char nir_band_index,
+		     double x_res, double y_res, double minx, double miny,
+		     double maxx, double maxy, int level, int scale,
+		     rl2PalettePtr palette, rl2PixelPtr no_data,
+		     rl2RasterSymbolizerPtr style, rl2RasterStatisticsPtr stats)
 {
 /* binding the query args */
     sqlite3_reset (stmt_tiles);
@@ -3754,8 +4118,8 @@ rl2_load_dbms_tiles (sqlite3 * handle, int max_threads,
 
     if (!rl2_load_dbms_tiles_common
 	(handle, max_threads, stmt_tiles, stmt_data, outbuf, width, height,
-	 sample_type, num_bands, x_res, y_res, minx, maxy, scale,
-	 palette, no_data, style, stats))
+	 sample_type, num_bands, auto_ndvi, red_band_index, nir_band_index,
+	 x_res, y_res, minx, maxy, scale, palette, no_data, style, stats))
 	return 0;
     return 1;
 }
@@ -3767,9 +4131,11 @@ rl2_load_dbms_tiles_section (sqlite3 * handle, int max_threads,
 			     sqlite3_stmt * stmt_data, unsigned char *outbuf,
 			     unsigned int width, unsigned int height,
 			     unsigned char sample_type, unsigned char num_bands,
-			     double x_res, double y_res, double minx,
-			     double maxy, int scale, rl2PalettePtr palette,
-			     rl2PixelPtr no_data)
+			     unsigned char auto_ndvi,
+			     unsigned char red_band_index,
+			     unsigned char nir_band_index, double x_res,
+			     double y_res, double minx, double maxy, int scale,
+			     rl2PalettePtr palette, rl2PixelPtr no_data)
 {
 /* binding the query args */
     sqlite3_reset (stmt_tiles);
@@ -3778,8 +4144,8 @@ rl2_load_dbms_tiles_section (sqlite3 * handle, int max_threads,
 
     if (!rl2_load_dbms_tiles_common
 	(handle, max_threads, stmt_tiles, stmt_data, outbuf, width, height,
-	 sample_type, num_bands, x_res, y_res, minx, maxy, scale,
-	 palette, no_data, NULL, NULL))
+	 sample_type, num_bands, auto_ndvi, red_band_index, nir_band_index,
+	 x_res, y_res, minx, maxy, scale, palette, no_data, NULL, NULL))
 	return 0;
     return 1;
 }
@@ -4111,6 +4477,11 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     double relief_factor;
     float *shaded_relief = NULL;
     int shaded_relief_sz;
+    unsigned char red_band = 0;
+    unsigned char green_band = 0;
+    unsigned char blue_band = 0;
+    unsigned char nir_band = 0;
+    unsigned char auto_ndvi = 0;
 
     if (cvg == NULL || handle == NULL)
 	goto error;
@@ -4124,6 +4495,17 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
 	goto error;
+
+    if (rl2_get_dbms_coverage_default_bands
+	(handle, coverage, &red_band, &green_band, &blue_band,
+	 &nir_band) == RL2_OK)
+      {
+	  /* testing for Auto NDVI */
+	  if (rl2_is_dbms_coverage_auto_ndvi_enabled (handle, coverage) ==
+	      RL2_TRUE)
+	      auto_ndvi = 1;
+      }
+
     cvg_pixel_type = pixel_type;
 
     if (pixel_type == RL2_PIXEL_MONOCHROME && out_pixel == RL2_PIXEL_GRAYSCALE)
@@ -4433,8 +4815,8 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
       }
     if (!rl2_load_dbms_tiles
 	(handle, max_threads, stmt_tiles, stmt_data, bufpix, width, height,
-	 sample_type, num_bands, xx_res, yy_res, minx, miny, maxx, maxy, level,
-	 scale, plt, no_data, style, stats))
+	 sample_type, num_bands, auto_ndvi, red_band, nir_band, xx_res, yy_res,
+	 minx, miny, maxx, maxy, level, scale, plt, no_data, style, stats))
 	goto error;
     if (kill_no_data != NULL)
 	rl2_destroy_pixel (kill_no_data);

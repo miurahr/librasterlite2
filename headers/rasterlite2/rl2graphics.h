@@ -83,6 +83,9 @@ extern "C"
     typedef struct rl2_graphics_pattern rl2GraphicsPattern;
     typedef rl2GraphicsPattern *rl2GraphicsPatternPtr;
 
+    typedef struct rl2_TrueType_font rl2TrueTypeFont;
+    typedef rl2TrueTypeFont *rl2TrueTypeFontPtr;
+
     typedef struct rl2_graphics_font rl2GraphicsFont;
     typedef rl2GraphicsFont *rl2GraphicsFontPtr;
 
@@ -643,8 +646,10 @@ extern "C"
     RL2_DECLARE void rl2_graph_destroy_pattern (rl2GraphicsPatternPtr pattern);
 
 /**
- Creates a Graphics Font Object
+ Creates a Graphics Font Object (CAIRO internal"toy" fonts)
 
+ \param facename the font Facename. Expected to be one of "serif", 
+ "sans-serif" or "monospace". a NULL facename will default to "monospace".
  \param size the Graphics Font size (in points).
  \param style one of RL2_FONTSTYLE_NORMAL, RL2_FONTSTYLE_ITALIC or
  RL2_FONTSTYLE_OBLIQUE
@@ -652,23 +657,89 @@ extern "C"
 
  \return the pointer to the corresponding Font object: NULL on failure
  
- \sa rl2_graph_set_font, rl2_graph_destroy_font, rl2_graph_font_set_color,
+ \sa rl2_graph_create_TrueType_font, rl2_graph_set_font, 
+ rl2_graph_destroy_font, rl2_graph_font_set_color,
  rl2_graph_font_set_color, rl2_graph_font_set_halo
  
  \note you are responsible to destroy (before or after) any Pattern Brush
- returned by rl2_graph_create_font() by invoking rl2_graph_destroy_font().
+ returned by rl2_graph_create_toy_font() by invoking rl2_graph_destroy_font().
  */
-    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_font (double size,
-							  int style,
-							  int weight);
+    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_toy_font (const char
+							      *facename,
+							      double size,
+							      int style,
+							      int weight);
+
+/**
+ Will retrieve a BLOB-encoded TrueType font
+ 
+ \param handle SQLite3 connection handle
+ \param priv_data pointer to RL2 private data supporting the SQLite connection
+ \param fontname name of the required font: e.g. "Roboto" or "Roboto-BoldItalic"
+ \param bold TRUE or FALSE, depending on the required font
+ \param italic TRUE or FALSE, depending on the required font
+ \param font on completion this variable will point to the a memory block 
+  containing the BLOB-encoded TrueType font (may be NULL if any error occurred).
+ \param font_sz on completion this variable will contain the size (in bytes)
+ of the memory block containing the BLOB-encoded TrueType font.
+ 
+ \return RL2_OK on success; RL2_ERROR if any error is encountered (this
+ including requesting a not existing TrueType font).
+  
+ \sa rl2_destroy_TrueType_font, rl2_graph_create_TrueType_font
+ 
+ \note you are responsible to destroy (before or after) any TrueType font
+ returned by rl2_get_TrueType_font() by invoking rl2_destroy_TrueType_font().
+ */
+
+    RL2_DECLARE int rl2_get_TrueType_font (sqlite3 * handle,
+					   const void *priv_data,
+					   const char *fontname,
+					   unsigned char bold,
+					   unsigned char italic,
+					   unsigned char **font, int *font_sz);
+
+/**
+ Destroys a TrueType Font object freeing any allocated resource 
+
+ \param handle the pointer to a valid Font returned by a previous call
+ to rl2_get_TrueType_font()
+ 
+ \sa rl2_get_TrueType_font()
+ */
+
+    RL2_DECLARE void rl2_destroy_TrueType_font (rl2TrueTypeFontPtr font);
+
+/**
+ Creates a Graphics Font Object (TrueType fonts)
+
+ \param ttf the TrueType font definition (internal BLOB format).
+ \param ttf_bytes length (in bytes) of the above TTF definition
+ \param size the Graphics Font size (in points).
+
+ \return the pointer to the corresponding Font object: NULL on failure
+ 
+ \sa rl2_graph_create_toy_font, rl2_get_TrueType_font, 
+ rl2_graph_set_font, rl2_graph_destroy_font, rl2_graph_font_set_color,
+ rl2_graph_font_set_color, rl2_graph_font_set_halo
+ 
+ \note you are responsible to destroy (before or after) any Pattern Brush
+ returned by rl2_graph_create_TrueType_font() by invoking rl2_graph_destroy_font().
+ */
+    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_TrueType_font (const
+								   unsigned char
+								   *ttf,
+								   int
+								   ttf_bytes,
+								   double size);
 
 /**
  Destroys a Graphics Font object freeing any allocated resource 
 
  \param handle the pointer to a valid Font returned by a previous call
- to rl2_graph_create_font()
+ to rl2_graph_create_toy_font() or rl2_graph_create_TrueType_font()
  
- \sa rl2_graph_create_font
+ \sa rl2_graph_create_toy_font() or rl2_graph_create_TrueType_font()
  */
     RL2_DECLARE void rl2_graph_destroy_font (rl2GraphicsFontPtr font);
 
@@ -676,7 +747,7 @@ extern "C"
  Selects the currently set Color for a Graphics Font
 
  \param font the pointer to a valid Graphics Font returned by a previous call
- to rl2_graph_create_font()
+ to rl2_graph_create_toy_font() or rl2_graph_create_TrueType_font()
  \param red Font color: red component.
  \param green Font color: green component.
  \param blue Font color: blue component.
@@ -684,8 +755,8 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_create_font, rl2_graph_font_set_halo,
- rl2_graph_set_font
+ \sa rl2_graph_create_toy_font, rl2_graph_create_TrueType_font,
+ rl2_graph_font_set_halo, rl2_graph_set_font
  */
     RL2_DECLARE int rl2_graph_font_set_color (rl2GraphicsFontPtr font,
 					      unsigned char red,
@@ -697,7 +768,7 @@ extern "C"
  Selects the currently set Halo for a Graphics Font
 
  \param font the pointer to a valid Graphics Font returned by a previous call
- to rl2_graph_create_font()
+ to rl2_graph_create_toy_font() or rl2_graph_create_TrueType_font()
  \param radius the Halo Radius (in points); declaring a zero or negative value
  will remove the Halo from the Font.
  \param red Halo color: red component.
@@ -707,8 +778,8 @@ extern "C"
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_create_font, rl2_graph_font_set_color,
- rl2_graph_set_font
+ \sa rl2_graph_create_toy_font, rl2_graph_create_TrueType_font, 
+ rl2_graph_font_set_color, rl2_graph_set_font
  */
     RL2_DECLARE int rl2_graph_font_set_halo (rl2GraphicsFontPtr font,
 					     double radius,

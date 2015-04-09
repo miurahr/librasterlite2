@@ -44,6 +44,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include <zlib.h>
 
@@ -55,6 +56,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "config.h"
 
 #include "rasterlite2/rasterlite2.h"
+#include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
 
 static int
@@ -176,6 +178,175 @@ font_import32 (const unsigned char *p, int little_endian_arch)
     return convert.int_value;
 }
 
+static rl2PrivTrueTypeFontPtr
+rl2_create_TrueType_font (const unsigned char *blob, int blob_size)
+{
+/* creating a TrueType font object [cached] */
+    int len;
+    const char *family;
+    const char *style;
+    rl2PrivTrueTypeFontPtr font = NULL;
+    if (blob == NULL || blob_size <= 0)
+	return NULL;
+    if (rl2_is_valid_encoded_font (blob, blob_size) != RL2_OK)
+	return NULL;
+
+    font = malloc (sizeof (rl2PrivTrueTypeFont));
+    family = rl2_get_encoded_font_family (blob, blob_size);
+    if (family == NULL)
+      {
+	  font->family_name = malloc (1);
+	  *(font->family_name) = '\0';
+      }
+    else
+      {
+	  len = strlen (family);
+	  font->family_name = malloc (len + 1);
+	  strcpy (font->family_name, family);
+      }
+    style = rl2_get_encoded_font_style (blob, blob_size);
+    if (style == NULL)
+      {
+	  font->face_name = malloc (1);
+	  *(font->family_name) = '\0';
+      }
+    else
+      {
+	  len = strlen (font->family_name) + 3 + strlen (style);
+	  font->face_name = malloc (len + 1);
+	  strcpy (font->face_name, font->family_name);
+	  strcat (font->face_name, "-");
+	  strcat (font->face_name, style);
+      }
+    if (rl2_is_encoded_font_bold (blob, blob_size) <= 0)
+	font->is_bold = 0;
+    else
+	font->is_bold = 1;
+    if (rl2_is_encoded_font_italic (blob, blob_size) <= 0)
+	font->is_italic = 0;
+    else
+	font->is_italic = 1;
+    font->font = malloc (blob_size);
+    memcpy (font->font, blob, blob_size);
+    font->bytes = blob_size;
+    font->hits = 1;
+    time (&(font->last_accessed));
+    font->prev = NULL;
+    font->next = NULL;
+    return font;
+}
+
+RL2_DECLARE void
+rl2_destroy_TrueType_font (rl2TrueTypeFontPtr xfont)
+{
+/* memory cleanup - destroying a TrueType font */
+    rl2PrivTrueTypeFontPtr font = (rl2PrivTrueTypeFontPtr *) xfont;
+    if (font == NULL)
+	return;
+    if (font->family_name != NULL)
+	free (font->family_name);
+    if (font->face_name != NULL)
+	free (font->face_name);
+    if (font->font != NULL)
+	free (font->font);
+    free (font);
+}
+
+static void
+rl2_TrueType_font_cache_cleanup (rl2PrivTrueTypeFontCachePtr font_cache,
+				 int to_be_freed)
+{
+/* discarding oldest cache items */
+    int freed = 0;
+    while (freed < to_be_freed)
+      {
+	  /* looping until we've freed the required storage amount */
+	  time_t old;
+	  rl2PrivTrueTypeFontPtr font;
+	  rl2PrivTrueTypeFontPtr font_n = NULL;
+	  time (&old);
+	  font = font_cache->first;
+	  while (font != NULL)
+	    {
+		if (font->last_accessed < old)
+		  {
+		      /* searching for the older cache item */
+		      old = font->last_accessed;
+		      font_n = font;
+		  }
+		font = font->next;
+	    }
+	  if (font_n == NULL)
+	      break;
+	  /* removing an item from the cache */
+	  if (font_n == font_cache->first && font_n == font_cache->last)
+	    {
+		/* this is the unique cached item */
+		font_cache->first = NULL;
+		font_cache->last = NULL;
+	    }
+	  else if (font_n == font_cache->first)
+	    {
+		/* this is the first cached item */
+		font_cache->first = font_n->next;
+		font_cache->first->prev = NULL;
+	    }
+	  else if (font_n == font_cache->last)
+	    {
+		/* this is the last cached item */
+		font_cache->last = font_n->prev;
+		font_cache->last->next = NULL;
+	    }
+	  else
+	    {
+		/* not a special position */
+		font_n->prev->next = font_n->next;
+		font_n->next->prev = font_n->prev;
+	    }
+	  freed += font_n->bytes;
+	  rl2_destroy_TrueType_font (font_n);
+      }
+    font_cache->max_bytes -= freed;
+}
+
+static void
+rl2_cache_TrueType_font (const void *priv_data, const unsigned char *blob,
+			 int blob_sz)
+{
+/* attempting to insert a TrueType font into the cache */
+    struct rl2_private_data *cache = (struct rl2_private_data *) priv_data;
+    rl2PrivTrueTypeFontPtr font;
+    if (blob == NULL || blob_sz <= 0)
+	return;
+    if (cache == NULL)
+	return;
+
+    font = cache->font_cache->first;
+    while (font != NULL)
+      {
+	  if (font->bytes == blob_sz)
+	    {
+		if (memcmp (font->font, blob, blob_sz) == 0)
+		  {
+		      /* already cached */
+		      return;
+		  }
+	    }
+	  font = font->next;
+      }
+
+    font = rl2_create_TrueType_font (blob, blob_sz);
+    if (font == NULL)
+	return;
+    if ((cache->font_cache->tot_bytes + blob_sz) > cache->font_cache->max_bytes)
+	rl2_TrueType_font_cache_cleanup (cache->font_cache, blob_sz);
+    cache->font_cache->tot_bytes += blob_sz;
+    font->prev = cache->font_cache->last;
+    if (cache->font_cache->first == NULL)
+	cache->font_cache->first = font;
+    if (cache->font_cache->last != NULL)
+	cache->font_cache->last->next = font;
+}
 
 static int
 check_font (const unsigned char *buffer, int buf_size, char **family_name,
@@ -187,7 +358,7 @@ check_font (const unsigned char *buffer, int buf_size, char **family_name,
     FT_Face face;
     int len;
 
-    if (buffer == NULL || buf_size == 0)
+    if (buffer == NULL || buf_size <= 0)
 	return RL2_ERROR;
 
 /* initializing a FreeType2 library object */
@@ -710,6 +881,117 @@ rl2_get_font_from_dbms (sqlite3 * handle, const char *family_name,
     sqlite3_finalize (stmt);
     if (*font == NULL)
 	return RL2_ERROR;
+    return RL2_OK;
+
+  error:
+    if (xfont != NULL)
+	free (xfont);
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_get_TrueType_font (sqlite3 * handle, const void *priv_data,
+		       const char *font_name, unsigned char is_bold,
+		       unsigned char is_italic, unsigned char **font,
+		       int *font_sz)
+{
+/* attempting to fetch a cached TrueType Font */
+    struct rl2_private_data *cache = (struct rl2_private_data *) priv_data;
+    rl2PrivTrueTypeFontPtr fnt;
+    rl2PrivTrueTypeFontPtr maybe = NULL;
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    unsigned char *xfont = NULL;
+    int xfont_sz;
+    unsigned char *cache_font = NULL;
+    int cache_font_sz;
+
+    *font = NULL;
+    *font_sz = 0;
+    if (cache == NULL)
+	goto skip_cache;
+
+/* searching for a cached font */
+    fnt = cache->font_cache->first;
+    while (fnt != NULL)
+      {
+	  if (strcasecmp (font_name, fnt->face_name) == 0)
+	    {
+		/* found a matching FaceName */
+		*font = malloc (fnt->bytes);
+		memcpy (*font, fnt->font, fnt->bytes);
+		*font_sz = fnt->bytes;
+		return RL2_OK;
+	    }
+	  if (strcasecmp (font_name, fnt->family_name) == 0)
+	    {
+		/* found a matching Family */
+		maybe = fnt;
+		if (is_bold == fnt->is_bold && is_italic == fnt->is_italic)
+		  {
+		      *font = malloc (fnt->bytes);
+		      memcpy (*font, fnt->font, fnt->bytes);
+		      *font_sz = fnt->bytes;
+		      return RL2_OK;
+		  }
+	    }
+	  fnt = fnt->next;
+      }
+    if (maybe != NULL)
+      {
+	  /* found an approximate match */
+	  *font = malloc (fnt->bytes);
+	  memcpy (*font, fnt->font, fnt->bytes);
+	  *font_sz = fnt->bytes;
+	  return RL2_OK;
+      }
+
+  skip_cache:
+/* preparing the SQL query statement */
+    sql = "SELECT font FROM SE_fonts";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      if (xfont != NULL)
+			{
+			    free (xfont);
+			    xfont = NULL;
+			}
+		      if (rl2_font_decode (blob, blob_sz, &xfont, &xfont_sz) ==
+			  RL2_OK)
+			{
+			    *font = xfont;
+			    *font_sz = xfont_sz;
+			    if (cache_font != NULL)
+				free (cache_font);
+			    cache_font = malloc (blob_sz);
+			    memcpy (cache_font, blob, blob_sz);
+			    cache_font_sz = blob_sz;
+			}
+		  }
+	    }
+	  else
+	      goto error;
+      }
+    sqlite3_finalize (stmt);
+    if (*font == NULL)
+	return RL2_ERROR;
+/* attempting to insert into the font cache */
+    rl2_cache_TrueType_font (priv_data, cache_font, cache_font_sz);
     return RL2_OK;
 
   error:

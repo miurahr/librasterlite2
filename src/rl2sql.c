@@ -3120,7 +3120,6 @@ fnct_LoadRaster (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (argc > 5)
 	transaction = sqlite3_value_int (argv[5]);
 
-
 /* attempting to load the Coverage definitions from the DBMS */
     sqlite = sqlite3_context_db_handle (context);
     data = sqlite3_user_data (context);
@@ -11093,6 +11092,37 @@ rl2_splash_screen (int verbose)
       }
 }
 
+static rl2PrivTrueTypeFontCachePtr
+rl2_alloc_TrueType_font_cache (void)
+{
+/* allocating and initializing an empty TrueType font cache */
+    rl2PrivTrueTypeFontCachePtr font_cache =
+	malloc (sizeof (rl2PrivTrueTypeFontCache));
+    font_cache->first = NULL;
+    font_cache->last = NULL;
+    font_cache->tot_bytes = 0;
+    font_cache->max_bytes = 2 * 1024 * 1024;
+    return font_cache;
+}
+
+static void
+rl2_destroy_TrueType_font_cache (rl2PrivTrueTypeFontCachePtr font_cache)
+{
+/* destroying the TrueType font cache */
+    rl2PrivTrueTypeFontPtr font;
+    rl2PrivTrueTypeFontPtr font_n;
+    if (font_cache == NULL)
+	return;
+    font = font_cache->first;
+    while (font != NULL)
+      {
+	  font_n = font->next;
+	  rl2_destroy_TrueType_font (font);
+	  font = font_n;
+      }
+    free (font_cache);
+}
+
 RL2_DECLARE void *
 rl2_alloc_private (void)
 {
@@ -11102,6 +11132,7 @@ rl2_alloc_private (void)
     if (priv_data == NULL)
 	return NULL;
     priv_data->max_threads = 1;
+    priv_data->font_cache = rl2_alloc_TrueType_font_cache ();
     return priv_data;
 }
 
@@ -11112,6 +11143,8 @@ rl2_cleanup_private (const void *ptr)
     struct rl2_private_data *priv_data = (struct rl2_private_data *) ptr;
     if (priv_data == NULL)
 	return;
+    if (priv_data->font_cache != NULL)
+	rl2_destroy_TrueType_font_cache (priv_data->font_cache);
     free (priv_data);
 }
 

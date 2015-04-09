@@ -238,9 +238,35 @@ extern "C"
 #define RL2_ORIGIN_RAW			0x4e
 #define RL2_ORIGIN_TIFF			0x4f
 
+    typedef struct rl2_priv_TrueType_font
+    {
+	char *family_name;
+	char *face_name;
+	unsigned char is_bold;
+	unsigned char is_italic;
+	unsigned char *font;
+	int bytes;
+	int hits;
+	time_t last_accessed;
+	struct rl2_priv_TrueType_font *prev;
+	struct rl2_priv_TrueType_font *next;
+
+    } rl2PrivTrueTypeFont;
+    typedef rl2PrivTrueTypeFont *rl2PrivTrueTypeFontPtr;
+
+    typedef struct rl2_priv_TrueType_font_cache
+    {
+	rl2PrivTrueTypeFontPtr first;
+	rl2PrivTrueTypeFontPtr last;
+	int tot_bytes;
+	int max_bytes;
+    } rl2PrivTrueTypeFontCache;
+    typedef rl2PrivTrueTypeFontCache *rl2PrivTrueTypeFontCachePtr;
+
     struct rl2_private_data
     {
 	int max_threads;
+	rl2PrivTrueTypeFontCachePtr font_cache;
     };
 
     typedef union rl2_priv_sample

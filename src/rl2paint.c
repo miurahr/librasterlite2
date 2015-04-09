@@ -45,6 +45,9 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <math.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #ifdef LOADABLE_EXTENSION
 #include "rasterlite2/sqlite.h"
 #endif
@@ -57,10 +60,12 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <cairo.h>
 #include <cairo-svg.h>
 #include <cairo-pdf.h>
+#include <cairo-ft.h>
 #else /* any other standard platform (Win, Linux, Mac) */
 #include <cairo/cairo.h>
 #include <cairo/cairo-svg.h>
 #include <cairo/cairo-pdf.h>
+#include <cairo/cairo-ft.h>
 #endif /* end Android conditionals */
 
 #define RL2_SURFACE_IMG 2671
@@ -152,6 +157,12 @@ typedef RL2PrivGraphPattern *RL2PrivGraphPatternPtr;
 typedef struct rl2_graphics_font
 {
 /* a struct wrapping a Cairo Font */
+    int toy_font;
+    FT_Library FTlibrary;
+    FT_Face FTface;
+    cairo_font_face_t *font;
+    unsigned char *ttf;
+    char *facename;
     double size;
     double font_red;
     double font_green;
@@ -1114,13 +1125,23 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
     else
 	cairo = ctx->cairo;
 
-    if (fnt->style == RL2_FONTSTYLE_ITALIC)
-	style = CAIRO_FONT_SLANT_ITALIC;
-    if (fnt->style == RL2_FONTSTYLE_OBLIQUE)
-	style = CAIRO_FONT_SLANT_OBLIQUE;
-    if (fnt->weight == RL2_FONTWEIGHT_BOLD)
-	weight = CAIRO_FONT_WEIGHT_BOLD;
-    cairo_select_font_face (cairo, "monospace", style, weight);
+    if (fnt->toy_font)
+      {
+	  /* using a CAIRO built-in "toy" font */
+	  if (fnt->style == RL2_FONTSTYLE_ITALIC)
+	      style = CAIRO_FONT_SLANT_ITALIC;
+	  if (fnt->style == RL2_FONTSTYLE_OBLIQUE)
+	      style = CAIRO_FONT_SLANT_OBLIQUE;
+	  if (fnt->weight == RL2_FONTWEIGHT_BOLD)
+	      weight = CAIRO_FONT_WEIGHT_BOLD;
+	  cairo_select_font_face (cairo, fnt->facename, style, weight);
+      }
+    else
+      {
+	  /* using a TrueType font */
+	  cairo_set_font_face (cairo, fnt->font);
+
+      }
     size = fnt->size;
     ctx->font_red = fnt->font_red;
     ctx->font_green = fnt->font_green;
@@ -1237,18 +1258,43 @@ rl2_graph_destroy_pattern (rl2GraphicsPatternPtr brush)
 }
 
 RL2_DECLARE rl2GraphicsFontPtr
-rl2_graph_create_font (double size, int style, int weight)
+rl2_graph_create_toy_font (const char *facename, double size, int style,
+			   int weight)
 {
-/* creating a font */
+/* creating a font based on CAIRO internal "toy" fonts */
     RL2GraphFontPtr fnt;
+    int len;
 
     fnt = malloc (sizeof (RL2GraphFont));
     if (fnt == NULL)
 	return NULL;
+    fnt->toy_font = 1;
+    fnt->ttf = NULL;
+    if (facename == NULL)
+	facename = "monospace";
+    if (strcasecmp (facename, "serif") == 0)
+      {
+	  len = strlen ("serif");
+	  fnt->facename = malloc (len + 1);
+	  strcpy (fnt->facename, "serif");
+      }
+    else if (strcasecmp (facename, "sans-serif") == 0)
+      {
+	  len = strlen ("sans-serif");
+	  fnt->facename = malloc (len + 1);
+	  strcpy (fnt->facename, "sans-serif");
+      }
+    else
+      {
+	  /* defaulting to "monospace" */
+	  len = strlen ("monospace");
+	  fnt->facename = malloc (len + 1);
+	  strcpy (fnt->facename, "monospace");
+      }
     if (size < 1.0)
 	fnt->size = 1.0;
-    else if (size > 32.0)
-	fnt->size = 32.0;
+    else if (size > 72.0)
+	fnt->size = 72.0;
     else
 	fnt->size = size;
     if (style == RL2_FONTSTYLE_ITALIC)
@@ -1274,6 +1320,123 @@ rl2_graph_create_font (double size, int style, int weight)
     return (rl2GraphicsFontPtr) fnt;
 }
 
+RL2_DECLARE rl2GraphicsFontPtr
+rl2_graph_create_TrueType_font (const unsigned char *ttf, int ttf_bytes,
+				double size)
+{
+/* creating a TrueType font */
+    RL2GraphFontPtr fnt;
+    int len;
+    const char *family;
+    const char *style;
+    int is_bold;
+    int is_italic;
+    char *facename = NULL;
+    unsigned char *font = NULL;
+    int font_sz;
+    FT_Error error;
+    FT_Library library;
+    FT_Face face;
+
+/* testing the BLOB-encoded TTF object for validity */
+    if (ttf == NULL || ttf_bytes <= 0)
+	return NULL;
+    if (rl2_is_valid_encoded_font (ttf, ttf_bytes) != RL2_OK)
+	return NULL;
+    family = rl2_get_encoded_font_family (ttf, ttf_bytes);
+    style = rl2_get_encoded_font_style (ttf, ttf_bytes);
+    is_bold = rl2_is_encoded_font_bold (ttf, ttf_bytes);
+    is_italic = rl2_is_encoded_font_italic (ttf, ttf_bytes);
+/* decoding the TTF BLOB */
+    if (rl2_font_decode (ttf, ttf_bytes, &font, &font_sz) != RL2_OK)
+	return NULL;
+/* creating a FreeType font object */
+    error = FT_Init_FreeType (&library);
+    if (error)
+      {
+	  if (family != NULL)
+	      free (family);
+	  if (style != NULL)
+	      free (style);
+	  return NULL;
+      }
+    error = FT_New_Memory_Face (library, font, font_sz, 0, &face);
+    if (error)
+      {
+	  if (family != NULL)
+	      free (family);
+	  if (style != NULL)
+	      free (style);
+	  FT_Done_FreeType (library);
+	  return NULL;
+      }
+
+    fnt = malloc (sizeof (RL2GraphFont));
+    if (fnt == NULL)
+      {
+	  if (family != NULL)
+	      free (family);
+	  if (style != NULL)
+	      free (style);
+	  FT_Done_FreeType (library);
+	  return NULL;
+      }
+    fnt->toy_font = 0;
+    fnt->FTlibrary = library;
+    fnt->FTface = face;
+    fnt->ttf = font;
+    if (family == NULL)
+      {
+	  facename = sqlite3_mprintf ("unknown");
+      }
+    else
+      {
+	  if (style == NULL)
+	      facename = sqlite3_mprintf ("%s", family);
+	  else
+	      facename = sqlite3_mprintf ("%s-%s", family, style);
+      }
+    if (family != NULL)
+	free (family);
+    if (style != NULL)
+	free (style);
+    len = strlen (facename);
+    fnt->facename = malloc (len + 1);
+    strcpy (fnt->facename, facename);
+    sqlite3_free (facename);
+    fnt->font = cairo_ft_font_face_create_for_ft_face (fnt->FTface, 0);
+    if (fnt->font == NULL)
+      {
+	  rl2_graph_destroy_font (fnt);
+	  return NULL;
+      }
+    if (size < 1.0)
+	fnt->size = 1.0;
+    else if (size > 72.0)
+	fnt->size = 72.0;
+    else
+	fnt->size = size;
+    if (is_italic)
+	fnt->style = RL2_FONTSTYLE_ITALIC;
+    else
+	fnt->style = RL2_FONTSTYLE_NORMAL;
+    if (is_bold)
+	fnt->weight = RL2_FONTWEIGHT_BOLD;
+    else
+	fnt->weight = RL2_FONTWEIGHT_NORMAL;
+    fnt->font_red = 0.0;
+    fnt->font_green = 0.0;
+    fnt->font_blue = 0.0;
+    fnt->font_alpha = 1.0;
+    fnt->with_halo = 0;
+    fnt->halo_radius = 0.0;
+    fnt->halo_red = 0.0;
+    fnt->halo_green = 0.0;
+    fnt->halo_blue = 0.0;
+    fnt->halo_alpha = 1.0;
+    return (rl2GraphicsFontPtr) fnt;
+}
+
 RL2_DECLARE void
 rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 {
@@ -1283,6 +1446,23 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
     if (fnt == NULL)
 	return;
 
+    if (fnt->facename != NULL)
+	free (fnt->facename);
+    if (fnt->toy_font == 0)
+      {
+	  /* destroying TrueType-related objects */
+	  if (fnt->font != NULL)
+	    {
+		cairo_font_face_destroy (fnt->font);
+		fnt->FTface = NULL;
+	    }
+	  if (fnt->FTlibrary != NULL)
+	      FT_Done_FreeType (fnt->FTlibrary);
+	  if (fnt->FTface != NULL)
+	      FT_Done_Face (fnt->FTface);
+	  if (fnt->ttf != NULL)
+	      free (fnt->ttf);
+      }
     free (fnt);
 }
 

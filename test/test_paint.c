@@ -381,7 +381,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 
 /* creating and setting up a Green bold italic font */
     font =
-	rl2_graph_create_font (32, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
+	rl2_graph_create_toy_font ("serif", 32, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font\n");
@@ -406,7 +406,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 
 /* creating and setting up a Black outlined font */
     font =
-	rl2_graph_create_font (32, RL2_FONTSTYLE_NORMAL, RL2_FONTWEIGHT_BOLD);
+	rl2_graph_create_toy_font ("sans-serif", 32, RL2_FONTSTYLE_NORMAL, RL2_FONTWEIGHT_BOLD);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font #2\n");

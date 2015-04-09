@@ -745,7 +745,7 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	    {
 		if (duplicate)
 		    fprintf (stderr,
-			     "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+			     "Ambiguous name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
 			     section, coverage);
 		else
 		    fprintf (stderr,
@@ -1039,7 +1039,7 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section,
 	    {
 		if (duplicate)
 		    fprintf (stderr,
-			     "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+			     "Ambiguous name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
 			     section, coverage);
 		else
 		    fprintf (stderr,
@@ -1084,7 +1084,7 @@ exec_pyramidize (sqlite3 * handle, int max_threads, const char *coverage,
 		  {
 		      if (duplicate)
 			  fprintf (stderr,
-				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   "Ambiguous name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
 				   section, coverage);
 		      else
 			  fprintf (stderr,
@@ -1133,7 +1133,7 @@ exec_de_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
 		  {
 		      if (duplicate)
 			  fprintf (stderr,
-				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   "Ambiguous name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
 				   section, coverage);
 		      else
 			  fprintf (stderr,
@@ -1960,7 +1960,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section,
 		  {
 		      if (duplicate)
 			  fprintf (stderr,
-				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   "Ambiguous name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
 				   section, coverage);
 		      else
 			  fprintf (stderr,
@@ -2308,7 +2308,7 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
       }
 /* setting up a black Font */
     font =
-	rl2_graph_create_font (16, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
+	rl2_graph_create_toy_font (NULL, 16, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
     if (font == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font\n");
@@ -2500,7 +2500,7 @@ exec_histogram (sqlite3 * handle, const char *coverage, const char *section,
 		  {
 		      if (duplicate)
 			  fprintf (stderr,
-				   "Ambiguos name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
+				   "Ambiguous name: Section \"%s\" in Coverage \"%s\" is not Unique\n",
 				   section, coverage);
 		      else
 			  fprintf (stderr,

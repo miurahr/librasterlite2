@@ -3122,7 +3122,9 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	  font_weight = RL2_FONTWEIGHT_NORMAL;
 	  break;
       };
-    font = rl2_graph_create_font (sym->font_size, font_style, font_weight);
+    font =
+	rl2_graph_create_toy_font (NULL, sym->font_size, font_style,
+				   font_weight);
     if (font == NULL)
 	goto stop;
     if (sym->fill != NULL)

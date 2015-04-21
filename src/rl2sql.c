@@ -2830,7 +2830,7 @@ fnct_ExportFontToFile (sqlite3_context * context, int argc,
 		       sqlite3_value ** argv)
 {
 /* SQL function:
-/ ExportFontToFile(text family, text style_name, text font-path)
+/ ExportFontToFile(text facename, text font-path)
 /
 / will return 1 (TRUE, success) or 0 (FALSE, failure)
 / or -1 (INVALID ARGS)
@@ -2839,8 +2839,7 @@ fnct_ExportFontToFile (sqlite3_context * context, int argc,
     FILE *out = NULL;
     unsigned char *buffer = NULL;
     int buf_size;
-    const char *family_name;
-    const char *style_name;
+    const char *facename;
     const char *font_path;
     sqlite3 *sqlite;
     int wr;
@@ -2851,28 +2850,18 @@ fnct_ExportFontToFile (sqlite3_context * context, int argc,
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-    family_name = (const char *) sqlite3_value_text (argv[0]);
-    if (sqlite3_value_type (argv[1]) == SQLITE_TEXT)
-	style_name = (const char *) sqlite3_value_text (argv[1]);
-    else if (sqlite3_value_type (argv[1]) == SQLITE_NULL)
-	style_name = NULL;
-    else
+    facename = (const char *) sqlite3_value_text (argv[0]);
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
       {
 	  sqlite3_result_int (context, -1);
 	  return;
       }
-    if (sqlite3_value_type (argv[2]) != SQLITE_TEXT)
-      {
-	  sqlite3_result_int (context, -1);
-	  return;
-      }
-    font_path = (const char *) sqlite3_value_text (argv[2]);
+    font_path = (const char *) sqlite3_value_text (argv[1]);
 
     sqlite = sqlite3_context_db_handle (context);
 
 /* attempting to get the Font */
-    if (rl2_get_font_from_dbms
-	(sqlite, family_name, style_name, &buffer, &buf_size) != RL2_OK)
+    if (rl2_get_font_from_dbms (sqlite, facename, &buffer, &buf_size) != RL2_OK)
       {
 	  sqlite3_result_int (context, 0);
 	  return;
@@ -2931,6 +2920,52 @@ fnct_IsValidFont (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_CheckFontFacename (sqlite3_context * context, int argc,
+			sqlite3_value ** argv)
+{
+/* SQL function:
+/ CheckFontFacename(TEXT facename, BLOB serialized-font)
+/
+/ checks for a matching facename
+/
+/ will return 1 (TRUE, success) or 0 (FALSE, failure)
+/ or -1 (INVALID ARGS)
+/
+*/
+    const unsigned char *blob = NULL;
+    int blob_sz;
+    const char *facename1;
+    char *facename2;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    facename1 = (const char *) sqlite3_value_text (argv[0]);
+    if (sqlite3_value_type (argv[1]) != SQLITE_BLOB)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+
+    blob = (const unsigned char *) sqlite3_value_blob (argv[1]);
+    blob_sz = sqlite3_value_bytes (argv[1]);
+    facename2 = rl2_get_encoded_font_facename (blob, blob_sz);
+    if (facename2 == NULL)
+	sqlite3_result_int (context, -1);
+    else
+      {
+	  if (strcmp (facename1, facename2) == 0)
+	      sqlite3_result_int (context, 1);
+	  else
+	      sqlite3_result_int (context, 0);
+	  free (facename2);
+      }
+}
+
+static void
 fnct_GetFontFamily (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
@@ -2973,8 +3008,6 @@ fnct_GetFontFacename (sqlite3_context * context, int argc,
 */
     const unsigned char *blob = NULL;
     int blob_sz;
-    char *family_name;
-    char *style_name;
     char *facename;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
@@ -2986,23 +3019,11 @@ fnct_GetFontFacename (sqlite3_context * context, int argc,
 
     blob = (const unsigned char *) sqlite3_value_blob (argv[0]);
     blob_sz = sqlite3_value_bytes (argv[0]);
-    family_name = rl2_get_encoded_font_family (blob, blob_sz);
-    style_name = rl2_get_encoded_font_style (blob, blob_sz);
-    if (family_name == NULL)
+    facename = rl2_get_encoded_font_facename (blob, blob_sz);
+    if (facename == NULL)
 	sqlite3_result_null (context);
     else
-      {
-	  if (style_name == NULL)
-	      facename = sqlite3_mprintf ("%s", family_name);
-	  else
-	      facename = sqlite3_mprintf ("%s-%s", family_name, style_name);
-	  sqlite3_result_text (context, facename, strlen (facename),
-			       sqlite3_free);
-      }
-    if (family_name != NULL)
-	free (family_name);
-    if (style_name != NULL)
-	free (style_name);
+	sqlite3_result_text (context, facename, strlen (facename), free);
 }
 
 static void
@@ -10119,6 +10140,12 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
     sqlite3_create_function (db, "RL2_IsValidFont", 1,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidFont, 0, 0);
+    sqlite3_create_function (db, "CheckFontFacename", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_CheckFontFacename, 0, 0);
+    sqlite3_create_function (db, "RL2_CheckFontFacename", 2,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_CheckFontFacename, 0, 0);
     sqlite3_create_function (db, "GetFontFamily", 1,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetFontFamily, 0, 0);
@@ -10491,9 +10518,9 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
 				   fnct_LoadFontFromFile, 0, 0);
 	  sqlite3_create_function (db, "RL2_LoadFontFromFile", 1, SQLITE_UTF8,
 				   0, fnct_LoadFontFromFile, 0, 0);
-	  sqlite3_create_function (db, "ExportFontToFile", 3, SQLITE_UTF8, 0,
+	  sqlite3_create_function (db, "ExportFontToFile", 2, SQLITE_UTF8, 0,
 				   fnct_ExportFontToFile, 0, 0);
-	  sqlite3_create_function (db, "RL2_ExportFontToFile", 3, SQLITE_UTF8,
+	  sqlite3_create_function (db, "RL2_ExportFontToFile", 2, SQLITE_UTF8,
 				   0, fnct_ExportFontToFile, 0, 0);
 	  sqlite3_create_function (db, "LoadRaster", 2, SQLITE_UTF8, priv_data,
 				   fnct_LoadRaster, 0, 0);
@@ -11090,62 +11117,6 @@ rl2_splash_screen (int verbose)
 		printf ("TARGET CPU ..........: %s\n", rl2_target_cpu ());
 	    }
       }
-}
-
-static rl2PrivTrueTypeFontCachePtr
-rl2_alloc_TrueType_font_cache (void)
-{
-/* allocating and initializing an empty TrueType font cache */
-    rl2PrivTrueTypeFontCachePtr font_cache =
-	malloc (sizeof (rl2PrivTrueTypeFontCache));
-    font_cache->first = NULL;
-    font_cache->last = NULL;
-    font_cache->tot_bytes = 0;
-    font_cache->max_bytes = 2 * 1024 * 1024;
-    return font_cache;
-}
-
-static void
-rl2_destroy_TrueType_font_cache (rl2PrivTrueTypeFontCachePtr font_cache)
-{
-/* destroying the TrueType font cache */
-    rl2PrivTrueTypeFontPtr font;
-    rl2PrivTrueTypeFontPtr font_n;
-    if (font_cache == NULL)
-	return;
-    font = font_cache->first;
-    while (font != NULL)
-      {
-	  font_n = font->next;
-	  rl2_destroy_TrueType_font (font);
-	  font = font_n;
-      }
-    free (font_cache);
-}
-
-RL2_DECLARE void *
-rl2_alloc_private (void)
-{
-/* allocating and initializing default private connection data */
-    struct rl2_private_data *priv_data =
-	malloc (sizeof (struct rl2_private_data));
-    if (priv_data == NULL)
-	return NULL;
-    priv_data->max_threads = 1;
-    priv_data->font_cache = rl2_alloc_TrueType_font_cache ();
-    return priv_data;
-}
-
-RL2_DECLARE void
-rl2_cleanup_private (const void *ptr)
-{
-/* destroying private connection data */
-    struct rl2_private_data *priv_data = (struct rl2_private_data *) ptr;
-    if (priv_data == NULL)
-	return;
-    if (priv_data->font_cache != NULL)
-	rl2_destroy_TrueType_font_cache (priv_data->font_cache);
-    free (priv_data);
 }
 
 #ifndef LOADABLE_EXTENSION

@@ -4473,8 +4473,9 @@ extern "C"
  \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_font_decode, rl2_is_valid_encoded_font,
- rl2_get_encoded_font_family, rl2_get_encoded_font_style,
- rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
+ rl2_get_encoded_font_facename, rl2_get_encoded_font_family, 
+ rl2_get_encoded_font_style, rl2_is_encoded_font_bold, 
+ rl2_is_encoded_font_italic
  
  \note you are responsible to destroy (before or after) any allocated 
  BLOB serialized Font.
@@ -4491,9 +4492,9 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_font_encode, rl2_font_decode, rl2_get_encoded_font_family, 
- rl2_get_encoded_font_style, rl2_is_encoded_font_bold, 
- rl2_is_encoded_font_italic
+ \sa rl2_font_encode, rl2_font_decode, rl2_get_encoded_font_facename,
+ rl2_get_encoded_font_family, rl2_get_encoded_font_style, 
+ rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
  */
     RL2_DECLARE int
 	rl2_is_valid_encoded_font (const unsigned char *blob, int blob_sz);
@@ -4511,8 +4512,9 @@ extern "C"
  \return RL2_OK on success: RL2_ERROR on failure.
 
  \sa rl2_font_encode, rl2_is_valid_encoded_font,
- rl2_get_encoded_font_family, rl2_get_encoded_font_style,
- rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
+ rl2_get_encoded_font_facename, rl2_get_encoded_font_family, 
+ rl2_get_encoded_font_style, rl2_is_encoded_font_bold, 
+ rl2_is_encoded_font_italic
  
  \note you are responsible to destroy (before or after) the memory 
  block created by this function and containing the Font.
@@ -4520,6 +4522,24 @@ extern "C"
     RL2_DECLARE int
 	rl2_font_decode (const unsigned char *blob, int blob_sz,
 			 unsigned char **font, int *font_sz);
+
+/**
+ Returns the Facename from a BLOB serialized Font
+
+ \param blob pointer to the BLOB serialized Font.
+ \param blob_sz size (in bytes) of the BLOB.
+ 
+ \return the Facename; or NULL on invalid args.
+
+ \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font,
+ rl2_get_encoded_font_family, rl2_get_encoded_font_style, 
+ rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
+ 
+ \note you are responsible to destroy (before or after) the text
+ string returned by this function.
+ */
+    RL2_DECLARE char *rl2_get_encoded_font_facename (const unsigned char
+						     *blob, int blob_sz);
 
 /**
  Returns the Family name from a BLOB serialized Font
@@ -4530,8 +4550,8 @@ extern "C"
  \return the Family name; or NULL on invalid args.
 
  \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font,
- rl2_get_encoded_font_style, rl2_is_encoded_font_bold, 
- rl2_is_encoded_font_italic
+ rl2_get_encode_font_facename, rl2_get_encoded_font_style, 
+ rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
  
  \note you are responsible to destroy (before or after) the text
  string returned by this function.
@@ -4548,8 +4568,8 @@ extern "C"
  \return the Style name (could be eventually NULL for some valid fonts).
 
  \sa rl2_font_encode, rl2_font_decode, rl2_is_valid_encoded_font, 
- rl2_get_encoded_font_family, rl2_is_encoded_font_bold, 
- rl2_is_encoded_font_italic
+ rl2_get_encoded_font_facename, rl2_get_encoded_font_family, 
+ rl2_is_encoded_font_bold, rl2_is_encoded_font_italic
  
  \note you are responsible to destroy (before or after) the text
  string returned by this function.

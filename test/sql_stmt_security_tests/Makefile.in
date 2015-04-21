@@ -257,10 +257,6 @@ EXTRA_DIST = exportfont1.testcase \
 	exportfont2.testcase \
 	exportfont3.testcase \
 	exportfont4.testcase \
-	exportfont5.testcase \
-	exportfont6.testcase \
-	exportfont7.testcase \
-	exportfont8.testcase \
 	exportfont9.testcase \
 	exportfont10.testcase \
 	exportfont11.testcase \

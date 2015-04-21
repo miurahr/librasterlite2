@@ -175,16 +175,16 @@ test_font (sqlite3 * sqlite, int *retcode)
 /* testing LoadFontFromFile() - second time */
     sql = "SELECT LoadFontFromFile('./Karla-BoldItalic.ttf')";
     ret = execute_check (sqlite, sql);
-    if (ret != SQLITE_OK)
+    if (ret == SQLITE_OK)
       {
-	  fprintf (stderr, "ERROR: Unable to import a Font #2\n");
+	  fprintf (stderr, "ERROR: Unexpected success import Font #2\n");
 	  *retcode -= 2;
 	  return 0;
       }
 
 /* testing ExportFontToFile() */
     sql =
-	"SELECT ExportFontToFile('Karla', 'BoldItalic', 'out-karla-bold-italic.ttf')";
+	"SELECT ExportFontToFile('Karla-BoldItalic', 'out-karla-bold-italic.ttf')";
     ret = execute_check (sqlite, sql);
     unlink ("out-karla-bold-italic.ttf");
     if (ret != SQLITE_OK)
@@ -196,7 +196,7 @@ test_font (sqlite3 * sqlite, int *retcode)
 
 /* testing GetFontFamily() */
     sql = "SELECT GetFontFamily(font) FROM SE_fonts "
-	"WHERE family_name = 'Karla' AND style_name = 'BoldItalic'";
+	"WHERE font_facename = 'Karla-BoldItalic'";
     ret = execute_test_string (sqlite, sql, "Karla");
     if (ret != SQLITE_OK)
       {
@@ -207,7 +207,7 @@ test_font (sqlite3 * sqlite, int *retcode)
 
 /* testing GetFontFacename() */
     sql = "SELECT GetFontFacename(font) FROM SE_fonts "
-	"WHERE family_name = 'Karla' AND style_name = 'BoldItalic'";
+	"WHERE font_facename = 'Karla-BoldItalic'";
     ret = execute_test_string (sqlite, sql, "Karla-BoldItalic");
     if (ret != SQLITE_OK)
       {
@@ -218,7 +218,7 @@ test_font (sqlite3 * sqlite, int *retcode)
 
 /* testing IsFontBold() */
     sql = "SELECT IsFontBold(font) FROM SE_fonts "
-	"WHERE family_name = 'Karla' AND style_name = 'BoldItalic'";
+	"WHERE font_facename = 'Karla-BoldItalic'";
     ret = execute_test_boolean (sqlite, sql, 1);
     if (ret != SQLITE_OK)
       {
@@ -229,7 +229,7 @@ test_font (sqlite3 * sqlite, int *retcode)
 
 /* testing IsFontItalic() */
     sql = "SELECT IsFontItalic(font) FROM SE_fonts "
-	"WHERE family_name = 'Karla' AND style_name = 'BoldItalic'";
+	"WHERE font_facename = 'Karla-BoldItalic'";
     ret = execute_test_boolean (sqlite, sql, 1);
     if (ret != SQLITE_OK)
       {

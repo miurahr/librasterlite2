@@ -238,35 +238,25 @@ extern "C"
 #define RL2_ORIGIN_RAW			0x4e
 #define RL2_ORIGIN_TIFF			0x4f
 
-    typedef struct rl2_priv_TrueType_font
-    {
-	char *family_name;
-	char *face_name;
-	unsigned char is_bold;
-	unsigned char is_italic;
-	unsigned char *font;
-	int bytes;
-	int hits;
-	time_t last_accessed;
-	struct rl2_priv_TrueType_font *prev;
-	struct rl2_priv_TrueType_font *next;
 
-    } rl2PrivTrueTypeFont;
-    typedef rl2PrivTrueTypeFont *rl2PrivTrueTypeFontPtr;
-
-    typedef struct rl2_priv_TrueType_font_cache
+    struct rl2_private_tt_font
     {
-	rl2PrivTrueTypeFontPtr first;
-	rl2PrivTrueTypeFontPtr last;
-	int tot_bytes;
-	int max_bytes;
-    } rl2PrivTrueTypeFontCache;
-    typedef rl2PrivTrueTypeFontCache *rl2PrivTrueTypeFontCachePtr;
+	char *facename;
+	int is_bold;
+	int is_italic;
+	struct rl2_private_data *container;
+	void *FTface;
+	void *ttf_data;
+	struct rl2_private_tt_font *prev;
+	struct rl2_private_tt_font *next;
+    };
 
     struct rl2_private_data
     {
 	int max_threads;
-	rl2PrivTrueTypeFontCachePtr font_cache;
+	void *FTlibrary;
+	struct rl2_private_tt_font *first_font;
+	struct rl2_private_tt_font *last_font;
     };
 
     typedef union rl2_priv_sample
@@ -2046,8 +2036,7 @@ extern "C"
 					     unsigned char *blob, int blob_sz);
 
     RL2_PRIVATE int rl2_get_font_from_dbms (sqlite3 * handle,
-					    const char *family_name,
-					    const char *style_name,
+					    const char *facename,
 					    unsigned char **font, int *font_sz);
 
 #ifdef __cplusplus

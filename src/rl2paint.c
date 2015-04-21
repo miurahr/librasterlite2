@@ -45,9 +45,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <math.h>
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 #ifdef LOADABLE_EXTENSION
 #include "rasterlite2/sqlite.h"
 #endif
@@ -156,13 +153,12 @@ typedef RL2PrivGraphPattern *RL2PrivGraphPatternPtr;
 
 typedef struct rl2_graphics_font
 {
-/* a struct wrapping a Cairo Font */
+/* a struct wrapping a Cairo/FreeType Font */
     int toy_font;
-    FT_Library FTlibrary;
-    FT_Face FTface;
-    cairo_font_face_t *font;
-    unsigned char *ttf;
     char *facename;
+    cairo_font_face_t *cairo_font;
+    cairo_scaled_font_t *cairo_scaled_font;
+    struct rl2_private_tt_font *tt_font;
     double size;
     double font_red;
     double font_green;
@@ -274,6 +270,7 @@ destroy_context (RL2GraphContextPtr ctx)
     if (ctx->current_pen.dash_array != NULL)
 	free (ctx->current_pen.dash_array);
     cairo_destroy (ctx->cairo);
+    cairo_surface_finish (ctx->surface);
     cairo_surface_destroy (ctx->surface);
     free (ctx);
 }
@@ -1105,6 +1102,25 @@ rl2_graph_set_pattern_brush (rl2GraphicsContextPtr context,
     return 1;
 }
 
+static void
+rl2_priv_graph_destroy_font (RL2GraphFontPtr fnt)
+{
+/* destroying a font (not yet cached) */
+    if (fnt == NULL)
+	return;
+
+    if (fnt->tt_font != NULL)
+      {
+	  if (fnt->tt_font->facename != NULL)
+	      free (fnt->tt_font->facename);
+	  if (fnt->tt_font->FTface != NULL)
+	      FT_Done_Face ((FT_Face) (fnt->tt_font->FTface));
+	  if (fnt->tt_font->ttf_data != NULL)
+	      free (fnt->tt_font->ttf_data);
+      }
+    free (fnt);
+}
+
 RL2_DECLARE int
 rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 {
@@ -1125,23 +1141,6 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
     else
 	cairo = ctx->cairo;
 
-    if (fnt->toy_font)
-      {
-	  /* using a CAIRO built-in "toy" font */
-	  if (fnt->style == RL2_FONTSTYLE_ITALIC)
-	      style = CAIRO_FONT_SLANT_ITALIC;
-	  if (fnt->style == RL2_FONTSTYLE_OBLIQUE)
-	      style = CAIRO_FONT_SLANT_OBLIQUE;
-	  if (fnt->weight == RL2_FONTWEIGHT_BOLD)
-	      weight = CAIRO_FONT_WEIGHT_BOLD;
-	  cairo_select_font_face (cairo, fnt->facename, style, weight);
-      }
-    else
-      {
-	  /* using a TrueType font */
-	  cairo_set_font_face (cairo, fnt->font);
-
-      }
     size = fnt->size;
     ctx->font_red = fnt->font_red;
     ctx->font_green = fnt->font_green;
@@ -1157,7 +1156,32 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 	  ctx->halo_alpha = fnt->halo_alpha;
 	  size += fnt->halo_radius;
       }
-    cairo_set_font_size (cairo, size);
+    if (fnt->toy_font)
+      {
+	  /* using a CAIRO built-in "toy" font */
+	  if (fnt->style == RL2_FONTSTYLE_ITALIC)
+	      style = CAIRO_FONT_SLANT_ITALIC;
+	  if (fnt->style == RL2_FONTSTYLE_OBLIQUE)
+	      style = CAIRO_FONT_SLANT_OBLIQUE;
+	  if (fnt->weight == RL2_FONTWEIGHT_BOLD)
+	      weight = CAIRO_FONT_WEIGHT_BOLD;
+	  cairo_select_font_face (cairo, fnt->facename, style, weight);
+	  cairo_set_font_size (cairo, size);
+      }
+    else
+      {
+	  /* using a TrueType font */
+	  cairo_font_options_t *font_options = cairo_font_options_create ();
+	  cairo_matrix_t ctm;
+	  cairo_matrix_t font_matrix;
+	  cairo_get_matrix (cairo, &ctm);
+	  cairo_matrix_init (&font_matrix, size, 0.0, 0.0, size, 0.0, 0.0);
+	  fnt->cairo_scaled_font =
+	      cairo_scaled_font_create (fnt->cairo_font, &font_matrix, &ctm,
+					font_options);
+	  cairo_font_options_destroy (font_options);
+	  cairo_set_scaled_font (cairo, fnt->cairo_scaled_font);
+      }
 
     return 1;
 }
@@ -1241,6 +1265,93 @@ rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height)
     return (rl2GraphicsPatternPtr) pattern;
 }
 
+RL2_DECLARE rl2GraphicsPatternPtr
+rl2_create_pattern_from_external_graphic (sqlite3 * handle,
+					  const char *xlink_href)
+{
+/* creating a pattern brush from an External Graphic resource */
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    rl2RasterPtr raster = NULL;
+    unsigned char *rgbaArray = NULL;
+    int rgbaSize;
+    unsigned int width;
+    unsigned int height;
+    if (xlink_href == NULL)
+	return NULL;
+
+/* preparing the SQL query statement */
+    sql =
+	"SELECT resource, GetMimeType(resource) FROM SE_external_graphics "
+	"WHERE Lower(xlink_href) = Lower(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, xlink_href, strlen (xlink_href), SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      const char *mime =
+			  (const char *) sqlite3_column_text (stmt, 1);
+		      if (strcmp (mime, "image/jpeg") == 0)
+			{
+			    if (raster != NULL)
+				rl2_destroy_raster (raster);
+			    raster = rl2_raster_from_jpeg (blob, blob_sz);
+			}
+		      if (strcmp (mime, "image/png") == 0)
+			{
+			    if (raster != NULL)
+				rl2_destroy_raster (raster);
+			    raster = rl2_raster_from_png (blob, blob_sz);
+			}
+		      if (strcmp (mime, "image/gif") == 0)
+			{
+			    if (raster != NULL)
+				rl2_destroy_raster (raster);
+			    raster = rl2_raster_from_gif (blob, blob_sz);
+			}
+		  }
+	    }
+	  else
+	      goto error;
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (raster == NULL)
+	goto error;
+
+/* retieving the raster RGBA map */
+    if (rl2_get_raster_size (raster, &width, &height) == RL2_OK)
+      {
+	  if (rl2_raster_data_to_RGBA (raster, &rgbaArray, &rgbaSize) != RL2_OK)
+	      rgbaArray = NULL;
+      }
+    rl2_destroy_raster (raster);
+    raster = NULL;
+    if (rgbaArray == NULL)
+	goto error;
+    return rl2_graph_create_pattern (rgbaArray, width, height);
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    return NULL;
+}
+
 RL2_DECLARE void
 rl2_graph_destroy_pattern (rl2GraphicsPatternPtr brush)
 {
@@ -1257,6 +1368,162 @@ rl2_graph_destroy_pattern (rl2GraphicsPatternPtr brush)
     free (pattern);
 }
 
+static void
+aux_pattern_get_pixel (int x, int y, int width, unsigned char *bitmap,
+		       unsigned char *red, unsigned char *green,
+		       unsigned char *blue, unsigned char *alpha)
+{
+/* get pixel */
+    unsigned char *p_in = bitmap + (y * width * 4) + (x * 4);
+    int little_endian = rl2cr_endian_arch ();
+    if (little_endian)
+      {
+	  *blue = *p_in++;
+	  *green = *p_in++;
+	  *red = *p_in++;
+	  *alpha = *p_in++;
+      }
+    else
+      {
+	  *alpha = *p_in++;
+	  *red = *p_in++;
+	  *green = *p_in++;
+	  *blue = *p_in++;
+      }
+}
+
+static void
+aux_pattern_set_pixel (int x, int y, int width, unsigned char *bitmap,
+		       unsigned char red, unsigned char green,
+		       unsigned char blue, unsigned char alpha)
+{
+/* set pixel */
+    unsigned char *p_out = bitmap + (y * width * 4) + (x * 4);
+    int little_endian = rl2cr_endian_arch ();
+    if (little_endian)
+      {
+	  *p_out++ = blue;
+	  *p_out++ = green;
+	  *p_out++ = red;
+	  *p_out++ = alpha;
+      }
+    else
+      {
+	  *p_out++ = alpha;
+	  *p_out++ = red;
+	  *p_out++ = green;
+	  *p_out++ = blue;
+      }
+}
+
+RL2_DECLARE int
+rl2_graph_pattern_recolor (rl2GraphicsPatternPtr ptrn, unsigned char r,
+			   unsigned char g, unsigned char b)
+{
+/* recoloring a Monochrome Pattern */
+    int x;
+    int y;
+    int width;
+    int height;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+    unsigned char xred;
+    unsigned char xgreen;
+    unsigned char xblue;
+    int valid = 0;
+    unsigned char *bitmap;
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) ptrn;
+    if (pattern == NULL)
+	return RL2_ERROR;
+
+    width = pattern->width;
+    height = pattern->height;
+    cairo_surface_flush (pattern->bitmap);
+    bitmap = cairo_image_surface_get_data (pattern->bitmap);
+    if (bitmap == NULL)
+	return RL2_ERROR;
+/* checking for a Monochrome Pattern */
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		aux_pattern_get_pixel (x, y, width, bitmap, &red, &green, &blue,
+				       &alpha);
+		if (alpha != 0)
+		  {
+		      if (valid)
+			{
+			    if (xred == red && xgreen == green && xblue == blue)
+				;
+			    else
+				return RL2_ERROR;
+			}
+		      else
+			{
+			    xred = red;
+			    xgreen = green;
+			    xblue = blue;
+			    valid = 1;
+			}
+		  }
+	    }
+      }
+/* all right, applying the new color */
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		aux_pattern_get_pixel (x, y, width, bitmap, &red, &green, &blue,
+				       &alpha);
+		if (alpha != 0)
+		    aux_pattern_set_pixel (x, y, width, bitmap, r, g, b, alpha);
+	    }
+      }
+    cairo_surface_mark_dirty (pattern->bitmap);
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_graph_pattern_transparency (rl2GraphicsPatternPtr ptrn, unsigned char aleph)
+{
+/* changing the Pattern's transparency */
+    int x;
+    int y;
+    int width;
+    int height;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+    unsigned char *bitmap;
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) ptrn;
+    if (pattern == NULL)
+	return RL2_ERROR;
+
+    width = pattern->width;
+    height = pattern->height;
+    cairo_surface_flush (pattern->bitmap);
+    bitmap = cairo_image_surface_get_data (pattern->bitmap);
+    if (bitmap == NULL)
+	return RL2_ERROR;
+/* applying the new transparency */
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		aux_pattern_get_pixel (x, y, width, bitmap, &red, &green, &blue,
+				       &alpha);
+		if (alpha != 0)
+		    aux_pattern_set_pixel (x, y, width, bitmap, red, green,
+					   blue, aleph);
+	    }
+      }
+    cairo_surface_mark_dirty (pattern->bitmap);
+    return RL2_OK;
+}
+
 RL2_DECLARE rl2GraphicsFontPtr
 rl2_graph_create_toy_font (const char *facename, double size, int style,
 			   int weight)
@@ -1269,7 +1536,7 @@ rl2_graph_create_toy_font (const char *facename, double size, int style,
     if (fnt == NULL)
 	return NULL;
     fnt->toy_font = 1;
-    fnt->ttf = NULL;
+    fnt->tt_font = NULL;
     if (facename == NULL)
 	facename = "monospace";
     if (strcasecmp (facename, "serif") == 0)
@@ -1320,94 +1587,150 @@ rl2_graph_create_toy_font (const char *facename, double size, int style,
     return (rl2GraphicsFontPtr) fnt;
 }
 
+static void
+rl2_destroy_private_tt_font (struct rl2_private_tt_font *font)
+{
+/* destroying a private font */
+    if (font == NULL)
+	return;
+
+    if (font->facename != NULL)
+	free (font->facename);
+    if (font->FTface != NULL)
+	FT_Done_Face ((FT_Face) (font->FTface));
+    if (font->ttf_data != NULL)
+	free (font->ttf_data);
+    free (font);
+}
+
+static void
+rl2_font_destructor_callback (void *data)
+{
+/* font destructor callback */
+    struct rl2_private_tt_font *font = (struct rl2_private_tt_font *) data;
+    if (font == NULL)
+	return;
+
+/* adjusting the double-linked list */
+    if (font == font->container->first_font
+	&& font == font->container->last_font)
+      {
+	  /* going to remove the unique item from the list */
+	  font->container->first_font = NULL;
+	  font->container->last_font = NULL;
+      }
+    else if (font == font->container->first_font)
+      {
+	  /* going to remove the first item from the list */
+	  font->next->prev = NULL;
+	  font->container->first_font = font->next;
+      }
+    else if (font == font->container->last_font)
+      {
+	  /* going to remove the last item from the list */
+	  font->prev->next = NULL;
+	  font->container->last_font = font->prev;
+      }
+    else
+      {
+	  /* normal case */
+	  font->prev->next = font->next;
+	  font->next->prev = font->prev;
+      }
+
+/* destroying the cached font */
+    rl2_destroy_private_tt_font (font);
+}
+
 RL2_DECLARE rl2GraphicsFontPtr
-rl2_graph_create_TrueType_font (const unsigned char *ttf, int ttf_bytes,
-				double size)
+rl2_graph_create_TrueType_font (const void *priv_data, const unsigned char *ttf,
+				int ttf_bytes, double size)
 {
 /* creating a TrueType font */
     RL2GraphFontPtr fnt;
-    int len;
-    const char *family;
-    const char *style;
+    char *facename;
     int is_bold;
     int is_italic;
-    char *facename = NULL;
     unsigned char *font = NULL;
     int font_sz;
     FT_Error error;
     FT_Library library;
     FT_Face face;
+    static const cairo_user_data_key_t key;
+    struct rl2_private_data *cache = (struct rl2_private_data *) priv_data;
+    struct rl2_private_tt_font *tt_font;
+    if (cache == NULL)
+	return NULL;
+    if (cache->FTlibrary == NULL)
+	return NULL;
+    library = (FT_Library) (cache->FTlibrary);
 
 /* testing the BLOB-encoded TTF object for validity */
     if (ttf == NULL || ttf_bytes <= 0)
 	return NULL;
     if (rl2_is_valid_encoded_font (ttf, ttf_bytes) != RL2_OK)
 	return NULL;
-    family = rl2_get_encoded_font_family (ttf, ttf_bytes);
-    style = rl2_get_encoded_font_style (ttf, ttf_bytes);
+    facename = rl2_get_encoded_font_facename (ttf, ttf_bytes);
+    if (facename == NULL)
+	return NULL;
     is_bold = rl2_is_encoded_font_bold (ttf, ttf_bytes);
     is_italic = rl2_is_encoded_font_italic (ttf, ttf_bytes);
+
 /* decoding the TTF BLOB */
     if (rl2_font_decode (ttf, ttf_bytes, &font, &font_sz) != RL2_OK)
 	return NULL;
 /* creating a FreeType font object */
-    error = FT_Init_FreeType (&library);
-    if (error)
-      {
-	  if (family != NULL)
-	      free (family);
-	  if (style != NULL)
-	      free (style);
-	  return NULL;
-      }
     error = FT_New_Memory_Face (library, font, font_sz, 0, &face);
     if (error)
       {
-	  if (family != NULL)
-	      free (family);
-	  if (style != NULL)
-	      free (style);
-	  FT_Done_FreeType (library);
+	  free (facename);
 	  return NULL;
       }
 
     fnt = malloc (sizeof (RL2GraphFont));
     if (fnt == NULL)
       {
-	  if (family != NULL)
-	      free (family);
-	  if (style != NULL)
-	      free (style);
-	  FT_Done_FreeType (library);
+	  free (facename);
+	  FT_Done_Face (face);
+	  return NULL;
+      }
+    tt_font = malloc (sizeof (struct rl2_private_tt_font));
+    if (tt_font == NULL)
+      {
+	  free (facename);
+	  FT_Done_Face (face);
+	  free (fnt);
 	  return NULL;
       }
     fnt->toy_font = 0;
-    fnt->FTlibrary = library;
-    fnt->FTface = face;
-    fnt->ttf = font;
-    if (family == NULL)
+    fnt->tt_font = tt_font;
+    fnt->tt_font->facename = facename;
+    fnt->tt_font->is_bold = is_bold;
+    fnt->tt_font->is_italic = is_italic;
+    fnt->tt_font->container = cache;
+    fnt->tt_font->FTface = face;
+    fnt->tt_font->ttf_data = font;
+    fnt->cairo_font = cairo_ft_font_face_create_for_ft_face (face, 0);
+    if (fnt->cairo_font == NULL)
       {
-	  facename = sqlite3_mprintf ("unknown");
+	  rl2_priv_graph_destroy_font (fnt);
+	  return NULL;
       }
-    else
+    fnt->cairo_scaled_font = NULL;
+/* inserting into the cache */
+    tt_font->prev = cache->last_font;
+    tt_font->next = NULL;
+    if (cache->first_font == NULL)
+	cache->first_font = tt_font;
+    if (cache->last_font != NULL)
+	cache->last_font->next = tt_font;
+    cache->last_font = tt_font;
+/* registering the destructor callback */
+    if (cairo_font_face_set_user_data
+	(fnt->cairo_font, &key, tt_font,
+	 rl2_font_destructor_callback) != CAIRO_STATUS_SUCCESS)
       {
-	  if (style == NULL)
-	      facename = sqlite3_mprintf ("%s", family);
-	  else
-	      facename = sqlite3_mprintf ("%s-%s", family, style);
-      }
-    if (family != NULL)
-	free (family);
-    if (style != NULL)
-	free (style);
-    len = strlen (facename);
-    fnt->facename = malloc (len + 1);
-    strcpy (fnt->facename, facename);
-    sqlite3_free (facename);
-    fnt->font = cairo_ft_font_face_create_for_ft_face (fnt->FTface, 0);
-    if (fnt->font == NULL)
-      {
-	  rl2_graph_destroy_font (fnt);
+	  rl2_priv_graph_destroy_font (fnt);
 	  return NULL;
       }
     if (size < 1.0)
@@ -1437,6 +1760,27 @@ rl2_graph_create_TrueType_font (const unsigned char *ttf, int ttf_bytes,
     return (rl2GraphicsFontPtr) fnt;
 }
 
+RL2_DECLARE int
+rl2_graph_release_font (rl2GraphicsContextPtr context)
+{
+/* selecting a default font so to releasee the currently set Font */
+    cairo_t *cairo;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    if (ctx == NULL)
+	return 0;
+
+    if (ctx == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+    cairo_select_font_face (cairo, "monospace", CAIRO_FONT_SLANT_NORMAL,
+			    CAIRO_FONT_WEIGHT_NORMAL);
+    cairo_set_font_size (cairo, 10.0);
+    return 1;
+}
+
 RL2_DECLARE void
 rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 {
@@ -1445,25 +1789,19 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 
     if (fnt == NULL)
 	return;
-
-    if (fnt->facename != NULL)
-	free (fnt->facename);
     if (fnt->toy_font == 0)
       {
-	  /* destroying TrueType-related objects */
-	  if (fnt->font != NULL)
-	    {
-		cairo_font_face_destroy (fnt->font);
-		fnt->FTface = NULL;
-	    }
-	  if (fnt->FTlibrary != NULL)
-	      FT_Done_FreeType (fnt->FTlibrary);
-	  if (fnt->FTface != NULL)
-	      FT_Done_Face (fnt->FTface);
-	  if (fnt->ttf != NULL)
-	      free (fnt->ttf);
+	  if (fnt->cairo_scaled_font != NULL)
+	      cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+	  if (fnt->cairo_font != NULL)
+	      cairo_font_face_destroy (fnt->cairo_font);
       }
-    free (fnt);
+    else
+      {
+	  if (fnt->facename != NULL)
+	      free (fnt->facename);
+	  free (fnt);
+      }
 }
 
 RL2_DECLARE int
@@ -1599,7 +1937,7 @@ set_current_brush (RL2GraphContextPtr ctx)
 RL2_DECLARE int
 rl2_graph_release_pattern_brush (rl2GraphicsContextPtr context)
 {
-/* relasing the current Pattern Brush */
+/* releasing the current Pattern Brush */
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     cairo_t *cairo;
     if (ctx == NULL)
@@ -1698,7 +2036,7 @@ set_current_pen (RL2GraphContextPtr ctx)
 RL2_DECLARE int
 rl2_graph_release_pattern_pen (rl2GraphicsContextPtr context)
 {
-/* relasing the current Pattern Pen */
+/* releasing the current Pattern Pen */
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
     cairo_t *cairo;
     if (ctx == NULL)
@@ -2406,4 +2744,49 @@ rl2_get_mem_pdf_buffer (rl2MemPdfPtr target, unsigned char **buffer, int *size)
     mem->buffer = NULL;
     *size = mem->write_offset;
     return RL2_OK;
+}
+
+RL2_DECLARE void *
+rl2_alloc_private (void)
+{
+/* allocating and initializing default private connection data */
+    FT_Error error;
+    FT_Library library;
+    struct rl2_private_data *priv_data =
+	malloc (sizeof (struct rl2_private_data));
+    if (priv_data == NULL)
+	return NULL;
+    priv_data->max_threads = 1;
+/* initializing FreeType */
+    error = FT_Init_FreeType (&library);
+    if (error)
+	priv_data->FTlibrary = NULL;
+    else
+	priv_data->FTlibrary = library;
+    priv_data->first_font = NULL;
+    priv_data->last_font = NULL;
+    return priv_data;
+}
+
+RL2_DECLARE void
+rl2_cleanup_private (const void *ptr)
+{
+/* destroying private connection data */
+    struct rl2_private_tt_font *pF;
+    struct rl2_private_tt_font *pFn;
+    struct rl2_private_data *priv_data = (struct rl2_private_data *) ptr;
+    if (priv_data == NULL)
+	return;
+
+/* cleaning the internal Font Cache */
+    pF = priv_data->first_font;
+    while (pF != NULL)
+      {
+	  pFn = pF->next;
+	  rl2_destroy_private_tt_font (pF);
+	  pF = pFn;
+      }
+    if (priv_data->FTlibrary != NULL)
+	FT_Done_FreeType ((FT_Library) (priv_data->FTlibrary));
+    free (priv_data);
 }

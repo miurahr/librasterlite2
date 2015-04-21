@@ -83,9 +83,6 @@ extern "C"
     typedef struct rl2_graphics_pattern rl2GraphicsPattern;
     typedef rl2GraphicsPattern *rl2GraphicsPatternPtr;
 
-    typedef struct rl2_TrueType_font rl2TrueTypeFont;
-    typedef rl2TrueTypeFont *rl2TrueTypeFontPtr;
-
     typedef struct rl2_graphics_font rl2GraphicsFont;
     typedef rl2GraphicsFont *rl2GraphicsFontPtr;
 
@@ -419,7 +416,7 @@ extern "C"
  rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
  rl2_graph_set_linear_gradient_solid_pen, rl2_graph_set_linear_gradient_dashed_pen,
  rl2_graph_set_pattern_dashed_pen, rl2_graph_set_brush, rl2_graph_set_font, 
- rl2_create_pattern, rl2_realease_pattern_pen
+ rl2_create_pattern, rl2_graph_realease_pattern_pen
 
  \note a Pen created by this function always is a Pattern Pen, 
  i.e. a Pen repeatedly using a small bitmap as a filling source.
@@ -452,7 +449,7 @@ extern "C"
  rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
  rl2_graph_set_linear_gradient_solid_pen, rl2_graph_set_linear_gradient_dashed_pen,
  rl2_graph_set_pattern_solid_pen, rl2_graph_set_brush, rl2_graph_set_font, 
- rl2_create_pattern, rl2_realease_pattern_pen
+ rl2_create_pattern, rl2_graph_realease_pattern_pen
 
  \note a Pen created by this function always is a Pattern Pen, 
  i.e. a Pen repeatedly using a small bitmap as a filling source.
@@ -567,7 +564,7 @@ extern "C"
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, 
  rl2_graph_create_pdf_context, rl2_graph_set_solid_pen, rl2_graph_set_dashed_pen,
  rl2_graph_set_brush, rl2_graph_set_linear_gradient_brush, 
- rl2_graph_set_font, rl2_create_pattern, rl2_release_pattern_brush
+ rl2_graph_set_font, rl2_create_pattern, rl2_graph_release_pattern_brush
 
  \note a Brush created by this function always is a Pattern Brush, 
  i.e. a Brush repeatedly using a small bitmap as a filling source.
@@ -612,6 +609,22 @@ extern "C"
 					rl2GraphicsFontPtr font);
 
 /**
+ Releases the currently set Font out from a Graphics Context
+
+ \param context the pointer to a valid Graphics Context returned by a previous call
+ to rl2_graph_create_context(), rl2_graph_create_svg_context() or
+ rl2_graph_create_pdf_context()
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_set_font, rl2_graph_destroy_font
+ 
+ \note you must always call rl2_graph_release_font() before attempting
+ to destroy a currently selected TrueType Font.
+ */
+    RL2_DECLARE int rl2_graph_release_font (rl2GraphicsContextPtr context);
+
+/**
  Creates a Pattern Brush 
 
  \param rgbaArray pointer to an array of RGBA pixels representing the bitmap
@@ -621,7 +634,8 @@ extern "C"
 
  \return the pointer to the corresponding Pattern Brush object: NULL on failure
  
- \sa rl2_graph_set_pattern_brush, rl2_graph_destroy_brush
+ \sa rl2_graph_set_pattern_brush, rl2_graph_destroy_brush,
+ rl2_create_pattern_from_external_graphic
  
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_graph_create_pattern() by invoking rl2_graph_destroy_pattern().
@@ -630,6 +644,25 @@ extern "C"
 								*rgbaArray,
 								int width,
 								int height);
+
+/**
+ Creates a Pattern Brush from an External Graphic resource (PNG, GIF, JPEG)
+
+ \param handle SQLite3 connection handle
+ \param xlink_href unique External Graphic identifier
+
+ \return the pointer to the corresponding Pattern Brush object: NULL on failure
+ 
+ \sa rl2_graph_set_pattern_brush, rl2_graph_destroy_brush,
+ rl2_graph_create_pattern
+ 
+ \note you are responsible to destroy (before or after) any Pattern Brush
+ returned by rl2_create_pattern_from_external_graphic() by invoking 
+ rl2_graph_destroy_pattern().
+ */
+    RL2_DECLARE rl2GraphicsPatternPtr
+	rl2_create_pattern_from_external_graphic (sqlite3 * handle,
+						  const char *xlink_href);
 
 /**
  Destroys a Pattern Brush object freeing any allocated resource 
@@ -646,7 +679,48 @@ extern "C"
     RL2_DECLARE void rl2_graph_destroy_pattern (rl2GraphicsPatternPtr pattern);
 
 /**
- Creates a Graphics Font Object (CAIRO internal"toy" fonts)
+ Recolors a Monochrome Pattern object  
+
+ \param handle the pointer to a valid Pattern returned by a previous call
+ to rl2_graph_create_pattern() or rl2_create_pattern_from_external_graphic()
+ \param r the new Red component value to be set
+ \param g the new Green component value
+ \param b the new Blue component value
+ 
+ \return RL2_OK on success: RL2_ERROR on failure. 
+ 
+ \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic,
+ rl2_graph_destroy_pattern
+
+ \note only a Monochrome Pattern can be succesfully recolored.
+ Completely transparent pixels will be ignored; all opaque pixels
+ should declare exactly the same color.
+ */
+    RL2_DECLARE int rl2_graph_pattern_recolor (rl2GraphicsPatternPtr pattern,
+					       unsigned char r, unsigned char g,
+					       unsigned char b);
+
+/**
+ Sets half-transparency for a Pattern object  
+
+ \param handle the pointer to a valid Pattern returned by a previous call
+ to rl2_graph_create_pattern() or rl2_create_pattern_from_external_graphic()
+ \param alpha transparency (0 full transparent; 255 full opaque).
+ 
+ \return RL2_OK on success: RL2_ERROR on failure. 
+ 
+ \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic,
+ rl2_graph_destroy_pattern
+
+ \note Completely transparent pixels will be always preserved as such; 
+ all other pixels will assume the required transparency.
+ */
+    RL2_DECLARE int rl2_graph_pattern_transparency (rl2GraphicsPatternPtr
+						    pattern,
+						    unsigned char alpha);
+
+/**
+ Creates a Graphics Font Object (CAIRO built-in "toy" fonts)
 
  \param facename the font Facename. Expected to be one of "serif", 
  "sans-serif" or "monospace". a NULL facename will default to "monospace".
@@ -657,7 +731,7 @@ extern "C"
 
  \return the pointer to the corresponding Font object: NULL on failure
  
- \sa rl2_graph_create_TrueType_font, rl2_graph_set_font, 
+ \sa rl2_graph_set_font, 
  rl2_graph_destroy_font, rl2_graph_font_set_color,
  rl2_graph_font_set_color, rl2_graph_font_set_halo
  
@@ -671,13 +745,10 @@ extern "C"
 							      int weight);
 
 /**
- Will retrieve a BLOB-encoded TrueType font
+ Will retrieve a BLOB-encoded TrueType Font by its FaceName
  
  \param handle SQLite3 connection handle
- \param priv_data pointer to RL2 private data supporting the SQLite connection
- \param fontname name of the required font: e.g. "Roboto" or "Roboto-BoldItalic"
- \param bold TRUE or FALSE, depending on the required font
- \param italic TRUE or FALSE, depending on the required font
+ \param fontname name of the required font: e.g. "Roboto-BoldItalic"
  \param font on completion this variable will point to the a memory block 
   containing the BLOB-encoded TrueType font (may be NULL if any error occurred).
  \param font_sz on completion this variable will contain the size (in bytes)
@@ -685,34 +756,20 @@ extern "C"
  
  \return RL2_OK on success; RL2_ERROR if any error is encountered (this
  including requesting a not existing TrueType font).
-  
- \sa rl2_destroy_TrueType_font, rl2_graph_create_TrueType_font
  
- \note you are responsible to destroy (before or after) any TrueType font
- returned by rl2_get_TrueType_font() by invoking rl2_destroy_TrueType_font().
+ \note you are responsible to free (before or after) the BLOB-encode
+ font returned by rl2_get_TrueType_font()
  */
 
     RL2_DECLARE int rl2_get_TrueType_font (sqlite3 * handle,
-					   const void *priv_data,
-					   const char *fontname,
-					   unsigned char bold,
-					   unsigned char italic,
+					   const char *facename,
 					   unsigned char **font, int *font_sz);
-
-/**
- Destroys a TrueType Font object freeing any allocated resource 
-
- \param handle the pointer to a valid Font returned by a previous call
- to rl2_get_TrueType_font()
- 
- \sa rl2_get_TrueType_font()
- */
-
-    RL2_DECLARE void rl2_destroy_TrueType_font (rl2TrueTypeFontPtr font);
 
 /**
  Creates a Graphics Font Object (TrueType fonts)
 
+ \param priv_data pointer to the opaque internal connection object 
+ returned by a previous call to rl2_alloc_private() 
  \param ttf the TrueType font definition (internal BLOB format).
  \param ttf_bytes length (in bytes) of the above TTF definition
  \param size the Graphics Font size (in points).
@@ -720,13 +777,17 @@ extern "C"
  \return the pointer to the corresponding Font object: NULL on failure
  
  \sa rl2_graph_create_toy_font, rl2_get_TrueType_font, 
- rl2_graph_set_font, rl2_graph_destroy_font, rl2_graph_font_set_color,
- rl2_graph_font_set_color, rl2_graph_font_set_halo
+ rl2_search_TrueType_font, rl2_graph_set_font, rl2_graph_destroy_font, 
+ rl2_graph_font_set_color, rl2_graph_font_set_color, 
+ rl2_graph_font_set_halo
  
- \note you are responsible to destroy (before or after) any Pattern Brush
- returned by rl2_graph_create_TrueType_font() by invoking rl2_graph_destroy_font().
+ \note you are responsible to destroy (before or after) any TrueType
+ font returned by rl2_graph_create_TrueType_font() by invoking 
+ rl2_graph_destroy_font().
  */
-    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_TrueType_font (const
+    RL2_DECLARE rl2GraphicsFontPtr rl2_graph_create_TrueType_font (const void
+								   *priv_data,
+								   const
 								   unsigned char
 								   *ttf,
 								   int
@@ -734,12 +795,42 @@ extern "C"
 								   double size);
 
 /**
+ Searches and creates a Graphics Font Object (TrueType fonts)
+
+ \param handle SQLite3 connection handle
+ \param priv_data pointer to the opaque internal connection object 
+ returned by a previous call to rl2_alloc_private() 
+ \param fontname name of the required font: e.g. "Roboto-BoldItalic"
+ \param size the Graphics Font size (in points).
+
+ \return the pointer to the corresponding Font object: NULL on failure
+ 
+ \sa rl2_graph_create_toy_font, rl2_get_TrueType_font, 
+ rl2_graph_create_TrueType_font, rl2_graph_set_font, 
+ rl2_graph_destroy_font, rl2_graph_font_set_color,
+ rl2_graph_font_set_color, rl2_graph_font_set_halo
+ 
+ \note you are responsible to destroy (before or after) any TrueType
+ font returned by rl2_search_TrueType_font() by invoking 
+ rl2_graph_destroy_font().
+ */
+    RL2_DECLARE rl2GraphicsFontPtr rl2_search_TrueType_font (sqlite3 * handle,
+							     const void
+							     *priv_data,
+							     const char
+							     *facename,
+							     double size);
+
+/**
  Destroys a Graphics Font object freeing any allocated resource 
 
  \param handle the pointer to a valid Font returned by a previous call
  to rl2_graph_create_toy_font() or rl2_graph_create_TrueType_font()
  
- \sa rl2_graph_create_toy_font() or rl2_graph_create_TrueType_font()
+ \sa rl2_graph_create_toy_font, rl2_graph_create_TrueType_font
+ 
+ \note you must always call rl2_graph_release_font() before attempting
+ to destroy the currently selected font if it is of the TrueType class.
  */
     RL2_DECLARE void rl2_graph_destroy_font (rl2GraphicsFontPtr font);
 

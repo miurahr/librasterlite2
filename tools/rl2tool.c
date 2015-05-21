@@ -2390,7 +2390,7 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 						t_width, t_height);
 		      rl2_graph_draw_text (ctx, section_name,
 					   cx - (t_width / 2.0),
-					   cy + (t_height / 2.0), 0.0);
+					   cy + (t_height / 2.0), 0.0, 0.0, 0.0);
 		  }
 	    }
 	  else

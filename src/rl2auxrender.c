@@ -1830,7 +1830,8 @@ load_external_graphic_from_dbms (sqlite3 * handle, rl2PrivGraphicPtr graphic)
 			    rl2_destroy_raster (raster);
 			    goto error;
 			}
-		      pattern = rl2_graph_create_pattern (rgba, width, height);
+		      pattern =
+			  rl2_graph_create_pattern (rgba, width, height, 0);
 		      rl2_destroy_raster (raster);
 		  }
 	    }
@@ -2247,7 +2248,7 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 					for (i = 0; i < 10; i++)
 					  {
 					      double tic =
-						  (i % 2) ? size4 : size2;
+						  (i % 2) ? size6 : size2;
 					      double cx =
 						  x + (tic * sin (rads));
 					      double cy =
@@ -2264,7 +2265,7 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 					rl2_graph_close_subpath (ctx);
 					break;
 				    case RL2_GRAPHIC_MARK_CROSS:
-					rl2_graph_move_to_point (ctx, x - size4,
+					rl2_graph_move_to_point (ctx, x - size6,
 								 y - size2);
 					rl2_graph_add_line_to_path (ctx,
 								    x + size6,
@@ -3195,7 +3196,8 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 				     &lbl_height, &post_x, &post_y);
 	  shift_x = 0.0 - (lbl_width / 2.0);
 	  shift_y = 0.0 + (lbl_height / 2.0);
-	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0);
+	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0, 0.0,
+			       0.0);
 	  polyg = polyg->next;
       }
 
@@ -3227,7 +3229,8 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	  y = (double) height - ((cy - miny) / y_res);
 	  shift_x = 0.0 - (lbl_width / 2.0);
 	  shift_y = 0.0 + (lbl_height / 2.0);
-	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0);
+	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0, 0.0,
+			       0.0);
 	  line = line->next;
       }
 
@@ -3249,7 +3252,8 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 				     &lbl_height, &post_x, &post_y);
 	  shift_x = 0.0 - (lbl_width / 2.0);
 	  shift_y = 0.0 + (lbl_height / 2.0);
-	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0);
+	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0, 0.0,
+			       0.0);
 	  point = point->next;
       }
 

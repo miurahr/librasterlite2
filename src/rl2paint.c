@@ -51,6 +51,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "rasterlite2/rasterlite2.h"
 #include "rasterlite2/rl2graphics.h"
+#include "rasterlite2/rl2svg.h"
 #include "rasterlite2_private.h"
 
 #ifdef __ANDROID__		/* Android specific */
@@ -1242,7 +1243,8 @@ adjust_for_endianness (unsigned char *rgbaArray, int width, int height)
 }
 
 RL2_DECLARE rl2GraphicsPatternPtr
-rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height)
+rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height,
+			  int extend)
 {
 /* creating a pattern brush */
     RL2PrivGraphPatternPtr pattern;
@@ -1261,13 +1263,16 @@ rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height)
 	cairo_image_surface_create_for_data (rgbaArray, CAIRO_FORMAT_ARGB32,
 					     width, height, width * 4);
     pattern->pattern = cairo_pattern_create_for_surface (pattern->bitmap);
-    cairo_pattern_set_extend (pattern->pattern, CAIRO_EXTEND_REPEAT);
+    if (extend)
+	cairo_pattern_set_extend (pattern->pattern, CAIRO_EXTEND_REPEAT);
+    else
+	cairo_pattern_set_extend (pattern->pattern, CAIRO_EXTEND_NONE);
     return (rl2GraphicsPatternPtr) pattern;
 }
 
 RL2_DECLARE rl2GraphicsPatternPtr
 rl2_create_pattern_from_external_graphic (sqlite3 * handle,
-					  const char *xlink_href)
+					  const char *xlink_href, int extend)
 {
 /* creating a pattern brush from an External Graphic resource */
     const char *sql;
@@ -1342,7 +1347,114 @@ rl2_create_pattern_from_external_graphic (sqlite3 * handle,
     raster = NULL;
     if (rgbaArray == NULL)
 	goto error;
-    return rl2_graph_create_pattern (rgbaArray, width, height);
+    return rl2_graph_create_pattern (rgbaArray, width, height, extend);
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
+    return NULL;
+}
+
+RL2_DECLARE rl2GraphicsPatternPtr
+rl2_create_pattern_from_external_svg (sqlite3 * handle,
+				      const char *xlink_href, double size)
+{
+/* creating a pattern brush from an External SVG resource */
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    rl2RasterPtr raster = NULL;
+    unsigned char *rgbaArray = NULL;
+    int rgbaSize;
+    unsigned int width;
+    unsigned int height;
+    if (xlink_href == NULL)
+	return NULL;
+    if (size <= 0.0)
+	return NULL;
+
+/* preparing the SQL query statement */
+    sql =
+	"SELECT XB_GetPayload(resource) FROM SE_external_graphics "
+	"WHERE Lower(xlink_href) = Lower(?) AND "
+	"GetMimeType(resource) = 'image/svg+xml'";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, xlink_href, strlen (xlink_href), SQLITE_STATIC);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      rl2SvgPtr svg_handle = rl2_create_svg (blob, blob_sz);
+		      if (svg_handle != NULL)
+			{
+			    double svgWidth;
+			    double svgHeight;
+			    if (rl2_get_svg_size
+				(svg_handle, &svgWidth, &svgHeight) == RL2_OK)
+			      {
+				  double sz;
+				  double w = svgWidth;
+				  double h = svgHeight;
+				  if (w < size && h < size)
+				    {
+					while (w < size && h < size)
+					  {
+					      /* rescaling */
+					      w *= 1.0001;
+					      h *= 1.0001;
+					  }
+				    }
+				  else
+				    {
+					while (w > size || h > size)
+					  {
+					      /* rescaling */
+					      w *= 0.9;
+					      h *= 0.9;
+					  }
+				    }
+				  sz = w;
+				  if (h > sz)
+				      sz = h;
+				  if (raster != NULL)
+				      rl2_destroy_raster (raster);
+				  raster =
+				      rl2_raster_from_svg (svg_handle, size);
+			      }
+			    rl2_destroy_svg (svg_handle);
+			}
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+    if (raster == NULL)
+	goto error;
+
+/* retieving the raster RGBA map */
+    if (rl2_get_raster_size (raster, &width, &height) == RL2_OK)
+      {
+	  if (rl2_raster_data_to_RGBA (raster, &rgbaArray, &rgbaSize) != RL2_OK)
+	      rgbaArray = NULL;
+      }
+    rl2_destroy_raster (raster);
+    raster = NULL;
+    if (rgbaArray == NULL)
+	goto error;
+    return rl2_graph_create_pattern (rgbaArray, width, height, 0);
 
   error:
     if (stmt != NULL)
@@ -1366,6 +1478,20 @@ rl2_graph_destroy_pattern (rl2GraphicsPatternPtr brush)
     if (pattern->rgba != NULL)
 	free (pattern->rgba);
     free (pattern);
+}
+
+RL2_DECLARE int
+rl2_graph_get_pattern_size (rl2GraphicsPatternPtr ptr,
+			    unsigned int *width, unsigned int *height)
+{
+/* will return the Pattern dimensions */
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) ptr;
+
+    if (pattern == NULL)
+	return RL2_ERROR;
+    *width = pattern->width;
+    *height = pattern->height;
+    return RL2_OK;
 }
 
 static void
@@ -2287,6 +2413,8 @@ rl2_graph_get_text_extent (rl2GraphicsContextPtr context, const char *text,
 
     if (ctx == NULL)
 	return 0;
+    if (text == NULL)
+	return 0;
     if (ctx->type == RL2_SURFACE_PDF)
 	cairo = ctx->clip_cairo;
     else
@@ -2304,26 +2432,55 @@ rl2_graph_get_text_extent (rl2GraphicsContextPtr context, const char *text,
 
 RL2_DECLARE int
 rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text, double x,
-		     double y, double angle)
+		     double y, double angle, double anchor_point_x,
+		     double anchor_point_y)
 {
 /* drawing a text string (using the current font) */
+    double rads;
+    double pre_x;
+    double pre_y;
+    double width;
+    double height;
+    double post_x;
+    double post_y;
+    double center_x;
+    double center_y;
+    double cx;
+    double cy;
     cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
     if (ctx == NULL)
+	return 0;
+    if (text == NULL)
 	return 0;
     if (ctx->type == RL2_SURFACE_PDF)
 	cairo = ctx->clip_cairo;
     else
 	cairo = ctx->cairo;
 
+/* setting the Anchor Point */
+    rl2_graph_get_text_extent (ctx, text, &pre_x, &pre_y, &width, &height,
+			       &post_x, &post_y);
+    if (anchor_point_x < 0.0 || anchor_point_x > 1.0 || anchor_point_x == 0.5)
+	center_x = width / 2.0;
+    else
+	center_x = width * anchor_point_x;
+    if (anchor_point_y < 0.0 || anchor_point_y > 1.0 || anchor_point_y == 0.5)
+	center_y = height / 2.0;
+    else
+	center_y = height * anchor_point_y;
+    cx = 0.0 - center_x;
+    cy = 0.0 + center_y;
+
     cairo_save (cairo);
     cairo_translate (cairo, x, y);
-    cairo_rotate (cairo, angle);
+    rads = angle * .0174532925199432958;
+    cairo_rotate (cairo, rads);
     if (ctx->with_font_halo)
       {
 	  /* font with Halo */
-	  cairo_move_to (cairo, 0.0, 0.0);
+	  cairo_move_to (cairo, cx, cy);
 	  cairo_text_path (cairo, text);
 	  cairo_set_source_rgba (cairo, ctx->font_red, ctx->font_green,
 				 ctx->font_blue, ctx->font_alpha);
@@ -2338,16 +2495,334 @@ rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text, double x,
 	  /* no Halo */
 	  cairo_set_source_rgba (cairo, ctx->font_red, ctx->font_green,
 				 ctx->font_blue, ctx->font_alpha);
-	  cairo_move_to (cairo, 0.0, 0.0);
+	  cairo_move_to (cairo, cx, cy);
 	  cairo_show_text (cairo, text);
       }
     cairo_restore (cairo);
     return 1;
 }
 
+static void
+do_estimate_text_length (cairo_t * cairo, const char *text, double *length,
+			 double *extra)
+{
+/* estimating the text length */
+    const char *p = text;
+    int count = 0;
+    double radius = 0.0;
+    cairo_font_extents_t extents;
+
+    while (*p++ != '\0')
+	count++;
+    cairo_font_extents (cairo, &extents);
+    radius =
+	sqrt ((extents.max_x_advance * extents.max_x_advance) +
+	      (extents.height * extents.height)) / 2.0;
+    *length = radius * count;
+    *extra = radius;
+}
+
+static void
+get_aux_start_point (rl2GeometryPtr geom, double *x, double *y)
+{
+/* extracting the first point from a Curve */
+    double x0;
+    double y0;
+    rl2LinestringPtr ln = geom->first_linestring;
+    rl2GetPoint (ln->coords, 0, &x0, &y0);
+    *x = x0;
+    *y = y0;
+}
+
+static int
+get_aux_interception_point (sqlite3 * handle, rl2GeometryPtr geom,
+			    rl2GeometryPtr circle, double *x, double *y)
+{
+/* computing and interception point */
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int ret;
+    unsigned char *blob1;
+    int size1;
+    unsigned char *blob2;
+    int size2;
+    int ok = 0;
+
+    rl2_serialize_linestring (geom->first_linestring, &blob1, &size1);
+    rl2_serialize_linestring (circle->first_linestring, &blob2, &size2);
+
+/* preparing the SQL query statement */
+    sql = "SELECT ST_Intersection(?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob1, size1, free);
+    sqlite3_bind_blob (stmt, 2, blob2, size2, free);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob3 =
+			  sqlite3_column_blob (stmt, 0);
+		      int size3 = sqlite3_column_bytes (stmt, 0);
+		      rl2GeometryPtr result =
+			  rl2_geometry_from_blob (blob3, size3);
+		      if (result == NULL)
+			  break;
+		      if (result->first_point == NULL)
+			  break;
+		      *x = result->first_point->x;
+		      *y = result->first_point->y;
+		      ok = 1;
+		  }
+	    }
+	  else
+	      goto error;
+      }
+    if (ok == 0)
+	goto error;
+    sqlite3_finalize (stmt);
+    return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return 0;
+}
+
+static int
+aux_is_discarded_portion (rl2LinestringPtr ln, double x, double y)
+{
+/* attempting to identify the already processed portion */
+    double xx;
+    double yy;
+    rl2GetPoint (ln->coords, 0, &xx, &yy);
+    if (xx == x && yy == y)
+	return 1;
+    rl2GetPoint (ln->coords, ln->points - 1, &xx, &yy);
+    if (xx == x && yy == y)
+	return 1;
+    return 0;
+}
+
+static rl2GeometryPtr
+aux_reduce_curve (sqlite3 * handle, rl2GeometryPtr geom, rl2GeometryPtr circle,
+		  double x, double y)
+{
+/* reducing a Curve by discarding the alreasdy processed portion */
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int ret;
+    unsigned char *blob1;
+    int size1;
+    unsigned char *blob2;
+    int size2;
+    rl2GeometryPtr out = NULL;
+    rl2LinestringPtr ln;
+    rl2LinestringPtr save_ln = NULL;
+    int count = 0;
+
+    rl2_serialize_linestring (geom->first_linestring, &blob1, &size1);
+    rl2_serialize_linestring (circle->first_linestring, &blob2, &size2);
+
+/* preparing the SQL query statement */
+    sql = "SELECT ST_Split(?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob1, size1, free);
+    sqlite3_bind_blob (stmt, 2, blob2, size2, free);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob3 =
+			  sqlite3_column_blob (stmt, 0);
+		      int size3 = sqlite3_column_bytes (stmt, 0);
+		      rl2GeometryPtr result =
+			  rl2_geometry_from_blob (blob3, size3);
+		      if (result == NULL)
+			  break;
+		      ln = result->first_linestring;
+		      while (ln != NULL)
+			{
+			    if (aux_is_discarded_portion (ln, x, y))
+				;
+			    else
+			      {
+				  save_ln = ln;
+				  count++;
+			      }
+			    ln = ln->next;
+			}
+		  }
+	    }
+	  else
+	      goto error;
+      }
+    if (save_ln == NULL || count != 1)
+	goto error;
+    out = rl2_clone_linestring (save_ln);
+    sqlite3_finalize (stmt);
+    return out;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return NULL;
+}
+
+static rl2GeometryPtr
+rl2_draw_wrapped_label (sqlite3 * handle, rl2GraphicsContextPtr context,
+			cairo_t * cairo, const char *text, rl2GeometryPtr geom)
+{
+/* placing each character along the modelling line */
+    double x0;
+    double y0;
+    double x1;
+    double y1;
+    double radius;
+    double m;
+    double rads;
+    double angle;
+    char buf[2];
+    rl2GeometryPtr g2;
+    rl2GeometryPtr g = rl2_clone_curve (geom);
+    rl2GeometryPtr circle;
+    const char *c = text;
+    cairo_font_extents_t extents;
+
+    cairo_font_extents (cairo, &extents);
+    radius =
+	sqrt ((extents.max_x_advance * extents.max_x_advance) +
+	      (extents.height * extents.height)) / 2.0;
+    while (*c != '\0' && g != NULL)
+      {
+	  buf[0] = *c;
+	  buf[1] = '\0';
+	  get_aux_start_point (g, &x0, &y0);
+	  circle = rl2_build_circle (x0, y0, radius);
+	  if (!get_aux_interception_point (handle, g, circle, &x1, &y1))
+	    {
+		rl2_destroy_geometry (circle);
+		rl2_destroy_geometry (g);
+		g = NULL;
+		break;
+	    }
+	  m = (y1 - y0) / (x1 - x0);
+	  rads = atan (m);
+	  angle = rads / .0174532925199432958;
+	  if (x1 < x0)
+	      angle += 180.0;
+	  rl2_graph_draw_text (context, buf, x0, y0, angle, 0.5, 0.5);
+	  c++;
+	  g2 = aux_reduce_curve (handle, g, circle, x0, y0);
+	  rl2_destroy_geometry (circle);
+	  rl2_destroy_geometry (g);
+	  g = g2;
+      }
+    return g;
+}
+
+RL2_DECLARE int
+rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
+			    const char *text, int points, double *x, double *y,
+			    double initial_gap, double gap, int repeated)
+{
+/* drawing a text string warped along a modelling curve (using the current font) */
+    double curve_len;
+    double text_len;
+    double extra_len;
+    double start;
+    double from;
+    rl2GeometryPtr geom = NULL;
+    rl2GeometryPtr geom2 = NULL;
+    cairo_t *cairo;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+
+    if (ctx == NULL)
+	return 0;
+    if (text == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    geom = rl2_curve_from_XY (points, x, y);
+    if (geom == NULL)
+	return 0;
+
+    curve_len = rl2_compute_curve_length (geom);
+    do_estimate_text_length (cairo, text, &text_len, &extra_len);
+    if ((text_len + (2.0 * extra_len)) > curve_len)
+	return 0;		/* not enough room to place the label */
+
+    if (repeated)
+      {
+	  /* repeated labels */
+	  int first = 1;
+	  rl2GeometryPtr geom3 = rl2_clone_linestring (geom->first_linestring);
+	  while (geom3 != NULL)
+	    {
+		if (first)
+		  {
+		      start = initial_gap + extra_len;
+		      first = 0;
+		  }
+		else
+		    start = gap + extra_len;
+		curve_len = rl2_compute_curve_length (geom3);
+		from = start / curve_len;
+		/* extracting the sub-path modelling the label */
+		geom2 = rl2_curve_substring (handle, geom3, from, 1.0);
+		rl2_destroy_geometry (geom3);
+		if (geom2 == NULL)
+		    goto error;
+		geom3 =
+		    rl2_draw_wrapped_label (handle, context, cairo, text,
+					    geom2);
+		rl2_destroy_geometry (geom2);
+	    }
+      }
+    else
+      {
+	  /* single label */
+	  start = (curve_len - text_len) / 2.0;
+	  from = start / curve_len;
+	  /* extracting the sub-path modelling the label */
+	  geom2 = rl2_curve_substring (handle, geom, from, 1.0);
+	  if (geom2 == NULL)
+	      goto error;
+	  rl2_draw_wrapped_label (handle, context, cairo, text, geom2);
+	  rl2_destroy_geometry (geom2);
+      }
+
+    rl2_destroy_geometry (geom);
+    return 1;
+
+  error:
+    rl2_destroy_geometry (geom);
+    return 0;
+}
+
 RL2_DECLARE int
 rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
-		       rl2GraphicsBitmapPtr bitmap, int x, int y)
+		       rl2GraphicsBitmapPtr bitmap, double x, double y)
 {
 /* drawing a symbol bitmap */
     cairo_t *cairo;
@@ -2384,7 +2859,7 @@ rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
 RL2_DECLARE int
 rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr context,
 				rl2GraphicsBitmapPtr bitmap, double scale_x,
-				double scale_y, int x, int y)
+				double scale_y, double x, double y)
 {
 /* drawing a rescaled bitmap */
     cairo_t *cairo;
@@ -2414,6 +2889,237 @@ rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr context,
     cairo_paint (cairo);
     cairo_restore (cairo);
     cairo_surface_flush (surface);
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_draw_graphic_symbol (rl2GraphicsContextPtr context,
+			       rl2GraphicsPatternPtr symbol, double width,
+			       double height, double x,
+			       double y, double angle,
+			       double anchor_point_x, double anchor_point_y)
+{
+/* drawing a Graphic Symbol */
+    double rads;
+    double scale_x;
+    double scale_y;
+    double center_x;
+    double center_y;
+    cairo_t *cairo;
+    cairo_surface_t *surface;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    RL2PrivGraphPatternPtr pattern = (RL2PrivGraphPatternPtr) symbol;
+
+    if (ctx == NULL)
+	return 0;
+    if (pattern == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+      {
+	  surface = ctx->clip_surface;
+	  cairo = ctx->clip_cairo;
+      }
+    else
+      {
+	  surface = ctx->surface;
+	  cairo = ctx->cairo;
+      }
+
+/* setting the Anchor Point */
+    scale_x = width / (double) (pattern->width);
+    scale_y = height / (double) (pattern->height);
+    if (anchor_point_x < 0.0 || anchor_point_x > 1.0 || anchor_point_x == 0.5)
+	center_x = (double) (pattern->width) / 2.0;
+    else
+	center_x = (double) (pattern->width) * anchor_point_x;
+    if (anchor_point_y < 0.0 || anchor_point_y > 1.0 || anchor_point_y == 0.5)
+	center_y = (double) (pattern->height) / 2.0;
+    else
+	center_y = (double) (pattern->height) * anchor_point_y;
+
+    cairo_save (cairo);
+    cairo_translate (cairo, x, y);
+    cairo_scale (cairo, scale_x, scale_y);
+    rads = angle * .0174532925199432958;
+    cairo_rotate (cairo, rads);
+    cairo_translate (cairo, 0.0 - center_x, 0.0 - center_y);
+    cairo_set_source (cairo, pattern->pattern);
+    cairo_paint (cairo);
+    cairo_restore (cairo);
+    cairo_surface_flush (surface);
+
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_graph_draw_mark_symbol (rl2GraphicsContextPtr context, int mark_type,
+			    double size,
+			    double x, double y,
+			    double angle,
+			    double anchor_point_x,
+			    double anchor_point_y, int fill, int stroke)
+{
+/* drawing a Mark Symbol */
+    double xsize;
+    double size2 = size / 2.0;
+    double size4 = size / 4.0;
+    double size6 = size / 6.0;
+    double size8 = size / 8.0;
+    double size13 = size / 3.0;
+    double size23 = (size / 3.0) * 2.0;
+    int i;
+    double rads;
+    double center_x;
+    double center_y;
+    cairo_t *cairo;
+    cairo_surface_t *surface;
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+
+    if (ctx == NULL)
+	return 0;
+    if (ctx->type == RL2_SURFACE_PDF)
+      {
+	  surface = ctx->clip_surface;
+	  cairo = ctx->clip_cairo;
+      }
+    else
+      {
+	  surface = ctx->surface;
+	  cairo = ctx->cairo;
+      }
+    cairo_save (cairo);
+    cairo_translate (cairo, x, y);
+    rads = angle * .0174532925199432958;
+    cairo_rotate (cairo, rads);
+
+/* setting the Anchor Point */
+    xsize = size;
+    if (mark_type == RL2_GRAPHIC_MARK_CIRCLE
+	|| mark_type == RL2_GRAPHIC_MARK_TRIANGLE
+	|| mark_type == RL2_GRAPHIC_MARK_STAR)
+	xsize = size23 * 2.0;
+    if (anchor_point_x < 0.0 || anchor_point_x > 1.0 || anchor_point_x == 0.5)
+	center_x = 0.0;
+    else
+	center_x = 0.0 + (xsize / 2.0) - (xsize * anchor_point_x);
+    if (anchor_point_y < 0.0 || anchor_point_y > 1.0 || anchor_point_y == 0.5)
+	center_y = 0.0;
+    else
+	center_y = 0.0 - (xsize / 2.0) + (xsize * anchor_point_y);
+    x = center_x;
+    y = center_y;
+    if (size2 <= 0.0)
+	size2 = 1.0;
+    if (size4 <= 0.0)
+	size4 = 1.0;
+    if (size6 <= 0.0)
+	size6 = 1.0;
+    if (size13 <= 0.0)
+	size13 = 1.0;
+    if (size23 <= 0.0)
+	size23 = 1.0;
+
+/* preparing the Mark Symbol path */
+    switch (mark_type)
+      {
+      case RL2_GRAPHIC_MARK_CIRCLE:
+	  rads = 0.0;
+	  for (i = 0; i < 32; i++)
+	    {
+		double tic = 6.28318530718 / 32.0;
+		double cx = x + (size23 * sin (rads));
+		double cy = y + (size23 * cos (rads));
+		if (i == 0)
+		    rl2_graph_move_to_point (ctx, cx, cy);
+		else
+		    rl2_graph_add_line_to_path (ctx, cx, cy);
+		rads += tic;
+	    }
+	  rl2_graph_close_subpath (ctx);
+	  break;
+      case RL2_GRAPHIC_MARK_TRIANGLE:
+	  rads = 0.0;
+	  for (i = 0; i < 3; i++)
+	    {
+		double tic = 6.28318530718 / 3.0;
+		double cx = x + (size23 * sin (rads));
+		double cy = y + (size23 * cos (rads));
+		if (i == 0)
+		    rl2_graph_move_to_point (ctx, cx, cy);
+		else
+		    rl2_graph_add_line_to_path (ctx, cx, cy);
+		rads += tic;
+	    }
+	  rl2_graph_close_subpath (ctx);
+	  break;
+      case RL2_GRAPHIC_MARK_STAR:
+	  rads = 3.14159265359;
+	  for (i = 0; i < 10; i++)
+	    {
+		double tic = (i % 2) ? size4 : size23;
+		double cx = x + (tic * sin (rads));
+		double cy = y + (tic * cos (rads));
+		if (i == 0)
+		    rl2_graph_move_to_point (ctx, cx, cy);
+		else
+		    rl2_graph_add_line_to_path (ctx, cx, cy);
+		rads += 0.628318530718;
+	    }
+	  rl2_graph_close_subpath (ctx);
+	  break;
+      case RL2_GRAPHIC_MARK_CROSS:
+	  rl2_graph_move_to_point (ctx, x - size8, y - size2);
+	  rl2_graph_add_line_to_path (ctx, x + size8, y - size2);
+	  rl2_graph_add_line_to_path (ctx, x + size8, y - size8);
+	  rl2_graph_add_line_to_path (ctx, x + size2, y - size8);
+	  rl2_graph_add_line_to_path (ctx, x + size2, y + size8);
+	  rl2_graph_add_line_to_path (ctx, x + size8, y + size8);
+	  rl2_graph_add_line_to_path (ctx, x + size8, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x - size8, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x - size8, y + size8);
+	  rl2_graph_add_line_to_path (ctx, x - size2, y + size8);
+	  rl2_graph_add_line_to_path (ctx, x - size2, y - size8);
+	  rl2_graph_add_line_to_path (ctx, x - size8, y - size8);
+	  rl2_graph_close_subpath (ctx);
+	  break;
+      case RL2_GRAPHIC_MARK_X:
+	  rl2_graph_move_to_point (ctx, x, y - size6);
+	  rl2_graph_add_line_to_path (ctx, x - size4, y - size2);
+	  rl2_graph_add_line_to_path (ctx, x - size2, y - size2);
+	  rl2_graph_add_line_to_path (ctx, x - size8, y);
+	  rl2_graph_add_line_to_path (ctx, x - size2, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x - size4, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x, y + size6);
+	  rl2_graph_add_line_to_path (ctx, x + size4, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x + size2, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x + size8, y);
+	  rl2_graph_add_line_to_path (ctx, x + size2, y - size2);
+	  rl2_graph_add_line_to_path (ctx, x + size4, y - size2);
+	  rl2_graph_close_subpath (ctx);
+	  break;
+      case RL2_GRAPHIC_MARK_SQUARE:
+      default:
+	  rl2_graph_move_to_point (ctx, x - size2, y - size2);
+	  rl2_graph_add_line_to_path (ctx, x - size2, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x + size2, y + size2);
+	  rl2_graph_add_line_to_path (ctx, x + size2, y - size2);
+	  rl2_graph_close_subpath (ctx);
+	  break;
+      };
+
+/* fillingt and stroking the path */
+    if (fill && !stroke)
+	rl2_graph_fill_path (ctx, RL2_CLEAR_PATH);
+    else if (stroke && !fill)
+	rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+    else
+      {
+	  rl2_graph_fill_path (ctx, RL2_PRESERVE_PATH);
+	  rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+      }
+    cairo_restore (cairo);
+    cairo_surface_flush (surface);
+
     return 1;
 }
 

@@ -307,7 +307,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
       }
 
 /* creating and setting up a pattern brush */
-    pattern = rl2_graph_create_pattern (rgba, 64, 64);
+    pattern = rl2_graph_create_pattern (rgba, 64, 64, 1);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Pattern Brush\n");
@@ -397,7 +397,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 	  fprintf (stderr, "Unable to set up a font\n");
 	  return -49;
       }
-    if (!rl2_graph_draw_text (ctx, "Armageddon", 1000, 100, 120))
+    if (!rl2_graph_draw_text (ctx, "Armageddon", 1000, 100, 120, 0.0, 0.0))
       {
 	  fprintf (stderr, "Unable to print text #1\n");
 	  return -50;
@@ -427,7 +427,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 	  fprintf (stderr, "Unable to set up a font #2\n");
 	  return -54;
       }
-    if (!rl2_graph_draw_text (ctx, "Walhalla", 300, 400, 0))
+    if (!rl2_graph_draw_text (ctx, "Walhalla", 300, 400, 0, 0.0, 0.0))
       {
 	  fprintf (stderr, "Unable to print text #2\n");
 	  return -55;
@@ -913,7 +913,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
       }
 
 /* creating and setting up a pattern brush */
-    pattern = rl2_graph_create_pattern (rgba, 64, 64);
+    pattern = rl2_graph_create_pattern (rgba, 64, 64, 1);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Pattern Pen\n");
@@ -1080,7 +1080,7 @@ do_paint_test (rl2GraphicsContextPtr ctx)
       }
 
 /* creating and setting up a pattern brush */
-    pattern = rl2_graph_create_pattern (rgba, 64, 64);
+    pattern = rl2_graph_create_pattern (rgba, 64, 64, 1);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Pattern Pen\n");

@@ -757,11 +757,11 @@ rl2_get_TrueType_font (sqlite3 * handle, const char *facename,
 			    free (xfont);
 			    xfont = NULL;
 			}
-		      if (rl2_font_decode (blob, blob_sz, &xfont, &xfont_sz) ==
-			  RL2_OK)
+		      if (rl2_is_valid_encoded_font (blob, blob_sz) == RL2_OK)
 			{
-			    *font = xfont;
-			    *font_sz = xfont_sz;
+			    *font = malloc (blob_sz);
+			    *font_sz = blob_sz;
+			    memcpy (*font, blob, blob_sz);
 			}
 		  }
 	    }

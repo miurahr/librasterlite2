@@ -631,11 +631,13 @@ extern "C"
  supporting the Pattern Brush to be created.
  \param width Pattern width (in pixels)
  \param height Pattern height (in pixels)
+ \param extend if TRUE the pattern will be infinitely repeated
+  so to completely fill the plane 
 
  \return the pointer to the corresponding Pattern Brush object: NULL on failure
  
  \sa rl2_graph_set_pattern_brush, rl2_graph_destroy_brush,
- rl2_create_pattern_from_external_graphic
+ rl2_create_pattern_from_external_graphic, rl2_create_pattern_from_external_svg
  
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_graph_create_pattern() by invoking rl2_graph_destroy_pattern().
@@ -643,18 +645,22 @@ extern "C"
     RL2_DECLARE rl2GraphicsPatternPtr rl2_graph_create_pattern (unsigned char
 								*rgbaArray,
 								int width,
-								int height);
+								int height,
+								int extend);
 
 /**
- Creates a Pattern Brush from an External Graphic resource (PNG, GIF, JPEG)
+ Creates a Pattern from an External Graphic resource (PNG, GIF, JPEG)
 
  \param handle SQLite3 connection handle
  \param xlink_href unique External Graphic identifier
+ \param extend if TRUE the pattern will be infinitely repeated
+  so to completely fill the plane 
 
  \return the pointer to the corresponding Pattern Brush object: NULL on failure
  
  \sa rl2_graph_set_pattern_brush, rl2_graph_destroy_brush,
- rl2_graph_create_pattern
+ rl2_graph_create_pattern, rl2_create_pattern_from_external_svg,
+ rl2_graph_pattern_get_size
  
  \note you are responsible to destroy (before or after) any Pattern Brush
  returned by rl2_create_pattern_from_external_graphic() by invoking 
@@ -662,21 +668,60 @@ extern "C"
  */
     RL2_DECLARE rl2GraphicsPatternPtr
 	rl2_create_pattern_from_external_graphic (sqlite3 * handle,
-						  const char *xlink_href);
+						  const char *xlink_href,
+						  int extend);
+
+/**
+ Creates a Pattern from an External Graphic resource (SVG)
+
+ \param handle SQLite3 connection handle
+ \param xlink_href unique External Graphic identifier
+ \param size the scaled size of the SVG symbol
+
+ \return the pointer to the corresponding Pattern Brush object: NULL on failure
+ 
+ \sa rl2_graph_set_pattern_brush, rl2_graph_destroy_brush,
+ rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic,
+ rl2_graph_pattern_get_size
+ 
+ \note you are responsible to destroy (before or after) any Pattern Brush
+ returned by rl2_create_pattern_from_external_graphic() by invoking 
+ rl2_graph_destroy_pattern().
+ */
+    RL2_DECLARE rl2GraphicsPatternPtr
+	rl2_create_pattern_from_external_svg (sqlite3 * handle,
+					      const char *xlink_href,
+					      double size);
 
 /**
  Destroys a Pattern Brush object freeing any allocated resource 
 
- \param handle the pointer to a valid Pattern Brush returned by a previous call
- to rl2_graph_create_pattern()
+ \param pattern pointer to a valid Pattern object
  
- \sa rl2_graph_create_pattern
+ \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic
 
  \note you should always release a Pattern Pen or Pattern Brush from any
  referencing Graphic Context before attempting to destroy the corresponding
  Pattern object.
  */
     RL2_DECLARE void rl2_graph_destroy_pattern (rl2GraphicsPatternPtr pattern);
+
+/**
+ Retrieving the Dimensions from a Pattern Brush object
+
+ \param pattern pointer to a valid Pattern object
+ \param width on completion the variable referenced by this
+ pointer will contain the Pattern's Width (in pixels).
+ \param height on completion the variable referenced by this
+ pointer will contain the Pattern's Height (in pixels).
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic
+ */
+    RL2_DECLARE int rl2_graph_get_pattern_size (rl2GraphicsPatternPtr pattern,
+						unsigned int *width,
+						unsigned int *height);
 
 /**
  Recolors a Monochrome Pattern object  
@@ -690,7 +735,8 @@ extern "C"
  \return RL2_OK on success: RL2_ERROR on failure. 
  
  \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic,
- rl2_graph_destroy_pattern
+ rl2_graph_destroy_pattern, rl2_graph_pattern_transparency,
+ rl2_graph_draw_graphic_symbol
 
  \note only a Monochrome Pattern can be succesfully recolored.
  Completely transparent pixels will be ignored; all opaque pixels
@@ -710,7 +756,8 @@ extern "C"
  \return RL2_OK on success: RL2_ERROR on failure. 
  
  \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic,
- rl2_graph_destroy_pattern
+ rl2_graph_destroy_pattern, rl2_graph_pattern_recolor, 
+ rl2_graph_draw_graphic_symbol
 
  \note Completely transparent pixels will be always preserved as such; 
  all other pixels will assume the required transparency.
@@ -718,6 +765,76 @@ extern "C"
     RL2_DECLARE int rl2_graph_pattern_transparency (rl2GraphicsPatternPtr
 						    pattern,
 						    unsigned char alpha);
+
+/**
+ Draws a Graphic Symbol into the Canvass
+
+ \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param pattern the pointer to a valid  Pattern returned by a previous call
+ \param width of the rendered image.
+ \param height of the rendered image.
+ \param x the X coordinate of the Anchor Point.
+ \param y the Y coordinate of the Anchor Point.
+ \param angle an angle (in decimal degrees) to rotate the image.
+ \param angle an angle (in decimal degrees) to rotate the image.
+ \param anchor_point_x relative X position of the Anchor Point
+  expressed as a percent position within the image bounding box
+  (expected to be a value between 0.0 and 1.0)
+ \param anchor_point_y relative Y position of the Anchor Point
+  expressed as a percent position within the image bounding box
+  (expected to be a value between 0.0 and 1.0)
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_pattern, rl2_create_pattern_from_external_graphic,
+ rl2_graph_destroy_pattern, rl2_graph_pattern_transparency, 
+ rl2_graph_pattern_recolor, rl2_graph_draw_mark_symbol
+ */
+    RL2_DECLARE int rl2_graph_draw_graphic_symbol (rl2GraphicsContextPtr
+						   context,
+						   rl2GraphicsPatternPtr
+						   pattern, double width,
+						   double height, double x,
+						   double y, double angle,
+						   double anchor_point_x,
+						   double anchor_point_y);
+
+/**
+ Draws a Mark Symbol into the Canvass
+
+ \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param mark_type expected to be one between RL2_GRAPHIC_MARK_SQUARE,
+  RL2_GRAPHIC_MARK_CIRCLE, RL2_GRAPHIC_MARK_TRIANGLE, 
+  RL2_GRAPHIC_MARK_STAR, RL2_GRAPHIC_MARK_CROSS and RL2_GRAPHIC_MARK_X 
+  (default: RL2_GRAPHIC_MARK_SQUARE).
+ \param size the Mark Symbol size (in pixels).
+ \param x the X coordinate of the Anchor Point.
+ \param y the Y coordinate of the Anchor Point.
+ \param angle an angle (in decimal degrees) to rotate the image.
+ \param angle an angle (in decimal degrees) to rotate the image.
+ \param anchor_point_x relative X position of the Anchor Point
+  expressed as a percent position within the image bounding box
+  (expected to be a value between 0.0 and 1.0)
+ \param anchor_point_y relative Y position of the Anchor Point
+  expressed as a percent position within the image bounding box
+  (expected to be a value between 0.0 and 1.0)
+ \param fill if TRUE the Mark Symboll will be filled using the
+  currently set brush
+ \param stroke if TRUE the Mark Symboll will be stroked using
+  the currently set pen
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_draw_graphic_symbol
+ */
+    RL2_DECLARE int rl2_graph_draw_mark_symbol (rl2GraphicsContextPtr
+						context, int mark_type,
+						double size,
+						double x, double y,
+						double angle,
+						double anchor_point_x,
+						double anchor_point_y, int fill,
+						int stroke);
 
 /**
  Creates a Graphics Font Object (CAIRO built-in "toy" fonts)
@@ -1105,15 +1222,57 @@ extern "C"
  \param text string to be printed into the canvass.
  \param x the X coordinate of the top left corner of the text.
  \param y the Y coordinate of the top left corner of the text.
- \param angle an angle (in degrees) to rotate the text
+ \param angle an angle (in decimal degrees) to rotate the text.
+ \param anchor_point_x relative X position of the Anchor Point
+  expressed as a percent position within the text bounding box
+  (expected to be a value between 0.0 and 1.0)
+ \param anchor_point_y relative Y position of the Anchor Point
+  expressed as a percent position within the text bounding box
+  (expected to be a value between 0.0 and 1.0)
 
  \return 0 (false) on error, any other value on success.
  
- \sa rl2_graph_set_font, rl2_graph_get_text_extent
+ \sa rl2_graph_set_font, rl2_graph_get_text_extent,
+ rl2_graph_draw_warped_text
  */
     RL2_DECLARE int rl2_graph_draw_text (rl2GraphicsContextPtr context,
 					 const char *text, double x, double y,
-					 double angle);
+					 double angle,
+					 double anchor_point_x,
+					 double anchor_point_y);
+
+/**
+ Draws a text warped along a curve using the currently set Font
+
+ \param handle connection handle
+ \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param text string to be printed into the canvass.
+ \param points number of item in both X and Y arrays
+ \param x array of X coordinates.
+ \param y array of Y coordinates; both X and Y arrays represent
+  the curve modelling the text to be warped. 
+ \param initial_gap white space to be preserved before printing
+ the first label occurrence.
+ \param gap distance separating two cosecutive label occurrences.
+ (both initial_gap and gap are only meaningfull in the repeated case).
+ \param repeated if TRUE the text (aka label) will be repeated
+  as many times as allowed by the modelling curve lenght.
+  If FALSE the text (aka label) will be printed only once near
+  the mid-point of the modelling curve.
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_set_font, rl2_graph_draw_text
+ 
+ \note if the modelling curve length is shorter than the text
+ (aka label) length then no output at all will be printed.
+ */
+    RL2_DECLARE int rl2_graph_draw_warped_text (sqlite3 * handle,
+						rl2GraphicsContextPtr context,
+						const char *text, int points,
+						double *x, double *y,
+						double initial_gap, double gap,
+						int repeated);
 
 /**
  Computes the extent corresponding to a text into the Canvass using the currently set Font
@@ -1148,39 +1307,41 @@ extern "C"
 
  \param context the pointer to a valid Graphics Context (aka Canvass).
  \param bitmap the pointer to a valid Graphics Bitmap to be rendered.
- \param x the X coordinate of the top left corner of the image.
- \param y the Y coordinate of the top left corner of the image.
+ \param x the X coordinate of the image's left upper corner.
+ \param y the Y coordinate of the image's left upper corner.
 
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap,
- rl2_graph_draw_rescaled_bitmap
+ rl2_graph_draw_rescaled_bitmap, rl2_graph_draw_graphic_symbol, 
+ rl2_graph_draw_mark_symbol
  */
     RL2_DECLARE int rl2_graph_draw_bitmap (rl2GraphicsContextPtr context,
-					   rl2GraphicsBitmapPtr bitmap, int x,
-					   int y);
+					   rl2GraphicsBitmapPtr bitmap,
+					   double x, double y);
 
 /**
  Draws a Rescaled Bitmap into the Canvass
 
  \param context the pointer to a valid Graphics Context (aka Canvass).
  \param bitmap the pointer to a valid Graphics Bitmap to be rendered.
- \param scale_x the Scale Factor for X axis
- \param scale_y the Scale Factor for Y axis
- \param x the X coordinate of the top left corner of the image.
- \param y the Y coordinate of the top left corner of the image.
+ \param scale_x the Scale Factor for X axis.
+ \param scale_y the Scale Factor for Y axis.
+ \param x the X coordinate of the image's left upper corner.
+ \param y the Y coordinate of the image's left upper corner.
 
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap,
- rl2_graph_draw_bitmap
+ rl2_graph_draw_bitmap, rl2_graph_draw_graphic_symbol, 
+ rl2_graph_draw_mark_symbol
  */
     RL2_DECLARE int rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr
 						    context,
 						    rl2GraphicsBitmapPtr bitmap,
 						    double scale_x,
-						    double scale_y, int x,
-						    int y);
+						    double scale_y, double x,
+						    double y);
 
 /**
  Creates an RGB Array corresponding to the current Canvass

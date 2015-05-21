@@ -44,6 +44,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <float.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -1721,4 +1722,183 @@ rl2_serialize_ring (rl2RingPtr ring, unsigned char **result, int *size)
       }
     *ptr = GAIA_MARK_END;	/* END signature */
     return 1;
+}
+
+RL2_PRIVATE rl2GeometryPtr
+rl2_curve_from_XY (int points, double *x, double *y)
+{
+/* creating a Linestring Geometry from X,Y coordinate arrays */
+    rl2GeometryPtr geom = NULL;
+    rl2LinestringPtr ln;
+    int iv;
+
+    if (points <= 0 || x == NULL || y == NULL)
+	return 0;
+    geom = rl2CreateGeometry ();
+    ln = rl2AddLinestringToGeometry (geom, points);
+    for (iv = 0; iv < points; iv++)
+	rl2SetPoint (ln->coords, iv, *(x + iv), *(y + iv));
+    return geom;
+}
+
+RL2_PRIVATE double
+rl2_compute_curve_length (rl2GeometryPtr geom)
+{
+/* computing the total length of some curve (single linestring expected) */
+    rl2LinestringPtr ln;
+    double length = 0.0;
+    double x0;
+    double y0;
+    double x1;
+    double y1;
+    int iv;
+
+    if (geom == NULL)
+	return 0.0;
+    if (geom->first_point != NULL || geom->first_polygon != NULL)
+	return 0.0;
+    if (geom->first_linestring != geom->last_linestring)
+	return 0.0;
+    ln = geom->first_linestring;
+    if (ln == NULL)
+	return 0.0;
+
+    for (iv = 0; iv < ln->points; iv++)
+      {
+	  rl2GetPoint (ln->coords, iv, &x1, &y1);
+	  if (iv > 0)
+	      length += sqrt ((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1));
+	  x0 = x1;
+	  y0 = y1;
+      }
+    return length;
+}
+
+RL2_PRIVATE rl2GeometryPtr
+rl2_curve_substring (sqlite3 * handle, rl2GeometryPtr geom, double from,
+		     double to)
+{
+/* extracting a sub-path from some Curve */
+    rl2LinestringPtr ln;
+    rl2GeometryPtr result = NULL;
+    unsigned char *blob;
+    int blob_sz;
+    const char *sql;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+
+    if (handle == NULL)
+	return NULL;
+    if (geom == NULL)
+	return NULL;
+    if (geom->first_point != NULL || geom->first_polygon != NULL)
+	return NULL;
+    if (geom->first_linestring != geom->last_linestring)
+	return NULL;
+    ln = geom->first_linestring;
+    if (ln == NULL)
+	return NULL;
+
+    if (!rl2_serialize_linestring (ln, &blob, &blob_sz))
+	return NULL;
+
+    sql = "SELECT ST_Line_Substring(?, ?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, free);
+    sqlite3_bind_double (stmt, 2, from);
+    sqlite3_bind_double (stmt, 3, to);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      blob = (unsigned char *) sqlite3_column_blob (stmt, 0);
+		      blob_sz = sqlite3_column_bytes (stmt, 0);
+		      result = rl2_geometry_from_blob (blob, blob_sz);
+		  }
+	    }
+	  else
+	      goto error;
+      }
+    sqlite3_finalize (stmt);
+    return result;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return NULL;
+}
+
+RL2_PRIVATE rl2GeometryPtr
+rl2_clone_curve (rl2GeometryPtr in)
+{
+/* cloning a Curve geometry */
+    rl2GeometryPtr out;
+    rl2LinestringPtr ln_in = in->first_linestring;
+    rl2LinestringPtr ln_out;
+    int iv;
+
+    out = rl2CreateGeometry ();
+    ln_out = rl2AddLinestringToGeometry (out, ln_in->points);
+    for (iv = 0; iv < ln_in->points; iv++)
+      {
+	  double x;
+	  double y;
+	  rl2GetPoint (ln_in->coords, iv, &x, &y);
+	  rl2SetPoint (ln_out->coords, iv, x, y);
+      }
+    return out;
+}
+
+RL2_PRIVATE rl2GeometryPtr
+rl2_clone_linestring (rl2LinestringPtr in)
+{
+/* cloning a Curve geometry */
+    rl2GeometryPtr out;
+    rl2LinestringPtr ln_out;
+    int iv;
+
+    out = rl2CreateGeometry ();
+    ln_out = rl2AddLinestringToGeometry (out, in->points);
+    for (iv = 0; iv < in->points; iv++)
+      {
+	  double x;
+	  double y;
+	  rl2GetPoint (in->coords, iv, &x, &y);
+	  rl2SetPoint (ln_out->coords, iv, x, y);
+      }
+    return out;
+}
+
+RL2_PRIVATE rl2GeometryPtr
+rl2_build_circle (double cx, double cy, double radius)
+{
+/* creating a cicrle */
+    int iv = 0;
+    double pi = 3.14159265359;
+    double rads;
+    double x;
+    double y;
+    rl2LinestringPtr ln;
+    rl2GeometryPtr out = rl2CreateGeometry ();
+    ln = rl2AddLinestringToGeometry (out, 129);
+    for (rads = 0.0; rads <= (pi * 2.0); rads += pi / 64.0)
+      {
+	  x = cx + (radius * cos (rads));
+	  y = cy + (radius * sin (rads));
+	  rl2SetPoint (ln->coords, iv, x, y);
+	  iv++;
+      }
+    /* closure */
+    rl2GetPoint (ln->coords, 0, &x, &y);
+    rl2SetPoint (ln->coords, 128, x, y);
+    return out;
 }

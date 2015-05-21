@@ -2023,6 +2023,9 @@ extern "C"
     RL2_PRIVATE rl2GeometryPtr
 	rl2_geometry_from_blob (const unsigned char *blob, int blob_sz);
 
+    RL2_PRIVATE rl2GeometryPtr
+	rl2_curve_from_XY (int points, double *x, double *y);
+
     RL2_PRIVATE void rl2_destroy_geometry (rl2GeometryPtr geom);
 
     RL2_PRIVATE int rl2_serialize_linestring (rl2LinestringPtr line,
@@ -2031,6 +2034,19 @@ extern "C"
 
     RL2_PRIVATE int rl2_serialize_ring (rl2RingPtr ring, unsigned char **blob,
 					int *blob_sz);
+
+    RL2_PRIVATE double rl2_compute_curve_length (rl2GeometryPtr geom);
+
+    RL2_PRIVATE rl2GeometryPtr
+	rl2_curve_substring (sqlite3 * handle, rl2GeometryPtr geom, double from,
+			     double to);
+
+    RL2_PRIVATE rl2GeometryPtr rl2_clone_curve (rl2GeometryPtr in);
+
+    RL2_PRIVATE rl2GeometryPtr rl2_clone_linestring (rl2LinestringPtr in);
+
+    RL2_PRIVATE rl2GeometryPtr
+	rl2_build_circle (double x, double y, double radius);
 
     RL2_PRIVATE int rl2_load_font_into_dbms (sqlite3 * handle,
 					     unsigned char *blob, int blob_sz);

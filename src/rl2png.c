@@ -554,6 +554,87 @@ compress_rgb_png8 (const unsigned char *pixels, const unsigned char *mask,
 }
 
 static int
+compress_rgba_png8 (const unsigned char *pixels, const unsigned char *alpha,
+		    unsigned int width, unsigned int height,
+		    unsigned char **png, int *png_size)
+{
+/* compressing a PNG image of the RGBA type - 8 bits */
+    png_structp png_ptr;
+    png_infop info_ptr;
+    png_bytep *row_pointers = NULL;
+    png_bytep p_out;
+    unsigned int row;
+    unsigned int col;
+    const unsigned char *p_in;
+    const unsigned char *p_alpha;
+    int nBands;
+    int type;
+    struct png_memory_buffer membuf;
+    membuf.buffer = NULL;
+    membuf.size = 0;
+
+    png_ptr = png_create_write_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr)
+	return RL2_ERROR;
+    info_ptr = png_create_info_struct (png_ptr);
+    if (!info_ptr)
+      {
+	  png_destroy_write_struct (&png_ptr, NULL);
+	  return RL2_ERROR;
+      }
+    if (setjmp (png_jmpbuf (png_ptr)))
+      {
+	  goto error;
+      }
+
+    png_set_write_fn (png_ptr, &membuf, rl2_png_write_data, rl2_png_flush);
+    type = PNG_COLOR_TYPE_RGB_ALPHA;
+    nBands = 4;
+    png_set_IHDR (png_ptr, info_ptr, width, height, 8,
+		  type, PNG_INTERLACE_NONE,
+		  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info (png_ptr, info_ptr);
+    row_pointers = malloc (sizeof (png_bytep) * height);
+    if (row_pointers == NULL)
+	goto error;
+    for (row = 0; row < height; ++row)
+	row_pointers[row] = NULL;
+    p_in = pixels;
+    p_alpha = alpha;
+    for (row = 0; row < height; row++)
+      {
+	  if ((row_pointers[row] = malloc (width * nBands)) == NULL)
+	      goto error;
+	  p_out = row_pointers[row];
+	  for (col = 0; col < width; col++)
+	    {
+		*p_out++ = *p_in++;
+		*p_out++ = *p_in++;
+		*p_out++ = *p_in++;
+		*p_out++ = *p_alpha++;
+	    }
+      }
+    png_write_image (png_ptr, row_pointers);
+    png_write_end (png_ptr, info_ptr);
+    for (row = 0; row < height; ++row)
+	free (row_pointers[row]);
+    free (row_pointers);
+    png_destroy_write_struct (&png_ptr, &info_ptr);
+    *png = membuf.buffer;
+    *png_size = membuf.size;
+    return RL2_OK;
+
+  error:
+    png_destroy_write_struct (&png_ptr, &info_ptr);
+    for (row = 0; row < height; ++row)
+	free (row_pointers[row]);
+    free (row_pointers);
+    if (membuf.buffer != NULL)
+	free (membuf.buffer);
+    return RL2_ERROR;
+}
+
+static int
 compress_rgb_png16 (const unsigned char *pixels, unsigned int width,
 		    unsigned int height, unsigned char **png, int *png_size)
 {
@@ -1002,6 +1083,25 @@ rl2_rgb_alpha_to_png (unsigned int width, unsigned int height,
 }
 
 RL2_DECLARE int
+rl2_rgb_real_alpha_to_png (unsigned int width, unsigned int height,
+			   const unsigned char *rgb, const unsigned char *alpha,
+			   unsigned char **png, int *png_size)
+{
+/* creating a PNG image from two distinct RGB + Alpha buffer */
+    unsigned char *blob;
+    int blob_size;
+    if (rgb == NULL || alpha == NULL)
+	return RL2_ERROR;
+
+    if (compress_rgba_png8 (rgb, alpha, width, height,
+			    &blob, &blob_size) != RL2_OK)
+	return RL2_ERROR;
+    *png = blob;
+    *png_size = blob_size;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
 rl2_gray_to_png (unsigned int width, unsigned int height,
 		 const unsigned char *gray, unsigned char **png, int *png_size)
 {
@@ -1132,7 +1232,7 @@ rl2_section_from_png (const char *path)
 /* attempting to create a raster */
     if (rl2_blob_from_file (path, &blob, &blob_size) != RL2_OK)
 	return NULL;
-    rst = rl2_raster_from_png (blob, blob_size);
+    rst = rl2_raster_from_png (blob, blob_size, 0);
     free (blob);
     if (rst == NULL)
 	return NULL;
@@ -1145,7 +1245,7 @@ rl2_section_from_png (const char *path)
 }
 
 RL2_DECLARE rl2RasterPtr
-rl2_raster_from_png (const unsigned char *blob, int blob_size)
+rl2_raster_from_png (const unsigned char *blob, int blob_size, int alpha_mask)
 {
 /* attempting to create a raster from a PNG image */
     rl2RasterPtr rst = NULL;
@@ -1162,11 +1262,17 @@ rl2_raster_from_png (const unsigned char *blob, int blob_size)
 
     if (rl2_decode_png
 	(blob, blob_size, &width, &height, &sample_type, &pixel_type, &nBands,
-	 &data, &data_size, &mask, &mask_sz, &palette) != RL2_OK)
+	 &data, &data_size, &mask, &mask_sz, &palette, alpha_mask) != RL2_OK)
 	goto error;
-    rst =
-	rl2_create_raster (width, height, sample_type, pixel_type, nBands, data,
-			   data_size, palette, mask, mask_sz, NULL);
+    if (alpha_mask)
+	rst =
+	    rl2_create_raster_alpha (width, height, sample_type, pixel_type,
+				     nBands, data, data_size, palette, mask,
+				     mask_sz, NULL);
+    else
+	rst =
+	    rl2_create_raster (width, height, sample_type, pixel_type, nBands,
+			       data, data_size, palette, mask, mask_sz, NULL);
     if (rst == NULL)
 	goto error;
     return rst;
@@ -1187,7 +1293,7 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 		unsigned char *xsample_type, unsigned char *xpixel_type,
 		unsigned char *num_bands, unsigned char **pixels,
 		int *pixels_sz, unsigned char **xmask, int *xmask_sz,
-		rl2PalettePtr * xpalette)
+		rl2PalettePtr * xpalette, int alpha_mask)
 {
 /* attempting to decode a PNG image - raw block */
     png_uint_32 width;
@@ -1442,10 +1548,15 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 			      {
 				  if (p_mask != NULL)
 				    {
-					if (*p_in++ < 128)
-					    *p_mask++ = 0;
+					if (alpha_mask)
+					    *p_mask++ = *p_in++;
 					else
-					    *p_mask++ = 1;
+					  {
+					      if (*p_in++ < 128)
+						  *p_mask++ = 0;
+					      else
+						  *p_mask++ = 1;
+					  }
 				    }
 				  else
 				      p_in++;
@@ -1483,10 +1594,15 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
 			    *p_data++ = *p_in++;
 			    if (p_mask != NULL)
 			      {
-				  if (*p_in++ < 128)
-				      *p_mask++ = 0;
+				  if (alpha_mask)
+				      *p_mask++ = *p_in++;
 				  else
-				      *p_mask++ = 1;
+				    {
+					if (*p_in++ < 128)
+					    *p_mask++ = 0;
+					else
+					    *p_mask++ = 1;
+				    }
 			      }
 			    else
 				p_in++;

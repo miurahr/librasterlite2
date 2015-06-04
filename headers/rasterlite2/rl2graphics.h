@@ -1362,6 +1362,9 @@ extern "C"
  Creates an Array of Alpha values corresponding to the current Canvass
 
  \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param half_transparent after successful completion this variable will
+ ontain 1 or 0, accordingly to the presence of half-transparencies 
+ strictly requiring an alpha band.
 
  \return the pointer to the Array of Alpha Values: NULL on failure.
  
@@ -1371,7 +1374,8 @@ extern "C"
  returned by rl2_graph_get_context_alpha_array() by invoking free().
  */
     RL2_DECLARE unsigned char
-	*rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context);
+	*rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context,
+					    int *half_transparent);
 
 #ifdef __cplusplus
 }

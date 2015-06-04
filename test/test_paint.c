@@ -381,7 +381,8 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 
 /* creating and setting up a Green bold italic font */
     font =
-	rl2_graph_create_toy_font ("serif", 32, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
+	rl2_graph_create_toy_font ("serif", 32, RL2_FONTSTYLE_ITALIC,
+				   RL2_FONTWEIGHT_BOLD);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font\n");
@@ -406,7 +407,8 @@ do_paint_test (rl2GraphicsContextPtr ctx)
 
 /* creating and setting up a Black outlined font */
     font =
-	rl2_graph_create_toy_font ("sans-serif", 32, RL2_FONTSTYLE_NORMAL, RL2_FONTWEIGHT_BOLD);
+	rl2_graph_create_toy_font ("sans-serif", 32, RL2_FONTSTYLE_NORMAL,
+				   RL2_FONTWEIGHT_BOLD);
     if (pattern == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font #2\n");
@@ -1207,6 +1209,7 @@ main (int argc, char *argv[])
     rl2RasterPtr rst;
     rl2SectionPtr img;
     int ret;
+    int half_transparent;
     unsigned char *rgb;
     unsigned char *alpha;
 
@@ -1257,7 +1260,7 @@ main (int argc, char *argv[])
 	  fprintf (stderr, "invalid RGB buffer from Graphics Context\n");
 	  return -4;
       }
-    alpha = rl2_graph_get_context_alpha_array (ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
     if (alpha == NULL)
       {
 	  fprintf (stderr, "invalid Alpha buffer from Graphics Context\n");

@@ -2088,7 +2088,7 @@ fnct_GetBandHistogramFromImage (sqlite3_context * context, int argc,
     band_index = sqlite3_value_int (argv[2]);
 /* validating the mime-type */
     if (strcmp (mime_type, "image/png") == 0)
-	raster = rl2_raster_from_png (blob, blob_sz);
+	raster = rl2_raster_from_png (blob, blob_sz, 0);
     if (strcmp (mime_type, "image/jpeg") == 0)
 	raster = rl2_raster_from_jpeg (blob, blob_sz);
     if (raster == NULL)
@@ -2610,6 +2610,98 @@ fnct_IsRasterCoverageAutoNdviEnabled (sqlite3_context * context, int argc,
 	sqlite3_result_int (context, 0);
     else
 	sqlite3_result_int (context, -1);
+}
+
+static void
+fnct_CopyRasterCoverage (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
+{
+/* SQL function:
+/ CopyRasterCoverage(String db_prefix, String coverage_name)
+/   or
+/ CopyRasterCoverage(String db_prefix, String coverage_name, int transaction)
+/
+/ copies a whole Raster Coverage from an Attached DB
+/ returns 1 on success
+/ 0 on failure, -1 on invalid arguments
+*/
+    int ret;
+    const char *db_prefix;
+    const char *coverage_name;
+    int transaction = 0;
+    sqlite3 *sqlite = sqlite3_context_db_handle (context);
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+      {
+	  sqlite3_result_int (context, -1);
+	  return;
+      }
+    db_prefix = (const char *) sqlite3_value_text (argv[0]);
+    coverage_name = (const char *) sqlite3_value_text (argv[1]);
+    if (argc == 3)
+      {
+	  if (sqlite3_value_type (argv[2]) == SQLITE_INTEGER)
+	      transaction = sqlite3_value_int (argv[2]);
+	  else
+	    {
+		sqlite3_result_int (context, -1);
+		return;
+	    }
+      }
+
+    if (transaction)
+      {
+	  /* starting a DBMS Transaction */
+	  ret = sqlite3_exec (sqlite, "BEGIN", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, 0);
+		return;
+	    }
+      }
+
+/* just in case, attempting to (re)create raster meta-tables */
+    sqlite3_exec (sqlite, "SELECT CreateRasterCoveragesTable()", NULL, NULL,
+		  NULL);
+    sqlite3_exec (sqlite, "SELECT CreateStylingTables()", NULL, NULL, NULL);
+
+/* checks if a Raster Coverage of the same name already exists on Main */
+    if (rl2_check_raster_coverage_destination (sqlite, coverage_name) != RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+/* checks if the Raster Coverage origine do really exists */
+    if (rl2_check_raster_coverage_origin (sqlite, db_prefix, coverage_name) !=
+	RL2_OK)
+      {
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+/* attemtping to copy */
+    if (rl2_copy_raster_coverage (sqlite, db_prefix, coverage_name) != RL2_OK)
+      {
+	  sqlite3_exec (sqlite, "ROLLBACK", NULL, NULL, NULL);
+	  sqlite3_result_int (context, 0);
+	  return;
+      }
+
+    if (transaction)
+      {
+	  /* committing the still pending Transaction */
+	  ret = sqlite3_exec (sqlite, "COMMIT", NULL, NULL, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		sqlite3_result_int (context, 0);
+		return;
+	    }
+      }
+    sqlite3_result_int (context, 1);
 }
 
 static void
@@ -8107,7 +8199,7 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
 /						text style, text format, text bg_color,
 /                    	int transparent, int quality, int reaspect)
 /
-/ will return a BLOB containing the Image payload from a Raster Coverage
+/ will return a BLOB containing the Image payload from a Vector Coverage
 / or NULL (INVALID ARGS)
 /
 */
@@ -8160,6 +8252,7 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
     rl2GraphicsContextPtr ctx = NULL;
     unsigned char *rgb = NULL;
     unsigned char *alpha = NULL;
+    int half_transparent;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
 /* testing arguments for validity */
@@ -8285,6 +8378,18 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
     if (!ok_style)
 	goto error;
 
+    if (lyr_stl != NULL)
+      {
+	  /* testing for style conditional visibility */
+	  if (!rl2_is_visible_style (lyr_stl, scale))
+	    {
+		ctx = rl2_graph_create_context (width, height);
+		if (ctx == NULL)
+		    goto error;
+		goto done;
+	    }
+      }
+
 /* composing the SQL query */
     quoted = rl2_double_quoted_sql (lyr->f_geometry_column);
     if (reproject_on_the_fly)
@@ -8356,7 +8461,7 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
 
 /* priming the Graphic Context */
     if (transparent)
-	rl2_graph_set_brush (ctx, 255, 255, 255, 9);
+	rl2_graph_set_brush (ctx, 255, 255, 255, 0);
     else
 	rl2_graph_set_brush (ctx, bg_red, bg_green, bg_blue, 255);
     rl2_graph_draw_rectangle (ctx, -1, -1, width + 2, height + 2);
@@ -8428,39 +8533,43 @@ fnct_GetMapImageFromVector (sqlite3_context * context, int argc,
 		if (geom != NULL)
 		  {
 		      /* drawing a styled Feature */
+		      int scale_forbidden;
+		      symbolizer = NULL;
 		      if (lyr_stl != NULL)
-			{
-			    symbolizer =
-				rl2_get_symbolizer_from_feature_type_style
-				(lyr_stl, scale, variant);
-			    if (symbolizer == NULL)
-				goto error;
-			}
-		      rl2_draw_vector_feature (ctx, sqlite, symbolizer, height,
-					       minx, miny, x_res, y_res, geom,
-					       variant);
+			  symbolizer =
+			      rl2_get_symbolizer_from_feature_type_style
+			      (lyr_stl, scale, variant, &scale_forbidden);
+		      if (!scale_forbidden)
+			  rl2_draw_vector_feature (ctx, sqlite, symbolizer,
+						   height, minx, miny, x_res,
+						   y_res, geom, variant);
 		      rl2_destroy_geometry (geom);
 		  }
 	    }
       }
     sqlite3_finalize (stmt);
 
+  done:
     rl2_destroy_vector_layer (layer);
+    layer = NULL;
     if (lyr_stl != NULL)
 	rl2_destroy_feature_type_style (lyr_stl);
+    lyr_stl = NULL;
     if (variant != NULL)
 	rl2_destroy_variant_array (variant);
+    variant = NULL;
 
     rgb = rl2_graph_get_context_rgb_array (ctx);
-    alpha = rl2_graph_get_context_alpha_array (ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
     if (rgb == NULL || alpha == NULL)
 	goto error;
 
     rl2_graph_destroy_context (ctx);
+    ctx = NULL;
 
     if (!get_payload_from_rgb_rgba_transparent
 	(width, height, rgb, alpha, format_id, quality, &image, &image_size,
-	 1.0))
+	 1.0, half_transparent))
 	goto error;
     if (rgb != NULL)
 	free (rgb);
@@ -8752,7 +8861,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size, opacity))
+				 &image_size, opacity, 0))
 				goto error;
 			}
 		      else
@@ -8867,7 +8976,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size, opacity))
+				 &image_size, opacity, 0))
 				goto error;
 			}
 		      else
@@ -9143,7 +9252,7 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size, opacity))
+				 &image_size, opacity, 0))
 				goto error;
 			}
 		      else
@@ -9176,7 +9285,7 @@ get_triple_band_tile_image (sqlite3_context * context, const char *cvg_name,
 			    if (!get_payload_from_rgb_rgba_transparent
 				(width, height, rgb, alpha,
 				 RL2_OUTPUT_FORMAT_PNG, 100, &image,
-				 &image_size, opacity))
+				 &image_size, opacity, 0))
 				goto error;
 			}
 		      else
@@ -10006,6 +10115,14 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
 			     SQLITE_UTF8, 0, fnct_CreateRasterCoverage, 0, 0);
     sqlite3_create_function (db, "RL2_CreateRasterCoverage", 17,
 			     SQLITE_UTF8, 0, fnct_CreateRasterCoverage, 0, 0);
+    sqlite3_create_function (db, "CopyRasterCoverage", 2,
+			     SQLITE_UTF8, 0, fnct_CopyRasterCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_CopyRasterCoverage", 2,
+			     SQLITE_UTF8, 0, fnct_CopyRasterCoverage, 0, 0);
+    sqlite3_create_function (db, "CopyRasterCoverage", 3,
+			     SQLITE_UTF8, 0, fnct_CopyRasterCoverage, 0, 0);
+    sqlite3_create_function (db, "RL2_CopyRasterCoverage", 3,
+			     SQLITE_UTF8, 0, fnct_CopyRasterCoverage, 0, 0);
     sqlite3_create_function (db, "DeleteSection", 2,
 			     SQLITE_UTF8, 0, fnct_DeleteSection, 0, 0);
     sqlite3_create_function (db, "RL2_DeleteSection", 2,

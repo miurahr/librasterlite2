@@ -67,6 +67,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
     unsigned char red;
     unsigned char green;
     unsigned char blue;
+    int scale_forbidden;
     style =
 	rl2_create_feature_type_style_from_dbms (db_handle, coverage,
 						 style_name);
@@ -77,7 +78,9 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    symbolizer = rl2_get_symbolizer_from_feature_type_style (style, 1.0, NULL);
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 1.0, NULL,
+						    &scale_forbidden);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s)\n",
@@ -1032,6 +1035,7 @@ test_style (sqlite3 * db_handle, const char *coverage,
     unsigned char red;
     unsigned char green;
     unsigned char blue;
+    int scale_forbidden;
     style =
 	rl2_create_feature_type_style_from_dbms (db_handle, coverage,
 						 style_name);
@@ -1057,7 +1061,9 @@ test_style (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
-    symbolizer = rl2_get_symbolizer_from_feature_type_style (style, 1.0, NULL);
+    symbolizer =
+	rl2_get_symbolizer_from_feature_type_style (style, 1.0, NULL,
+						    &scale_forbidden);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s)\n",
@@ -1313,7 +1319,8 @@ test_style (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
     symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value,
+						    &scale_forbidden);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #2\n",
@@ -1361,7 +1368,8 @@ test_style (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
     symbolizer =
-	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value);
+	rl2_get_symbolizer_from_feature_type_style (style, 5000000.0, value,
+						    &scale_forbidden);
     if (symbolizer == NULL)
       {
 	  fprintf (stderr, "Unexpected NULL VectorSymbolizer (%s) #3\n",

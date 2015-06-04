@@ -313,6 +313,7 @@ extern "C"
 	double vResolution;
 	unsigned char *rasterBuffer;
 	unsigned char *maskBuffer;
+	int alpha_mask;
 	rl2PrivPalettePtr Palette;
 	rl2PrivPixelPtr noData;
     } rl2PrivRaster;
@@ -1269,7 +1270,7 @@ extern "C"
 			unsigned char *sample_type, unsigned char *pixel_type,
 			unsigned char *num_bands, unsigned char **pixels,
 			int *pixels_sz, unsigned char **mask, int *mask_sz,
-			rl2PalettePtr * palette);
+			rl2PalettePtr * palette, int alpha_mask);
 
     RL2_PRIVATE int
 	rl2_data_to_charls (const unsigned char *pixels, unsigned int width,
@@ -1706,7 +1707,9 @@ extern "C"
 							   unsigned char
 							   **image,
 							   int *image_sz,
-							   double opacity);
+							   double opacity,
+							   int
+							   half_transparent);
 
     RL2_PRIVATE int build_rgb_alpha (unsigned int width,
 				     unsigned int height, unsigned char *rgba,

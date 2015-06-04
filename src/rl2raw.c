@@ -457,8 +457,13 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 		      a = 255;
 		      if (p_mask != NULL)
 			{
-			    if (*p_mask++ == 0)
-				a = 0;
+			    if (rst->alpha_mask)
+				a = *p_mask++;
+			    else
+			      {
+				  if (*p_mask++ == 0)
+				      a = 0;
+			      }
 			}
 		      if (rst->noData != NULL)
 			{
@@ -479,8 +484,13 @@ rl2_raster_data_to_RGBA (rl2RasterPtr ptr, unsigned char **buffer,
 		      a = 255;
 		      if (p_mask != NULL)
 			{
-			    if (*p_mask++ == 0)
-				a = 0;
+			    if (rst->alpha_mask)
+				a = *p_mask++;
+			    else
+			      {
+				  if (*p_mask++ == 0)
+				      a = 0;
+			      }
 			}
 		      if (rst->noData != NULL)
 			{

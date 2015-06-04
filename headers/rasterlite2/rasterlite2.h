@@ -2038,6 +2038,57 @@ extern "C"
 			   rl2PixelPtr no_data);
 
 /**
+ Allocates and initializes a new Raster object
+
+ \param width Raster Width (in pixels).
+ \param height Raster Height (in pixels).
+ \param sample_type one of RL2_SAMPLE_1_BIT, RL2_SAMPLE_2_BIT, RL2_SAMPLE_4_BIT,
+        RL2_SAMPLE_INT8, RL2_SAMPLE_UINT8, RL2_SAMPLE_INT16, RL2_SAMPLE_UINT16,
+		RL2_SAMPLE_INT32, RL2_SAMPLE_UINT32, RL2_SAMPLE_FLOAT or RL2_SAMPLE_DOUBLE.
+ \param pixel_type one of RL2_PIXEL_MONOCHROME, RL2_PIXEL_PALETTE, RL2_PIXEL_GRAYSCALE,
+		RL2_PIXEL_RGB, RL2_PIXEL_MULTIBAND, RL2_PIXEL_DATAGRID.
+ \param num_samples number of samples per pixel (aka Bands)
+ \param bufpix pointer to the Buffer containing all Pixels
+ \param bufpix_size size (in bytes) of the above Buffer
+ \param palette pointer to a Palette object (NULL is the Pixel Type doesn't require a Palette)
+ \param alpha pointer to an optional Alpha Mask (may be NULL if no Mask is required)
+ \param alpha_size size (in bytes) of the above Mask (ZERO if no Mask is required)
+ \param no_data pointer to a Pixel Object indented as NO-DATA value;
+		could be eventually NULL if not required.
+ 
+ \return the pointer to newly created Raster Object: NULL on failure.
+ 
+ \sa rl2_destroy_raster, rl2_get_raster_size,
+		rl2_get_raster_raster_type, rl2_get_raster_pixel_type,
+		rl2_get_raster_bands, rl2_get_raster_no_data, rl2_get_raster_srid,
+		rl2_get_raster_horizontal_resolution, rl2_get_raster_vertical_resolution,
+		rl2_get_raster_minX, rl2_get_raster_minY, rl2_get_raster_maxX,
+		rl2_get_raster_maxY, rl2_create_raster_pixel,
+		rl2_raster_georeference_center, rl2_raster_georeference_upper_left,
+		rl2_raster_georeference_lower_left, rl2_raster_georeference_upper_right,
+		rl2_raster_georeference_lower_right, rl2_raster_georeference_frame,
+		rl2_raster_data_to_1bit, rl2_raster_data_to_2bit, rl2_raster_data_to_4bit,
+		rl2_raster_data_to_int8, rl2_raster_data_to_uint8, rl2_raster_data_to_int16, 
+		rl2_raster_data_to_uint16, rl2_raster_data_to_int32, rl2_raster_data_to_uint32,
+		rl2_raster_data_to_float, rl2_raster_data_to_double, rl2_raster_band_to_uint8, 
+		rl2_raster_band_to_uint16, rl2_raster_bands_to_RGB, rl2_raster_to_gif,
+		rl2_raster_to_png, rl2_raster_to_jpeg, rl2_raster_to_lossless_webp,
+		rl2_raster_to_lossy_webp, rl2_raster_from_gif, rl2_raster_from_png, 
+		rl2_raster_from_jpeg, rl2_raster_from_webp, rl2_raster_from_tiff
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Raster object.
+ */
+    RL2_DECLARE rl2RasterPtr
+	rl2_create_raster_alpha (unsigned int width, unsigned int height,
+				 unsigned char sample_type,
+				 unsigned char pixel_type,
+				 unsigned char num_samples,
+				 unsigned char *bufpix, int bufpix_size,
+				 rl2PalettePtr palette, unsigned char *alpha,
+				 int alpha_size, rl2PixelPtr no_data);
+
+/**
  Destroys a Raster Object
 
  \param rst pointer to object to be destroyed
@@ -3217,6 +3268,8 @@ extern "C"
 
  \param png pointer to the memory block storing the input PNG image.
  \param png_size size (in bytes) of the PNG image.
+ \param alpha_mask set to TRUE if an eventual ALPHA mask should be
+ carefully preserved; otherwise a transparency mask will be assumed.
  
  \return the pointer to newly created Raster Object: NULL on failure.
  
@@ -3226,7 +3279,7 @@ extern "C"
  Raster object.
  */
     RL2_DECLARE rl2RasterPtr rl2_raster_from_png (const unsigned char *png,
-						  int png_size);
+						  int png_size, int alpha_mask);
 
 /**
  Exports a Raster object as an in-memory stored JPEG image
@@ -4228,6 +4281,28 @@ extern "C"
  \param width the PNG image width.
  \param height the PNG image height.
  \param rgb pointer to the RGB buffer.
+ \param mask pointer to the transparency mask.
+ \param png on completion will point to the memory block storing the created PNG image.
+ \param png_size on completion the variable referenced by this
+ pointer will contain the size (in bytes) of the PNG image.
+ \param opacity standard opacity level (0.0 to 1.0)
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_rgb_to_png, rl2_rgb_to_jpeg, rl2_rgb_to_tiff, rl2_rgb_to_geotiff
+ */
+    RL2_DECLARE int
+	rl2_rgb_alpha_to_png (unsigned int width, unsigned int height,
+			      const unsigned char *rgb,
+			      const unsigned char *mask, unsigned char **png,
+			      int *png_size, double opacity);
+
+/**
+ Exports two separate RGB + Alpha buffers as an in-memory stored PNG image
+
+ \param width the PNG image width.
+ \param height the PNG image height.
+ \param rgb pointer to the RGB buffer.
  \param alpha pointer to the Alpha channel buffer.
  \param png on completion will point to the memory block storing the created PNG image.
  \param png_size on completion the variable referenced by this
@@ -4238,10 +4313,10 @@ extern "C"
  \sa rl2_rgb_to_png, rl2_rgb_to_jpeg, rl2_rgb_to_tiff, rl2_rgb_to_geotiff
  */
     RL2_DECLARE int
-	rl2_rgb_alpha_to_png (unsigned int width, unsigned int height,
-			      const unsigned char *rgb,
-			      const unsigned char *alpha, unsigned char **png,
-			      int *png_size, double opacity);
+	rl2_rgb_real_alpha_to_png (unsigned int width, unsigned int height,
+				   const unsigned char *rgb,
+				   const unsigned char *alpha,
+				   unsigned char **png, int *png_size);
 
 /**
  Exports an RGB buffer as an in-memory stored JPEG image
@@ -4790,7 +4865,11 @@ extern "C"
     RL2_DECLARE rl2VectorSymbolizerPtr
 	rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr
 						    style, double scale,
-						    rl2VariantArrayPtr variant);
+						    rl2VariantArrayPtr variant,
+						    int *scale_forbidden);
+
+    RL2_DECLARE int
+	rl2_is_visible_style (rl2FeatureTypeStylePtr style, double scale);
 
     RL2_DECLARE int
 	rl2_is_valid_vector_symbolizer (rl2VectorSymbolizerPtr symbolizer,
@@ -5239,6 +5318,19 @@ extern "C"
 	rl2_get_tile_from_raw_pixels (rl2CoveragePtr cvg, rl2RasterPtr rst,
 				      unsigned int startRow,
 				      unsigned int startCol);
+
+    RL2_DECLARE int
+	rl2_check_raster_coverage_destination (sqlite3 * sqlite,
+					       const char *coverage_name);
+
+    RL2_DECLARE int
+	rl2_check_raster_coverage_origin (sqlite3 * sqlite,
+					  const char *db_prefix,
+					  const char *coverage_name);
+
+    RL2_DECLARE int
+	rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
+				  const char *coverage_name);
 
 #ifdef __cplusplus
 }

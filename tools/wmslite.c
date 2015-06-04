@@ -63,18 +63,19 @@
 #define WMS_TRANSPARENT		10
 #define WMS_OPAQUE		11
 
-#define WMS_INVALID_CRS		101
+#define WMS_INVALID_CRS			101
 #define WMS_INVALID_DIMENSION	102
-#define WMS_INVALID_BBOX	103
-#define WMS_INVALID_LAYER	104
-#define WMS_INVALID_GROUP	105
-#define WMS_INVALID_BGCOLOR	106
-#define WMS_INVALID_STYLE	107
-#define WMS_INVALID_FORMAT	108
+#define WMS_INVALID_BBOX		103
+#define WMS_INVALID_LAYER		104
+#define WMS_INVALID_GROUP		105
+#define WMS_INVALID_BGCOLOR		106
+#define WMS_INVALID_STYLE		107
+#define WMS_INVALID_FORMAT		108
 #define WMS_INVALID_TRANSPARENT	109
 #define WMS_NOT_EXISTING_LAYER	110
 #define WMS_LAYER_OUT_OF_BBOX	111
 #define WMS_MISMATCHING_SRID	112
+#define WMS_ILLEGAL_LAYER		113
 
 #define WMS_VERSION_UNKNOWN	0
 #define WMS_VERSION_100		100
@@ -215,7 +216,8 @@ struct read_connection
     void *cache;
     void *priv_data;
     sqlite3 *handle;
-    sqlite3_stmt *stmt_get_map;
+    sqlite3_stmt *stmt_get_map_raster;
+    sqlite3_stmt *stmt_get_map_vector;
     int status;
 };
 
@@ -276,7 +278,8 @@ struct wms_args
 {
 /* a struct wrapping a WMS request URL */
     sqlite3 *db_handle;
-    sqlite3_stmt *stmt_get_map;
+    sqlite3_stmt *stmt_get_map_raster;
+    sqlite3_stmt *stmt_get_map_vector;
     char *service_name;
     struct wms_argument *first;
     struct wms_argument *last;
@@ -284,6 +287,7 @@ struct wms_args
     int wms_version;
     int error;
     const char *layer;
+    unsigned char layer_type;
     int srid;
     int swap_xy;
     double minx;
@@ -1029,8 +1033,10 @@ close_connection (struct read_connection *conn)
 /* closing a connection */
     if (conn == NULL)
 	return;
-    if (conn->stmt_get_map != NULL)
-	sqlite3_finalize (conn->stmt_get_map);
+    if (conn->stmt_get_map_raster != NULL)
+	sqlite3_finalize (conn->stmt_get_map_raster);
+    if (conn->stmt_get_map_vector != NULL)
+	sqlite3_finalize (conn->stmt_get_map_vector);
     if (conn->handle != NULL)
 	sqlite3_close (conn->handle);
     if (conn->cache != NULL)
@@ -1065,7 +1071,8 @@ connection_init (struct read_connection *conn, const char *path,
 /* creating a read connection */
     int ret;
     sqlite3 *db_handle;
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt_raster = NULL;
+    sqlite3_stmt *stmt_vector = NULL;
     void *cache;
     void *priv_data;
     char *sql;
@@ -1095,20 +1102,33 @@ connection_init (struct read_connection *conn, const char *path,
     sqlite3_exec (db_handle, sql, NULL, NULL, NULL);
     sqlite3_free (sql);
 
-/* creating the GetMap SQL statement */
+/* creating the GetMap SQL statement (Raster) */
     sql =
 	"SELECT RL2_GetMapImageFromRaster(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
-    ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt, NULL);
+    ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt_raster, NULL);
     if (ret != SQLITE_OK)
-      {
-	  sqlite3_close (db_handle);
-	  spatialite_cleanup_ex (cache);
-      }
+	goto error;
+/* creating the GetMap SQL statement (Vector) */
+    sql =
+	"SELECT RL2_GetMapImageFromVector(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
+    ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt_vector, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
     conn->handle = db_handle;
-    conn->stmt_get_map = stmt;
+    conn->stmt_get_map_raster = stmt_raster;
+    conn->stmt_get_map_vector = stmt_vector;
     conn->cache = cache;
     conn->priv_data = priv_data;
     conn->status = CONNECTION_AVAILABLE;
+    return;
+
+  error:
+    if (stmt_raster != NULL)
+	sqlite3_finalize (stmt_raster);
+    if (stmt_vector != NULL)
+	sqlite3_finalize (stmt_vector);
+    sqlite3_close (db_handle);
+    spatialite_cleanup_ex (cache);
 }
 
 static struct connections_pool *
@@ -1127,7 +1147,8 @@ alloc_connections_pool (const char *path, int max_threads)
 	  /* initializing empty connections */
 	  conn = &(pool->connections[i]);
 	  conn->handle = NULL;
-	  conn->stmt_get_map = NULL;
+	  conn->stmt_get_map_raster = NULL;
+	  conn->stmt_get_map_vector = NULL;
 	  conn->cache = NULL;
 	  conn->status = CONNECTION_INVALID;
       }
@@ -1574,7 +1595,8 @@ alloc_wms_args (const char *service_name)
 	return NULL;
     args = malloc (sizeof (struct wms_args));
     args->db_handle = NULL;
-    args->stmt_get_map = NULL;
+    args->stmt_get_map_raster = NULL;
+    args->stmt_get_map_vector = NULL;
     len = strlen (service_name);
     args->service_name = malloc (len + 1);
     strcpy (args->service_name, service_name);
@@ -1919,7 +1941,8 @@ parse_bgcolor (const char *bgcolor, unsigned char *red, unsigned char *green,
 static int
 exists_layer (struct wms_list *list, const char *layer, int srid,
 	      int wms_version, int *swap_xy, double minx, double miny,
-	      double maxx, double maxy, const char **layer_name)
+	      double maxx, double maxy, const char **layer_name,
+	      unsigned char *layer_type)
 {
 /* checking a required layer for validity */
     struct wms_group *grp;
@@ -1929,6 +1952,7 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 	  /* searching a genuine Layer */
 	  if (strcmp (lyr->layer_name, layer) == 0)
 	    {
+		struct wms_vector_layer *specific = lyr->layer_specific;
 		if (lyr->srid != srid)
 		    return WMS_MISMATCHING_SRID;
 		if (wms_version == WMS_VERSION_130 && lyr->has_flipped_axes)
@@ -1958,6 +1982,12 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 			  return WMS_LAYER_OUT_OF_BBOX;
 		  }
 		*layer_name = lyr->layer_name;
+		if (specific->layer_type == LAYER_TYPE_VECTOR)
+		    *layer_type = LAYER_TYPE_VECTOR;
+		else if (specific->layer_type == LAYER_TYPE_RASTER)
+		    *layer_type = LAYER_TYPE_RASTER;
+		else
+		    return WMS_ILLEGAL_LAYER;
 		return 0;
 	    }
 	  lyr = lyr->next;
@@ -2110,6 +2140,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		int srid;
 		const char *layer;
 		const char *layer_name;
+		unsigned char layer_type;
 		int swap_xy = 0;
 		double minx;
 		double miny;
@@ -2184,10 +2215,11 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		  }
 		ret =
 		    exists_layer (list, layer, srid, wms_version, &swap_xy,
-				  minx, miny, maxx, maxy, &layer_name);
+				  minx, miny, maxx, maxy, &layer_name,
+				  &layer_type);
 		if (ret == WMS_NOT_EXISTING_LAYER || ret == WMS_INVALID_GROUP
 		    || ret == WMS_LAYER_OUT_OF_BBOX
-		    || ret == WMS_MISMATCHING_SRID)
+		    || ret == WMS_MISMATCHING_SRID || ret == WMS_ILLEGAL_LAYER)
 		  {
 		      args->error = ret;
 		      return 200;
@@ -2195,6 +2227,7 @@ check_wms_request (struct wms_list *list, struct wms_args *args)
 		args->request_type = WMS_GET_MAP;
 		args->wms_version = wms_version;
 		args->layer = layer_name;
+		args->layer_type = layer_type;
 		args->srid = srid;
 		args->swap_xy = swap_xy;
 		if (wms_version == WMS_VERSION_130 && swap_xy)
@@ -3131,7 +3164,10 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     int black_sz;
     char bgcolor[16];
 
-    stmt = args->stmt_get_map;
+    if (args->layer_type == LAYER_TYPE_VECTOR)
+	stmt = args->stmt_get_map_vector;
+    else
+	stmt = args->stmt_get_map_raster;
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
     sqlite3_bind_text (stmt, 1, args->layer, strlen (args->layer),
@@ -3478,7 +3514,8 @@ berkeley_http_request (void *data)
       {
 	  /* preparing the WMS GetMap payload */
 	  args->db_handle = req->conn->handle;
-	  args->stmt_get_map = req->conn->stmt_get_map;
+	  args->stmt_get_map_raster = req->conn->stmt_get_map_raster;
+	  args->stmt_get_map_vector = req->conn->stmt_get_map_vector;
 	  log_get_map_1 (req->log, timestamp, http_status, method, url, args);
 	  wms_get_map (args, req->socket, req->log);
       }

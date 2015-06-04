@@ -21,7 +21,7 @@ check_PROGRAMS = test_coverage test_palette \
 	test_svg test_raw test_openjpeg \
 	test_line_symbolizer test_polygon_symbolizer \
 	test_point_symbolizer test_text_symbolizer \
-	test_vectors test_font
+	test_vectors test_font test_copy_rastercov
 
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \

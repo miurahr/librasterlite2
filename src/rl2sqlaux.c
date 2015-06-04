@@ -4518,9 +4518,10 @@ get_payload_from_rgb_rgba_transparent (unsigned int width,
 				       unsigned char *rgb, unsigned char *alpha,
 				       unsigned char format, int quality,
 				       unsigned char **image, int *image_sz,
-				       double opacity)
+				       double opacity, int half_transparency)
 {
 /* RGB, Transparent */
+    int ret;
     unsigned char *p_msk;
     unsigned char *p_alpha;
     unsigned int row;
@@ -4545,8 +4546,15 @@ get_payload_from_rgb_rgba_transparent (unsigned int width,
       }
     if (format == RL2_OUTPUT_FORMAT_PNG)
       {
-	  if (rl2_rgb_alpha_to_png
-	      (width, height, rgb, mask, image, image_sz, opacity) != RL2_OK)
+	  if (half_transparency)
+	      ret =
+		  rl2_rgb_real_alpha_to_png (width, height, rgb, alpha, image,
+					     image_sz);
+	  else
+	      ret =
+		  rl2_rgb_alpha_to_png (width, height, rgb, mask, image,
+					image_sz, opacity);
+	  if (ret != RL2_OK)
 	      goto error;
       }
     else

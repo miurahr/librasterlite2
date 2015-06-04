@@ -440,6 +440,7 @@ aux_render_composed_image (struct aux_renderer *aux, unsigned char *aggreg_rgba)
     unsigned char *rgba = NULL;
     unsigned char *rgb = NULL;
     unsigned char *alpha = NULL;
+    int half_transparent;
     rl2GraphicsBitmapPtr base_img = NULL;
     rl2GraphicsContextPtr ctx = NULL;
     double rescale_x = (double) aux->width / (double) aux->base_width;
@@ -545,7 +546,7 @@ aux_render_composed_image (struct aux_renderer *aux, unsigned char *aggreg_rgba)
 					  0, 0);
 	  rl2_graph_destroy_bitmap (base_img);
 	  rgb = rl2_graph_get_context_rgb_array (ctx);
-	  alpha = rl2_graph_get_context_alpha_array (ctx);
+	  alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
 	  rl2_graph_destroy_context (ctx);
 	  if (rgb == NULL || alpha == NULL)
 	      goto error;
@@ -580,6 +581,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
     unsigned char *alpha = NULL;
     unsigned char *rgba = NULL;
     unsigned char *gray = NULL;
+    int half_transparent;
     rl2GraphicsBitmapPtr base_img = NULL;
     rl2GraphicsContextPtr ctx = NULL;
     double rescale_x = (double) aux->width / (double) aux->base_width;
@@ -826,7 +828,8 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 	  rgb = rl2_graph_get_context_rgb_array (ctx);
 	  alpha = NULL;
 	  if (aux->transparent)
-	      alpha = rl2_graph_get_context_alpha_array (ctx);
+	      alpha =
+		  rl2_graph_get_context_alpha_array (ctx, &half_transparent);
 	  rl2_graph_destroy_context (ctx);
 	  if (rgb == NULL)
 	      goto error;
@@ -864,7 +867,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 			  goto error;
 		      if (!get_payload_from_rgb_rgba_transparent
 			  (aux->width, aux->height, rgb, alpha, aux->format_id,
-			   aux->quality, &image, &image_size, aux->opacity))
+			   aux->quality, &image, &image_size, aux->opacity, 0))
 			  goto error;
 		  }
 		else
@@ -915,7 +918,7 @@ aux_render_final_image (struct aux_group_renderer *aux, sqlite3 * sqlite,
       {
 	  if (!get_payload_from_rgb_rgba_transparent
 	      (aux->width, aux->height, rgb, alpha, aux->format_id,
-	       aux->quality, &image, &image_size, 1.0))
+	       aux->quality, &image, &image_size, 1.0, 0))
 	    {
 		rgb = NULL;
 		alpha = NULL;
@@ -1806,7 +1809,7 @@ load_external_graphic_from_dbms (sqlite3 * handle, rl2PrivGraphicPtr graphic)
 		      if (strcmp (mime_type, "image/gif") == 0)
 			  raster = rl2_raster_from_gif (blob, blob_sz);
 		      if (strcmp (mime_type, "image/png") == 0)
-			  raster = rl2_raster_from_png (blob, blob_sz);
+			  raster = rl2_raster_from_png (blob, blob_sz, 1);
 		      if (strcmp (mime_type, "image/jpeg") == 0)
 			  raster = rl2_raster_from_jpeg (blob, blob_sz);
 		      if (strcmp (mime_type, "image/tiff") == 0)
@@ -1890,7 +1893,7 @@ load_external_bitmap_from_dbms (sqlite3 * handle, const char *xlink_href)
 		      if (strcmp (mime_type, "image/gif") == 0)
 			  raster = rl2_raster_from_gif (blob, blob_sz);
 		      if (strcmp (mime_type, "image/png") == 0)
-			  raster = rl2_raster_from_png (blob, blob_sz);
+			  raster = rl2_raster_from_png (blob, blob_sz, 1);
 		      if (strcmp (mime_type, "image/jpeg") == 0)
 			  raster = rl2_raster_from_jpeg (blob, blob_sz);
 		      if (strcmp (mime_type, "image/tiff") == 0)
@@ -2660,6 +2663,8 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
     item = sym->first;
     while (item != NULL)
       {
+	  stroke = 0;
+	  fill = 0;
 	  if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER)
 	    {
 		rl2PrivPolygonSymbolizerPtr polyg_sym =
@@ -2669,16 +2674,71 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 		      if (polyg_sym->fill->graphic != NULL)
 			{
 			    /* external Graphic fill */
-			    pattern_fill =
-				load_external_graphic_from_dbms (handle,
-								 polyg_sym->fill->
-								 graphic);
+			    const char *xlink_href = NULL;
+			    int recolor = 0;
+			    unsigned char red;
+			    unsigned char green;
+			    unsigned char blue;
+			    pattern_fill = NULL;
+			    if (polyg_sym->fill->graphic->first != NULL)
+			      {
+				  if (polyg_sym->fill->graphic->first->type ==
+				      RL2_EXTERNAL_GRAPHIC)
+				    {
+					rl2PrivExternalGraphicPtr ext =
+					    (rl2PrivExternalGraphicPtr)
+					    (polyg_sym->fill->graphic->
+					     first->item);
+					xlink_href = ext->xlink_href;
+					if (ext->first != NULL)
+					  {
+					      recolor = 1;
+					      red = ext->first->red;
+					      green = ext->first->green;
+					      blue = ext->first->blue;
+					  }
+				    }
+			      }
+			    if (xlink_href != NULL)
+				pattern_fill =
+				    rl2_create_pattern_from_external_graphic
+				    (handle, xlink_href, 1);
 			    if (pattern_fill != NULL)
 			      {
+				  if (recolor)
+				    {
+					/* attempting to recolor the External Graphic resource */
+					rl2_graph_pattern_recolor (pattern_fill,
+								   red, green,
+								   blue);
+				    }
+				  if (polyg_sym->fill->opacity <= 0.0)
+				      norm_opacity = 0;
+				  else if (polyg_sym->fill->opacity >= 1.0)
+				      norm_opacity = 255;
+				  else
+				    {
+					opacity =
+					    255.0 * polyg_sym->fill->opacity;
+					if (opacity <= 0.0)
+					    norm_opacity = 0;
+					else if (opacity >= 255.0)
+					    norm_opacity = 255;
+					else
+					    norm_opacity = opacity;
+				    }
+				  if (norm_opacity < 1.0)
+				      rl2_graph_pattern_transparency
+					  (pattern_fill, norm_opacity);
 				  rl2_graph_set_pattern_brush (ctx,
 							       pattern_fill);
-				  fill = 1;
 			      }
+			    else
+			      {
+				  /* invalid Pattern: defaulting to a Gray brush */
+				  rl2_graph_set_brush (ctx, 128, 128, 128, 255);
+			      }
+			    fill = 1;
 			}
 		      else
 			{
@@ -2834,53 +2894,26 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 			}
 		  }
 	    }
-	  item = item->next;
-      }
-    if (!fill && !stroke)
-	return;
-
-    polyg = geom->first_polygon;
-    while (polyg)
-      {
-	  /* drawing a POLYGON */
-	  int iv;
-	  double dx;
-	  double dy;
-	  int x;
-	  int y;
-	  int lastX = 0;
-	  int lastY = 0;
-	  int ib;
-	  rl2RingPtr ring = polyg->exterior;
-	  /* exterior border */
-	  for (iv = 0; iv < ring->points; iv++)
+	  if (!fill && !stroke)
 	    {
-		rl2GetPoint (ring->coords, iv, &dx, &dy);
-		x = (int) ((dx - minx) / x_res);
-		y = height - (int) ((dy - miny) / y_res);
-		if (iv == 0)
-		  {
-		      rl2_graph_move_to_point (ctx, x, y);
-		      lastX = x;
-		      lastY = y;
-		  }
-		else
-		  {
-		      if (x == lastX && y == lastY)
-			  ;
-		      else
-			{
-			    rl2_graph_add_line_to_path (ctx, x, y);
-			    lastX = x;
-			    lastY = y;
-			}
-		  }
+		item = item->next;
+		continue;
 	    }
-	  rl2_graph_close_subpath (ctx);
-	  for (ib = 0; ib < polyg->num_interiors; ib++)
+
+	  polyg = geom->first_polygon;
+	  while (polyg)
 	    {
-		/* interior borders */
-		ring = polyg->interiors + ib;
+		/* drawing a POLYGON */
+		int iv;
+		double dx;
+		double dy;
+		int x;
+		int y;
+		int lastX = 0;
+		int lastY = 0;
+		int ib;
+		rl2RingPtr ring = polyg->exterior;
+		/* exterior border */
 		for (iv = 0; iv < ring->points; iv++)
 		  {
 		      rl2GetPoint (ring->coords, iv, &dx, &dy);
@@ -2905,27 +2938,57 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 			}
 		  }
 		rl2_graph_close_subpath (ctx);
-	    }
-	  if (fill)
-	    {
+		for (ib = 0; ib < polyg->num_interiors; ib++)
+		  {
+		      /* interior borders */
+		      ring = polyg->interiors + ib;
+		      for (iv = 0; iv < ring->points; iv++)
+			{
+			    rl2GetPoint (ring->coords, iv, &dx, &dy);
+			    x = (int) ((dx - minx) / x_res);
+			    y = height - (int) ((dy - miny) / y_res);
+			    if (iv == 0)
+			      {
+				  rl2_graph_move_to_point (ctx, x, y);
+				  lastX = x;
+				  lastY = y;
+			      }
+			    else
+			      {
+				  if (x == lastX && y == lastY)
+				      ;
+				  else
+				    {
+					rl2_graph_add_line_to_path (ctx, x, y);
+					lastX = x;
+					lastY = y;
+				    }
+			      }
+			}
+		      rl2_graph_close_subpath (ctx);
+		  }
+		if (fill)
+		  {
+		      if (stroke)
+			  rl2_graph_fill_path (ctx, RL2_PRESERVE_PATH);
+		      else
+			  rl2_graph_fill_path (ctx, RL2_CLEAR_PATH);
+		  }
 		if (stroke)
-		    rl2_graph_fill_path (ctx, RL2_PRESERVE_PATH);
-		else
-		    rl2_graph_fill_path (ctx, RL2_CLEAR_PATH);
+		    rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
+		polyg = polyg->next;
 	    }
-	  if (stroke)
-	      rl2_graph_stroke_path (ctx, RL2_CLEAR_PATH);
-	  polyg = polyg->next;
-      }
-    if (pattern_fill != NULL)
-      {
-	  rl2_graph_release_pattern_brush (ctx);
-	  rl2_graph_destroy_pattern (pattern_fill);
-      }
-    if (pattern_stroke != NULL)
-      {
-	  rl2_graph_release_pattern_pen (ctx);
-	  rl2_graph_destroy_pattern (pattern_stroke);
+	  if (pattern_fill != NULL)
+	    {
+		rl2_graph_release_pattern_brush (ctx);
+		rl2_graph_destroy_pattern (pattern_fill);
+	    }
+	  if (pattern_stroke != NULL)
+	    {
+		rl2_graph_release_pattern_pen (ctx);
+		rl2_graph_destroy_pattern (pattern_stroke);
+	    }
+	  item = item->next;
       }
 }
 

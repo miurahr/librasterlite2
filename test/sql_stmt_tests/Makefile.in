@@ -261,6 +261,20 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	setmaxthreads5.testcase \
 	setmaxthreads6.testcase \
 	setmaxthreads7.testcase \
+	copyrastercov1.testcase \
+	copyrastercov2.testcase \
+	copyrastercov3.testcase \
+	copyrastercov4.testcase \
+	copyrastercov5.testcase \
+	copyrastercov6.testcase \
+	copyrastercov7.testcase \
+	copyrastercov8.testcase \
+	copyrastercov9.testcase \
+	copyrastercov10.testcase \
+	copyrastercov11.testcase \
+	copyrastercov12.testcase \
+	copyrastercov13.testcase \
+	copyrastercov14.testcase \
     createcov_16_mband1.testcase \
 	createcov_16_mband_deflate.testcase \
 	createcov_16_mband_deflateno.testcase \

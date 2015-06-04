@@ -2226,6 +2226,7 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
     unsigned int row;
     unsigned int col;
     unsigned char *p_alpha;
+    int half_transparent;
     rl2GraphicsContextPtr ctx = NULL;
     rl2RasterPtr rst = NULL;
     rl2SectionPtr img = NULL;
@@ -2308,7 +2309,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
       }
 /* setting up a black Font */
     font =
-	rl2_graph_create_toy_font (NULL, 16, RL2_FONTSTYLE_ITALIC, RL2_FONTWEIGHT_BOLD);
+	rl2_graph_create_toy_font (NULL, 16, RL2_FONTSTYLE_ITALIC,
+				   RL2_FONTWEIGHT_BOLD);
     if (font == NULL)
       {
 	  fprintf (stderr, "Unable to create a Font\n");
@@ -2390,7 +2392,8 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 						t_width, t_height);
 		      rl2_graph_draw_text (ctx, section_name,
 					   cx - (t_width / 2.0),
-					   cy + (t_height / 2.0), 0.0, 0.0, 0.0);
+					   cy + (t_height / 2.0), 0.0, 0.0,
+					   0.0);
 		  }
 	    }
 	  else
@@ -2410,7 +2413,7 @@ exec_map (sqlite3 * handle, const char *coverage, const char *dst_path,
 	  fprintf (stderr, "invalid RGB buffer from Graphics Context\n");
 	  goto error;
       }
-    alpha = rl2_graph_get_context_alpha_array (ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
     if (alpha == NULL)
       {
 	  fprintf (stderr, "invalid Alpha buffer from Graphics Context\n");

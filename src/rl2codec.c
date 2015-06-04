@@ -5394,7 +5394,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 		    rl2_decode_png (pixels_odd, compressed_odd,
 				    &width, &height, &sample_type, &pixel_type,
 				    &num_bands, &pixels, &pixels_sz, &mask,
-				    &mask_sz, &palette);
+				    &mask_sz, &palette, 0);
 		if (ret != RL2_OK)
 		    goto error;
 		goto done;
@@ -5405,7 +5405,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 				      &width, &odd_rows, &sample_type,
 				      &pixel_type, &num_bands, &odd_data,
 				      &pixels_sz, &odd_mask, &odd_mask_sz,
-				      &palette);
+				      &palette, 0);
 		if (ret != RL2_OK)
 		    goto error;
 		pixels_odd = odd_data;
@@ -5415,7 +5415,7 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 					    &width, &even_rows, &sample_type,
 					    &pixel_type, &num_bands, &even_data,
 					    &pixels_sz, &even_mask,
-					    &even_mask_sz, &palette2);
+					    &even_mask_sz, &palette2, 0);
 		      if (ret != RL2_OK)
 			  goto error;
 		      rl2_destroy_palette (palette2);

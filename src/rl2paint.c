@@ -1319,7 +1319,7 @@ rl2_create_pattern_from_external_graphic (sqlite3 * handle,
 			{
 			    if (raster != NULL)
 				rl2_destroy_raster (raster);
-			    raster = rl2_raster_from_png (blob, blob_sz);
+			    raster = rl2_raster_from_png (blob, blob_sz, 1);
 			}
 		      if (strcmp (mime, "image/gif") == 0)
 			{
@@ -3123,6 +3123,16 @@ rl2_graph_draw_mark_symbol (rl2GraphicsContextPtr context, int mark_type,
     return 1;
 }
 
+static unsigned char
+unpremultiply (unsigned char c, unsigned char a)
+{
+/* Cairo has premultiplied alphas */
+    double x = ((double) c * 255.0) / (double) a;
+    if (a == 0)
+	return 0;
+    return (unsigned char) x;
+}
+
 RL2_DECLARE unsigned char *
 rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context)
 {
@@ -3155,30 +3165,32 @@ rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context)
 		unsigned char r;
 		unsigned char g;
 		unsigned char b;
+		unsigned char a;
 		if (little_endian)
 		  {
 		      b = *p_in++;
 		      g = *p_in++;
 		      r = *p_in++;
-		      p_in++;	/* skipping Alpha */
+		      a = *p_in++;
 		  }
 		else
 		  {
-		      p_in++;	/* skipping Alpha */
+		      a = *p_in++;
 		      r = *p_in++;
 		      g = *p_in++;
 		      b = *p_in++;
 		  }
-		*p_out++ = r;
-		*p_out++ = g;
-		*p_out++ = b;
+		*p_out++ = unpremultiply (r, a);
+		*p_out++ = unpremultiply (g, a);
+		*p_out++ = unpremultiply (b, a);
 	    }
       }
     return rgb;
 }
 
 RL2_DECLARE unsigned char *
-rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
+rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context,
+				   int *half_transparent)
 {
 /* creating an Alpha buffer from the given Context */
     int width;
@@ -3188,8 +3200,10 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *alpha;
+    int real_alpha = 0;
     int little_endian = rl2cr_endian_arch ();
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    *half_transparent = 0;
 
     if (ctx == NULL)
 	return NULL;
@@ -3209,15 +3223,21 @@ rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context)
 		if (little_endian)
 		  {
 		      p_in += 3;	/* skipping RGB */
+		      if (*p_in >= 1 && *p_in <= 254)
+			  real_alpha = 1;
 		      *p_out++ = *p_in++;
 		  }
 		else
 		  {
+		      if (*p_in >= 1 && *p_in <= 254)
+			  real_alpha = 1;
 		      *p_out++ = *p_in++;
 		      p_in += 3;	/* skipping RGB */
 		  }
 	    }
       }
+    if (real_alpha)
+	*half_transparent = 1;
     return alpha;
 }
 

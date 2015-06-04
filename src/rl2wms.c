@@ -7121,7 +7121,7 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 		if (cachedItem->ImageFormat == WMS_FORMAT_PNG)
 		    raster =
 			rl2_raster_from_png (cachedItem->Item,
-					     cachedItem->Size);
+					     cachedItem->Size, 1);
 		if (cachedItem->ImageFormat == WMS_FORMAT_JPEG)
 		    raster =
 			rl2_raster_from_jpeg (cachedItem->Item,
@@ -7222,7 +7222,7 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 		  rl2_raster_from_gif (bodyBuf.Buffer, bodyBuf.WriteOffset);
 	  if (strcmp (image_format, "image/png") == 0)
 	      raster =
-		  rl2_raster_from_png (bodyBuf.Buffer, bodyBuf.WriteOffset);
+		  rl2_raster_from_png (bodyBuf.Buffer, bodyBuf.WriteOffset, 1);
 	  if (strcmp (image_format, "image/jpeg") == 0)
 	      raster =
 		  rl2_raster_from_jpeg (bodyBuf.Buffer, bodyBuf.WriteOffset);
@@ -7329,7 +7329,7 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 		if (cachedItem->ImageFormat == WMS_FORMAT_PNG)
 		    raster =
 			rl2_raster_from_png (cachedItem->Item,
-					     cachedItem->Size);
+					     cachedItem->Size, 1);
 		if (cachedItem->ImageFormat == WMS_FORMAT_JPEG)
 		    raster =
 			rl2_raster_from_jpeg (cachedItem->Item,
@@ -7427,7 +7427,7 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 		  rl2_raster_from_gif (bodyBuf.Buffer, bodyBuf.WriteOffset);
 	  if (strcmp (image_format, "image/png") == 0)
 	      raster =
-		  rl2_raster_from_png (bodyBuf.Buffer, bodyBuf.WriteOffset);
+		  rl2_raster_from_png (bodyBuf.Buffer, bodyBuf.WriteOffset, 1);
 	  if (strcmp (image_format, "image/jpeg") == 0)
 	      raster =
 		  rl2_raster_from_jpeg (bodyBuf.Buffer, bodyBuf.WriteOffset);

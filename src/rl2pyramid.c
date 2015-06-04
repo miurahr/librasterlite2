@@ -1986,6 +1986,7 @@ update_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
     int blob_even_sz;
     unsigned char *p;
     unsigned char compression;
+    int hald_transparent;
 
     if (pyr == NULL)
 	goto error;
@@ -2049,7 +2050,7 @@ update_sect_pyramid (sqlite3 * handle, sqlite3_stmt * stmt_rd,
 	  rgb = rl2_graph_get_context_rgb_array (ctx);
 	  if (rgb == NULL)
 	      goto error;
-	  alpha = rl2_graph_get_context_alpha_array (ctx);
+	  alpha = rl2_graph_get_context_alpha_array (ctx, &hald_transparent);
 	  if (alpha == NULL)
 	      goto error;
 	  p = alpha;
@@ -2200,6 +2201,7 @@ rescale_monolithic_rgba (int id_level,
     unsigned char *p_in;
     unsigned char *p_out;
     unsigned char *p_msk;
+    int half_transparent;
 
 /* creating a graphics context */
     ctx = rl2_graph_create_context (tileWidth, tileHeight);
@@ -2250,7 +2252,7 @@ rescale_monolithic_rgba (int id_level,
     rgb = rl2_graph_get_context_rgb_array (ctx);
     if (rgb == NULL)
 	goto error;
-    alpha = rl2_graph_get_context_alpha_array (ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
     if (alpha == NULL)
 	goto error;
     rl2_graph_destroy_context (ctx);

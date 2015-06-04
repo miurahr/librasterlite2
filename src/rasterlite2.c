@@ -1119,12 +1119,13 @@ check_raster_no_data (rl2PrivPixelPtr pxl_no_data, unsigned char sample_type,
     return 1;
 }
 
-RL2_DECLARE rl2RasterPtr
-rl2_create_raster (unsigned int width, unsigned int height,
-		   unsigned char sample_type, unsigned char pixel_type,
-		   unsigned char num_samples, unsigned char *bufpix,
-		   int bufpix_size, rl2PalettePtr palette, unsigned char *mask,
-		   int mask_size, rl2PixelPtr no_data)
+static rl2RasterPtr
+create_raster_common (unsigned int width, unsigned int height,
+		      unsigned char sample_type, unsigned char pixel_type,
+		      unsigned char num_samples, unsigned char *bufpix,
+		      int bufpix_size, rl2PalettePtr palette,
+		      unsigned char *mask, int mask_size, rl2PixelPtr no_data,
+		      int alpha_mask)
 {
 /* allocating and initializing a Raster object */
     rl2PrivPixelPtr pxl_no_data = (rl2PrivPixelPtr) no_data;
@@ -1160,14 +1161,17 @@ rl2_create_raster (unsigned int width, unsigned int height,
 	  /* checking the mask size */
 	  if (width * height != (unsigned int) mask_size)
 	      return NULL;
-	  p = mask;
-	  for (row = 0; row < height; row++)
+	  if (!alpha_mask)
 	    {
-		/* checking if sample doesn't exceed the max value */
-		for (col = 0; col < width; col++)
+		p = mask;
+		for (row = 0; row < height; row++)
 		  {
-		      if (*p++ > 1)
-			  return NULL;
+		      /* checking if sample doesn't exceed the max value */
+		      for (col = 0; col < width; col++)
+			{
+			    if (*p++ > 1)
+				return NULL;
+			}
 		  }
 	    }
       }
@@ -1239,9 +1243,39 @@ rl2_create_raster (unsigned int width, unsigned int height,
     rst->maxY = height;
     rst->rasterBuffer = bufpix;
     rst->maskBuffer = mask;
+    rst->alpha_mask = 0;
+    if (alpha_mask)
+	rst->alpha_mask = 1;
     rst->Palette = (rl2PrivPalettePtr) palette;
     rst->noData = pxl_no_data;
     return (rl2RasterPtr) rst;
+}
+
+RL2_DECLARE rl2RasterPtr
+rl2_create_raster (unsigned int width, unsigned int height,
+		   unsigned char sample_type, unsigned char pixel_type,
+		   unsigned char num_samples, unsigned char *bufpix,
+		   int bufpix_size, rl2PalettePtr palette, unsigned char *mask,
+		   int mask_size, rl2PixelPtr no_data)
+{
+/* allocating and initializing a Raster object with an optional Transparency Mask */
+    return create_raster_common (width, height, sample_type, pixel_type,
+				 num_samples, bufpix, bufpix_size, palette,
+				 mask, mask_size, no_data, 0);
+}
+
+RL2_DECLARE rl2RasterPtr
+rl2_create_raster_alpha (unsigned int width, unsigned int height,
+			 unsigned char sample_type, unsigned char pixel_type,
+			 unsigned char num_samples, unsigned char *bufpix,
+			 int bufpix_size, rl2PalettePtr palette,
+			 unsigned char *alpha, int alpha_size,
+			 rl2PixelPtr no_data)
+{
+/* allocating and initializing a Raster object with an optional Alpha Mask */
+    return create_raster_common (width, height, sample_type, pixel_type,
+				 num_samples, bufpix, bufpix_size, palette,
+				 alpha, alpha_size, no_data, 1);
 }
 
 RL2_DECLARE void

@@ -828,12 +828,13 @@ eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 RL2_DECLARE rl2VectorSymbolizerPtr
 rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 					    double scale,
-					    rl2VariantArrayPtr variant)
+					    rl2VariantArrayPtr variant, int *scale_forbidden)
 {
 /* return the VectorSymbolizer matching a given scale/filter from a FeatureTypeStyle */
     rl2PrivVectorSymbolizerPtr symbolizer = NULL;
     rl2PrivStyleRulePtr pR;
     rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
+    *scale_forbidden = 0;
     if (stl == NULL)
 	return NULL;
 
@@ -848,55 +849,106 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 		pR = pR->next;
 		continue;
 	    }
+	  if (eval_filter (pR, variant))
+	    {
+		if (pR->min_scale != DBL_MAX && pR->max_scale != DBL_MAX)
+		  {
+		      if (scale >= pR->min_scale && scale < pR->max_scale)
+			  symbolizer = pR->style;
+		  }
+		else if (pR->min_scale != DBL_MAX)
+		  {
+		      if (scale >= pR->min_scale)
+			  symbolizer = pR->style;
+		  }
+		else if (pR->max_scale != DBL_MAX)
+		  {
+		      if (scale < pR->max_scale)
+			  symbolizer = pR->style;
+		  }
+		else
+		    symbolizer = pR->style;
+		    if (symbolizer == NULL)
+		    *scale_forbidden = 1;
+		return (rl2VectorSymbolizerPtr) symbolizer;
+	    }
+	  pR = pR->next;
+      }
+    if (stl->else_rule != NULL)
+      {
+	  /* applyhing the ELSE rule */
+	  pR = stl->else_rule;
 	  if (pR->min_scale != DBL_MAX && pR->max_scale != DBL_MAX)
 	    {
 		if (scale >= pR->min_scale && scale < pR->max_scale)
-		  {
-		      if (eval_filter (pR, variant))
-			{
-			    symbolizer = pR->style;
-			    break;
-			}
-		  }
+		    symbolizer = pR->style;
 	    }
 	  else if (pR->min_scale != DBL_MAX)
 	    {
 		if (scale >= pR->min_scale)
-		  {
-		      if (eval_filter (pR, variant))
-			{
-			    symbolizer = pR->style;
-			    break;
-			}
-		  }
+		    symbolizer = pR->style;
 	    }
 	  else if (pR->max_scale != DBL_MAX)
 	    {
 		if (scale < pR->max_scale)
-		  {
-		      if (eval_filter (pR, variant))
-			{
-			    symbolizer = pR->style;
-			    break;
-			}
-		  }
+		    symbolizer = pR->style;
 	    }
 	  else
-	    {
-		if (eval_filter (pR, variant))
-		  {
-		      symbolizer = pR->style;
-		      break;
-		  }
-	    }
-	  pR = pR->next;
-      }
-    if (symbolizer == NULL && stl->else_rule != NULL)
-      {
-	  /* applyhing the ELSE rule */
-	  symbolizer = stl->else_rule->style;
+	      symbolizer = pR->style;
+		    if (symbolizer == NULL)
+		    *scale_forbidden = 1;
       }
     return (rl2VectorSymbolizerPtr) symbolizer;
+}
+
+RL2_DECLARE int
+rl2_is_visible_style (rl2FeatureTypeStylePtr style, double scale)
+{
+/* test visibility at a given scale/filter from a FeatureTypeStyle */
+    int count = 0;
+    int visible;
+    rl2PrivStyleRulePtr pR;
+    rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
+    if (stl == NULL)
+	return 0;
+
+    pR = stl->first_rule;
+    while (pR != NULL)
+      {
+	  if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+	      ;
+	  else
+	    {
+		/* skipping any invalid rule */
+		pR = pR->next;
+		continue;
+	    }
+	  visible = 1;
+	  if (pR->min_scale != DBL_MAX && pR->max_scale != DBL_MAX)
+	    {
+		visible = 0;
+		if (scale >= pR->min_scale && scale < pR->max_scale)
+		    visible = 1;
+	    }
+	  else if (pR->min_scale != DBL_MAX)
+	    {
+		visible = 0;
+		if (scale >= pR->min_scale)
+		    visible = 1;
+	    }
+	  else if (pR->max_scale != DBL_MAX)
+	    {
+		visible = 0;
+		if (scale < pR->max_scale)
+		    visible = 1;
+	    }
+	  if (visible)
+	      count++;
+	  pR = pR->next;
+      }
+    if (count == 0)
+	return 0;
+    return 1;
 }
 
 RL2_PRIVATE void

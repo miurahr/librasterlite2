@@ -3403,7 +3403,8 @@ win32_http_request (void *data)
       {
 	  /* preparing the WMS GetMap payload */
 	  args->db_handle = req->conn->handle;
-	  args->stmt_get_map = req->conn->stmt_get_map;
+	  args->stmt_get_map_raster = req->conn->stmt_get_map_raster;
+	  args->stmt_get_map_vector = req->conn->stmt_get_map_vector;
 	  log_get_map_1 (req->log, timestamp, http_status, method, url, args);
 	  wms_get_map (args, req->socket, req->log);
       }

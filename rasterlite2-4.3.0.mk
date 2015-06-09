@@ -22,11 +22,16 @@ spatialite_flags := \
  -DTARGET_CPU=\"$(TARGET_ARCH_ABI)\" \
  -Dfdatasync=fsync \
  -DSQLITE_ENABLE_RTREE=1 \
+ -DENABLE_GCP=1 \
+ -DENABLE_GEOPACKAGE=1 \
+ -DENABLE_LIBXML2=1 \
  -DSQLITE_OMIT_BUILTIN_TEST=1
 
 # comment out TARGET_CPU in config.h - will be replaced with TARGET_ARCH_ABI
+# comment out VERSION in config.h - manually set to avoid conflict with other packages
 rasterlite2_flags := \
  -DTARGET_CPU=\"$(TARGET_ARCH_ABI)\" \
+ -DVERSION=\"0.9\" \
  -O
 
 LOCAL_CFLAGS    := \
@@ -34,6 +39,7 @@ LOCAL_CFLAGS    := \
  $(spatialite_flags) \
  $(rasterlite2_flags)
 
+# 2014-10-03 - adapted based on ls -1 result
 LOCAL_C_INCLUDES := \
  $(SQLITE_PATH) \
  $(GEOTIFF_PATH)/libxtiff \
@@ -50,7 +56,9 @@ LOCAL_C_INCLUDES := \
  $(WEBP_PATH)/src \
  $(WEBP_PATH) \
  $(CAIRO_PATH) \
+ $(FONTCONFIG_PATH) \
  $(ICONV_PATH)/include \
+ $(FREETYPE_PATH)/include \
  $(ICONV_PATH)/libcharset/include \
  $(XML2_PATH)/include \
  $(CURL_PATH) \
@@ -59,17 +67,28 @@ LOCAL_C_INCLUDES := \
  $(RASTERLITE2_PATH) \
  $(RASTERLITE2_PATH)/headers \
  $(SPATIALITE_PATH)/src/headers \
- $(LZMA_PATH)/src/liblzma/api
+ $(LZMA_PATH)/src/liblzma/api \
+ $(OPENJPEG_PATH)/src/lib/openjp2 \
+ $(CHARLS_PATH)
+
 LOCAL_SRC_FILES := \
+ $(RASTERLITE2_PATH)/src/md5.c \
  $(RASTERLITE2_PATH)/src/rasterlite2.c \
  $(RASTERLITE2_PATH)/src/rl2ascii.c \
+ $(RASTERLITE2_PATH)/src/rl2auxfont.c \
+ $(RASTERLITE2_PATH)/src/rl2auxgeom.c \
+ $(RASTERLITE2_PATH)/src/rl2auxrender.c \
+ $(RASTERLITE2_PATH)/src/rl2charls.c \
  $(RASTERLITE2_PATH)/src/rl2codec.c \
  $(RASTERLITE2_PATH)/src/rl2dbms.c \
  $(RASTERLITE2_PATH)/src/rl2gif.c \
  $(RASTERLITE2_PATH)/src/rl2import.c \
  $(RASTERLITE2_PATH)/src/rl2jpeg.c \
+ $(RASTERLITE2_PATH)/src/rl2md5.c \
+ $(RASTERLITE2_PATH)/src/rl2openjpeg.c \
  $(RASTERLITE2_PATH)/src/rl2paint.c \
  $(RASTERLITE2_PATH)/src/rl2png.c \
+ $(RASTERLITE2_PATH)/src/rl2pyramid.c \
  $(RASTERLITE2_PATH)/src/rl2rastersym.c \
  $(RASTERLITE2_PATH)/src/rl2raw.c \
  $(RASTERLITE2_PATH)/src/rl2sql.c \
@@ -77,10 +96,11 @@ LOCAL_SRC_FILES := \
  $(RASTERLITE2_PATH)/src/rl2svg.c \
  $(RASTERLITE2_PATH)/src/rl2svgaux.c \
  $(RASTERLITE2_PATH)/src/rl2svgxml.c \
+ $(RASTERLITE2_PATH)/src/rl2symbaux.c \
  $(RASTERLITE2_PATH)/src/rl2symbolizer.c \
  $(RASTERLITE2_PATH)/src/rl2tiff.c \
  $(RASTERLITE2_PATH)/src/rl2version.c \
  $(RASTERLITE2_PATH)/src/rl2webp.c \
  $(RASTERLITE2_PATH)/src/rl2wms.c
-LOCAL_STATIC_LIBRARIES := libpng libwebp libxml2 spatialite libfreetype libcairo libcurl libgeotiff libtiff libgif libjpeg
+LOCAL_STATIC_LIBRARIES := libcharls libopenjpeg libpng libwebp libxml2 spatialite libfreetype libcairo libcurl libgeotiff libtiff libgif libjpeg
 include $(BUILD_STATIC_LIBRARY)

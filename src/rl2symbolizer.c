@@ -4093,29 +4093,28 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 		strcpy (*(strings + i), pR->column_name);
 		*(dupl + i) = 'N';
 		i++;
-		if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+	    }
+	  if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+	    {
+		pV = (rl2PrivVectorSymbolizerPtr) (pR->style);
+		item = pV->first;
+		while (item != NULL)
 		  {
-		      pV = (rl2PrivVectorSymbolizerPtr) (pR->style);
-		      item = pV->first;
-		      while (item != NULL)
+		      if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+			  && item->symbolizer != NULL)
 			{
-			    if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
-				&& item->symbolizer != NULL)
+			    text =
+				(rl2PrivTextSymbolizerPtr) (item->symbolizer);
+			    if (text->label != NULL)
 			      {
-				  text =
-				      (rl2PrivTextSymbolizerPtr)
-				      (item->symbolizer);
-				  if (text->label != NULL)
-				    {
-					len = strlen (text->label);
-					*(strings + i) = malloc (len + 1);
-					strcpy (*(strings + i), text->label);
-					*(dupl + i) = 'N';
-					i++;
-				    }
+				  len = strlen (text->label);
+				  *(strings + i) = malloc (len + 1);
+				  strcpy (*(strings + i), text->label);
+				  *(dupl + i) = 'N';
+				  i++;
 			      }
-			    item = item->next;
 			}
+		      item = item->next;
 		  }
 	    }
       }

@@ -784,11 +784,12 @@ static int
 eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 {
 /* evaluating a Rule Filter */
-	int compared = 0;
     int i;
     rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
-    if (rule == NULL || var == NULL)
-	return 1;
+    if (rule->column_name == NULL)
+	return 1;		/* there is no comparison: surely true */
+    if (var == NULL)
+	return 0;
     for (i = 0; i < var->count; i++)
       {
 	  rl2PrivVariantValuePtr val = *(var->array + i);
@@ -796,11 +797,8 @@ eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 	      return 0;
 	  if (val->column_name == NULL)
 	      return 0;
-	  if (rule->column_name == NULL)
-	      continue;
 	  if (strcasecmp (rule->column_name, val->column_name) != 0)
 	      continue;
-	      compared = 1;
 	  switch (rule->comparison_op)
 	    {
 	    case RL2_COMPARISON_EQ:
@@ -826,15 +824,14 @@ eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 	    };
 	  break;
       }
-      if (compared)
-      return 0;
-    return 1;
+    return 0;
 }
 
 RL2_DECLARE rl2VectorSymbolizerPtr
 rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 					    double scale,
-					    rl2VariantArrayPtr variant, int *scale_forbidden)
+					    rl2VariantArrayPtr variant,
+					    int *scale_forbidden)
 {
 /* return the VectorSymbolizer matching a given scale/filter from a FeatureTypeStyle */
     rl2PrivVectorSymbolizerPtr symbolizer = NULL;
@@ -855,8 +852,10 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 		pR = pR->next;
 		continue;
 	    }
+
 	  if (eval_filter (pR, variant))
 	    {
+		*scale_forbidden = 0;
 		if (pR->min_scale != DBL_MAX && pR->max_scale != DBL_MAX)
 		  {
 		      if (scale >= pR->min_scale && scale < pR->max_scale)
@@ -874,15 +873,17 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 		  }
 		else
 		    symbolizer = pR->style;
-		    if (symbolizer == NULL)
+		if (symbolizer == NULL)
 		    *scale_forbidden = 1;
-		return (rl2VectorSymbolizerPtr) symbolizer;
+		else
+		    return (rl2VectorSymbolizerPtr) symbolizer;
 	    }
 	  pR = pR->next;
       }
     if (stl->else_rule != NULL)
       {
 	  /* applyhing the ELSE rule */
+	  *scale_forbidden = 0;
 	  pR = stl->else_rule;
 	  if (pR->min_scale != DBL_MAX && pR->max_scale != DBL_MAX)
 	    {
@@ -901,8 +902,8 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 	    }
 	  else
 	      symbolizer = pR->style;
-		    if (symbolizer == NULL)
-		    *scale_forbidden = 1;
+	  if (symbolizer == NULL)
+	      *scale_forbidden = 1;
       }
     return (rl2VectorSymbolizerPtr) symbolizer;
 }

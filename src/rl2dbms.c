@@ -7005,6 +7005,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
     char *abstract = NULL;
     unsigned char *statistics = NULL;
     int statistics_sz;
+    int ok_geo = 0;
     int ok_bbox = 0;
     double geo_minx;
     double geo_miny;
@@ -7410,22 +7411,22 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 		if (sqlite3_column_type (stmt, 19) == SQLITE_FLOAT)
 		  {
 		      geo_minx = sqlite3_column_double (stmt, 19);
-		      ok_bbox++;
+		      ok_geo++;
 		  }
 		if (sqlite3_column_type (stmt, 20) == SQLITE_FLOAT)
 		  {
 		      geo_miny = sqlite3_column_double (stmt, 20);
-		      ok_bbox++;
+		      ok_geo++;
 		  }
 		if (sqlite3_column_type (stmt, 21) == SQLITE_FLOAT)
 		  {
 		      geo_maxx = sqlite3_column_double (stmt, 21);
-		      ok_bbox++;
+		      ok_geo++;
 		  }
 		if (sqlite3_column_type (stmt, 22) == SQLITE_FLOAT)
 		  {
 		      geo_maxy = sqlite3_column_double (stmt, 22);
-		      ok_bbox++;
+		      ok_geo++;
 		  }
 		if (sqlite3_column_type (stmt, 23) == SQLITE_FLOAT)
 		  {
@@ -7489,7 +7490,9 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 		    && ok_y_res && ok_srid && ok_nodata && ok_strict && ok_mixed
 		    && ok_paths && ok_md5 && ok_summary)
 		    ok = 1;
-		if (ok_bbox != 8)
+		if (ok_geo != 4)
+		    ok_geo = 0;
+		if (ok_bbox != 4)
 		    ok_bbox = 0;
 	    }
       }
@@ -7508,10 +7511,10 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 				    strict_resolution, mixed_resolutions,
 				    section_paths, section_md5,
 				    section_summary);
-	if (no_data != NULL)
-	rl2_destroy_pixel(no_data);
-	if (palette != NULL)
-	rl2_destroy_palette(palette);
+    if (no_data != NULL)
+	rl2_destroy_pixel (no_data);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
     if (ret != RL2_OK)
 	goto error;
 
@@ -7542,16 +7545,12 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 	sqlite3_bind_null (stmt, 3);
     else
 	sqlite3_bind_blob (stmt, 3, statistics, statistics_sz, free);
-    if (ok_bbox)
+    if (ok_geo)
       {
 	  sqlite3_bind_double (stmt, 4, geo_minx);
 	  sqlite3_bind_double (stmt, 5, geo_miny);
 	  sqlite3_bind_double (stmt, 6, geo_maxx);
 	  sqlite3_bind_double (stmt, 7, geo_maxy);
-	  sqlite3_bind_double (stmt, 8, ext_minx);
-	  sqlite3_bind_double (stmt, 9, ext_miny);
-	  sqlite3_bind_double (stmt, 10, ext_maxx);
-	  sqlite3_bind_double (stmt, 11, ext_maxy);
       }
     else
       {
@@ -7559,6 +7558,16 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 	  sqlite3_bind_null (stmt, 5);
 	  sqlite3_bind_null (stmt, 6);
 	  sqlite3_bind_null (stmt, 7);
+      }
+    if (ok_bbox)
+      {
+	  sqlite3_bind_double (stmt, 8, ext_minx);
+	  sqlite3_bind_double (stmt, 9, ext_miny);
+	  sqlite3_bind_double (stmt, 10, ext_maxx);
+	  sqlite3_bind_double (stmt, 11, ext_maxy);
+      }
+    else
+      {
 	  sqlite3_bind_null (stmt, 8);
 	  sqlite3_bind_null (stmt, 9);
 	  sqlite3_bind_null (stmt, 10);
@@ -7591,7 +7600,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
     sqlite3_bind_text (stmt, 18, coverage_name, strlen (coverage_name),
 		       SQLITE_STATIC);
     ret = sqlite3_step (stmt);
-    sqlite3_finalize(stmt);
+    sqlite3_finalize (stmt);
     stmt = NULL;
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	goto ok_continue;
@@ -7614,7 +7623,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 			   xdb, xxcoverage);
     free (xxcoverage);
     ret = sqlite3_exec (sqlite, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
 
@@ -7629,7 +7638,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 			   xxcoverage, xdb, xxcoverage);
     free (xxcoverage);
     ret = sqlite3_exec (sqlite, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
 
@@ -7642,7 +7651,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 			   "FROM \"%s\".\"%s\"", xxcoverage, xdb, xxcoverage);
     free (xxcoverage);
     ret = sqlite3_exec (sqlite, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
 
@@ -7655,7 +7664,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 			   "FROM \"%s\".\"%s\"", xxcoverage, xdb, xxcoverage);
     free (xxcoverage);
     ret = sqlite3_exec (sqlite, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
 
@@ -7664,7 +7673,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 			   "(coverage_name, keyword) SELECT coverage_name, keyword "
 			   "FROM \"%s\".raster_coverages_keyword", xdb);
     ret = sqlite3_exec (sqlite, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
 
@@ -7674,7 +7683,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 			   "SELECT coverage_name, srid, extent_minx, extent_miny, extent_maxx, extent_maxx "
 			   "FROM \"%s\".raster_coverages_srid", xdb);
     ret = sqlite3_exec (sqlite, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
 

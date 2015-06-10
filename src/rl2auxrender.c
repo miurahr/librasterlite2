@@ -1974,8 +1974,9 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 						      {
 							  /* attempting to recolor the External Graphic resource */
 							  rl2_graph_pattern_recolor
-							      (pattern_stroke, red,
-							       green, blue);
+							      (pattern_stroke,
+							       red, green,
+							       blue);
 						      }
 						    if (mark->stroke->opacity <=
 							0.0)
@@ -2208,8 +2209,7 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 				  if (norm_opacity < 1.0)
 				      rl2_graph_pattern_transparency
 					  (pattern, norm_opacity);
-				  rl2_graph_set_pattern_brush (ctx,
-							       pattern);
+				  rl2_graph_set_pattern_brush (ctx, pattern);
 			      }
 			    else
 			      {
@@ -3236,6 +3236,11 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
     rl2PointPtr point;
     rl2LinestringPtr line;
     rl2PolygonPtr polyg;
+    double rotation = 0.0;
+    double anchor_point_x = 0.0;
+    double anchor_point_y = 0.0;
+    double displacement_x = 0.0;
+    double displacement_y = 0.0;
 
 /* preparing the Text */
     if (value->sqlite3_type == SQLITE_INTEGER)
@@ -3328,6 +3333,21 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
       }
     rl2_graph_set_font (ctx, font);
 
+/* retrieving an eventual displacement */
+    if (sym->label_placement_type == RL2_LABEL_PLACEMENT_POINT)
+      {
+	  rl2PrivPointPlacementPtr ptpl =
+	      (rl2PrivPointPlacementPtr) (sym->label_placement);
+	  if (ptpl != NULL)
+	    {
+		anchor_point_x = ptpl->anchor_point_x;
+		anchor_point_y = ptpl->anchor_point_y;
+		displacement_x = ptpl->displacement_x;
+		displacement_y = ptpl->displacement_y;
+		rotation = ptpl->rotation;
+	    }
+      }
+
     polyg = geom->first_polygon;
     while (polyg)
       {
@@ -3351,12 +3371,9 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	    }
 	  x = (cx - minx) / x_res;
 	  y = (double) height - ((cy - miny) / y_res);
-	  rl2_graph_get_text_extent (ctx, label, &pre_x, &pre_y, &lbl_width,
-				     &lbl_height, &post_x, &post_y);
-	  shift_x = 0.0 - (lbl_width / 2.0);
-	  shift_y = 0.0 + (lbl_height / 2.0);
-	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0, 0.0,
-			       0.0);
+	  rl2_graph_draw_text (ctx, label, x + displacement_x,
+			       y + displacement_y, rotation, anchor_point_x,
+			       anchor_point_y);
 	  polyg = polyg->next;
       }
 
@@ -3386,8 +3403,8 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	    }
 	  x = (cx - minx) / x_res;
 	  y = (double) height - ((cy - miny) / y_res);
-	  shift_x = 0.0 - (lbl_width / 2.0);
-	  shift_y = 0.0 + (lbl_height / 2.0);
+	  shift_x += displacement_x;
+	  shift_y += displacement_y;
 	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0, 0.0,
 			       0.0);
 	  line = line->next;
@@ -3407,12 +3424,9 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	  double shift_y;
 	  double x = (point->x - minx) / x_res;
 	  double y = (double) height - ((point->y - miny) / y_res);
-	  rl2_graph_get_text_extent (ctx, label, &pre_x, &pre_y, &lbl_width,
-				     &lbl_height, &post_x, &post_y);
-	  shift_x = 0.0 - (lbl_width / 2.0);
-	  shift_y = 0.0 + (lbl_height / 2.0);
-	  rl2_graph_draw_text (ctx, label, x + shift_x, y + shift_y, 0.0, 0.0,
-			       0.0);
+	  rl2_graph_draw_text (ctx, label, x + displacement_x,
+			       y + displacement_y, rotation, anchor_point_x,
+			       anchor_point_y);
 	  point = point->next;
       }
 
@@ -3542,19 +3556,24 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle,
 			    int v;
 			    rl2PrivVariantArrayPtr var =
 				(rl2PrivVariantArrayPtr) variant;
-			    for (v = 0; v < var->count; v++)
+			    if (var != NULL)
 			      {
-				  rl2PrivVariantValuePtr val =
-				      *(var->array + v);
-				  if (val == NULL)
-				      continue;
-				  if (val->column_name == NULL)
-				      continue;
-				  if (strcasecmp (text->label, val->column_name)
-				      != 0)
-				      continue;
-				  draw_labels (ctx, handle, text, height, minx,
-					       miny, x_res, y_res, geom, val);
+				  for (v = 0; v < var->count; v++)
+				    {
+					rl2PrivVariantValuePtr val =
+					    *(var->array + v);
+					if (val == NULL)
+					    continue;
+					if (val->column_name == NULL)
+					    continue;
+					if (strcasecmp
+					    (text->label,
+					     val->column_name) != 0)
+					    continue;
+					draw_labels (ctx, handle, text, height,
+						     minx, miny, x_res, y_res,
+						     geom, val);
+				    }
 			      }
 			}
 		  }

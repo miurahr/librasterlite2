@@ -784,6 +784,7 @@ static int
 eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 {
 /* evaluating a Rule Filter */
+	int compared = 0;
     int i;
     rl2PrivVariantArrayPtr var = (rl2PrivVariantArrayPtr) variant;
     if (rule == NULL || var == NULL)
@@ -793,10 +794,13 @@ eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 	  rl2PrivVariantValuePtr val = *(var->array + i);
 	  if (val == NULL)
 	      return 0;
-	  if (rule->column_name == NULL || val->column_name == NULL)
+	  if (val->column_name == NULL)
 	      return 0;
+	  if (rule->column_name == NULL)
+	      continue;
 	  if (strcasecmp (rule->column_name, val->column_name) != 0)
 	      continue;
+	      compared = 1;
 	  switch (rule->comparison_op)
 	    {
 	    case RL2_COMPARISON_EQ:
@@ -822,7 +826,9 @@ eval_filter (rl2PrivStyleRulePtr rule, rl2VariantArrayPtr variant)
 	    };
 	  break;
       }
-    return 0;
+      if (compared)
+      return 0;
+    return 1;
 }
 
 RL2_DECLARE rl2VectorSymbolizerPtr

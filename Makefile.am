@@ -5,7 +5,7 @@ SUBDIRS = headers src test tools
 EXTRA_DIST = mainpage.doxy Android_R4.3.0.mk rasterlite2-4.3.0.mk \
 	Makefile-static-MinGW
 
-AUTOMAKE_OPTIONS = dist-zip
+AUTOMAKE_OPTIONS = dist-zip foreign
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = rasterlite2.pc

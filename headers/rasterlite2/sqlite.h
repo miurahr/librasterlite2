@@ -52,4 +52,9 @@ extern const sqlite3_api_routines *sqlite3_api;
 #include <sqlite3.h>
 #endif
 
+#ifndef SQLITE_DETERMINISTIC
+/* probably SQLite < 3.8.3 - attempting to fix */
+#define SQLITE_DETERMINISTIC	SQLITE_UTF8
+#endif
+
 #endif

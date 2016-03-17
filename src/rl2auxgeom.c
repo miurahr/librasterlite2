@@ -249,6 +249,10 @@ rl2CreatePolygon (int vert, int excl)
 	  pP = p->interiors + ind;
 	  pP->points = 0;
 	  pP->coords = NULL;
+	  pP->minx = DBL_MAX;
+	  pP->miny = DBL_MAX;
+	  pP->maxx = 0.0 - DBL_MAX;
+	  pP->maxy = 0.0 - DBL_MAX;
       }
     return p;
 }

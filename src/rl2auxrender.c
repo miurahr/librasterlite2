@@ -2565,8 +2565,8 @@ draw_lines (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 {
 /* drawing Linear-type features */
     rl2PrivVectorSymbolizerItemPtr item;
-    int pen_cap;
-    int pen_join;
+    int pen_cap = RL2_PEN_CAP_BUTT;
+    int pen_join = RL2_PEN_JOIN_MITER;
     double opacity;
     unsigned char norm_opacity;
     rl2LinestringPtr line;
@@ -3945,7 +3945,6 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
     if (font == NULL)
       {
 	  /* defaulting to a toy font */
-	  fprintf (stderr, "default toy font\n");
 	  font =
 	      rl2_graph_create_toy_font (NULL, sym->font_size, font_style,
 					 font_weight);

@@ -1170,6 +1170,7 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
 	      weight = CAIRO_FONT_WEIGHT_BOLD;
 	  cairo_select_font_face (cairo, fnt->facename, style, weight);
 	  cairo_set_font_size (cairo, size);
+	  fnt->cairo_font = cairo_get_font_face (cairo);
       }
     else
       {
@@ -1941,22 +1942,21 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 {
 /* destroying a font */
     RL2GraphFontPtr fnt = (RL2GraphFontPtr) font;
-
     if (fnt == NULL)
 	return;
     if (fnt->toy_font == 0)
       {
 	  if (fnt->cairo_scaled_font != NULL)
 	      cairo_scaled_font_destroy (fnt->cairo_scaled_font);
-	  if (fnt->cairo_font != NULL)
-	      cairo_font_face_destroy (fnt->cairo_font);
       }
     else
       {
 	  if (fnt->facename != NULL)
 	      free (fnt->facename);
-	  free (fnt);
       }
+    if (fnt->cairo_font != NULL)
+	cairo_font_face_destroy (fnt->cairo_font);
+    free (fnt);
 }
 
 RL2_DECLARE int
@@ -2609,6 +2609,7 @@ get_aux_interception_point (sqlite3 * handle, rl2GeometryPtr geom,
 			  break;
 		      *x = result->first_point->x;
 		      *y = result->first_point->y;
+		      rl2_destroy_geometry (result);
 		      ok = 1;
 		  }
 	    }
@@ -2655,7 +2656,6 @@ aux_reduce_curve (sqlite3 * handle, rl2GeometryPtr geom,
     int size2;
     rl2GeometryPtr out = NULL;
     rl2LinestringPtr ln;
-    rl2LinestringPtr save_ln = NULL;
     int count = 0;
 
     rl2_serialize_linestring (geom->first_linestring, &blob1, &size1);
@@ -2693,25 +2693,29 @@ aux_reduce_curve (sqlite3 * handle, rl2GeometryPtr geom,
 				;
 			    else
 			      {
-				  save_ln = ln;
+				  if (out != NULL)
+				      rl2_destroy_geometry (out);
+				  out = rl2_clone_linestring (ln);
 				  count++;
 			      }
 			    ln = ln->next;
 			}
+		      rl2_destroy_geometry (result);
 		  }
 	    }
 	  else
 	      goto error;
       }
-    if (save_ln == NULL || count != 1)
+    if (out == NULL || count != 1)
 	goto error;
-    out = rl2_clone_linestring (save_ln);
     sqlite3_finalize (stmt);
     return out;
 
   error:
     if (stmt != NULL)
 	sqlite3_finalize (stmt);
+    if (out != NULL)
+	rl2_destroy_geometry (out);
     return NULL;
 }
 
@@ -2846,6 +2850,7 @@ rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
     double from;
     rl2GeometryPtr geom = NULL;
     rl2GeometryPtr geom2 = NULL;
+    rl2GeometryPtr geom3 = NULL;
     cairo_t *cairo;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
 
@@ -2871,7 +2876,7 @@ rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
       {
 	  /* repeated labels */
 	  int first = 1;
-	  rl2GeometryPtr geom3 = rl2_clone_linestring (geom->first_linestring);
+	  geom3 = rl2_clone_linestring (geom->first_linestring);
 	  while (geom3 != NULL)
 	    {
 		if (first)
@@ -2905,8 +2910,9 @@ rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
 	  geom2 = rl2_curve_substring (handle, geom, from, 1.0);
 	  if (geom2 == NULL)
 	      goto error;
-	  rl2_draw_wrapped_label (handle, context, cairo, text, geom2);
+	  geom3 = rl2_draw_wrapped_label (handle, context, cairo, text, geom2);
 	  rl2_destroy_geometry (geom2);
+	  rl2_destroy_geometry (geom3);
       }
 
     rl2_destroy_geometry (geom);

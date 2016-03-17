@@ -785,6 +785,7 @@ rl2_search_TrueType_font (sqlite3 * handle, const void *priv_data,
 			  const char *facename, double size)
 {
 /* attempting to fetch and create a TrueType Font */
+    rl2GraphicsFontPtr font;
     unsigned char *ttf = NULL;
     int ttf_sz;
     if (facename == NULL)
@@ -792,5 +793,8 @@ rl2_search_TrueType_font (sqlite3 * handle, const void *priv_data,
 
     if (rl2_get_TrueType_font (handle, facename, &ttf, &ttf_sz) != RL2_OK)
 	return NULL;
-    return rl2_graph_create_TrueType_font (priv_data, ttf, ttf_sz, size);
+    font = rl2_graph_create_TrueType_font (priv_data, ttf, ttf_sz, size);
+    if (ttf != NULL)
+	free (ttf);
+    return font;
 }

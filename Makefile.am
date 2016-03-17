@@ -15,6 +15,7 @@ coverage-init:
 
 coverage::
 	lcov --rc lcov_branch_coverage=1 --directory src --output-file rasterlite2_cov.info --capture
+	lcov --rc lcov_branch_coverage=1 --remove rasterlite2_cov.info "*include/*" --output-file rasterlite2_cov.info
 	genhtml --rc lcov_branch_coverage=1 -o covresults rasterlite2_cov.info
 
 MOSTLYCLEANFILES = rasterlite2_cov.info 

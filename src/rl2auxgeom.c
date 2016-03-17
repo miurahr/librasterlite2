@@ -1990,15 +1990,17 @@ rl2_curve_from_XY (int points, double *x, double *y)
     geom = rl2CreateGeometry ();
     ln = rl2AddLinestringToGeometry (geom, points);
     for (iv = 0; iv < points; iv++)
-	rl2SetPoint (ln->coords, iv, *(x + iv), *(y + iv));
-    if (*(x + iv) < ln->minx)
-	ln->minx = *(x + iv);
-    if (*(x + iv) > ln->maxx)
-	ln->maxx = *(x + iv);
-    if (*(y + iv) < ln->miny)
-	ln->miny = *(y + iv);
-    if (*(y + iv) > ln->maxy)
-	ln->maxy = *(y + iv);
+      {
+	  rl2SetPoint (ln->coords, iv, *(x + iv), *(y + iv));
+	  if (*(x + iv) < ln->minx)
+	      ln->minx = *(x + iv);
+	  if (*(x + iv) > ln->maxx)
+	      ln->maxx = *(x + iv);
+	  if (*(y + iv) < ln->miny)
+	      ln->miny = *(y + iv);
+	  if (*(y + iv) > ln->maxy)
+	      ln->maxy = *(y + iv);
+      }
     return geom;
 }
 

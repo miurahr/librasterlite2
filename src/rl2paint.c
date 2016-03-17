@@ -1955,7 +1955,10 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 	      free (fnt->facename);
       }
     if (fnt->cairo_font != NULL)
-	cairo_font_face_destroy (fnt->cairo_font);
+      {
+	  if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
+	      cairo_font_face_destroy (fnt->cairo_font);
+      }
     free (fnt);
 }
 

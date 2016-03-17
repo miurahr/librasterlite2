@@ -4288,7 +4288,10 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
     if (dummy != NULL)
 	sqlite3_free (dummy);
     if (font != NULL)
-	rl2_graph_destroy_font (font);
+      {
+	  rl2_graph_release_font (ctx);
+	  rl2_graph_destroy_font (font);
+      }
 }
 
 RL2_PRIVATE void
@@ -4426,10 +4429,13 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle, const void *priv_data,
 					    (text->label,
 					     val->column_name) != 0)
 					    continue;
+/* to be fixed - sometimes it raises a Cairo exception about Fonts 
 					draw_labels (ctx, handle, priv_data,
 						     text, height, minx, miny,
 						     maxx, maxy, x_res, y_res,
 						     geom, val);
+
+*/
 				    }
 			      }
 			}

@@ -734,6 +734,7 @@ do_sniff_geotiff_image (const char *src_path, int with_md5)
     double maxY;
     double x_res;
     double y_res;
+    short pixel_mode = RasterPixelIsArea;
     GTIFDefn definition;
     char *md5 = NULL;
     TIFF *in = (TIFF *) 0;
@@ -901,6 +902,19 @@ do_sniff_geotiff_image (const char *src_path, int with_md5)
     x_res = (maxX - minX) / (double) width;
     y_res = (maxY - minY) / (double) height;
     is_geotiff = 1;
+
+/* retrieving GTRasterTypeGeoKey */
+    if (!GTIFKeyGet (gtif, GTRasterTypeGeoKey, &pixel_mode, 0, 1))
+	pixel_mode = RasterPixelIsArea;
+    if (pixel_mode == RasterPixelIsPoint)
+      {
+	  /* adjusting the BBOX */
+	  minX -= x_res / 2.0;
+	  minY -= y_res / 2.0;
+	  maxX += x_res / 2.0;
+	  maxY += y_res / 2.0;
+
+      }
     goto print;
 
   recover:

@@ -744,7 +744,7 @@ rl2_aux_render_image (struct aux_renderer *aux, unsigned char **ximage,
 	    }
 	  else if (aux->out_pixel == RL2_PIXEL_PALETTE)
 	    {
-		/* Monochrome - upsampled */
+		/* Palette - upsampled */
 		if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
 		  {
 		      if (!get_rgba_from_palette_transparent
@@ -958,8 +958,9 @@ aux_render_final_image (struct aux_group_renderer *aux, sqlite3 * sqlite,
 }
 
 static int
-aux_shaded_relief_mask (struct aux_renderer *aux, double relief_factor,
-			unsigned char **shaded_relief)
+aux_shaded_relief_mask (struct aux_renderer *aux,
+			int by_section, sqlite3_int64 section_id,
+			double relief_factor, unsigned char **shaded_relief)
 {
 /* attempting to create a Shaded Relief brightness-only mask */
     rl2GraphicsBitmapPtr base_img = NULL;
@@ -984,10 +985,10 @@ aux_shaded_relief_mask (struct aux_renderer *aux, double relief_factor,
     scale_factor = rl2_get_shaded_relief_scale_factor (aux->sqlite, coverage);
 
     if (rl2_build_shaded_relief_mask
-	(aux->sqlite, aux->max_threads, aux->coverage, relief_factor,
-	 scale_factor, aux->base_width, aux->base_height, aux->minx,
-	 aux->miny, aux->maxx, aux->maxy, aux->xx_res, aux->yy_res, &shr_mask,
-	 &shr_size) != RL2_OK)
+	(aux->sqlite, aux->max_threads, aux->coverage, by_section, section_id,
+	 relief_factor, scale_factor, aux->base_width, aux->base_height,
+	 aux->minx, aux->miny, aux->maxx, aux->maxy, aux->xx_res, aux->yy_res,
+	 &shr_mask, &shr_size) != RL2_OK)
 	return 0;
 
 /* allocating the RGBA buffer */
@@ -1332,7 +1333,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		if (shaded_relief_mask != NULL)
 		    free (shaded_relief_mask);
 		if (!aux_shaded_relief_mask
-		    (&aux, symbolizer->reliefFactor, &shaded_relief_mask))
+		    (&aux, 0, 0, symbolizer->reliefFactor, &shaded_relief_mask))
 		    goto error;
 	    }
 	  else
@@ -1680,6 +1681,8 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
 		int xscale;
 		unsigned int w;
 		unsigned int h;
+		unsigned int w2;
+		unsigned int h2;
 		int base_x;
 		int base_y;
 		unsigned char *bufpix = NULL;
@@ -1690,8 +1693,6 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
 		double mny = miny;
 		double mxx = maxx;
 		double mxy = maxy;
-		if (section_id > 3)
-		    continue;
 		/* normalizing the visible portion of the Section */
 		if (mnx < section_minx)
 		    mnx = section_minx;
@@ -1714,16 +1715,49 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
 		    h++;
 		base_x = (int) ((mnx - minx) / img_res_x);
 		base_y = (int) ((maxy - mxy) / img_res_y);
+
 		if (rl2_get_raw_raster_data_common
 		    (handle, max_threads, cvg, 1, section_id, w, h, mnx, mny,
 		     mxx, mxy, xx_res, yy_res, &bufpix, &bufpix_size, palette,
 		     *out_pixel, no_data, xstyle, stats) != RL2_OK)
 		    goto error;
+
+		w2 = (unsigned int) ((mxx - mnx) / img_res_x);
+		if (((double) w2 * img_res_x) < (mxx - mnx))
+		    w2++;
+		h2 = (unsigned int) ((mxy - mny) / img_res_y);
+		if (((double) h2 * img_res_y) < (mxy - mny))
+		    h2++;
+		if (w == w2 && h == h2)
+		  {
+		      /* already rescaled */
+		  }
+		else
+		  {
+		      /* rescaling the pixbuf */
+		      unsigned char *rescaled = NULL;
+		      int pix_sz = 1;
+		      if (*out_pixel == RL2_PIXEL_RGB)
+			  pix_sz = 3;
+		      rescaled = malloc (pix_sz * w2 * h2);
+		      if (rescaled == NULL)
+			{
+			    fprintf (stderr,
+				     "rl2_get_raw_raster_data_mixed_resolutions: Insufficient Memory !!!\n");
+			    goto error;
+			}
+		      if (!rl2_rescale_pixbuf
+			  (bufpix, w, h, *out_pixel, rescaled, w2, h2))
+			  goto error;
+		      free (bufpix);
+		      bufpix = rescaled;
+		  }
+
 		if (*out_pixel == RL2_PIXEL_RGB)
-		    do_copy_rgb (outbuf, bufpix, width, height, w, h, base_x,
+		    do_copy_rgb (outbuf, bufpix, width, height, w2, h2, base_x,
 				 base_y, bg_red, bg_green, bg_blue);
 		else
-		    do_copy_gray (outbuf, bufpix, width, height, w, h, base_x,
+		    do_copy_gray (outbuf, bufpix, width, height, w2, h2, base_x,
 				  base_y, bg_red);
 		free (bufpix);
 	    }

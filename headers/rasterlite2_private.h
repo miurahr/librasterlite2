@@ -1923,6 +1923,8 @@ extern "C"
     RL2_PRIVATE int rl2_build_shaded_relief_mask (sqlite3 * handle,
 						  int max_threads,
 						  rl2CoveragePtr cvg,
+						  int by_section,
+						  sqlite3_int64 section_id,
 						  double relief_factor,
 						  double scale_factor,
 						  unsigned int width,

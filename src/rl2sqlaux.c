@@ -2529,13 +2529,14 @@ get_rgba_from_monochrome_opaque (unsigned int width, unsigned int height,
     unsigned char *p_out;
     unsigned int row;
     unsigned int col;
+
     p_in = pixels;
     p_out = rgba;
     for (row = 0; row < height; row++)
       {
 	  for (col = 0; col < width; col++)
 	    {
-		if (*p_in++ == 1)
+		if (*p_in++ == 0)
 		  {
 		      *p_out++ = 0;	/* Black */
 		      *p_out++ = 0;
@@ -2573,7 +2574,7 @@ get_rgba_from_monochrome_transparent (unsigned int width,
       {
 	  for (col = 0; col < width; col++)
 	    {
-		if (*p_in++ == 1)
+		if (*p_in++ == 0)
 		  {
 		      *p_out++ = 0;	/* Black */
 		      *p_out++ = 0;

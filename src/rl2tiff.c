@@ -551,6 +551,7 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
     char *pString;
     int len;
     int basic = 0;
+    short pixel_mode = RasterPixelIsArea;
     TIFF *in = (TIFF *) 0;
     GTIF *gtif = (GTIF *) 0;
 
@@ -644,6 +645,19 @@ geo_tiff_origin (const char *path, rl2PrivTiffOriginPtr origin, int force_srid)
     origin->vResolution = (origin->maxY - origin->minY) / (double) height;
     origin->isGeoReferenced = 1;
     origin->isGeoTiff = 1;
+
+/* retrieving GTRasterTypeGeoKey */
+    if (!GTIFKeyGet (gtif, GTRasterTypeGeoKey, &pixel_mode, 0, 1))
+	pixel_mode = RasterPixelIsArea;
+    if (pixel_mode == RasterPixelIsPoint)
+      {
+	  /* adjusting the BBOX */
+	  origin->minX -= origin->hResolution / 2.0;
+	  origin->minY -= origin->vResolution / 2.0;
+	  origin->maxX += origin->hResolution / 2.0;
+	  origin->maxY += origin->vResolution / 2.0;
+
+      }
 
   error:
     if (basic && origin->isGeoTiff == 0)
@@ -2174,14 +2188,18 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     else if (coverage->strictResolution)
       {
 	  /* enforcing Strict Resolution check */
-	  if (hResolution != coverage->hResolution)
+	  double x_diff = fabs(coverage->hResolution -hResolution);
+	  double y_diff = fabs(coverage->vResolution - vResolution);
+	  double x_lim = coverage->hResolution / 1000000.0;
+	  double y_lim = coverage->vResolution / 1000000.0;
+	  if (x_diff > x_lim)
 	    {
 		if (verbose)
 		    fprintf (stderr,
 			     "Mismatching Horizontal Resolution (Strict) !!!\n");
 		return RL2_FALSE;
 	    }
-	  if (vResolution != coverage->vResolution)
+	  if (y_diff > y_lim)
 	    {
 		if (verbose)
 		    fprintf (stderr,

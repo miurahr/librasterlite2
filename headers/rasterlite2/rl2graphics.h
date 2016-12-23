@@ -1344,6 +1344,27 @@ extern "C"
 						    double y);
 
 /**
+ Rescales a raw pixbuf (RGB or GRAYSCALE)
+
+ \param inbuf pointer to the input pixbuf.
+ \param inwidth the width (measured in pixels) of the input pixbuf.
+ \param inheight the height (measured in pixels) of the input pixbuf.
+ \param pixtype either RL2_PIXEL_RGB or RL2_PIXEL_GRAYSCALE.
+ \param outbuf pointer to the input pixbuf.
+ \param outwidth the width (measured in pixels) of the output pixbuf.
+ \param outheight the height (measured in pixels) of the output pixbuf.
+
+ \return 0 (false) on error, any other value on success.
+ */
+    RL2_DECLARE int rl2_rescale_pixbuf (const unsigned char *inbuf,
+					unsigned int inwidth,
+					unsigned int inheight,
+					unsigned char pixtype,
+					const unsigned char *outbuf,
+					unsigned int outwidth,
+					unsigned int outheight);
+
+/**
  Creates an RGB Array corresponding to the current Canvass
 
  \param context the pointer to a valid Graphics Context (aka Canvass).

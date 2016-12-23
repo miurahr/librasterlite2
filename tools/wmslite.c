@@ -51,9 +51,10 @@
 
 #define ARG_NONE		0
 #define ARG_DB_PATH		1
-#define ARG_IP_PORT		2
-#define ARG_MAX_THREADS		3
-#define ARG_CACHE_SIZE		4
+#define ARG_IP_ADDR		2
+#define ARG_IP_PORT		3
+#define ARG_MAX_THREADS		4
+#define ARG_CACHE_SIZE		5
 
 #define WMS_ILLEGAL_REQUEST	0
 #define WMS_GET_CAPABILITIES	1
@@ -309,6 +310,7 @@ struct http_request
 {
 /* a struct wrapping an HTTP request */
     unsigned int id;		/* request ID */
+    const char *ip_addr;
     int port_no;
 #ifdef _WIN32
     SOCKET socket;		/* Socket on which to receive data */
@@ -2570,7 +2572,8 @@ build_wms_exception (struct wms_args *args, gaiaOutBufferPtr xml_response)
 }
 
 static void
-build_http_error (int http_status, gaiaOutBufferPtr xml_response, int port_no)
+build_http_error (int http_status, gaiaOutBufferPtr xml_response,
+		  const char *ip_addr, int port_no)
 {
 /* preparing an HTTP error */
     char *dummy;
@@ -2597,10 +2600,16 @@ build_http_error (int http_status, gaiaOutBufferPtr xml_response, int port_no)
 	  gaiaAppendToOutBuffer (&http_text,
 				 "<h1>Internal Server Error</h1>\n");
       }
-    dummy =
-	sqlite3_mprintf
-	("<address>WmsLite/%s [%s] at localhost (127.0.0.1) Port %d</address>\r\n",
-	 rl2_version (), rl2_target_cpu (), port_no);
+    if (strcmp (ip_addr, "127.0.0.1") == 0)
+	dummy =
+	    sqlite3_mprintf
+	    ("<address>WmsLite/%s [%s] at localhost (127.0.0.1) Port %d</address>\r\n",
+	     rl2_version (), rl2_target_cpu (), port_no);
+    else
+	dummy =
+	    sqlite3_mprintf
+	    ("<address>WmsLite/%s [%s] at IP-addr %s Port %d</address>\r\n",
+	     rl2_version (), rl2_target_cpu (), ip_addr, port_no);
     gaiaAppendToOutBuffer (&http_text, dummy);
     sqlite3_free (dummy);
     gaiaAppendToOutBuffer (&http_text, "</body></html>\r\n");
@@ -2620,7 +2629,7 @@ build_http_error (int http_status, gaiaOutBufferPtr xml_response, int port_no)
 
 static void
 build_get_capabilities (struct wms_list *list, char **cached, int *cached_len,
-			int port_no)
+			const char *ip_addr, int port_no)
 {
 /* preparing the WMS GetCapabilities XML document */
     struct wms_layer *lyr;
@@ -2647,10 +2656,15 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len,
 			   "<Abstract>A simple light-weight WMS server for testing RasterLite2 Coverages.</Abstract>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
 			   "<KeywordList>\r\n<Keyword>maps</Keyword>\r\n</KeywordList>\r\n");
-    dummy =
-	sqlite3_mprintf
-	("<OnlineResource xlink:href=\"http://127.0.0.1:%d/wmslite?\" ",
-	 port_no);
+    if (port_no == 80)
+	dummy =
+	    sqlite3_mprintf
+	    ("<OnlineResource xlink:href=\"http://%s/wmslite?\" ", ip_addr);
+    else
+	dummy =
+	    sqlite3_mprintf
+	    ("<OnlineResource xlink:href=\"http://%s:%d/wmslite?\" ",
+	     ip_addr, port_no);
     gaiaAppendToOutBuffer (&xml_text, dummy);
     sqlite3_free (dummy);
     gaiaAppendToOutBuffer (&xml_text,
@@ -2686,10 +2700,16 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len,
 			   "<Capability>\r\n<Request>\r\n<GetCapabilities>\r\n");
     gaiaAppendToOutBuffer (&xml_text,
 			   "<Format>text/xml</Format>\r\n<DCPType>\r\n<HTTP>\r\n");
-    dummy =
-	sqlite3_mprintf
-	("<Get><OnlineResource xlink:href=\"http://127.0.0.1:%d/wmslite?\" ",
-	 port_no);
+    if (port_no == 80)
+	dummy =
+	    sqlite3_mprintf
+	    ("<Get><OnlineResource xlink:href=\"http://%s/wmslite?\" ",
+	     ip_addr);
+    else
+	dummy =
+	    sqlite3_mprintf
+	    ("<Get><OnlineResource xlink:href=\"http://%s:%d/wmslite?\" ",
+	     ip_addr, port_no);
     gaiaAppendToOutBuffer (&xml_text, dummy);
     sqlite3_free (dummy);
     gaiaAppendToOutBuffer (&xml_text,
@@ -2702,10 +2722,15 @@ build_get_capabilities (struct wms_list *list, char **cached, int *cached_len,
     gaiaAppendToOutBuffer (&xml_text, "<Format>application/x-pdf</Format>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "<Format>image/tiff</Format>\r\n");
     gaiaAppendToOutBuffer (&xml_text, "<DCPType>\r\n<HTTP>\r\n<Get>");
-    dummy =
-	sqlite3_mprintf
-	("<OnlineResource xlink:href=\"http://127.0.0.1:%d/wmslite?\" ",
-	 port_no);
+    if (port_no == 80)
+	dummy =
+	    sqlite3_mprintf
+	    ("<OnlineResource xlink:href=\"http://%s/wmslite?\" ", ip_addr);
+    else
+	dummy =
+	    sqlite3_mprintf
+	    ("<OnlineResource xlink:href=\"http://%s:%d/wmslite?\" ",
+	     ip_addr, port_no);
     gaiaAppendToOutBuffer (&xml_text, dummy);
     sqlite3_free (dummy);
     gaiaAppendToOutBuffer (&xml_text,
@@ -3163,7 +3188,7 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     unsigned char *black;
     int black_sz;
     char bgcolor[16];
-
+    
     if (args->layer_type == LAYER_TYPE_VECTOR)
 	stmt = args->stmt_get_map_vector;
     else
@@ -3197,7 +3222,10 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     else
 	strcpy (bgcolor, "#ffffff");
     sqlite3_bind_text (stmt, 10, bgcolor, strlen (bgcolor), SQLITE_TRANSIENT);
-    sqlite3_bind_int (stmt, 11, args->transparent);
+    if (args->transparent == WMS_OPAQUE)
+    sqlite3_bind_int (stmt, 11, 0);
+    else
+    sqlite3_bind_int (stmt, 11, 1);
     if (args->format == RL2_OUTPUT_FORMAT_JPEG)
 	sqlite3_bind_int (stmt, 12, 80);
     else
@@ -3413,7 +3441,7 @@ win32_http_request (void *data)
 /* preparing an HTTP error code */
   http_error:
     gaiaOutBufferInitialize (&xml_response);
-    build_http_error (http_status, &xml_response, req->port_no);
+    build_http_error (http_status, &xml_response, req->ip_addr, req->port_no);
     curr = 0;
     while (1)
       {
@@ -3525,7 +3553,7 @@ berkeley_http_request (void *data)
 /* preparing an HTTP error code */
   http_error:
     gaiaOutBufferInitialize (&xml_response);
-    build_http_error (http_status, &xml_response, req->port_no);
+    build_http_error (http_status, &xml_response, req->ip_addr, req->port_no);
     curr = 0;
     while (1)
       {
@@ -3568,10 +3596,11 @@ berkeley_http_request (void *data)
 #endif
 
 static void
-do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
-		sqlite3 * db_handle, sqlite3_stmt * stmt_log,
-		struct connections_pool *pool, struct server_log *log,
-		char *cached_capab, int cached_capab_len)
+do_accept_loop (struct neutral_socket *skt, struct wms_list *list,
+		const char *xip_addr, int port_no, sqlite3 * db_handle,
+		sqlite3_stmt * stmt_log, struct connections_pool *pool,
+		struct server_log *log, char *cached_capab,
+		int cached_capab_len)
 {
 /* implementing the ACCEPT loop */
     unsigned int id = 0;
@@ -3612,6 +3641,7 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
 	    }
 	  req = malloc (sizeof (struct http_request));
 	  req->id = id++;
+	  req->ip_addr = xip_addr;
 	  req->port_no = port_no;
 	  req->socket = client;
 	  req->list = list;
@@ -3697,6 +3727,7 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
 	    }
 	  req = malloc (sizeof (struct http_request));
 	  req->id = id++;
+	  req->ip_addr = xip_addr;
 	  req->port_no = port_no;
 	  req->socket = client;
 	  req->list = list;
@@ -3766,7 +3797,8 @@ do_accept_loop (struct neutral_socket *skt, struct wms_list *list, int port_no,
 }
 
 static int
-do_start_http (int port_no, struct neutral_socket *srv_skt, int max_threads)
+do_start_http (const char *ip_addr, int port_no, struct neutral_socket *srv_skt,
+	       int max_threads)
 {
 /* starting the HTTP server */
 #ifdef _WIN32
@@ -3788,7 +3820,7 @@ do_start_http (int port_no, struct neutral_socket *srv_skt, int max_threads)
       }
     addr.sin_family = AF_INET;
     addr.sin_port = htons (port_no);
-    addr.sin_addr.s_addr = inet_addr ("127.0.0.1");
+    addr.sin_addr.s_addr = inet_addr (ip_addr);
     if (bind (skt, (struct sockaddr *) &addr, sizeof (addr)) == SOCKET_ERROR)
       {
 	  fprintf (stderr, "unable to bind the socket\n");
@@ -3815,7 +3847,8 @@ do_start_http (int port_no, struct neutral_socket *srv_skt, int max_threads)
       }
     addr.sin_family = AF_INET;
     addr.sin_port = htons (port_no);
-    addr.sin_addr.s_addr = htonl (INADDR_ANY);
+    //addr.sin_addr.s_addr = htonl (INADDR_ANY);
+    addr.sin_addr.s_addr = inet_addr (ip_addr);
     if (bind (skt, (struct sockaddr *) &addr, sizeof (addr)) == -1)
       {
 	  fprintf (stderr, "unable to bind the socket\n");
@@ -4751,6 +4784,8 @@ do_help ()
 	     "==============================================================\n");
     fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
     fprintf (stderr,
+	     "-ip or --ip-addr    ip-address  IP address [default: 127.0.0.1]\n\n");
+    fprintf (stderr,
 	     "-p or --ip-port       number    IP port number [default: 8080]\n\n");
     fprintf (stderr,
 	     "-mt or --max-threads   num      max number of concurrent threads\n");
@@ -4773,6 +4808,7 @@ main (int argc, char *argv[])
     int error = 0;
     int next_arg = ARG_NONE;
     const char *db_path = NULL;
+    const char *ip_addr = "127.0.0.1";
     int port_no = 8080;
     int cache_size = 0;
     void *cache;
@@ -4810,6 +4846,9 @@ main (int argc, char *argv[])
 		  case ARG_DB_PATH:
 		      db_path = argv[i];
 		      break;
+		  case ARG_IP_ADDR:
+		      ip_addr = argv[i];
+		      break;
 		  case ARG_IP_PORT:
 		      port_no = atoi (argv[i]);
 		      break;
@@ -4834,6 +4873,12 @@ main (int argc, char *argv[])
 	      || strcasecmp (argv[i], "--db-path") == 0)
 	    {
 		next_arg = ARG_DB_PATH;
+		continue;
+	    }
+	  if (strcmp (argv[i], "-ip") == 0
+	      || strcasecmp (argv[i], "--ip-addr") == 0)
+	    {
+		next_arg = ARG_IP_ADDR;
 		continue;
 	    }
 	  if (strcmp (argv[i], "-p") == 0
@@ -4937,7 +4982,7 @@ main (int argc, char *argv[])
     glob.list = list;
     complete_layer_config (handle, list);
     build_get_capabilities (list, &cached_capabilities,
-			    &cached_capabilities_len, port_no);
+			    &cached_capabilities_len, ip_addr, port_no);
     glob.cached_capabilities = cached_capabilities;
 
 /* creating the read connections pool */
@@ -4959,7 +5004,7 @@ main (int argc, char *argv[])
     glob.log = log;
 
 /* starting the HTTP server */
-    if (!do_start_http (port_no, &skt_ptr, max_threads))
+    if (!do_start_http (ip_addr, port_no, &skt_ptr, max_threads))
 	goto stop;
 
 /* starting the logging facility */
@@ -5004,8 +5049,8 @@ main (int argc, char *argv[])
     glob.stmt_log = stmt_log;
 
 /* looping on requests */
-    do_accept_loop (&skt_ptr, list, port_no, handle, stmt_log, pool, log,
-		    cached_capabilities, cached_capabilities_len);
+    do_accept_loop (&skt_ptr, list, ip_addr, port_no, handle, stmt_log, pool,
+		    log, cached_capabilities, cached_capabilities_len);
 
   stop:
     destroy_wms_list (list);

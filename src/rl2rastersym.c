@@ -735,7 +735,7 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 		       double x_res, double y_res, double minx, double maxy,
 		       double tile_minx, double tile_maxy,
 		       unsigned short tile_width, unsigned short tile_height,
-		       rl2PixelPtr no_data)
+		       rl2PixelPtr no_data, unsigned char raster_type)
 {
 /* copying UINT8 raw pixels from the DBMS tile into the output image */
     int x;
@@ -771,8 +771,7 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 	      ;
 	  else
 	      ignore_no_data = 1;
-      }
-
+      }						   
     geo_y = tile_maxy + y_res2;
     for (y = 0; y < tile_height; y++)
       {
@@ -825,40 +824,56 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 		      /* testing for NO-DATA values */
 		      int match = 0;
 		      const unsigned char *p_save = p_in;
-		      for (b = 0; b < num_bands; b++)
+		      if (raster_type == RL2_SAMPLE_1_BIT && num_bands == 1)
 			{
-			    unsigned char sample = 0;
-			    switch (sample_type)
-			      {
-			      case RL2_SAMPLE_1_BIT:
-				  rl2_get_pixel_sample_1bit (no_data, &sample);
-				  break;
-			      case RL2_SAMPLE_2_BIT:
-				  rl2_get_pixel_sample_2bit (no_data, &sample);
-				  break;
-			      case RL2_SAMPLE_4_BIT:
-				  rl2_get_pixel_sample_4bit (no_data, &sample);
-				  break;
-			      case RL2_SAMPLE_UINT8:
-				  rl2_get_pixel_sample_uint8 (no_data, b,
-							      &sample);
-				  break;
-			      };
-			    if (sample == *p_in++)
-				match++;
-			}
-		      if (match != num_bands)
-			{
-			    /* opaque pixel */
-			    p_in = p_save;
-			    for (b = 0; b < num_bands; b++)
-				*p_out++ = *p_in++;
+			    /* special case: MONOCHROME */
+			    if (*p_in++ == 1)
+			    *p_out++ = 0;
+			    else
+			    p_out++;
+				//*p_out++ = 255;
+			    match++;
 			}
 		      else
 			{
-			    /* NO-DATA pixel */
 			    for (b = 0; b < num_bands; b++)
-				p_out++;
+			      {
+				  unsigned char sample = 0;
+				  switch (sample_type)
+				    {
+				    case RL2_SAMPLE_1_BIT:
+					rl2_get_pixel_sample_1bit (no_data,
+								   &sample);
+					break;
+				    case RL2_SAMPLE_2_BIT:
+					rl2_get_pixel_sample_2bit (no_data,
+								   &sample);
+					break;
+				    case RL2_SAMPLE_4_BIT:
+					rl2_get_pixel_sample_4bit (no_data,
+								   &sample);
+					break;
+				    case RL2_SAMPLE_UINT8:
+					rl2_get_pixel_sample_uint8 (no_data, b,
+								    &sample);
+					break;
+				    };
+				  if (sample == *p_in++)
+				      match++;
+			      }
+			    if (match != num_bands)
+			      {
+				  /* opaque pixel */
+				  p_in = p_save;
+				  for (b = 0; b < num_bands; b++)
+				      *p_out++ = *p_in++;
+			      }
+			    else
+			      {
+				  /* NO-DATA pixel */
+				  for (b = 0; b < num_bands; b++)
+				      p_out++;
+			      }
 			}
 		  }
 	    }
@@ -4170,14 +4185,12 @@ do_auto_ndvi_pixels (rl2PrivRasterPtr rst, unsigned char *outbuf,
 static int
 do_copy_raw_pixels (rl2PrivRasterPtr rst, unsigned char *outbuf,
 		    unsigned int width, unsigned int height,
-		    unsigned char sample_type, unsigned char num_bands,
-		    double x_res, double y_res, double minx, double maxy,
-		    double tile_minx, double tile_maxy,
-		    unsigned int tile_width, unsigned int tile_height,
-		    rl2PixelPtr no_data)
+		    unsigned char raster_type, unsigned char sample_type,
+		    unsigned char num_bands, double x_res, double y_res,
+		    double minx, double maxy, double tile_minx,
+		    double tile_maxy, unsigned int tile_width,
+		    unsigned int tile_height, rl2PixelPtr no_data)
 {
-
-
     switch (sample_type)
       {
       case RL2_SAMPLE_INT8:
@@ -4239,7 +4252,7 @@ do_copy_raw_pixels (rl2PrivRasterPtr rst, unsigned char *outbuf,
 				 (unsigned char *) outbuf, width, height,
 				 num_bands, x_res, y_res, minx, maxy,
 				 tile_minx, tile_maxy, tile_width,
-				 tile_height, no_data);
+				 tile_height, no_data, raster_type);
 	  return 1;
       };
     return 0;
@@ -4374,8 +4387,9 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
       }
 
     if (do_copy_raw_pixels
-	(rst, outbuf, width, height, sample_type, num_bands, x_res, y_res,
-	 minx, maxy, tile_minx, tile_maxy, tile_width, tile_height, no_data))
+	(rst, outbuf, width, height, rst->sampleType, sample_type, num_bands,
+	 x_res, y_res, minx, maxy, tile_minx, tile_maxy, tile_width,
+	 tile_height, no_data))
 	return 1;
 
     return 0;
@@ -4956,12 +4970,13 @@ do_run_concurrent_shadower (rl2AuxShadowerPtr aux, int max_threads)
 
 RL2_PRIVATE int
 rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
-			      rl2CoveragePtr cvg, double relief_factor,
-			      double scale_factor, unsigned int width,
-			      unsigned int height, double minx, double miny,
-			      double maxx, double maxy, double x_res,
-			      double y_res, float **shaded_relief,
-			      int *shaded_relief_sz)
+			      rl2CoveragePtr cvg,
+			      int by_section, sqlite3_int64 section_id,
+			      double relief_factor, double scale_factor,
+			      unsigned int width, unsigned int height,
+			      double minx, double miny, double maxx,
+			      double maxy, double x_res, double y_res,
+			      float **shaded_relief, int *shaded_relief_sz)
 {
 /* attempting to return a Shaded Relief mask from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
@@ -5000,7 +5015,8 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
     if (coverage == NULL)
 	goto error;
     if (rl2_find_matching_resolution
-	(handle, cvg, 0, 0, &xx_res, &yy_res, &level, &scale) != RL2_OK)
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
 	goto error;
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)

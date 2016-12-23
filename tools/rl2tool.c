@@ -1433,7 +1433,7 @@ exec_catalog (sqlite3 * handle)
 	"horz_resolution, vert_resolution, srid, auth_name, auth_srid, "
 	"ref_sys_name, extent_minx, extent_miny, extent_maxx, extent_maxy, "
 	"nodata_pixel, palette, statistics, red_band_index, green_band_index, "
-	"blue_band_index, nir_band_index, eneble_auto_ndvi "
+	"blue_band_index, nir_band_index, enable_auto_ndvi "
 	"FROM raster_coverages_ref_sys ORDER BY coverage_name";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)

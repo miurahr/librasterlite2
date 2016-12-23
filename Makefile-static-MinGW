@@ -13,7 +13,7 @@ all: ./static_bin/rl2sniff.exe ./static_bin/rl2tool.exe \
 	/usr/local/lib/librasterlite2.a \
 	/usr/local/lib/libspatialite.a \
 	/usr/local/lib/libsqlite3.a \
-	/usr/local/lib/liblwgeom.a \
+	/usr/local/lib/librttopo.a \
 	/usr/local/lib/libproj.a \
 	/usr/local/lib/libgeos_c.a \
 	/usr/local/lib/libgeos.a \
@@ -46,7 +46,7 @@ all: ./static_bin/rl2sniff.exe ./static_bin/rl2tool.exe \
 	/usr/local/lib/librasterlite2.a \
 	/usr/local/lib/libspatialite.a \
 	/usr/local/lib/libsqlite3.a \
-	/usr/local/lib/liblwgeom.a \
+	/usr/local/lib/librttopo.a \
 	/usr/local/lib/libproj.a \
 	/usr/local/lib/libgeos_c.a \
 	/usr/local/lib/libgeos.a \
@@ -79,7 +79,7 @@ all: ./static_bin/rl2sniff.exe ./static_bin/rl2tool.exe \
 	/usr/local/lib/librasterlite2.a \
 	/usr/local/lib/libspatialite.a \
 	/usr/local/lib/libsqlite3.a \
-	/usr/local/lib/liblwgeom.a \
+	/usr/local/lib/librttopo.a \
 	/usr/local/lib/libproj.a \
 	/usr/local/lib/libgeos_c.a \
 	/usr/local/lib/libgeos.a \

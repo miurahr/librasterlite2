@@ -4627,10 +4627,14 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	  for (row = 0; row < pyr->scaled_height; row += tileHeight)
 	    {
 		out_miny = out_maxy - pyr->tile_height;
+		if (out_miny < miny)
+				out_miny = miny;
 		out_minx = minx;
 		for (col = 0; col < pyr->scaled_width; col += tileWidth)
 		  {
 		      out_maxx = out_minx + pyr->tile_width;
+		if (out_maxx > maxx)
+				out_maxx = maxx;
 		      set_pyramid_tile_destination (pyr, out_minx, out_miny,
 						    out_maxx, out_maxy, row,
 						    col);
@@ -5519,6 +5523,8 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, int max_threads,
 	    {
 		t_minx = minx;
 		t_miny = t_maxy - (tileHeight * y_res);
+		if (t_miny < miny)
+		t_miny = miny;
 		for (col = 0; col < out_width; col += tileWidth)
 		  {
 		      if (pixel_type == RL2_PIXEL_MONOCHROME)
@@ -5557,6 +5563,8 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, int max_threads,
 			      }
 			}
 		      t_maxx = t_minx + (tileWidth * x_res);
+		      if (t_maxx > maxx)
+		      t_maxx = maxx;
 		      if (!copy_124_tile
 			  (out_pixel_type, outbuf, &tilebuf,
 			   &tilebuf_sz, &tilemask, &tilemask_sz, row, col,
@@ -5782,6 +5790,8 @@ do_build_palette_section_pyramid (sqlite3 * handle, int max_threads,
 	    {
 		t_minx = minx;
 		t_miny = t_maxy - (tileHeight * y_res);
+		if (t_miny < miny)
+		t_miny = miny;
 		for (col = 0; col < out_width; col += tileWidth)
 		  {
 		      if (no_data == NULL)
@@ -5800,6 +5810,8 @@ do_build_palette_section_pyramid (sqlite3 * handle, int max_threads,
 							bgBlue);
 			}
 		      t_maxx = t_minx + (tileWidth * x_res);
+		      if (t_maxx > maxx)
+		      t_maxx = maxx;
 		      if (!copy_124_tile (out_pixel_type, outbuf, &tilebuf,
 					  &tilebuf_sz, &tilemask,
 					  &tilemask_sz, row, col, out_width,

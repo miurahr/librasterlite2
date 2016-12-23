@@ -2605,7 +2605,7 @@ void_uint8_raw_buffer (unsigned char *buffer, unsigned int width,
 		for (x = 0; x < width; x++)
 		  {
 		      for (b = 0; b < num_bands; b++)
-			  *p++ = 0;
+			  *p++ = 255;
 		  }
 	    }
       }
@@ -4689,9 +4689,10 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 		    (style, &brightness_only, &relief_factor) != RL2_OK)
 		    goto error;
 		if (rl2_build_shaded_relief_mask
-		    (handle, max_threads, cvg, relief_factor, scale_factor,
-		     width, height, minx, miny, maxx, maxy, x_res, y_res,
-		     &shaded_relief, &shaded_relief_sz) != RL2_OK)
+		    (handle, max_threads, cvg, by_section, section_id,
+		     relief_factor, scale_factor, width, height, minx, miny,
+		     maxx, maxy, x_res, y_res, &shaded_relief,
+		     &shaded_relief_sz) != RL2_OK)
 		    goto error;
 
 		if (brightness_only || !rl2_has_styled_rgb_colors (style))

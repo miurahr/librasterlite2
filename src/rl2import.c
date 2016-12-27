@@ -596,8 +596,9 @@ do_import_ascii_grid (sqlite3 * handle, int max_threads, const char *src_path,
       }
     else if (coverage->strictResolution)
       {
-	  /* enforcing Strict Resolution check */double x_diff = fabs(coverage->hResolution -res_x);
-	  double y_diff = fabs(coverage->vResolution - res_y);
+	  /* enforcing Strict Resolution check */ double x_diff =
+	      fabs (coverage->hResolution - res_x);
+	  double y_diff = fabs (coverage->vResolution - res_y);
 	  double x_lim = coverage->hResolution / 1000000.0;
 	  double y_lim = coverage->vResolution / 1000000.0;
 	  if (x_diff > x_lim)
@@ -1278,8 +1279,9 @@ do_import_jpeg_image (sqlite3 * handle, int max_threads, const char *src_path,
       }
     else if (coverage->strictResolution)
       {
-	  /* enforcing Strict Resolution check */double x_diff = fabs(coverage->hResolution -res_x);
-	  double y_diff = fabs(coverage->vResolution - res_y);
+	  /* enforcing Strict Resolution check */ double x_diff =
+	      fabs (coverage->hResolution - res_x);
+	  double y_diff = fabs (coverage->vResolution - res_y);
 	  double x_lim = coverage->hResolution / 1000000.0;
 	  double y_lim = coverage->vResolution / 1000000.0;
 	  if (x_diff > x_lim)
@@ -1732,8 +1734,8 @@ do_import_jpeg2000_image (sqlite3 * handle, int max_threads,
     else if (coverage->strictResolution)
       {
 	  /* enforcing Strict Resolution check */
-	  double x_diff = fabs(coverage->hResolution -res_x);
-	  double y_diff = fabs(coverage->vResolution - res_y);
+	  double x_diff = fabs (coverage->hResolution - res_x);
+	  double y_diff = fabs (coverage->vResolution - res_y);
 	  double x_lim = coverage->hResolution / 1000000.0;
 	  double y_lim = coverage->vResolution / 1000000.0;
 	  if (x_diff > x_lim)
@@ -2191,8 +2193,8 @@ do_import_file (sqlite3 * handle, int max_threads, const char *src_path,
     else if (coverage->strictResolution)
       {
 	  /* enforcing Strict Resolution check */
-	  double x_diff = fabs(coverage->hResolution -res_x);
-	  double y_diff = fabs(coverage->vResolution - res_y);
+	  double x_diff = fabs (coverage->hResolution - res_x);
+	  double y_diff = fabs (coverage->vResolution - res_y);
 	  double x_lim = coverage->hResolution / 1000000.0;
 	  double y_lim = coverage->vResolution / 1000000.0;
 	  if (x_diff > x_lim)
@@ -2919,12 +2921,11 @@ copy_int8_outbuf_to_tile (const char *outbuf, char *tile,
 }
 
 static void
-copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile, unsigned char pixel_type,
-			   unsigned char num_bands, unsigned int width,
-			   unsigned int height,
-			   unsigned int tile_width,
-			   unsigned int tile_height, unsigned int base_y,
-			   unsigned int base_x)
+copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
+			   unsigned char pixel_type, unsigned char num_bands,
+			   unsigned int width, unsigned int height,
+			   unsigned int tile_width, unsigned int tile_height,
+			   unsigned int base_y, unsigned int base_x)
 {
 /* copying UINT8 pixels from the output buffer into the tile */
     unsigned int x;
@@ -2948,28 +2949,28 @@ copy_uint8_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile, uns
 		      p_in += num_bands;
 		      continue;
 		  }
-		  if (pixel_type == RL2_PIXEL_MONOCHROME)
+		if (pixel_type == RL2_PIXEL_MONOCHROME)
 		  {
-			  unsigned char pxl = *p_in++;
-			  if (pxl == 0)
+		      unsigned char pxl = *p_in++;
+		      if (pxl == 0)
 			  *p_out++ = 1;
-			  else
+		      else
 			  *p_out++ = 0;
 		  }
-		  else if (pixel_type == RL2_PIXEL_PALETTE)
+		else if (pixel_type == RL2_PIXEL_PALETTE)
 		  {
-			  unsigned char pxl = *p_in++;
-			  if (pxl == 0)
+		      unsigned char pxl = *p_in++;
+		      if (pxl == 0)
 			  *p_out++ = 1;
-			  else
+		      else
 			  *p_out++ = 0;
 		  }
-		  else
+		else
 		  {
-		for (b = 0; b < num_bands; b++)
-		    *p_out++ = *p_in++;
+		      for (b = 0; b < num_bands; b++)
+			  *p_out++ = *p_in++;
+		  }
 	    }
-	}
       }
 }
 
@@ -3169,10 +3170,11 @@ copy_double_outbuf_to_tile (const double *outbuf, double *tile,
 
 static void
 copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
-			  unsigned char sample_type, unsigned char pixel_type, unsigned char num_bands,
-			  unsigned int width, unsigned int height,
-			  unsigned int tile_width, unsigned int tile_height,
-			  unsigned int base_y, unsigned int base_x)
+			  unsigned char sample_type, unsigned char pixel_type,
+			  unsigned char num_bands, unsigned int width,
+			  unsigned int height, unsigned int tile_width,
+			  unsigned int tile_height, unsigned int base_y,
+			  unsigned int base_x)
 {
 /* copying pixels from the output buffer into the tile */
     switch (sample_type)
@@ -3215,9 +3217,9 @@ copy_from_outbuf_to_tile (const unsigned char *outbuf, unsigned char *tile,
 	  break;
       default:
 	  copy_uint8_outbuf_to_tile ((unsigned char *) outbuf,
-				     (unsigned char *) tile, pixel_type, num_bands, width,
-				     height, tile_width, tile_height, base_y,
-				     base_x);
+				     (unsigned char *) tile, pixel_type,
+				     num_bands, width, height, tile_width,
+				     tile_height, base_y, base_x);
 	  break;
       };
 }
@@ -3357,9 +3359,9 @@ export_geotiff_common (sqlite3 * handle, int max_threads,
 		else
 		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz,
 					 sample_type, num_bands, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  num_bands, width, height, tile_sz,
-					  tile_sz, base_y, base_x);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, num_bands, width, height,
+					  tile_sz, tile_sz, base_y, base_x);
 		plt2 = rl2_clone_palette (palette);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
@@ -3572,9 +3574,9 @@ export_tiff_worlfile_common (sqlite3 * handle, int max_threads,
 		else
 		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz,
 					 sample_type, num_bands, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  num_bands, width, height, tile_sz,
-					  tile_sz, base_y, base_x);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, num_bands, width, height,
+					  tile_sz, tile_sz, base_y, base_x);
 		plt2 = rl2_clone_palette (palette);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
@@ -3786,9 +3788,9 @@ export_tiff_common (sqlite3 * handle, int max_threads, const char *dst_path,
 		else
 		    rl2_prime_void_tile (bufpix, tile_sz, tile_sz,
 					 sample_type, num_bands, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  num_bands, width, height, tile_sz,
-					  tile_sz, base_y, base_x);
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, num_bands, width, height,
+					  tile_sz, tile_sz, base_y, base_x);
 		plt2 = rl2_clone_palette (palette);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
@@ -3962,13 +3964,13 @@ export_triple_band_geotiff_common (int by_section, sqlite3 * handle,
 		  }
 		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     3, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  3, width, height, tile_sz,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, 3, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       RL2_PIXEL_RGB, 3, bufpix,
-				       bufpix_size, NULL, NULL, 0, NULL);
+				       RL2_PIXEL_RGB, 3, bufpix, bufpix_size,
+				       NULL, NULL, 0, NULL);
 		bufpix = NULL;
 		if (raster == NULL)
 		    goto error;
@@ -4160,13 +4162,13 @@ export_mono_band_geotiff_common (int by_section, sqlite3 * handle,
 		  }
 		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     1, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  1, width, height, tile_sz,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, 1, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
-		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       out_pixel, 1, bufpix,
-				       bufpix_size, NULL, NULL, 0, NULL);
+		    rl2_create_raster (tile_sz, tile_sz, sample_type, out_pixel,
+				       1, bufpix, bufpix_size, NULL, NULL, 0,
+				       NULL);
 		bufpix = NULL;
 		if (raster == NULL)
 		    goto error;
@@ -4358,13 +4360,13 @@ export_triple_band_tiff_worldfile_common (int by_section, sqlite3 * handle,
 		  }
 		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     3, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  3, width, height, tile_sz,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, 3, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       RL2_PIXEL_RGB, 3, bufpix,
-				       bufpix_size, NULL, NULL, 0, NULL);
+				       RL2_PIXEL_RGB, 3, bufpix, bufpix_size,
+				       NULL, NULL, 0, NULL);
 		bufpix = NULL;
 		if (raster == NULL)
 		    goto error;
@@ -4562,13 +4564,13 @@ export_mono_band_tiff_worldfile_common (int by_section, sqlite3 * handle,
 		  }
 		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     1, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  1, width, height, tile_sz,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, 1, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
-		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       out_pixel, 1, bufpix,
-				       bufpix_size, NULL, NULL, 0, NULL);
+		    rl2_create_raster (tile_sz, tile_sz, sample_type, out_pixel,
+				       1, bufpix, bufpix_size, NULL, NULL, 0,
+				       NULL);
 		bufpix = NULL;
 		if (raster == NULL)
 		    goto error;
@@ -4755,13 +4757,13 @@ export_triple_band_tiff_common (int by_section, sqlite3 * handle,
 		  }
 		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     3, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  3, width, height, tile_sz,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, 3, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
 		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       RL2_PIXEL_RGB, 3, bufpix,
-				       bufpix_size, NULL, NULL, 0, NULL);
+				       RL2_PIXEL_RGB, 3, bufpix, bufpix_size,
+				       NULL, NULL, 0, NULL);
 		bufpix = NULL;
 		if (raster == NULL)
 		    goto error;
@@ -4937,13 +4939,13 @@ export_mono_band_tiff_common (int by_section, sqlite3 * handle,
 		  }
 		rl2_prime_void_tile (bufpix, tile_sz, tile_sz, sample_type,
 				     1, no_data);
-		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type, pixel_type,
-					  1, width, height, tile_sz,
+		copy_from_outbuf_to_tile (outbuf, bufpix, sample_type,
+					  pixel_type, 1, width, height, tile_sz,
 					  tile_sz, base_y, base_x);
 		raster =
-		    rl2_create_raster (tile_sz, tile_sz, sample_type,
-				       out_pixel, 1, bufpix,
-				       bufpix_size, NULL, NULL, 0, NULL);
+		    rl2_create_raster (tile_sz, tile_sz, sample_type, out_pixel,
+				       1, bufpix, bufpix_size, NULL, NULL, 0,
+				       NULL);
 		bufpix = NULL;
 		if (raster == NULL)
 		    goto error;

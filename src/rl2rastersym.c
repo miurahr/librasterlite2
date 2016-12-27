@@ -771,7 +771,7 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 	      ;
 	  else
 	      ignore_no_data = 1;
-      }						   
+      }
     geo_y = tile_maxy + y_res2;
     for (y = 0; y < tile_height; y++)
       {
@@ -828,10 +828,9 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 			{
 			    /* special case: MONOCHROME */
 			    if (*p_in++ == 1)
-			    *p_out++ = 0;
+				*p_out++ = 0;
 			    else
-			    p_out++;
-				//*p_out++ = 255;
+				p_out++;
 			    match++;
 			}
 		      else
@@ -4393,6 +4392,76 @@ rl2_copy_raw_pixels (rl2RasterPtr raster, unsigned char *outbuf,
 	return 1;
 
     return 0;
+}
+
+static void
+do_copy_raw_mask (rl2PrivRasterPtr rst, unsigned char *maskbuf,
+		  unsigned int width, unsigned int height, double x_res,
+		  double y_res, double minx, double maxy, double tile_minx,
+		  double tile_maxy, unsigned int tile_width,
+		  unsigned int tile_height)
+{
+/* copying mask pixels from the DBMS tile into the output mask */
+    unsigned int x;
+    unsigned int y;
+    int out_x;
+    int out_y;
+    double geo_x;
+    double geo_y;
+    const unsigned char *p_in = rst->maskBuffer;
+    unsigned char *p_out;
+    double y_res2 = y_res / 2.0;
+    double x_res2 = x_res / 2.0;
+
+    geo_y = tile_maxy + y_res2;
+    for (y = 0; y < tile_height; y++)
+      {
+	  geo_y -= y_res;
+	  out_y = (maxy - geo_y) / y_res;
+	  if (out_y < 0 || out_y >= (int) height)
+	    {
+		p_in += tile_width;
+		continue;
+	    }
+	  geo_x = tile_minx - x_res2;
+	  for (x = 0; x < tile_width; x++)
+	    {
+		geo_x += x_res;
+		out_x = (geo_x - minx) / x_res;
+		if (out_x < 0 || out_x >= (int) width)
+		  {
+		      p_in++;
+		      continue;
+		  }
+		p_out = maskbuf + (out_y * width) + out_x;
+		if (*p_in++ == 0)
+		    *p_out++ = 255;
+	    }
+      }
+}
+
+RL2_PRIVATE int
+rl2_copy_raw_mask (rl2RasterPtr raster, unsigned char *maskbuf,
+		   unsigned int width,
+		   unsigned int height, double x_res, double y_res,
+		   double minx, double maxy, double tile_minx, double tile_maxy)
+{
+/* copying a raw transparency mask into the output buffer */
+    unsigned int tile_width;
+    unsigned int tile_height;
+    rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+
+    if (rl2_get_raster_size (raster, &tile_width, &tile_height) != RL2_OK)
+	return 0;
+
+    if (rst->maskBuffer == NULL)
+      {
+	  /* tile without mask - ok */
+	  return 1;
+      }
+    do_copy_raw_mask (rst, maskbuf, width, height, x_res, y_res, minx, maxy,
+		      tile_minx, tile_maxy, tile_width, tile_height);
+    return 1;
 }
 
 static void

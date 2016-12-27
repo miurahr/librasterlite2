@@ -2931,6 +2931,38 @@ do_decode_tile (rl2AuxDecoderPtr decoder)
     decoder->retcode = RL2_OK;
 }
 
+static void
+do_decode_masktile (rl2AuxMaskDecoderPtr decoder)
+{
+/* servicing an AuxMaskDecoder Tile request */
+    int status;
+    decoder->raster =
+	(rl2PrivRasterPtr) rl2_raster_decode_mask (decoder->scale,
+						   decoder->blob_odd,
+						   decoder->blob_odd_sz,
+						   &status);
+    if (decoder->blob_odd != NULL)
+	free (decoder->blob_odd);
+    decoder->blob_odd = NULL;
+    if (decoder->raster == NULL)
+      {
+	  decoder->retcode = status;
+	  return;
+      }
+    if (!rl2_copy_raw_mask
+	((rl2RasterPtr) (decoder->raster), decoder->maskbuf, decoder->width,
+	 decoder->height, decoder->x_res, decoder->y_res, decoder->minx,
+	 decoder->maxy, decoder->tile_minx, decoder->tile_maxy))
+      {
+	  decoder->retcode = RL2_ERROR;
+	  return;
+      }
+
+    rl2_destroy_raster ((rl2RasterPtr) (decoder->raster));
+    decoder->raster = NULL;
+    decoder->retcode = RL2_OK;
+}
+
 #ifdef _WIN32
 DWORD WINAPI
 doRunDecoderThread (void *arg)
@@ -2942,6 +2974,24 @@ doRunDecoderThread (void *arg)
 /* threaded function: decoding a Tile */
     rl2AuxDecoderPtr decoder = (rl2AuxDecoderPtr) arg;
     do_decode_tile (decoder);
+#ifdef _WIN32
+    return 0;
+#else
+    pthread_exit (NULL);
+#endif
+}
+
+#ifdef _WIN32
+DWORD WINAPI
+doRunMaskDecoderThread (void *arg)
+#else
+void *
+doRunMaskDecoderThread (void *arg)
+#endif
+{
+/* threaded function: decoding a Tile */
+    rl2AuxMaskDecoderPtr decoder = (rl2AuxMaskDecoderPtr) arg;
+    do_decode_masktile (decoder);
 #ifdef _WIN32
     return 0;
 #else
@@ -2992,6 +3042,56 @@ start_decoder_thread (rl2AuxDecoderPtr decoder)
       {
 	  /* failure: using standard priority */
 	  pthread_create (&thread_id, NULL, doRunDecoderThread, decoder);
+      }
+    p_thread = malloc (sizeof (pthread_t));
+    *p_thread = thread_id;
+    decoder->opaque_thread_id = p_thread;
+#endif
+}
+
+static void
+start_mask_decoder_thread (rl2AuxMaskDecoderPtr decoder)
+{
+/* starting a concurrent thread */
+#ifdef _WIN32
+    HANDLE thread_handle;
+    HANDLE *p_thread;
+    DWORD dwThreadId;
+    thread_handle =
+	CreateThread (NULL, 0, doRunMaskDecoderThread, decoder, 0, &dwThreadId);
+    SetThreadPriority (thread_handle, THREAD_PRIORITY_IDLE);
+    p_thread = malloc (sizeof (HANDLE));
+    *p_thread = thread_handle;
+    decoder->opaque_thread_id = p_thread;
+#else
+    pthread_t thread_id;
+    pthread_t *p_thread;
+    int ok_prior = 0;
+    int policy;
+    int min_prio;
+    pthread_attr_t attr;
+    struct sched_param sp;
+    pthread_attr_init (&attr);
+    if (pthread_attr_setschedpolicy (&attr, SCHED_RR) == 0)
+      {
+	  /* attempting to set the lowest priority */
+	  if (pthread_attr_getschedpolicy (&attr, &policy) == 0)
+	    {
+		min_prio = sched_get_priority_min (policy);
+		sp.sched_priority = min_prio;
+		if (pthread_attr_setschedparam (&attr, &sp) == 0)
+		  {
+		      /* ok, setting the lowest priority */
+		      ok_prior = 1;
+		      pthread_create (&thread_id, &attr, doRunMaskDecoderThread,
+				      decoder);
+		  }
+	    }
+      }
+    if (!ok_prior)
+      {
+	  /* failure: using standard priority */
+	  pthread_create (&thread_id, NULL, doRunMaskDecoderThread, decoder);
       }
     p_thread = malloc (sizeof (pthread_t));
     *p_thread = thread_id;
@@ -3075,6 +3175,274 @@ do_run_decoder_children (rl2AuxDecoderPtr * thread_slots, int thread_count)
     return 1;
 
   error:
+    return 0;
+}
+
+static int
+do_run_mask_decoder_children (rl2AuxMaskDecoderPtr * thread_slots,
+			      int thread_count)
+{
+/* concurrent execution of all mask decoder children threads */
+    rl2AuxMaskDecoderPtr decoder;
+    int i;
+#ifdef _WIN32
+    HANDLE *handles;
+#endif
+
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* starting all children threads */
+	  decoder = *(thread_slots + i);
+	  start_mask_decoder_thread (decoder);
+      }
+
+/* waiting until all child threads exit */
+#ifdef _WIN32
+    handles = malloc (sizeof (HANDLE) * thread_count);
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* initializing the HANDLEs array */
+	  HANDLE *pOpaque;
+	  decoder = *(thread_slots + i);
+	  pOpaque = (HANDLE *) (decoder->opaque_thread_id);
+	  *(handles + i) = *pOpaque;
+      }
+    WaitForMultipleObjects (thread_count, handles, TRUE, INFINITE);
+    free (handles);
+#else
+    for (i = 0; i < thread_count; i++)
+      {
+	  pthread_t *pOpaque;
+	  decoder = *(thread_slots + i);
+	  pOpaque = (pthread_t *) (decoder->opaque_thread_id);
+	  pthread_join (*pOpaque, NULL);
+      }
+#endif
+
+/* all children threads have now finished: resuming the main thread */
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* cleaning up a request slot */
+	  decoder = *(thread_slots + i);
+	  if (decoder->blob_odd != NULL)
+	      free (decoder->blob_odd);
+	  if (decoder->raster != NULL)
+	      rl2_destroy_raster ((rl2RasterPtr) (decoder->raster));
+	  if (decoder->opaque_thread_id != NULL)
+	      free (decoder->opaque_thread_id);
+	  decoder->blob_odd = NULL;
+	  decoder->blob_odd_sz = 0;
+	  decoder->raster = NULL;
+	  decoder->opaque_thread_id = NULL;
+      }
+    for (i = 0; i < thread_count; i++)
+      {
+	  /* checking for eventual errors */
+	  decoder = *(thread_slots + i);
+	  if (decoder->retcode != RL2_OK)
+	    {
+		fprintf (stderr, ERR_FRMT64, decoder->tile_id);
+		goto error;
+	    }
+      }
+    return 1;
+
+  error:
+    return 0;
+}
+
+static int
+rl2_load_dbms_masktiles (sqlite3 * handle, int max_threads, int by_section,
+			 sqlite3_int64 section_id, sqlite3_stmt * stmt_tiles,
+			 sqlite3_stmt * stmt_data, unsigned char *maskbuf,
+			 unsigned int width, unsigned int height, double x_res,
+			 double y_res, double minx, double miny, double maxx,
+			 double maxy, int level, int scale)
+{
+/* retrieving a transparenct mask from DBMS tiles */
+    rl2RasterPtr raster = NULL;
+    int ret;
+    rl2AuxMaskDecoderPtr aux = NULL;
+    rl2AuxMaskDecoderPtr decoder;
+    rl2AuxMaskDecoderPtr *thread_slots = NULL;
+    int thread_count;
+    int iaux;
+
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* allocating the AuxDecoder array */
+    aux = malloc (sizeof (rl2AuxMaskDecoder) * max_threads);
+    if (aux == NULL)
+	return 0;
+    for (iaux = 0; iaux < max_threads; iaux++)
+      {
+	  /* initializing an empty AuxDecoder */
+	  decoder = aux + iaux;
+	  decoder->opaque_thread_id = NULL;
+	  decoder->blob_odd = NULL;
+	  decoder->blob_odd_sz = 0;
+	  decoder->maskbuf = maskbuf;
+	  decoder->width = width;
+	  decoder->height = height;
+	  decoder->x_res = x_res;
+	  decoder->y_res = y_res;
+	  decoder->scale = scale;
+	  decoder->minx = minx;
+	  decoder->maxy = maxy;
+	  decoder->raster = NULL;
+      }
+
+/* preparing the thread_slots stuct */
+    thread_slots = malloc (sizeof (rl2AuxMaskDecoderPtr) * max_threads);
+    for (thread_count = 0; thread_count < max_threads; thread_count++)
+	*(thread_slots + thread_count) = NULL;
+    thread_count = 0;
+
+/* binding the query args */
+    sqlite3_reset (stmt_tiles);
+    sqlite3_clear_bindings (stmt_tiles);
+    if (by_section)
+      {
+	  sqlite3_bind_int (stmt_tiles, 1, section_id);
+	  sqlite3_bind_int (stmt_tiles, 2, level);
+	  sqlite3_bind_double (stmt_tiles, 3, minx);
+	  sqlite3_bind_double (stmt_tiles, 4, miny);
+	  sqlite3_bind_double (stmt_tiles, 5, maxx);
+	  sqlite3_bind_double (stmt_tiles, 6, maxy);
+      }
+    else
+      {
+	  sqlite3_bind_int (stmt_tiles, 1, level);
+	  sqlite3_bind_double (stmt_tiles, 2, minx);
+	  sqlite3_bind_double (stmt_tiles, 3, miny);
+	  sqlite3_bind_double (stmt_tiles, 4, maxx);
+	  sqlite3_bind_double (stmt_tiles, 5, maxy);
+      }
+
+/* querying the tiles */
+    while (1)
+      {
+	  ret = sqlite3_step (stmt_tiles);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		int ok = 0;
+		const unsigned char *blob_odd = NULL;
+		int blob_odd_sz = 0;
+		sqlite3_int64 tile_id = sqlite3_column_int64 (stmt_tiles, 0);
+		double tile_minx = sqlite3_column_double (stmt_tiles, 1);
+		double tile_maxy = sqlite3_column_double (stmt_tiles, 2);
+		decoder = aux + thread_count;
+		decoder->tile_id = tile_id;
+		decoder->tile_minx = tile_minx;
+		decoder->tile_maxy = tile_maxy;
+
+		/* retrieving tile raw data from BLOBs */
+		sqlite3_reset (stmt_data);
+		sqlite3_clear_bindings (stmt_data);
+		sqlite3_bind_int64 (stmt_data, 1, tile_id);
+		ret = sqlite3_step (stmt_data);
+		if (ret == SQLITE_DONE)
+		    break;
+		if (ret == SQLITE_ROW)
+		  {
+		      /* decoding a Tile - may be by using concurrent multithreading */
+		      if (sqlite3_column_type (stmt_data, 0) == SQLITE_BLOB)
+			{
+			    blob_odd = sqlite3_column_blob (stmt_data, 0);
+			    blob_odd_sz = sqlite3_column_bytes (stmt_data, 0);
+			    decoder->blob_odd = malloc (blob_odd_sz);
+			    if (decoder->blob_odd == NULL)
+				goto error;
+			    memcpy (decoder->blob_odd, blob_odd, blob_odd_sz);
+			    decoder->blob_odd_sz = blob_odd_sz;
+			    ok = 1;
+			}
+		  }
+		else
+		  {
+		      fprintf (stderr,
+			       "SELECT tiles data; sqlite3_step() error: %s\n",
+			       sqlite3_errmsg (handle));
+		      goto error;
+		  }
+		if (!ok)
+		  {
+		      if (decoder->blob_odd != NULL)
+			  free (decoder->blob_odd);
+		      decoder->blob_odd = NULL;
+		      decoder->blob_odd_sz = 0;
+		  }
+		else
+		  {
+		      /* processing a Tile request (may be under parallel execution) */
+		      if (max_threads > 1)
+			{
+			    /* adopting a multithreaded strategy */
+			    *(thread_slots + thread_count) = decoder;
+			    thread_count++;
+			    if (thread_count == max_threads)
+			      {
+				  if (!do_run_mask_decoder_children
+				      (thread_slots, thread_count))
+				      goto error;
+				  thread_count = 0;
+			      }
+			}
+		      else
+			{
+			    /* single thread execution */
+			    do_decode_masktile (decoder);
+			    if (decoder->retcode != RL2_OK)
+			      {
+				  fprintf (stderr, ERR_FRMT64, tile_id);
+				  goto error;
+			      }
+			}
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT tiles; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    if (max_threads > 1 && thread_count > 0)
+      {
+	  /* launching the last multithreaded burst */
+	  if (!do_run_mask_decoder_children (thread_slots, thread_count))
+	      goto error;
+      }
+
+    free (aux);
+    free (thread_slots);
+    return 1;
+
+  error:
+    if (aux != NULL)
+      {
+	  /* AuxMaskDecoder cleanup */
+	  for (iaux = 0; iaux < max_threads; iaux++)
+	    {
+		decoder = aux + iaux;
+		if (decoder->blob_odd != NULL)
+		    free (decoder->blob_odd);
+		if (decoder->raster != NULL)
+		    rl2_destroy_raster ((rl2RasterPtr) (decoder->raster));
+		if (decoder->opaque_thread_id != NULL)
+		    free (decoder->opaque_thread_id);
+	    }
+	  free (aux);
+      }
+    if (thread_slots != NULL)
+	free (thread_slots);
+    if (raster != NULL)
+	rl2_destroy_raster (raster);
     return 0;
 }
 
@@ -4141,14 +4509,19 @@ rl2_load_dbms_tiles_section (sqlite3 * handle, int max_threads,
 			     unsigned char num_bands, unsigned char auto_ndvi,
 			     unsigned char red_band_index,
 			     unsigned char nir_band_index, double x_res,
-			     double y_res, double minx, double maxy,
-			     int scale, rl2PalettePtr palette,
-			     rl2PixelPtr no_data)
+			     double y_res, double minx, double miny,
+			     double maxx, double maxy, int level, int scale,
+			     rl2PalettePtr palette, rl2PixelPtr no_data)
 {
 /* binding the query args */
     sqlite3_reset (stmt_tiles);
     sqlite3_clear_bindings (stmt_tiles);
     sqlite3_bind_int (stmt_tiles, 1, section_id);
+    sqlite3_bind_int (stmt_tiles, 2, level);
+    sqlite3_bind_double (stmt_tiles, 3, minx);
+    sqlite3_bind_double (stmt_tiles, 4, miny);
+    sqlite3_bind_double (stmt_tiles, 5, maxx);
+    sqlite3_bind_double (stmt_tiles, 6, maxy);
 
     if (!rl2_load_dbms_tiles_common
 	(handle, max_threads, stmt_tiles, stmt_data, outbuf, width, height,
@@ -4444,6 +4817,157 @@ rl2_get_shaded_relief_scale_factor (sqlite3 * handle, const char *coverage)
     return scale_factor;
 }
 
+RL2_DECLARE int
+rl2_get_raw_raster_mask (sqlite3 * handle, int max_threads,
+			 rl2CoveragePtr cvg, unsigned int width,
+			 unsigned int height, double minx, double miny,
+			 double maxx, double maxy, double x_res,
+			 double y_res, unsigned char **mask, int *mask_size)
+{
+/* attempting to return a transparency mask from the DBMS Coverage */
+    return rl2_get_raw_raster_mask_common (handle, max_threads,
+					   cvg, 0, 0, width, height, minx, miny,
+					   maxx, maxy, x_res, y_res, mask,
+					   mask_size);
+}
+
+RL2_DECLARE int
+rl2_get_section_raw_raster_mask (sqlite3 * handle, int max_threads,
+				 rl2CoveragePtr cvg,
+				 sqlite3_int64 section_id,
+				 unsigned int width,
+				 unsigned int height, double minx,
+				 double miny, double maxx, double maxy,
+				 double x_res, double y_res,
+				 unsigned char **mask, int *mask_size)
+{
+/* attempting to return a transparency mask from the DBMS Coverage */
+    return rl2_get_raw_raster_mask_common (handle, max_threads,
+					   cvg, 1, section_id, width, height,
+					   minx, miny, maxx, maxy, x_res, y_res,
+					   mask, mask_size);
+}
+
+RL2_PRIVATE int
+rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
+				rl2CoveragePtr cvg, int by_section,
+				sqlite3_int64 section_id, unsigned int width,
+				unsigned int height, double minx, double miny,
+				double maxx, double maxy, double x_res,
+				double y_res, unsigned char **mask,
+				int *mask_size)
+{
+/* attempting to return a transparency mask from the DBMS Coverage */
+    const char *coverage;
+    unsigned char level;
+    unsigned char scale;
+    double xx_res = x_res;
+    double yy_res = y_res;
+    unsigned char *bufpix = NULL;
+    int bufpix_size;
+    char *xtiles;
+    char *xxtiles;
+    char *xdata;
+    char *xxdata;
+    char *sql;
+    sqlite3_stmt *stmt_tiles = NULL;
+    sqlite3_stmt *stmt_data = NULL;
+    int ret;
+
+    if (cvg == NULL || handle == NULL)
+	goto error;
+    coverage = rl2_get_coverage_name (cvg);
+    if (coverage == NULL)
+	goto error;
+    if (rl2_find_matching_resolution
+	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
+	 &scale) != RL2_OK)
+	goto error;
+
+    bufpix_size = width * height;
+    bufpix = malloc (bufpix_size);
+    if (bufpix == NULL)
+      {
+	  fprintf (stderr,
+		   "rl2_get_raw_raster_mask: Insufficient Memory !!!\n");
+	  goto error;
+      }
+
+/* preparing the "tiles" SQL query */
+    xtiles = sqlite3_mprintf ("%s_tiles", coverage);
+    xxtiles = rl2_double_quoted_sql (xtiles);
+    if (by_section)
+      {
+	  /* only from a single Section */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" "
+	       "WHERE section_id = ? AND pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+      }
+    else
+      {
+	  /* whole Coverage */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+      }
+    sqlite3_free (xtiles);
+    free (xxtiles);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT raw tiles SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    /* preparing the data SQL query - only ODD */
+    xdata = sqlite3_mprintf ("%s_tile_data", coverage);
+    xxdata = rl2_double_quoted_sql (xdata);
+    sqlite3_free (xdata);
+    sql = sqlite3_mprintf ("SELECT tile_data_odd "
+			   "FROM \"%s\" WHERE tile_id = ?", xxdata);
+    free (xxdata);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT raw tiles data(1) SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+/* preparing a fully opaque mask */
+    memset (bufpix, 0, bufpix_size);
+
+    if (!rl2_load_dbms_masktiles
+	(handle, max_threads, by_section, section_id, stmt_tiles, stmt_data,
+	 bufpix, width, height, xx_res, yy_res, minx, miny, maxx, maxy, level,
+	 scale))
+	goto error;
+    sqlite3_finalize (stmt_tiles);
+    sqlite3_finalize (stmt_data);
+    *mask = bufpix;
+    *mask_size = bufpix_size;
+
+    return RL2_OK;
+
+  error:
+    if (stmt_tiles != NULL)
+	sqlite3_finalize (stmt_tiles);
+    if (stmt_data != NULL)
+	sqlite3_finalize (stmt_data);
+    if (bufpix != NULL)
+	free (bufpix);
+    return RL2_ERROR;
+}
+
 RL2_PRIVATE int
 rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 				rl2CoveragePtr cvg, int by_section,
@@ -4736,20 +5260,13 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     if (by_section)
       {
 	  /* only from a single Section */
-	  char sctn[1024];
-#if defined(_WIN32) && !defined(__MINGW32__)
-	  sprintf (sctn, "%I64d", section_id);
-#else
-	  sprintf (sctn, "%lld", section_id);
-#endif
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
 	       "FROM \"%s\" "
-	       "WHERE section_id = %s AND pyramid_level = ? AND ROWID IN ( "
+	       "WHERE section_id = ? AND pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, sctn,
-	       xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
       }
     else
       {
@@ -4822,12 +5339,26 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 	      void_raw_buffer (bufpix, width, height, sample_type, num_bands,
 			       no_data);
       }
-    if (!rl2_load_dbms_tiles
-	(handle, max_threads, stmt_tiles, stmt_data, bufpix, width, height,
-	 sample_type, num_bands, auto_ndvi, red_band, nir_band, xx_res,
-	 yy_res, minx, miny, maxx, maxy, level, scale, plt, no_data, style,
-	 stats))
-	goto error;
+    if (by_section)
+      {
+	  /* only from a single Section */
+	  if (!rl2_load_dbms_tiles_section
+	      (handle, max_threads, section_id, stmt_tiles, stmt_data, bufpix,
+	       width, height, sample_type, num_bands, auto_ndvi, red_band,
+	       nir_band, xx_res, yy_res, minx, miny, maxx, maxy, level, scale,
+	       plt, no_data))
+	      goto error;
+      }
+    else
+      {
+	  /* whole Coverage */
+	  if (!rl2_load_dbms_tiles
+	      (handle, max_threads, stmt_tiles, stmt_data, bufpix, width,
+	       height, sample_type, num_bands, auto_ndvi, red_band, nir_band,
+	       xx_res, yy_res, minx, miny, maxx, maxy, level, scale, plt,
+	       no_data, style, stats))
+	      goto error;
+      }
     if (kill_no_data != NULL)
 	rl2_destroy_pixel (kill_no_data);
     sqlite3_finalize (stmt_tiles);

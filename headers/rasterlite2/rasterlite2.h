@@ -3479,6 +3479,14 @@ extern "C"
 				 unsigned char out_pixel);
 
     RL2_DECLARE int
+	rl2_get_raw_raster_mask (sqlite3 * handle, int max_threads,
+				 rl2CoveragePtr cvg, unsigned int width,
+				 unsigned int height, double minx, double miny,
+				 double maxx, double maxy, double x_res,
+				 double y_res, unsigned char **mask,
+				 int *mask_size);
+
+    RL2_DECLARE int
 	rl2_get_section_raw_raster_data (sqlite3 * handle, int max_threads,
 					 rl2CoveragePtr cvg,
 					 sqlite3_int64 section_id,
@@ -3489,6 +3497,16 @@ extern "C"
 					 unsigned char **buffer, int *buf_size,
 					 rl2PalettePtr * palette,
 					 unsigned char out_pixel);
+
+    RL2_DECLARE int
+	rl2_get_section_raw_raster_mask (sqlite3 * handle, int max_threads,
+					 rl2CoveragePtr cvg,
+					 sqlite3_int64 section_id,
+					 unsigned int width,
+					 unsigned int height, double minx,
+					 double miny, double maxx, double maxy,
+					 double x_res, double y_res,
+					 unsigned char **mask, int *mask_size);
 
     RL2_DECLARE int
 	rl2_get_triple_band_raw_raster_data (sqlite3 * handle,

@@ -2188,8 +2188,8 @@ rl2_eval_tiff_origin_compatibility (rl2CoveragePtr cvg, rl2TiffOriginPtr tiff,
     else if (coverage->strictResolution)
       {
 	  /* enforcing Strict Resolution check */
-	  double x_diff = fabs(coverage->hResolution -hResolution);
-	  double y_diff = fabs(coverage->vResolution - vResolution);
+	  double x_diff = fabs (coverage->hResolution - hResolution);
+	  double y_diff = fabs (coverage->vResolution - vResolution);
 	  double x_lim = coverage->hResolution / 1000000.0;
 	  double y_lim = coverage->vResolution / 1000000.0;
 	  if (x_diff > x_lim)

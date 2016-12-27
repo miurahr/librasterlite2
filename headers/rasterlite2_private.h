@@ -1214,6 +1214,27 @@ extern "C"
     } rl2AuxDecoder;
     typedef rl2AuxDecoder *rl2AuxDecoderPtr;
 
+    typedef struct rl2_aux_mask_decoder
+    {
+	void *opaque_thread_id;
+	sqlite3_int64 tile_id;
+	unsigned char *blob_odd;
+	int blob_odd_sz;
+	unsigned char *maskbuf;
+	unsigned int width;
+	unsigned int height;
+	double x_res;
+	double y_res;
+	int scale;
+	double minx;
+	double maxy;
+	double tile_minx;
+	double tile_maxy;
+	rl2PrivRasterPtr raster;
+	int retcode;
+    } rl2AuxMaskDecoder;
+    typedef rl2AuxMaskDecoder *rl2AuxMaskDecoderPtr;
+
     typedef struct rl2_aux_shadower
     {
 	void *opaque_thread_id;
@@ -1377,8 +1398,9 @@ extern "C"
 						 unsigned char red_band_index,
 						 unsigned char nir_band_index,
 						 double x_res, double y_res,
-						 double minx, double maxy,
-						 int scale,
+						 double minx, double miny,
+						 double maxx, double maxy,
+						 int level, int scale,
 						 rl2PalettePtr palette,
 						 rl2PixelPtr no_data);
 
@@ -1908,6 +1930,14 @@ extern "C"
 					 rl2RasterSymbolizerPtr style,
 					 rl2RasterStatisticsPtr stats);
 
+    RL2_PRIVATE int rl2_copy_raw_mask (rl2RasterPtr raster,
+				       unsigned char *maskbuf,
+				       unsigned int width,
+				       unsigned int height,
+				       double x_res, double y_res,
+				       double minx, double maxy,
+				       double tile_minx, double tile_maxy);
+
     RL2_PRIVATE unsigned char *rl2_copy_endian_raw_pixels (const unsigned char
 							   *pixels,
 							   int pixels_sz,
@@ -2004,6 +2034,23 @@ extern "C"
 						    style,
 						    rl2RasterStatisticsPtr
 						    stats);
+
+    RL2_PRIVATE int rl2_get_raw_raster_mask_common (sqlite3 * handle,
+						    int max_threads,
+						    rl2CoveragePtr cvg,
+						    int by_section,
+						    sqlite3_int64 section_id,
+						    unsigned int width,
+						    unsigned int height,
+						    double minx, double miny,
+						    double maxx, double maxy,
+						    double x_res, double y_res,
+						    unsigned char **mask,
+						    int *mask_size);
+
+    RL2_PRIVATE rl2RasterPtr
+	rl2_raster_decode_mask (int scale, const unsigned char *blob_odd,
+				int blob_odd_sz, int *status);
 
     RL2_PRIVATE char *rl2_double_quoted_sql (const char *value);
 

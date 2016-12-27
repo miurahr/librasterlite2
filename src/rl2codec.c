@@ -3256,6 +3256,32 @@ check_scale (int scale, unsigned char sample_type, unsigned char compression,
     return 1;
 }
 
+static int
+check_scale2 (int scale, unsigned char sample_type)
+{
+/* checking if the encoded raster could be decoded at given scale */
+    switch (scale)
+      {
+      case RL2_SCALE_1:
+      case RL2_SCALE_2:
+      case RL2_SCALE_4:
+      case RL2_SCALE_8:
+	  break;
+      default:
+	  return 0;
+      };
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+	  if (scale != RL2_SCALE_1)
+	      return 0;
+	  break;
+      };
+    return 1;
+}
+
 static void
 do_copy2_int8 (const char *p_odd, char *buf, unsigned int width,
 	       unsigned int odd_rows)
@@ -5617,6 +5643,117 @@ rl2_raster_decode (int scale, const unsigned char *blob_odd,
 	rl2_destroy_palette (palette);
     if (ext_palette != NULL)
 	rl2_destroy_palette (ext_palette);
+    return NULL;
+}
+
+RL2_PRIVATE rl2RasterPtr
+rl2_raster_decode_mask (int scale, const unsigned char *blob_odd,
+			int blob_odd_sz, int *status)
+{
+/* decoding from internal RL2 binary format to Raster - transparency mask only */
+    rl2RasterPtr raster;
+    unsigned int width;
+    unsigned int height;
+    unsigned short mask_width = 0;
+    unsigned short mask_height = 0;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned char compression;
+    int compressed_odd;
+    int uncompressed_mask;
+    int compressed_mask;
+    uLong crc;
+    const unsigned char *pixels_mask = NULL;
+    unsigned char *pixels = NULL;
+    int pixels_sz;
+    unsigned char *mask = NULL;
+    int mask_sz = 0;
+    const unsigned char *ptr;
+    int endian;
+    int endian_arch = endianArch ();
+
+    *status = RL2_ERROR;
+    if (blob_odd == NULL)
+	return NULL;
+    if (!check_blob_odd
+	(blob_odd, blob_odd_sz, &width, &height, &sample_type, &pixel_type,
+	 &num_bands, &compression, &crc))
+	return NULL;
+    if (!check_scale2 (scale, sample_type))
+	return NULL;
+
+    endian = *(blob_odd + 2);
+    num_bands = *(blob_odd + 6);
+    ptr = blob_odd + 11;
+    ptr += 2;
+    ptr += 2;
+    ptr += 4;
+    compressed_odd = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    uncompressed_mask = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    compressed_mask = importU32 (ptr, endian, endian_arch);
+    ptr += 4;
+    if (*ptr++ != RL2_DATA_START)
+	return NULL;
+    if (uncompressed_mask > 0)
+      {
+	  /* retrieving the mask */
+	  ptr += compressed_odd;
+	  if (*ptr++ != RL2_DATA_END)
+	      return NULL;
+	  if (*ptr++ != RL2_MASK_START)
+	      return NULL;
+	  pixels_mask = ptr;
+	  mask_width = width;
+	  mask_height = height;
+	  ptr += compressed_mask;
+	  if (*ptr++ != RL2_MASK_END)
+	      return NULL;
+      }
+
+    if (pixels_mask == NULL)
+      {
+	  /* not existing Mask - not an error */
+	  *status = RL2_OK;
+	  return NULL;
+      }
+
+    /* unpacking the mask */
+    unsigned char *mask_pix;
+    int mask_pix_sz;
+    if (uncompressed_mask != (mask_width * mask_height))
+	goto error;
+    if (!unpack_rle
+	(mask_width, mask_height, pixels_mask, compressed_mask,
+	 &mask_pix, &mask_pix_sz))
+	goto error;
+    if (!rescale_mask
+	(scale, &mask_width, &mask_height, mask_pix, &mask, &mask_sz))
+      {
+	  free (mask_pix);
+	  goto error;
+      }
+    free (mask_pix);
+
+    /* will always return a full BLACK grayscale UINT8 raster */
+    pixels_sz = width * height;
+    pixels = malloc (pixels_sz);
+    memset (pixels, 0, pixels_sz);
+    raster =
+	rl2_create_raster (width, height, RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE,
+			   1, pixels, pixels_sz, NULL, mask, mask_sz, NULL);
+    if (raster == NULL)
+	goto error;
+    *status = RL2_OK;
+    return raster;
+  error:
+    if (pixels != NULL)
+	free (pixels);
+    if (mask != NULL)
+	free (mask);
+    *status = RL2_ERROR;
     return NULL;
 }
 

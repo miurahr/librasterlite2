@@ -4628,13 +4628,13 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 	    {
 		out_miny = out_maxy - pyr->tile_height;
 		if (out_miny < miny)
-				out_miny = miny;
+		    out_miny = miny;
 		out_minx = minx;
 		for (col = 0; col < pyr->scaled_width; col += tileWidth)
 		  {
 		      out_maxx = out_minx + pyr->tile_width;
-		if (out_maxx > maxx)
-				out_maxx = maxx;
+		      if (out_maxx > maxx)
+			  out_maxx = maxx;
 		      set_pyramid_tile_destination (pyr, out_minx, out_miny,
 						    out_maxx, out_maxy, row,
 						    col);
@@ -4974,10 +4974,11 @@ get_section_raw_raster_data (sqlite3 * handle, int max_threads,
 			     unsigned int width, unsigned int height,
 			     unsigned char sample_type,
 			     unsigned char pixel_type,
-			     unsigned char num_bands, double minx,
-			     double maxy, double x_res, double y_res,
-			     unsigned char **buffer, int *buf_size,
-			     rl2PalettePtr palette, rl2PixelPtr no_data)
+			     unsigned char num_bands, double minx, double miny,
+			     double maxx, double maxy, double x_res,
+			     double y_res, unsigned char **buffer,
+			     int *buf_size, rl2PalettePtr palette,
+			     rl2PixelPtr no_data)
 {
 /* attempting to return a buffer containing raw pixels from the whole DBMS Section */
     unsigned char *bufpix = NULL;
@@ -5019,9 +5020,12 @@ get_section_raw_raster_data (sqlite3 * handle, int max_threads,
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = rl2_double_quoted_sql (xtiles);
     sql =
-	sqlite3_mprintf
-	("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	 "FROM \"%s\" " "WHERE pyramid_level = 0 AND section_id = ?", xxtiles);
+	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
+			 "FROM \"%s\" "
+			 "WHERE section_id = ? AND pyramid_level = ? AND ROWID IN ( "
+			 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+			 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles,
+			 xtiles);
     sqlite3_free (xtiles);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
@@ -5057,8 +5061,8 @@ get_section_raw_raster_data (sqlite3 * handle, int max_threads,
 			 no_data);
     if (!rl2_load_dbms_tiles_section
 	(handle, max_threads, sect_id, stmt_tiles, stmt_data, bufpix, width,
-	 height, sample_type, num_bands, 0, 0, 0, x_res, y_res, minx, maxy,
-	 RL2_SCALE_1, palette, no_data))
+	 height, sample_type, num_bands, 0, 0, 0, x_res, y_res, minx, miny,
+	 maxx, maxy, 0, RL2_SCALE_1, palette, no_data))
 	goto error;
     sqlite3_finalize (stmt_tiles);
     sqlite3_finalize (stmt_data);
@@ -5441,8 +5445,8 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, int max_threads,
       }
     if (!get_section_raw_raster_data
 	(handle, max_threads, coverage, section_id, sect_width, sect_height,
-	 sample_type, pixel_type, num_samples, minx, maxy, base_res_x,
-	 base_res_y, &inbuf, &inbuf_size, palette, no_data))
+	 sample_type, pixel_type, num_samples, minx, miny, maxx, maxy,
+	 base_res_x, base_res_y, &inbuf, &inbuf_size, palette, no_data))
 	goto error;
 
     if (!prepare_section_pyramid_stmts
@@ -5524,7 +5528,7 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, int max_threads,
 		t_minx = minx;
 		t_miny = t_maxy - (tileHeight * y_res);
 		if (t_miny < miny)
-		t_miny = miny;
+		    t_miny = miny;
 		for (col = 0; col < out_width; col += tileWidth)
 		  {
 		      if (pixel_type == RL2_PIXEL_MONOCHROME)
@@ -5564,7 +5568,7 @@ do_build_124_bit_section_pyramid (sqlite3 * handle, int max_threads,
 			}
 		      t_maxx = t_minx + (tileWidth * x_res);
 		      if (t_maxx > maxx)
-		      t_maxx = maxx;
+			  t_maxx = maxx;
 		      if (!copy_124_tile
 			  (out_pixel_type, outbuf, &tilebuf,
 			   &tilebuf_sz, &tilemask, &tilemask_sz, row, col,
@@ -5728,8 +5732,8 @@ do_build_palette_section_pyramid (sqlite3 * handle, int max_threads,
       }
     if (!get_section_raw_raster_data
 	(handle, max_threads, coverage, section_id, sect_width, sect_height,
-	 RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE, 1, minx, maxy, base_res_x,
-	 base_res_y, &inbuf, &inbuf_size, palette, no_data))
+	 RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE, 1, minx, miny, maxx, maxy,
+	 base_res_x, base_res_y, &inbuf, &inbuf_size, palette, no_data))
 	goto error;
 
     if (!prepare_section_pyramid_stmts
@@ -5791,7 +5795,7 @@ do_build_palette_section_pyramid (sqlite3 * handle, int max_threads,
 		t_minx = minx;
 		t_miny = t_maxy - (tileHeight * y_res);
 		if (t_miny < miny)
-		t_miny = miny;
+		    t_miny = miny;
 		for (col = 0; col < out_width; col += tileWidth)
 		  {
 		      if (no_data == NULL)
@@ -5811,7 +5815,7 @@ do_build_palette_section_pyramid (sqlite3 * handle, int max_threads,
 			}
 		      t_maxx = t_minx + (tileWidth * x_res);
 		      if (t_maxx > maxx)
-		      t_maxx = maxx;
+			  t_maxx = maxx;
 		      if (!copy_124_tile (out_pixel_type, outbuf, &tilebuf,
 					  &tilebuf_sz, &tilemask,
 					  &tilemask_sz, row, col, out_width,

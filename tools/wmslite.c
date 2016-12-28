@@ -3188,7 +3188,7 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     unsigned char *black;
     int black_sz;
     char bgcolor[16];
-    
+
     if (args->layer_type == LAYER_TYPE_VECTOR)
 	stmt = args->stmt_get_map_vector;
     else
@@ -3223,9 +3223,9 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
 	strcpy (bgcolor, "#ffffff");
     sqlite3_bind_text (stmt, 10, bgcolor, strlen (bgcolor), SQLITE_TRANSIENT);
     if (args->transparent == WMS_OPAQUE)
-    sqlite3_bind_int (stmt, 11, 0);
+	sqlite3_bind_int (stmt, 11, 0);
     else
-    sqlite3_bind_int (stmt, 11, 1);
+	sqlite3_bind_int (stmt, 11, 1);
     if (args->format == RL2_OUTPUT_FORMAT_JPEG)
 	sqlite3_bind_int (stmt, 12, 80);
     else

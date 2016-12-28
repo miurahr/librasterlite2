@@ -3696,6 +3696,11 @@ extern "C"
 				rl2TiffOriginPtr tiff);
 
     RL2_DECLARE int
+	rl2_install_dbms_palette_from_tiff (sqlite3 * handle,
+					    rl2CoveragePtr cvg,
+					    rl2TiffOriginPtr tiff);
+
+    RL2_DECLARE int
 	rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
 				  int *blob_size);
 

@@ -3395,54 +3395,7 @@ read_raw_scanlines (rl2PrivTiffOriginPtr origin, unsigned short width,
 	  /* scanning scanlines by row */
 	  line_no = y + startRow;
 	  if (line_no >= origin->height)
-	    {
-		switch (sample_type)
-		  {
-		  case RL2_SAMPLE_INT8:
-		      p_out_8 = (char *) pixels;
-		      for (x = 0; x < width; x++)
-			  *p_out_8++ = 0;
-		      break;
-		  case RL2_SAMPLE_UINT8:
-		      p_out_u8 = (unsigned char *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
-			  *p_out_u8++ = 0;
-		      break;
-		  case RL2_SAMPLE_INT16:
-		      p_out_16 = (short *) pixels;
-		      for (x = 0; x < width; x++)
-			  *p_out_16++ = 0;
-		      break;
-		  case RL2_SAMPLE_UINT16:
-		      p_out_u16 = (unsigned short *) pixels;
-		      for (x = 0; x < width * num_bands; x++)
-			  *p_out_u16++ = 0;
-		      break;
-		  case RL2_SAMPLE_INT32:
-		      p_out_32 = (int *) pixels;
-		      for (x = 0; x < width; x++)
-			  *p_out_32++ = 0;
-		      break;
-		  case RL2_SAMPLE_UINT32:
-		      p_out_u32 = (unsigned int *) pixels;
-		      for (x = 0; x < width; x++)
-			  *p_out_u32++ = 0;
-		      break;
-		  case RL2_SAMPLE_FLOAT:
-		      p_out_flt = (float *) pixels;
-		      for (x = 0; x < width; x++)
-			  *p_out_flt++ = 0;
-		      break;
-		  case RL2_SAMPLE_DOUBLE:
-		      p_out_dbl = (double *) pixels;
-		      for (x = 0; x < width; x++)
-			  *p_out_dbl++ = 0;
-		      break;
-		  default:
-		      goto error;
-		  };
-		continue;
-	    }
+	      continue;
 	  if (TIFFReadScanline (in, tiff_scanline, line_no, 0) < 0)
 	      goto error;
 	  if (convert != RL2_CONVERT_NO)

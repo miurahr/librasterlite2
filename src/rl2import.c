@@ -2238,6 +2238,16 @@ do_import_file (sqlite3 * handle, int max_threads, const char *src_path,
     if (pixel_type == RL2_PIXEL_PALETTE)
       {
 	  /* remapping the Palette */
+	  if (do_check_initial_palette (handle, cvg) == RL2_TRUE)
+	    {
+		if (rl2_install_dbms_palette_from_tiff (handle, cvg, origin) !=
+		    RL2_OK)
+		  {
+		      fprintf (stderr,
+			       "Unable to install the initial Palette !!!\n");
+		      goto error;
+		  }
+	    }
 	  if (rl2_check_dbms_palette (handle, cvg, origin) != RL2_OK)
 	    {
 		fprintf (stderr, "Mismatching Palette !!!\n");

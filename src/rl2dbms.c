@@ -8247,3 +8247,113 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 	sqlite3_finalize (stmt);
     return RL2_ERROR;
 }
+
+RL2_PRIVATE int
+do_check_initial_palette (sqlite3 * handle, rl2CoveragePtr cvg)
+{
+/* testing for an empty Palette Coverage */
+    rl2PrivCoveragePtr coverage = (rl2PrivCoveragePtr) cvg;
+    int ret;
+    char **results;
+    int rows;
+    int columns;
+    int i;
+    int initial = 0;
+    char *xcoverage;
+    char *xxcoverage;
+
+    if (coverage == NULL)
+	return RL2_ERROR;
+    if (coverage->coverageName == NULL)
+	return RL2_ERROR;
+
+    xcoverage = sqlite3_mprintf ("%s_tiles", coverage->coverageName);
+    xxcoverage = rl2_double_quoted_sql (xcoverage);
+    sqlite3_free (xcoverage);
+    char *sql = sqlite3_mprintf ("SELECT Count(*) FROM \"%s\"",
+				 xxcoverage);
+    free (xxcoverage);
+    ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return RL2_ERROR;
+    for (i = 1; i <= rows; i++)
+      {
+	  if (atoi (results[(i * columns) + 0]) == 0)
+	      initial = 1;
+      }
+    sqlite3_free_table (results);
+    if (initial)
+	return RL2_TRUE;
+    return RL2_FALSE;
+}
+
+RL2_DECLARE int
+rl2_install_dbms_palette_from_tiff (sqlite3 * handle, rl2CoveragePtr coverage,
+				    rl2TiffOriginPtr tiff)
+{
+/*attempting to merge/update a Coverage's Palette */
+    int i;
+    int j;
+    int changed = 0;
+    int maxPalette = 0;
+    unsigned char red[256];
+    unsigned char green[256];
+    unsigned char blue[256];
+    int ok;
+    rl2PalettePtr palette = NULL;
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
+    rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
+    if (cvg == NULL || origin == NULL)
+	return RL2_ERROR;
+
+    for (i = 0; i < origin->maxPalette; i++)
+      {
+	  /* checking TIFF palette entries */
+	  unsigned char tiff_red = origin->red[i];
+	  unsigned char tiff_green = origin->green[i];
+	  unsigned char tiff_blue = origin->blue[i];
+	  ok = 0;
+	  for (j = 0; j < maxPalette; j++)
+	    {
+		if (tiff_red == red[j] && tiff_green == green[j]
+		    && tiff_blue == blue[j])
+		  {
+		      /* found a matching color */
+		      ok = 1;
+		      break;
+		  }
+	    }
+	  if (!ok)
+	    {
+		/* attempting to insert a new color into the pseudo-Palette */
+		if (maxPalette == 256)
+		    goto error;
+		red[maxPalette] = tiff_red;
+		green[maxPalette] = tiff_green;
+		blue[maxPalette] = tiff_blue;
+		maxPalette++;
+		changed = 1;
+	    }
+      }
+    if (changed)
+      {
+	  /* updating the DBMS Palette */
+	  palette = rl2_create_palette (maxPalette);
+	  if (palette == NULL)
+	      goto error;
+	  for (j = 0; j < maxPalette; j++)
+	      rl2_set_palette_color (palette, j, red[j], green[j], blue[j]);
+	  if (rl2_update_dbms_palette (handle, cvg->coverageName, palette) !=
+	      RL2_OK)
+	      goto error;
+      }
+    set_remapped_palette (origin, palette);
+    rl2_destroy_palette (palette);
+    return RL2_OK;
+
+  error:
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    return RL2_ERROR;
+}

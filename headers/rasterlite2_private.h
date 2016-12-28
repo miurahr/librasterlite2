@@ -1424,6 +1424,9 @@ extern "C"
 					    unsigned char pixel,
 					    unsigned char num_bands);
 
+    RL2_PRIVATE int
+	do_check_initial_palette (sqlite3 * handle, rl2CoveragePtr cvg);
+
     RL2_PRIVATE WmsRetryListPtr alloc_retry_list ();
 
     RL2_PRIVATE void free_retry_list (WmsRetryListPtr lst);

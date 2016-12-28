@@ -1734,7 +1734,7 @@ exec_catalog (sqlite3 * handle)
 		if (palette != NULL)
 		  {
 		      /* printing an eventual Palette */
-		      unsigned char i;
+		      unsigned short i;
 		      unsigned short num_entries;
 		      unsigned char *red = NULL;
 		      unsigned char *green = NULL;

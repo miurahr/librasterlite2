@@ -3469,6 +3469,31 @@ extern "C"
 						   rl2RasterPtr rst,
 						   int pyramidize);
 
+    RL2_DECLARE int rl2_load_raw_tiles_into_dbms (sqlite3 * sqlite,
+						  rl2CoveragePtr cvg,
+						  const char *sctn_name,
+						  unsigned int sctn_width,
+						  unsigned int sctn_height,
+						  int sctn_srid,
+						  double sctn_minx,
+						  double sctn_miny,
+						  double sctn_maxx,
+						  double sctn_maxy,
+						  int (*getTile) (void *data,
+								  double
+								  tile_minx,
+								  double
+								  tile_miny,
+								  double
+								  tile_maxx,
+								  double
+								  tile_maxy,
+								  unsigned char
+								  *bufpix,
+								  rl2PalettePtr
+								  * palette),
+						  void *data, int pyramidize);
+
     RL2_DECLARE int
 	rl2_get_raw_raster_data (sqlite3 * handle, int max_threads,
 				 rl2CoveragePtr cvg, unsigned int width,

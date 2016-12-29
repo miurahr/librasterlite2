@@ -112,7 +112,7 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_line_symbolizer$(EXEEXT) test_polygon_symbolizer$(EXEEXT) \
 	test_point_symbolizer$(EXEEXT) test_text_symbolizer$(EXEEXT) \
 	test_vectors$(EXEEXT) test_font$(EXEEXT) \
-	test_copy_rastercov$(EXEEXT)
+	test_copy_rastercov$(EXEEXT) test_tile_callback$(EXEEXT)
 subdir = test
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
@@ -304,6 +304,9 @@ test_text_symbolizer_LDADD = $(LDADD)
 test_tifin_SOURCES = test_tifin.c
 test_tifin_OBJECTS = test_tifin.$(OBJEXT)
 test_tifin_LDADD = $(LDADD)
+test_tile_callback_SOURCES = test_tile_callback.c
+test_tile_callback_OBJECTS = test_tile_callback.$(OBJEXT)
+test_tile_callback_LDADD = $(LDADD)
 test_vectors_SOURCES = test_vectors.c
 test_vectors_OBJECTS = test_vectors.$(OBJEXT)
 test_vectors_LDADD = $(LDADD)
@@ -368,8 +371,8 @@ SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test_point_symbolizer.c test_polygon_symbolizer.c \
 	test_raster.c test_raster_symbolizer.c test_raw.c \
 	test_section.c test_svg.c test_text_symbolizer.c test_tifin.c \
-	test_vectors.c test_webp.c test_wms1.c test_wms2.c \
-	test_wr_tiff.c
+	test_tile_callback.c test_vectors.c test_webp.c test_wms1.c \
+	test_wms2.c test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
@@ -385,8 +388,8 @@ DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test_point_symbolizer.c test_polygon_symbolizer.c \
 	test_raster.c test_raster_symbolizer.c test_raw.c \
 	test_section.c test_svg.c test_text_symbolizer.c test_tifin.c \
-	test_vectors.c test_webp.c test_wms1.c test_wms2.c \
-	test_wr_tiff.c
+	test_tile_callback.c test_vectors.c test_webp.c test_wms1.c \
+	test_wms2.c test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -1159,6 +1162,10 @@ test_tifin$(EXEEXT): $(test_tifin_OBJECTS) $(test_tifin_DEPENDENCIES) $(EXTRA_te
 	@rm -f test_tifin$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_tifin_OBJECTS) $(test_tifin_LDADD) $(LIBS)
 
+test_tile_callback$(EXEEXT): $(test_tile_callback_OBJECTS) $(test_tile_callback_DEPENDENCIES) $(EXTRA_test_tile_callback_DEPENDENCIES) 
+	@rm -f test_tile_callback$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_tile_callback_OBJECTS) $(test_tile_callback_LDADD) $(LIBS)
+
 test_vectors$(EXEEXT): $(test_vectors_OBJECTS) $(test_vectors_DEPENDENCIES) $(EXTRA_test_vectors_DEPENDENCIES) 
 	@rm -f test_vectors$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_vectors_OBJECTS) $(test_vectors_LDADD) $(LIBS)
@@ -1243,6 +1250,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_svg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_text_symbolizer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tifin.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tile_callback.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_vectors.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_webp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_wms1.Po@am__quote@
@@ -1953,6 +1961,13 @@ test_font.log: test_font$(EXEEXT)
 test_copy_rastercov.log: test_copy_rastercov$(EXEEXT)
 	@p='test_copy_rastercov$(EXEEXT)'; \
 	b='test_copy_rastercov'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_tile_callback.log: test_tile_callback$(EXEEXT)
+	@p='test_tile_callback$(EXEEXT)'; \
+	b='test_tile_callback'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

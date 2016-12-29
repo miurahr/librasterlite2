@@ -6095,3 +6095,387 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
 	sqlite3_finalize (stmt_data);
     return RL2_ERROR;
 }
+
+RL2_DECLARE int
+rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
+			      rl2CoveragePtr cvg, const char *section,
+			      unsigned int sctn_width,
+			      unsigned int sctn_height,
+			      int sctn_srid,
+			      double sctn_minx,
+			      double sctn_miny,
+			      double sctn_maxx,
+			      double sctn_maxy,
+			      int (*getTile) (void *data, double tile_minx,
+					      double tile_miny,
+					      double tile_maxx,
+					      double tile_maxy,
+					      unsigned char *bufpix,
+					      rl2PalettePtr * palette),
+			      void *data, int pyramidize)
+{
+/* callback-based IMPORT Raster function */
+    rl2PrivCoveragePtr privcvg = (rl2PrivCoveragePtr) cvg;
+    int ret;
+    char *sql;
+    const char *coverage;
+    unsigned char sample_type;
+    unsigned char pixel_type;
+    unsigned char num_bands;
+    unsigned int tile_w;
+    unsigned int tile_h;
+    unsigned char compression;
+    int quality;
+    char *table;
+    char *xtable;
+    unsigned int tileWidth;
+    unsigned int tileHeight;
+    unsigned int width = sctn_width;
+    unsigned int height = sctn_height;
+    int srid;
+    double minx = sctn_minx;
+    double miny = sctn_miny;
+    double maxx = sctn_maxx;
+    double maxy = sctn_maxy;
+    double tile_minx;
+    double tile_miny;
+    double tile_maxx;
+    double tile_maxy;
+    rl2RasterStatisticsPtr section_stats = NULL;
+    rl2PixelPtr no_data = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2PalettePtr aux_palette = NULL;
+    unsigned int row;
+    unsigned int col;
+    double res_x;
+    double res_y;
+    double hResolution;
+    double vResolution;
+    double base_res_x;
+    double base_res_y;
+    char *xml_summary = NULL;
+    sqlite3_stmt *stmt_data = NULL;
+    sqlite3_stmt *stmt_tils = NULL;
+    sqlite3_stmt *stmt_sect = NULL;
+    sqlite3_stmt *stmt_levl = NULL;
+    sqlite3_stmt *stmt_upd_sect = NULL;
+    sqlite3_int64 section_id;
+    int pixel_size;
+    int bufpix_sz;
+
+    if (cvg == NULL)
+	goto error;
+    if (section == NULL)
+	goto error;
+    if (width == 0 || height == 0)
+	goto error;
+    if (minx >= maxx || miny >= maxy)
+	goto error;
+    hResolution = (sctn_maxx - sctn_minx) / (double) sctn_width;
+    vResolution = (sctn_maxy - sctn_miny) / (double) sctn_height;
+
+    if (rl2_get_coverage_tile_size (cvg, &tileWidth, &tileHeight) != RL2_OK)
+	goto error;
+    if (rl2_get_coverage_srid (cvg, &srid) != RL2_OK)
+	goto error;
+    if (srid != sctn_srid)
+	goto error;
+    srid = sctn_srid;
+
+    tile_w = tileWidth;
+    tile_h = tileHeight;
+    rl2_get_coverage_compression (cvg, &compression, &quality);
+    rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands);
+    coverage = rl2_get_coverage_name (cvg);
+    switch (sample_type)
+      {
+      case RL2_SAMPLE_INT16:
+      case RL2_SAMPLE_UINT16:
+	  pixel_size = 2;
+	  break;
+      case RL2_SAMPLE_INT32:
+      case RL2_SAMPLE_UINT32:
+      case RL2_SAMPLE_FLOAT:
+	  pixel_size = 4;
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  pixel_size = 8;
+	  break;
+      default:
+	  pixel_size = 1;
+	  break;
+      };
+    pixel_size *= num_bands;
+    bufpix_sz = tile_w * tile_h * pixel_size;
+
+    table = sqlite3_mprintf ("%s_sections", coverage);
+    xtable = rl2_double_quoted_sql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
+	 "md5_checksum, summary, width, height, geometry) "
+	 "VALUES (NULL, ?, ?, ?, XB_Create(?), ?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_sect, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO sections SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_sections", coverage);
+    xtable = rl2_double_quoted_sql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("UPDATE \"%s\" SET statistics = ? WHERE section_id = ?", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_upd_sect, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("UPDATE sections SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    if (privcvg->mixedResolutions)
+      {
+	  /* mixed resolutions Coverage */
+	  table = sqlite3_mprintf ("%s_section_levels", coverage);
+	  xtable = rl2_double_quoted_sql (table);
+	  sqlite3_free (table);
+	  sql =
+	      sqlite3_mprintf
+	      ("INSERT OR IGNORE INTO \"%s\" (section_id, pyramid_level, "
+	       "x_resolution_1_1, y_resolution_1_1, "
+	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
+	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
+	       "VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
+	  free (xtable);
+	  ret =
+	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		printf ("INSERT INTO section_levels SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  table = sqlite3_mprintf ("%s_levels", coverage);
+	  xtable = rl2_double_quoted_sql (table);
+	  sqlite3_free (table);
+	  sql =
+	      sqlite3_mprintf
+	      ("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	       "x_resolution_1_1, y_resolution_1_1, "
+	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
+	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
+	       "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", xtable);
+	  free (xtable);
+	  ret =
+	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_levl, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		printf ("INSERT INTO levels SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+
+    table = sqlite3_mprintf ("%s_tiles", coverage);
+    xtable = rl2_double_quoted_sql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	 "VALUES (NULL, 0, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO tiles SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    table = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtable = rl2_double_quoted_sql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	 "VALUES (?, ?, ?)", xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSERT INTO tile_data SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+    res_x = hResolution;
+    res_y = vResolution;
+    base_res_x = privcvg->hResolution;
+    base_res_y = privcvg->vResolution;
+
+/* INSERTing the section */
+    if (!rl2_do_insert_section
+	(handle, "loaded from RAW pixels", section, srid, width, height, minx,
+	 miny, maxx, maxy, xml_summary, privcvg->sectionPaths,
+	 privcvg->sectionMD5, privcvg->sectionSummary, stmt_sect, &section_id))
+	goto error;
+    section_stats = rl2_create_raster_statistics (sample_type, num_bands);
+    if (section_stats == NULL)
+	goto error;
+/* INSERTing the base-levels */
+    if (privcvg->mixedResolutions)
+      {
+	  /* multiple resolutions Coverage */
+	  if (!rl2_do_insert_section_levels
+	      (handle, section_id, res_x, res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+    else
+      {
+	  /* single resolution Coverage */
+	  if (!rl2_do_insert_levels
+	      (handle, base_res_x, base_res_y, 1.0, sample_type, stmt_levl))
+	      goto error;
+      }
+
+/* looping on tiles */
+    tile_maxy = maxy;
+    for (row = 0; row < height; row += tile_h)
+      {
+	  tile_miny = tile_maxy - ((double) tile_h * res_y);
+	  tile_minx = minx;
+	  for (col = 0; col < width; col += tile_w)
+	    {
+		/* requesting a Tile */
+		rl2RasterPtr tile;
+		unsigned char *blob_odd;
+		unsigned char *blob_even;
+		int blob_odd_sz;
+		int blob_even_sz;
+		unsigned char *bufpix = malloc (bufpix_sz);
+
+		if (pixel_type == RL2_PIXEL_PALETTE)
+		    rl2_prime_void_tile_palette (bufpix, tile_w, tile_h,
+						 no_data);
+		else
+		    rl2_prime_void_tile (bufpix, tile_w, tile_h,
+					 sample_type, num_bands, no_data);
+
+		tile_maxx = tile_minx + ((double) tile_w * res_x);
+		if (!getTile
+		    (data, tile_minx, tile_miny, tile_maxx, tile_maxy, bufpix,
+		     &palette))
+		  {
+		      if (bufpix != NULL)
+			  free (bufpix);
+		      goto error;
+		  }
+
+		/* building a raster Tile */
+		tile =
+		    rl2_create_raster (tile_w, tile_h, sample_type, pixel_type,
+				       num_bands, bufpix, bufpix_sz, palette,
+				       NULL, 0, no_data);
+		if (tile == NULL)
+		  {
+		      if (bufpix != NULL)
+			  free (bufpix);
+		      goto error;
+		  }
+
+		/* encoding the Tile */
+		if (rl2_raster_encode
+		    (tile, compression, &blob_odd, &blob_odd_sz, &blob_even,
+		     &blob_even_sz, quality, 1) != RL2_OK)
+		  {
+		      fprintf (stderr,
+			       "ERROR: unable to encode a tile [Row=%d Col=%d]\n",
+			       row, col);
+		      rl2_destroy_raster (tile);
+		      goto error;
+		  }
+		aux_palette = rl2_clone_palette (rl2_get_raster_palette (tile));
+		rl2_destroy_raster (tile);
+
+		/* INSERTing the tile */
+		if (!do_insert_tile
+		    (handle, blob_odd, blob_odd_sz, blob_even, blob_even_sz,
+		     section_id, srid, tile_minx, tile_miny, tile_maxx,
+		     tile_maxy, aux_palette, no_data, stmt_tils, stmt_data,
+		     section_stats))
+		    goto error;
+
+		/* next tile */
+		tile_minx += (double) tile_w *res_x;
+	    }
+	  tile_maxy -= (double) tile_h *res_y;
+      }
+
+/* updating the Section's Statistics */
+    compute_aggregate_sq_diff (section_stats);
+    if (!rl2_do_insert_stats (handle, section_stats, section_id, stmt_upd_sect))
+	goto error;
+
+    rl2_destroy_raster_statistics (section_stats);
+    section_stats = NULL;
+
+    if (pyramidize)
+      {
+	  /* immediately building the Section's Pyramid */
+	  const char *coverage_name = rl2_get_coverage_name (cvg);
+	  if (coverage_name == NULL)
+	      goto error;
+	  if (rl2_build_section_pyramid
+	      (handle, 1, coverage_name, section_id, 1, 0) != RL2_OK)
+	    {
+		fprintf (stderr, "unable to build the Section's Pyramid\n");
+		goto error;
+	    }
+      }
+
+    sqlite3_finalize (stmt_upd_sect);
+    sqlite3_finalize (stmt_sect);
+    sqlite3_finalize (stmt_levl);
+    sqlite3_finalize (stmt_tils);
+    sqlite3_finalize (stmt_data);
+    stmt_upd_sect = NULL;
+    stmt_sect = NULL;
+    stmt_levl = NULL;
+    stmt_tils = NULL;
+    stmt_data = NULL;
+
+    if (rl2_update_dbms_coverage (handle, coverage) != RL2_OK)
+      {
+	  fprintf (stderr, "unable to update the Coverage\n");
+	  goto error;
+      }
+
+    return RL2_OK;
+
+  error:
+    if (stmt_upd_sect != NULL)
+	sqlite3_finalize (stmt_upd_sect);
+    if (stmt_sect != NULL)
+	sqlite3_finalize (stmt_sect);
+    if (stmt_levl != NULL)
+	sqlite3_finalize (stmt_levl);
+    if (stmt_tils != NULL)
+	sqlite3_finalize (stmt_tils);
+    if (stmt_data != NULL)
+	sqlite3_finalize (stmt_data);
+    return RL2_ERROR;
+}

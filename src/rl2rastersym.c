@@ -828,7 +828,7 @@ copy_uint8_raw_pixels (const unsigned char *buffer, const unsigned char *mask,
 			{
 			    /* special case: MONOCHROME */
 			    if (*p_in++ == 1)
-				*p_out++ = 0;
+				*p_out++ = 1;
 			    else
 				p_out++;
 			    match++;

@@ -43,6 +43,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <unistd.h>
 #include <stdio.h>
 #include <memory.h>
+#include <math.h>
 
 #include "config.h"
 
@@ -61,7 +62,112 @@ struct tile_info
     const char *coverage;
     unsigned int tile_w;
     unsigned int tile_h;
+    rl2PalettePtr palette;
 };
+
+static void
+set_tile_pixel_monochrome (unsigned char *bufpix, unsigned int x,
+			   unsigned int y, unsigned int tile_w, double map_x,
+			   double map_y)
+{
+/* pixel generator - MONOCHROME */
+    unsigned char *p = bufpix + ((y * tile_w) + x);
+    if ((map_x >= -60.0 && map_x <= -30.0)
+	&& (map_y >= -60.0 && map_y <= -30.0))
+	*p = 1;
+    else if ((map_x >= 20.0 && map_x <= 80.0)
+	     && (map_y >= 20.0 && map_y <= 80.0))
+	*p = 1;
+}
+
+static void
+set_tile_pixel_palette1 (unsigned char *bufpix, unsigned int x, unsigned int y,
+			 unsigned int tile_w, double map_x, double map_y)
+{
+/* pixel generator - PALETTE 1-BIT */
+    unsigned char *p = bufpix + ((y * tile_w) + x);
+    if ((map_x >= -60.0 && map_x <= -30.0)
+	&& (map_y >= -60.0 && map_y <= -30.0))
+	*p = 1;
+    else if ((map_x >= 20.0 && map_x <= 80.0)
+	     && (map_y >= 20.0 && map_y <= 80.0))
+	*p = 1;
+}
+
+static void
+set_tile_pixel_1bit (unsigned char *bufpix, unsigned int x, unsigned int y,
+		     unsigned int tile_w, double map_x, double map_y,
+		     unsigned char pixel)
+{
+/* pixel generator - 1-BIT */
+    switch (pixel)
+      {
+      case RL2_PIXEL_MONOCHROME:
+	  set_tile_pixel_monochrome (bufpix, x, y, tile_w, map_x, map_y);
+	  break;
+      case RL2_PIXEL_PALETTE:
+	  set_tile_pixel_palette1 (bufpix, x, y, tile_w, map_x, map_y);
+	  break;
+      };
+}
+
+static void
+set_tile_pixel_palette48 (unsigned char *bufpix, unsigned int x, unsigned int y,
+			  unsigned int tile_w, double map_x, double map_y)
+{
+/* pixel generator - PALETTE UINT8 or 4-BIT */
+    unsigned char *p = bufpix + ((y * tile_w) + x);
+    if (map_y >= -15.0 && map_y <= 15.0)
+      {
+	  if (map_x < 0.0)
+	      *p = 8;
+	  else
+	      *p = 7;
+      }
+    else if (map_y >= -60.0 && map_y <= 60.0)
+      {
+	  if (map_x < 0.0)
+	      *p = 5;
+	  else
+	      *p = 4;
+      }
+    else
+      {
+	  if (map_x < 0.0)
+	      *p = 3;
+	  else
+	      *p = 2;
+      }
+}
+
+static void
+set_tile_pixel_palette2 (unsigned char *bufpix, unsigned int x, unsigned int y,
+			 unsigned int tile_w, double map_x, double map_y)
+{
+/* pixel generator - PALETTE 2-BIT */
+    unsigned char *p = bufpix + ((y * tile_w) + x);
+    if (map_y >= -15.0 && map_y <= 15.0)
+      {
+	  if (map_x < 0.0)
+	      *p = 3;
+	  else
+	      *p = 2;
+      }
+    else if (map_y >= -60.0 && map_y <= 60.0)
+      {
+	  if (map_x < 0.0)
+	      *p = 2;
+	  else
+	      *p = 1;
+      }
+    else
+      {
+	  if (map_x < 0.0)
+	      *p = 1;
+	  else
+	      *p = 0;
+      }
+}
 
 static void
 set_tile_pixel_gray8 (unsigned char *bufpix, unsigned int x, unsigned int y,
@@ -220,6 +326,9 @@ set_tile_pixel_uint8 (unsigned char *bufpix, unsigned int x, unsigned int y,
       case RL2_PIXEL_RGB:
 	  set_tile_pixel_rgb8 (bufpix, x, y, tile_w, map_x, map_y, num_bands);
 	  break;
+      case RL2_PIXEL_PALETTE:
+	  set_tile_pixel_palette48 (bufpix, x, y, tile_w, map_x, map_y);
+	  break;
       };
 }
 
@@ -232,6 +341,15 @@ set_tile_pixel (unsigned char *bufpix, unsigned int x, unsigned int y,
 /* generalized pixel generator */
     switch (sample)
       {
+      case RL2_SAMPLE_1_BIT:
+	  set_tile_pixel_1bit (bufpix, x, y, tile_w, map_x, map_y, pixel);
+	  break;
+      case RL2_SAMPLE_2_BIT:
+	  set_tile_pixel_palette2 (bufpix, x, y, tile_w, map_x, map_y);
+	  break;
+      case RL2_SAMPLE_4_BIT:
+	  set_tile_pixel_palette48 (bufpix, x, y, tile_w, map_x, map_y);
+	  break;
       case RL2_SAMPLE_UINT8:
 	  set_tile_pixel_uint8 (bufpix, x, y, tile_w, map_x, map_y, pixel,
 				num_bands);
@@ -271,6 +389,9 @@ tile_callback (void *data, double tile_minx, double tile_miny, double tile_maxx,
 				info->sample, info->pixel, info->num_bands);
 	    }
       }
+
+    if (info->palette != NULL)
+	*palette = rl2_clone_palette (info->palette);
 
     return 1;
 }
@@ -401,6 +522,7 @@ test_uint8_gray (sqlite3 * handle)
     info.coverage = "UINT8_GRAYSCALE";
     info.tile_w = 512;
     info.tile_h = 512;
+    info.palette = NULL;
 
     rl2PixelPtr no_data =
 	default_nodata (info.sample, info.pixel, info.num_bands);
@@ -435,6 +557,230 @@ test_uint8_gray (sqlite3 * handle)
 }
 
 static int
+test_uint8_palette (sqlite3 * handle)
+{
+/* testing UINT8 PALETTE */
+    struct tile_info info;
+    rl2CoveragePtr cvg;
+    rl2PalettePtr palette = rl2_create_palette (9);
+    rl2_set_palette_color (palette, 0, 255, 255, 255);
+    rl2_set_palette_color (palette, 1, 255, 0, 0);
+    rl2_set_palette_color (palette, 2, 0, 255, 0);
+    rl2_set_palette_color (palette, 3, 0, 0, 255);
+    rl2_set_palette_color (palette, 4, 255, 255, 0);
+    rl2_set_palette_color (palette, 5, 255, 0, 255);
+    rl2_set_palette_color (palette, 6, 0, 255, 255);
+    rl2_set_palette_color (palette, 7, 192, 192, 192);
+    rl2_set_palette_color (palette, 8, 0, 0, 0);
+
+    info.sample = RL2_SAMPLE_UINT8;
+    info.pixel = RL2_PIXEL_PALETTE;
+    info.num_bands = 1;
+    info.srid = 4326;
+    info.coverage = "UINT8_PALETTE";
+    info.tile_w = 512;
+    info.tile_h = 512;
+    info.palette = palette;
+
+    rl2PixelPtr no_data =
+	default_nodata (info.sample, info.pixel, info.num_bands);
+    if (rl2_create_dbms_coverage
+	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
+	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
+	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
+	  return 0;
+      }
+
+    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    if (cvg == NULL)
+      {
+	  rl2_destroy_coverage (cvg);
+	  return 0;
+      }
+
+    if (rl2_load_raw_tiles_into_dbms
+	(handle, cvg, "Alpha", 3600, 1800, info.srid, -180, -90, 180, 90,
+	 tile_callback, &info, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to populate Tiles on Coverage \"%s\"\n",
+		   info.coverage);
+	  return 0;
+      }
+
+    rl2_destroy_coverage (cvg);
+    rl2_destroy_pixel (no_data);
+    rl2_destroy_palette (palette);
+    return 1;
+}
+
+static int
+test_4bit_palette (sqlite3 * handle)
+{
+/* testing 4-BIT PALETTE */
+    struct tile_info info;
+    rl2CoveragePtr cvg;
+    rl2PalettePtr palette = rl2_create_palette (9);
+    rl2_set_palette_color (palette, 0, 255, 255, 255);
+    rl2_set_palette_color (palette, 1, 255, 0, 0);
+    rl2_set_palette_color (palette, 2, 0, 255, 0);
+    rl2_set_palette_color (palette, 3, 0, 0, 255);
+    rl2_set_palette_color (palette, 4, 255, 255, 0);
+    rl2_set_palette_color (palette, 5, 255, 0, 255);
+    rl2_set_palette_color (palette, 6, 0, 255, 255);
+    rl2_set_palette_color (palette, 7, 192, 192, 192);
+    rl2_set_palette_color (palette, 8, 0, 0, 0);
+
+    info.sample = RL2_SAMPLE_4_BIT;
+    info.pixel = RL2_PIXEL_PALETTE;
+    info.num_bands = 1;
+    info.srid = 4326;
+    info.coverage = "4BIT_PALETTE";
+    info.tile_w = 512;
+    info.tile_h = 512;
+    info.palette = palette;
+
+    rl2PixelPtr no_data =
+	default_nodata (info.sample, info.pixel, info.num_bands);
+    if (rl2_create_dbms_coverage
+	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
+	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
+	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
+	  return 0;
+      }
+
+    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    if (cvg == NULL)
+      {
+	  rl2_destroy_coverage (cvg);
+	  return 0;
+      }
+
+    if (rl2_load_raw_tiles_into_dbms
+	(handle, cvg, "Alpha", 3600, 1800, info.srid, -180, -90, 180, 90,
+	 tile_callback, &info, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to populate Tiles on Coverage \"%s\"\n",
+		   info.coverage);
+	  return 0;
+      }
+
+    rl2_destroy_coverage (cvg);
+    rl2_destroy_pixel (no_data);
+    rl2_destroy_palette (palette);
+    return 1;
+}
+
+static int
+test_2bit_palette (sqlite3 * handle)
+{
+/* testing 2-BIT PALETTE */
+    struct tile_info info;
+    rl2CoveragePtr cvg;
+    rl2PalettePtr palette = rl2_create_palette (4);
+    rl2_set_palette_color (palette, 0, 255, 255, 255);
+    rl2_set_palette_color (palette, 1, 255, 0, 0);
+    rl2_set_palette_color (palette, 2, 0, 255, 0);
+    rl2_set_palette_color (palette, 3, 0, 0, 255);
+
+    info.sample = RL2_SAMPLE_2_BIT;
+    info.pixel = RL2_PIXEL_PALETTE;
+    info.num_bands = 1;
+    info.srid = 4326;
+    info.coverage = "2BIT_PALETTE";
+    info.tile_w = 512;
+    info.tile_h = 512;
+    info.palette = palette;
+
+    rl2PixelPtr no_data =
+	default_nodata (info.sample, info.pixel, info.num_bands);
+    if (rl2_create_dbms_coverage
+	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
+	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
+	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
+	  return 0;
+      }
+
+    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    if (cvg == NULL)
+      {
+	  rl2_destroy_coverage (cvg);
+	  return 0;
+      }
+
+    if (rl2_load_raw_tiles_into_dbms
+	(handle, cvg, "Alpha", 3600, 1800, info.srid, -180, -90, 180, 90,
+	 tile_callback, &info, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to populate Tiles on Coverage \"%s\"\n",
+		   info.coverage);
+	  return 0;
+      }
+
+    rl2_destroy_coverage (cvg);
+    rl2_destroy_pixel (no_data);
+    rl2_destroy_palette (palette);
+    return 1;
+}
+
+static int
+test_1bit_palette (sqlite3 * handle)
+{
+/* testing 1-BIT PALETTE */
+    struct tile_info info;
+    rl2CoveragePtr cvg;
+    rl2PalettePtr palette = rl2_create_palette (2);
+    rl2_set_palette_color (palette, 0, 255, 255, 255);
+    rl2_set_palette_color (palette, 1, 255, 0, 0);
+
+    info.sample = RL2_SAMPLE_1_BIT;
+    info.pixel = RL2_PIXEL_PALETTE;
+    info.num_bands = 1;
+    info.srid = 4326;
+    info.coverage = "1BIT_PALETTE";
+    info.tile_w = 512;
+    info.tile_h = 512;
+    info.palette = palette;
+
+    rl2PixelPtr no_data =
+	default_nodata (info.sample, info.pixel, info.num_bands);
+    if (rl2_create_dbms_coverage
+	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
+	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
+	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
+	  return 0;
+      }
+
+    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    if (cvg == NULL)
+      {
+	  rl2_destroy_coverage (cvg);
+	  return 0;
+      }
+
+    if (rl2_load_raw_tiles_into_dbms
+	(handle, cvg, "Alpha", 3600, 1800, info.srid, -180, -90, 180, 90,
+	 tile_callback, &info, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to populate Tiles on Coverage \"%s\"\n",
+		   info.coverage);
+	  return 0;
+      }
+
+    rl2_destroy_coverage (cvg);
+    rl2_destroy_pixel (no_data);
+    rl2_destroy_palette (palette);
+    return 1;
+}
+
+static int
 test_uint8_rgb (sqlite3 * handle)
 {
 /* testing UINT8 RGB */
@@ -448,6 +794,7 @@ test_uint8_rgb (sqlite3 * handle)
     info.coverage = "UINT8_RGB";
     info.tile_w = 512;
     info.tile_h = 512;
+    info.palette = NULL;
 
     rl2PixelPtr no_data =
 	default_nodata (info.sample, info.pixel, info.num_bands);
@@ -495,6 +842,7 @@ test_int16_grid (sqlite3 * handle)
     info.coverage = "INT16_GRID";
     info.tile_w = 512;
     info.tile_h = 512;
+    info.palette = NULL;
 
     rl2PixelPtr no_data =
 	default_nodata (info.sample, info.pixel, info.num_bands);
@@ -542,6 +890,7 @@ test_double_grid (sqlite3 * handle)
     info.coverage = "DOUBLE_GRID";
     info.tile_w = 512;
     info.tile_h = 512;
+    info.palette = NULL;
 
     rl2PixelPtr no_data =
 	default_nodata (info.sample, info.pixel, info.num_bands);
@@ -549,6 +898,54 @@ test_double_grid (sqlite3 * handle)
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_DEFLATE, 100, info.tile_w, info.tile_h, info.srid, 0.1,
 	 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
+	  return 0;
+      }
+
+    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    if (cvg == NULL)
+      {
+	  rl2_destroy_coverage (cvg);
+	  return 0;
+      }
+
+    if (rl2_load_raw_tiles_into_dbms
+	(handle, cvg, "Alpha", 3600, 1800, info.srid, -180, -90, 180, 90,
+	 tile_callback, &info, 1) != RL2_OK)
+      {
+	  fprintf (stderr, "Unable to populate Tiles on Coverage \"%s\"\n",
+		   info.coverage);
+	  return 0;
+      }
+
+    rl2_destroy_coverage (cvg);
+    rl2_destroy_pixel (no_data);
+    return 1;
+}
+
+static int
+test_monochrome (sqlite3 * handle)
+{
+/* testing MONOCHROME */
+    struct tile_info info;
+    rl2CoveragePtr cvg;
+
+    info.sample = RL2_SAMPLE_1_BIT;
+    info.pixel = RL2_PIXEL_MONOCHROME;
+    info.num_bands = 1;
+    info.srid = 4326;
+    info.coverage = "MONOCHROME";
+    info.tile_w = 512;
+    info.tile_h = 512;
+    info.palette = NULL;
+
+    rl2PixelPtr no_data =
+	default_nodata (info.sample, info.pixel, info.num_bands);
+    if (rl2_create_dbms_coverage
+	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
+	 RL2_COMPRESSION_CCITTFAX4, 100, info.tile_w, info.tile_h, info.srid,
+	 0.1, 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -587,7 +984,7 @@ main (int argc, char *argv[])
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
     ret =
-	sqlite3_open_v2 ("callback.sqlite", &handle,
+	sqlite3_open_v2 (":memory:", &handle,
 			 SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
     if (ret != SQLITE_OK)
       {
@@ -639,19 +1036,33 @@ main (int argc, char *argv[])
     if (!test_double_grid (handle))
 	return -8;
 
+    if (!test_monochrome (handle))
+	return -9;
+
+    if (!test_uint8_palette (handle))
+	return -10;
+
+    if (!test_4bit_palette (handle))
+	return -11;
+
+    if (!test_2bit_palette (handle))
+	return -12;
+
+    if (!test_1bit_palette (handle))
+	return -13;
+
 /* committing the SQL Transaction */
     ret = sqlite3_exec (handle, "COMMIT", NULL, NULL, &err_msg);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "COMMIT TRANSACTION error: %s\n", err_msg);
 	  sqlite3_free (err_msg);
-	  return -9;
+	  return -14;
       }
 
     sqlite3_close (handle);
     spatialite_cleanup_ex (cache);
     rl2_cleanup_private (priv_data);
     spatialite_shutdown ();
-    fprintf (stderr, "******** endok\n");
     return 0;
 }

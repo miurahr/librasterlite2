@@ -109,6 +109,7 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	createcov_err15.testcase \
 	createcov_err16.testcase \
 	createcov_err17.testcase \
+	createcov_err18.testcase \
 	createcov_float_grid1.testcase \
 	createcov_float_grid_deflate.testcase \
 	createcov_float_grid_deflateno.testcase \
@@ -529,6 +530,8 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	setcoverageinfos2.testcase \
 	setcoverageinfos3.testcase \
 	setcoverageinfos4.testcase \
+	setcoverageinfos5.testcase \
+	setcoverageinfos6.testcase \
 	setdefaultbands1.testcase \
 	setdefaultbands2.testcase \
 	setdefaultbands3.testcase \

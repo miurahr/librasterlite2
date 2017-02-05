@@ -2266,10 +2266,71 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
-	  fprintf (stderr, "SetRasterCoverageInfos \"%s\" error: %s\n",
+	  fprintf (stderr, "SetRasterCoverageInfos #1 \"%s\" error: %s\n",
 		   coverage, err_msg);
 	  sqlite3_free (err_msg);
 	  *retcode += -1;
+	  return 0;
+      }
+
+/* setting a Title, Abstract and IsQueryable for this DBMS Coverage */
+    sql =
+	sqlite3_mprintf ("SELECT RL2_SetRasterCoverageInfos(%Q, %Q, %Q, 0)",
+			 coverage, "this is an other tile",
+			 "this is an other abstact");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SetRasterCoverageInfos #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -2;
+	  return 0;
+      }
+
+/* setting the Copyright for this DBMS Coverage */
+    sql =
+	sqlite3_mprintf ("SELECT RL2_SetRasterCoverageCopyright(%Q, %Q)",
+			 coverage, "unknown author");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SetRasterCoverageCopyright #1 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -3;
+	  return 0;
+      }
+
+/* setting both Copyright and License for this DBMS Coverage */
+    sql =
+	sqlite3_mprintf ("SELECT RL2_SetRasterCoverageCopyright(%Q, %Q, %Q)",
+			 coverage, "somebody", "CC BY 3.0");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SetRasterCoverageCopyright #2 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -4;
+	  return 0;
+      }
+
+/* setting the License for this DBMS Coverage */
+    sql =
+	sqlite3_mprintf ("SELECT RL2_SetRasterCoverageCopyright(%Q, NULL, %Q)",
+			 coverage, "CC BY 4.0");
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SetRasterCoverageCopyright #3 \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -5;
 	  return 0;
       }
 
@@ -2282,7 +2343,7 @@ drop_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	  fprintf (stderr, "DropRasterCoverage \"%s\" error: %s\n", coverage,
 		   err_msg);
 	  sqlite3_free (err_msg);
-	  *retcode += -1;
+	  *retcode += -6;
 	  return 0;
       }
 

@@ -82,7 +82,8 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned char *blob_no_data,
 			      int blob_no_data_sz, int strict_resolution,
 			      int mixed_resolutions, int section_paths,
-			      int section_md5, int section_summary)
+			      int section_md5, int section_summary,
+			      int is_queryable)
 {
 /* inserting into "raster_coverages" */
     int ret;
@@ -96,8 +97,8 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 	"pixel_type, num_bands, compression, quality, tile_width, "
 	"tile_height, horz_resolution, vert_resolution, srid, "
 	"nodata_pixel, palette, strict_resolution, mixed_resolutions, "
-	"section_paths, section_md5, section_summary) VALUES "
-	"(Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"section_paths, section_md5, section_summary, is_queryable) VALUES "
+	"(Lower(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -240,6 +241,9 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     sqlite3_bind_int (stmt, 16, section_paths);
     sqlite3_bind_int (stmt, 17, section_md5);
     sqlite3_bind_int (stmt, 18, section_summary);
+    if (is_queryable)
+	is_queryable = 1;
+    sqlite3_bind_int (stmt, 19, is_queryable);
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
 	goto coverage_registered;
@@ -775,7 +779,8 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 			  double y_res, rl2PixelPtr no_data,
 			  rl2PalettePtr palette, int strict_resolution,
 			  int mixed_resolutions, int section_paths,
-			  int section_md5, int section_summary)
+			  int section_md5, int section_summary,
+			  int is_queryable)
 {
 /* creating a DBMS-based Coverage */
     unsigned char *blob = NULL;
@@ -798,7 +803,8 @@ rl2_create_dbms_coverage (sqlite3 * handle, const char *coverage,
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
 	 tile_width, tile_height, srid, x_res, y_res, blob,
 	 blob_size, blob_no_data, blob_no_data_sz, strict_resolution,
-	 mixed_resolutions, section_paths, section_md5, section_summary))
+	 mixed_resolutions, section_paths, section_md5, section_summary,
+	 is_queryable))
 	goto error;
     if (mixed_resolutions)
       {
@@ -7548,6 +7554,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
     int section_paths = 0;
     int section_md5 = 0;
     int section_summary = 0;
+    int is_queryable = 0;
     rl2PixelPtr no_data = NULL;
     rl2PalettePtr palette = NULL;
     char *title = NULL;
@@ -7570,7 +7577,6 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
     int ok_blue_band_index = 0;
     int ok_nir_band_index = 0;
     int ok_enable_auto_ndvi = 0;
-    int is_queryable;
     int red_band_index;
     int green_band_index;
     int blue_band_index;
@@ -7589,7 +7595,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 	 "section_summary, title, abstract, statistics, geo_minx, geo_miny, "
 	 "geo_maxx, geo_maxy, extent_minx, extent_miny, extent_maxx, extent_maxy, "
 	 "is_queryable, red_band_index, green_band_index, blue_band_index, "
-	 "nir_band_index, enable_auto_ndvi, palette "
+	 "nir_band_index, enable_auto_ndvi, palette, is_queryable "
 	 "FROM \"%s\".raster_coverages WHERE Lower(coverage_name) = Lower(?)",
 	 xdb);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
@@ -8033,6 +8039,8 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 		      int blob_sz = sqlite3_column_bytes (stmt, 33);
 		      palette = rl2_deserialize_dbms_palette (blob, blob_sz);
 		  }
+		if (sqlite3_column_type (stmt, 34) == SQLITE_INTEGER)
+		    is_queryable = sqlite3_column_int (stmt, 34);
 		if (ok_sample && ok_pixel && ok_num_bands && ok_compression
 		    && ok_quality && ok_tile_width && ok_tile_height
 		    && ok_x_res && ok_y_res && ok_srid && ok_nodata
@@ -8059,7 +8067,7 @@ rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 				    horz_res, vert_res, no_data, palette,
 				    strict_resolution, mixed_resolutions,
 				    section_paths, section_md5,
-				    section_summary);
+				    section_summary, is_queryable);
     if (no_data != NULL)
 	rl2_destroy_pixel (no_data);
     if (palette != NULL)

@@ -5161,12 +5161,12 @@ get_raster_band_histogram (rl2PrivBandStatisticsPtr band,
 
 RL2_PRIVATE int
 set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
-		    const char *title, const char *abstract)
+		    const char *title, const char *abstract, int is_queryable)
 {
 /* auxiliary function: updates the Coverage descriptive infos */
     int ret;
     const char *sql;
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = NULL;
     int exists = 0;
     int retval = 0;
 
@@ -5198,7 +5198,79 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
     if (!exists)
 	return 0;
 /* updating the Coverage */
-    sql = "UPDATE raster_coverages SET title = ?, abstract = ? "
+    if (is_queryable < 0)
+      {
+	  sql = "UPDATE raster_coverages SET title = ?, abstract = ? "
+	      "WHERE Lower(coverage_name) = Lower(?)";
+	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "SetCoverageInfos: \"%s\"\n",
+			 sqlite3_errmsg (sqlite));
+		goto stop;
+	    }
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  sqlite3_bind_text (stmt, 1, title, strlen (title), SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 2, abstract, strlen (abstract),
+			     SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 3, coverage_name, strlen (coverage_name),
+			     SQLITE_STATIC);
+      }
+    else
+      {
+	  sql =
+	      "UPDATE raster_coverages SET title = ?, abstract = ?, is_queryable = ? "
+	      "WHERE Lower(coverage_name) = Lower(?)";
+	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "SetCoverageInfos: \"%s\"\n",
+			 sqlite3_errmsg (sqlite));
+		goto stop;
+	    }
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  sqlite3_bind_text (stmt, 1, title, strlen (title), SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 2, abstract, strlen (abstract),
+			     SQLITE_STATIC);
+	  if (is_queryable)
+	      is_queryable = 1;
+	  sqlite3_bind_int (stmt, 3, is_queryable);
+	  sqlite3_bind_text (stmt, 4, coverage_name, strlen (coverage_name),
+			     SQLITE_STATIC);
+      }
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+	retval = 1;
+    else
+	fprintf (stderr, "SetCoverageInfos() error: \"%s\"\n",
+		 sqlite3_errmsg (sqlite));
+    sqlite3_finalize (stmt);
+    return retval;
+  stop:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return 0;
+}
+
+RL2_PRIVATE int
+set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
+			const char *copyright, const char *license)
+{
+/* auxiliary function: updates the copyright infos supporting a Coverage infos */
+    int ret;
+    const char *sql;
+    sqlite3_stmt *stmt = NULL;
+    int exists = 0;
+
+    if (coverage_name == NULL)
+	return 0;
+    if (copyright == NULL && license == NULL)
+	return 1;
+
+/* checking if the Coverage already exists */
+    sql = "SELECT coverage_name FROM raster_coverages "
 	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -5209,19 +5281,97 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
       }
     sqlite3_reset (stmt);
     sqlite3_clear_bindings (stmt);
-    sqlite3_bind_text (stmt, 1, title, strlen (title), SQLITE_STATIC);
-    sqlite3_bind_text (stmt, 2, abstract, strlen (abstract), SQLITE_STATIC);
-    sqlite3_bind_text (stmt, 3, coverage_name, strlen (coverage_name),
+    sqlite3_bind_text (stmt, 1, coverage_name, strlen (coverage_name),
 		       SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	      exists = 1;
+      }
+    sqlite3_finalize (stmt);
+
+    if (!exists)
+	return 0;
+/* updating the Coverage */
+
+    if (copyright == NULL)
+      {
+	  /* just updating the License */
+	  sql = "UPDATE raster_coverages SET license = ("
+	      "SELECT id FROM data_licenses WHERE name = ?) "
+	      "WHERE Lower(coverage_name) = Lower(?)";
+	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "setRasterCoverageCopyright: \"%s\"\n",
+			 sqlite3_errmsg (sqlite));
+		return 0;
+	    }
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  sqlite3_bind_text (stmt, 1, license, strlen (license), SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 2, coverage_name,
+			     strlen (coverage_name), SQLITE_STATIC);
+      }
+    else if (license == NULL)
+      {
+	  /* just updating the Copyright */
+	  sql = "UPDATE raster_coverages SET copyright = ? "
+	      "WHERE Lower(coverage_name) = Lower(?)";
+	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "setRasterCoverageCopyright: \"%s\"\n",
+			 sqlite3_errmsg (sqlite));
+		return 0;
+	    }
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  sqlite3_bind_text (stmt, 1, copyright, strlen (copyright),
+			     SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 2, coverage_name, strlen (coverage_name),
+			     SQLITE_STATIC);
+      }
+    else
+      {
+	  /* updating both Copyright and License */
+	  sql = "UPDATE raster_coverages SET copyright = ?, license = ("
+	      "SELECT id FROM data_licenses WHERE name = ?) "
+	      "WHERE Lower(coverage_name) = Lower(?)";
+	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "setRasterCoverageCopyright: \"%s\"\n",
+			 sqlite3_errmsg (sqlite));
+		return 0;
+	    }
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  sqlite3_bind_text (stmt, 1, copyright, strlen (copyright),
+			     SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 2, license, strlen (license), SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 3, coverage_name,
+			     strlen (coverage_name), SQLITE_STATIC);
+      }
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
-	retval = 1;
+	;
     else
-	fprintf (stderr, "SetCoverageInfos() error: \"%s\"\n",
-		 sqlite3_errmsg (sqlite));
+      {
+	  fprintf (stderr, "setRasterCoverageCopyright() error: \"%s\"\n",
+		   sqlite3_errmsg (sqlite));
+	  sqlite3_finalize (stmt);
+	  return 0;
+      }
     sqlite3_finalize (stmt);
-    return retval;
+    return 1;
   stop:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
     return 0;
 }
 

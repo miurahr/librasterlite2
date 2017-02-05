@@ -1971,7 +1971,13 @@ extern "C"
     RL2_PRIVATE int set_coverage_infos (sqlite3 * handle,
 					const char *coverage_name,
 					const char *title,
-					const char *abstract);
+					const char *abstract, int is_queryable);
+
+    RL2_PRIVATE int set_coverage_copyright (sqlite3 *handle,
+							  const char
+							  *coverage_name,
+							  const char *copyright,
+							  const char *license);
 
     RL2_PRIVATE int rl2_test_layer_group (sqlite3 * handle,
 					  const char *group_name);

@@ -529,7 +529,7 @@ test_uint8_gray (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, NULL, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -587,7 +587,7 @@ test_uint8_palette (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, palette, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -646,7 +646,7 @@ test_4bit_palette (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, palette, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -700,7 +700,7 @@ test_2bit_palette (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, palette, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -752,7 +752,7 @@ test_1bit_palette (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, palette, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, palette, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -801,7 +801,7 @@ test_uint8_rgb (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_PNG, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, NULL, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -849,7 +849,7 @@ test_int16_grid (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_DEFLATE, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, NULL, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -897,7 +897,7 @@ test_double_grid (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_DEFLATE, 100, info.tile_w, info.tile_h, info.srid, 0.1,
-	 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, no_data, NULL, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;
@@ -945,7 +945,7 @@ test_monochrome (sqlite3 * handle)
     if (rl2_create_dbms_coverage
 	(handle, info.coverage, info.sample, info.pixel, info.num_bands,
 	 RL2_COMPRESSION_CCITTFAX4, 100, info.tile_w, info.tile_h, info.srid,
-	 0.1, 0.1, no_data, NULL, 1, 0, 0, 0, 0) != RL2_OK)
+	 0.1, 0.1, no_data, NULL, 1, 0, 0, 0, 0, 0) != RL2_OK)
       {
 	  fprintf (stderr, "Unable to create Coverage \"%s\"\n", info.coverage);
 	  return 0;

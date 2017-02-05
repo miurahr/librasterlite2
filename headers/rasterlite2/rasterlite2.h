@@ -3636,7 +3636,7 @@ extern "C"
 				  rl2PixelPtr no_data, rl2PalettePtr palette,
 				  int strict_resolution, int mixed_resolutions,
 				  int section_paths, int section_md5,
-				  int section_summary);
+				  int section_summary, int is_queryable);
 
     RL2_DECLARE int
 	rl2_set_dbms_coverage_default_bands (sqlite3 * handle,

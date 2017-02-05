@@ -397,7 +397,7 @@ exec_create (sqlite3 * handle, const char *coverage,
 	(handle, coverage, sample, pixel, num_bands, compression, quality,
 	 tile_width, tile_height, srid, x_res, y_res, no_data,
 	 palette, strict_resolution, mixed_resolutions, section_paths,
-	 section_md5, section_summary) != RL2_OK)
+	 section_md5, section_summary, 0) != RL2_OK)
 	return 0;
 
     if (pixel == RL2_PIXEL_MULTIBAND)

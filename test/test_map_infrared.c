@@ -1591,6 +1591,170 @@ test_default_bands (sqlite3 * sqlite, const char *coverage)
 }
 
 static int
+do_test_tile_data (sqlite3 * sqlite, unsigned char compression, int tile_sz)
+{
+/* testing some DBMS Coverage's Tile Data */
+    int ret;
+    const char *coverage = NULL;
+    char *sql;
+    char *table;
+    char *xtable;
+    sqlite3_stmt *stmt;
+    int err = 0;
+
+/* setting the coverage name */
+    switch (compression)
+      {
+      case RL2_COMPRESSION_CHARLS:
+	  switch (tile_sz)
+	    {
+	    case TILE_256:
+		coverage = "infrared_charls_256";
+		break;
+	    case TILE_512:
+		coverage = "infrared_charls_512";
+		break;
+	    case TILE_1024:
+		coverage = "infrared_charls_1024";
+		break;
+	    };
+	  break;
+      case RL2_COMPRESSION_LOSSY_JP2:
+	  switch (tile_sz)
+	    {
+	    case TILE_256:
+		coverage = "infrared_jp2_256";
+		break;
+	    case TILE_512:
+		coverage = "infrared_jp2_512";
+		break;
+	    case TILE_1024:
+		coverage = "infrared_jp2_1024";
+		break;
+	    };
+	  break;
+      case RL2_COMPRESSION_PNG:
+	  switch (tile_sz)
+	    {
+	    case TILE_256:
+		coverage = "infrared_png_256";
+		break;
+	    case TILE_512:
+		coverage = "infrared_png_512";
+		break;
+	    case TILE_1024:
+		coverage = "infrared_png_1024";
+		break;
+	    };
+	  break;
+      };
+
+    table = sqlite3_mprintf ("%s_tile_data", coverage);
+    xtable = gaiaDoubleQuotedSql (table);
+    sqlite3_free (table);
+    sql =
+	sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even FROM \"%s\"",
+			 xtable);
+    free (xtable);
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+	return 0;
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		unsigned int width;
+		unsigned int height;
+		unsigned char sample_type;
+		unsigned char pixel_type;
+		unsigned char num_bands;
+		unsigned char compr;
+		int is_odd_tile;
+		int has_mask;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 0);
+		      int blob_sz = sqlite3_column_bytes (stmt, 0);
+		      if (rl2_query_dbms_raster_tile
+			  (blob, blob_sz, &width, &height, &sample_type,
+			   &pixel_type, &num_bands, &compr, &is_odd_tile,
+			   &has_mask) == RL2_OK)
+			{
+			    int err_x = 0;
+			    if (is_odd_tile != 1)
+				err_x = 1;
+			    if (width != (unsigned int) tile_sz)
+				err_x = 1;
+			    if (height != (unsigned int) tile_sz)
+				err = 1;
+			    if (sample_type != 0xa5)
+				err = 1;
+			    if (pixel_type != 0x15)
+				err = 1;
+			    if (num_bands != 4)
+				err = 1;
+			    if (compr != compression)
+				err_x = 1;
+			    if (err_x)
+			      {
+				  fprintf (stderr, "INVALID ODD TILE\n");
+				  err = 1;
+			      }
+			}
+		      else
+			{
+			    fprintf (stderr, "INVALID ODD TILE\n");
+			    err = 1;
+			}
+		  }
+		if (sqlite3_column_type (stmt, 1) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob = sqlite3_column_blob (stmt, 1);
+		      int blob_sz = sqlite3_column_bytes (stmt, 1);
+		      if (rl2_query_dbms_raster_tile
+			  (blob, blob_sz, &width, &height, &sample_type,
+			   &pixel_type, &num_bands, &compr, &is_odd_tile,
+			   &has_mask) == RL2_OK)
+			{
+			    int err_x = 0;
+			    if (is_odd_tile != 0)
+				err_x = 1;
+			    if (width != (unsigned int) tile_sz)
+				err_x = 1;
+			    if (height != (unsigned int) tile_sz)
+				err = 1;
+			    if (sample_type != 0xa5)
+				err = 1;
+			    if (pixel_type != 0x15)
+				err = 1;
+			    if (num_bands != 4)
+				err = 1;
+			    if (compr != compression)
+				err_x = 1;
+			    if (err_x)
+			      {
+				  fprintf (stderr, "INVALID EVEN TILE\n");
+				  err = 1;
+			      }
+			}
+		      else
+			{
+			    fprintf (stderr, "INVALID EVEN TILE\n");
+			    err = 1;
+			}
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return 1;
+}
+
+static int
 test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	       int ndvi, int *retcode)
 {
@@ -2401,6 +2565,12 @@ test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 		  }
 	    }
 	  gaiaFreeGeomColl (geom);
+      }
+
+    if (!do_test_tile_data (sqlite, compression, tile_sz))
+      {
+	  *retcode += -103;
+	  return 0;
       }
 
     return 1;

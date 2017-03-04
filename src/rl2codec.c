@@ -3004,6 +3004,250 @@ rl2_raster_encode (rl2RasterPtr rst, int compression,
     return RL2_ERROR;
 }
 
+RL2_DECLARE int
+rl2_query_dbms_raster_tile (const unsigned char *blob, int blob_sz,
+			    unsigned int *tile_width,
+			    unsigned int *tile_height,
+			    unsigned char *sample_type,
+			    unsigned char *pixel_type,
+			    unsigned char *num_bands,
+			    unsigned char *compression,
+			    int *is_odd_tile, int *has_mask)
+{
+/* Querying a valid Raster Tile Object - BLOB serialized format */
+    const unsigned char *ptr;
+    unsigned short width;
+    unsigned short height;
+    unsigned char smp_type;
+    unsigned char pxl_type;
+    unsigned char bands;
+    unsigned char cpr;
+    int odd_tile;
+    int mask_flag;
+    int compressed;
+    int compressed_mask;
+    uLong crc;
+    uLong oldCrc;
+    int endian;
+    int endian_arch = endianArch ();
+
+    *tile_width = 0;
+    *tile_height = 0;
+    *sample_type = RL2_SAMPLE_UNKNOWN;
+    *pixel_type = RL2_PIXEL_UNKNOWN;
+    *num_bands = 0;
+    *compression = RL2_COMPRESSION_UNKNOWN;
+    *is_odd_tile = -1;
+    *has_mask = -1;
+    if (blob == NULL)
+	return RL2_ERROR;
+    if (blob_sz < 2)
+	return RL2_ERROR;
+
+    ptr = blob;
+    if (*ptr++ != 0x00)
+	return RL2_ERROR;	/* invalid start signature */
+    if (*ptr == RL2_ODD_BLOCK_START)
+	odd_tile = 1;
+    else if (*ptr == RL2_EVEN_BLOCK_START)
+	odd_tile = 0;
+    else
+	return RL2_ERROR;	/* invalid start signature */
+    ptr++;
+
+    if (odd_tile)
+      {
+	  /* attempting to parse an ODD tile */
+	  endian = *ptr++;
+	  if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
+	      ;
+	  else
+	      return RL2_ERROR;	/* invalid endiannes */
+	  cpr = *ptr++;		/* compression */
+	  switch (cpr)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
+	    case RL2_COMPRESSION_PNG:
+	    case RL2_COMPRESSION_JPEG:
+	    case RL2_COMPRESSION_LOSSY_WEBP:
+	    case RL2_COMPRESSION_LOSSLESS_WEBP:
+	    case RL2_COMPRESSION_CCITTFAX4:
+	    case RL2_COMPRESSION_CHARLS:
+	    case RL2_COMPRESSION_LOSSY_JP2:
+	    case RL2_COMPRESSION_LOSSLESS_JP2:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  smp_type = *ptr++;	/* sample type */
+	  switch (smp_type)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_INT8:
+	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+	    case RL2_SAMPLE_FLOAT:
+	    case RL2_SAMPLE_DOUBLE:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  pxl_type = *ptr++;	/* pixel type */
+	  switch (pxl_type)
+	    {
+	    case RL2_PIXEL_MONOCHROME:
+	    case RL2_PIXEL_PALETTE:
+	    case RL2_PIXEL_GRAYSCALE:
+	    case RL2_PIXEL_RGB:
+	    case RL2_PIXEL_MULTIBAND:
+	    case RL2_PIXEL_DATAGRID:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  bands = *ptr++;	/* # Bands */
+	  width = importU16 (ptr, endian, endian_arch);
+	  ptr += 2;
+	  height = importU16 (ptr, endian, endian_arch);
+	  ptr += 2;
+	  ptr += 4;		/* skipping */
+	  ptr += 4;		/* skipping the uncompressed payload size */
+	  compressed = importU32 (ptr, endian, endian_arch);
+	  ptr += 4;
+	  ptr += 4;		/* skipping the uncompressed mask size */
+	  compressed_mask = importU32 (ptr, endian, endian_arch);
+	  if (compressed_mask > 0)
+	      mask_flag = 1;
+	  ptr += 4;
+	  if (*ptr++ != RL2_DATA_START)
+	      return RL2_ERROR;
+	  if (blob_sz < 40 + compressed + compressed_mask)
+	      return RL2_ERROR;
+	  ptr += compressed;
+	  if (*ptr++ != RL2_DATA_END)
+	      return RL2_ERROR;
+	  if (*ptr++ != RL2_MASK_START)
+	      return RL2_ERROR;
+	  ptr += compressed_mask;
+	  if (*ptr++ != RL2_MASK_END)
+	      return RL2_ERROR;
+	  /* computing the CRC32 */
+	  crc = crc32 (0L, blob, ptr - blob);
+	  oldCrc = importU32 (ptr, endian, endian_arch);
+	  ptr += 4;
+	  if (crc != oldCrc)
+	      return RL2_ERROR;
+	  if (*ptr != RL2_ODD_BLOCK_END)
+	      return RL2_ERROR;	/* invalid end signature */
+      }
+    else
+      {
+	  /* attempting to parse an EVEN tile */
+	  mask_flag = 0;
+	  endian = *ptr++;
+	  if (endian == RL2_LITTLE_ENDIAN || endian == RL2_BIG_ENDIAN)
+	      ;
+	  else
+	      return RL2_ERROR;	/* invalid endiannes */
+	  cpr = *ptr++;		/* compression */
+	  switch (cpr)
+	    {
+	    case RL2_COMPRESSION_NONE:
+	    case RL2_COMPRESSION_DEFLATE:
+	    case RL2_COMPRESSION_DEFLATE_NO:
+	    case RL2_COMPRESSION_LZMA:
+	    case RL2_COMPRESSION_LZMA_NO:
+	    case RL2_COMPRESSION_PNG:
+	    case RL2_COMPRESSION_JPEG:
+	    case RL2_COMPRESSION_LOSSY_WEBP:
+	    case RL2_COMPRESSION_LOSSLESS_WEBP:
+	    case RL2_COMPRESSION_CCITTFAX4:
+	    case RL2_COMPRESSION_CHARLS:
+	    case RL2_COMPRESSION_LOSSY_JP2:
+	    case RL2_COMPRESSION_LOSSLESS_JP2:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  smp_type = *ptr++;	/* sample type */
+	  switch (smp_type)
+	    {
+	    case RL2_SAMPLE_1_BIT:
+	    case RL2_SAMPLE_2_BIT:
+	    case RL2_SAMPLE_4_BIT:
+	    case RL2_SAMPLE_INT8:
+	    case RL2_SAMPLE_UINT8:
+	    case RL2_SAMPLE_INT16:
+	    case RL2_SAMPLE_UINT16:
+	    case RL2_SAMPLE_INT32:
+	    case RL2_SAMPLE_UINT32:
+	    case RL2_SAMPLE_FLOAT:
+	    case RL2_SAMPLE_DOUBLE:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  pxl_type = *ptr++;	/* pixel type */
+	  switch (pxl_type)
+	    {
+	    case RL2_PIXEL_MONOCHROME:
+	    case RL2_PIXEL_PALETTE:
+	    case RL2_PIXEL_GRAYSCALE:
+	    case RL2_PIXEL_RGB:
+	    case RL2_PIXEL_MULTIBAND:
+	    case RL2_PIXEL_DATAGRID:
+		break;
+	    default:
+		return RL2_ERROR;
+	    };
+	  bands = *ptr++;	/* # Bands */
+	  width = importU16 (ptr, endian, endian_arch);
+	  ptr += 2;
+	  height = importU16 (ptr, endian, endian_arch);
+	  ptr += 2;
+	  ptr += 2;		/* skipping block # rows */
+	  crc = importU32 (ptr, endian, endian_arch);
+	  ptr += 4;
+	  ptr += 4;		/* skipping the uncompressed payload size */
+	  compressed = importU32 (ptr, endian, endian_arch);
+	  ptr += 4;
+	  if (*ptr++ != RL2_DATA_START)
+	      return RL2_ERROR;
+	  if (blob_sz < 32 + compressed)
+	      return RL2_ERROR;
+	  ptr += compressed;
+	  if (*ptr++ != RL2_DATA_END)
+	      return RL2_ERROR;
+	  /* computing the CRC32 */
+	  crc = crc32 (0L, blob, ptr - blob);
+	  oldCrc = importU32 (ptr, endian, endian_arch);
+	  ptr += 4;
+	  if (crc != oldCrc)
+	      return RL2_ERROR;
+	  if (*ptr != RL2_EVEN_BLOCK_END)
+	      return RL2_ERROR;	/* invalid end signature */
+      }
+
+    *tile_width = width;
+    *tile_height = height;
+    *sample_type = smp_type;
+    *pixel_type = pxl_type;
+    *num_bands = bands;
+    *compression = cpr;
+    *is_odd_tile = odd_tile;
+    *has_mask = mask_flag;
+    return RL2_OK;
+}
+
 static int
 check_blob_odd (const unsigned char *blob, int blob_sz, unsigned int *xwidth,
 		unsigned int *xheight, unsigned char *xsample_type,
@@ -3071,8 +3315,6 @@ check_blob_odd (const unsigned char *blob, int blob_sz, unsigned int *xwidth,
       case RL2_SAMPLE_UINT32:
       case RL2_SAMPLE_FLOAT:
       case RL2_SAMPLE_DOUBLE:
-      case RL2_COMPRESSION_LOSSY_JP2:
-      case RL2_COMPRESSION_LOSSLESS_JP2:
 	  break;
       default:
 	  return 0;

@@ -2444,7 +2444,8 @@ extern "C"
  
  \return RL2_OK on success: RL2_ERROR on failure.
 
- \sa rl2_create_raster, rl2_raster_encode, rl2_get_raster_statistics
+ \sa rl2_create_raster, rl2_raster_encode, rl2_get_raster_statistics,
+ rl2_query_dbms_raster_tile
  
  \note you are responsible to destroy (before or after) any allocated 
  Raster object.
@@ -2464,6 +2465,42 @@ extern "C"
 				       unsigned char pixel_type,
 				       unsigned char num_bands,
 				       unsigned char compression);
+
+/**
+ Querying a valid Raster Tile Object - BLOB serialized format
+ \param blob pointer to the encoded BLOB.
+ \param blob_sz size (in bytes) of the BLOB.
+ \param tile_width on completion the variable referenced by this
+ pointer will contain the tile width in pixels.
+ \param tile_height on completion the variable referenced by this
+ pointer will contain the tile height in pixels.
+ \param sample_type on completion the variable referenced by this
+ pointer will contain the tile's sample type.
+ \param pixel_type on completion the variable referenced by this
+ pointer will contain the tile's pixel type.
+ \param num_bands on completion the variable referenced by this
+ pointer will contain the tile's number of bands.
+ \param compression on completion the variable referenced by this
+ pointer will contain the tile's compression.
+ \param is_odd_tile on completion the variable referenced by this
+ pointer will contain TRUE if the case of an ODD tile or FALSE in
+ the case of an EVEN tile.
+ \param has_mask on completion the variable referenced by this
+ pointer will contain TRUE if the tile contains a transparency mask.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_is_valid_dbms_raster 
+ */
+    RL2_DECLARE int
+	rl2_query_dbms_raster_tile (const unsigned char *blob, int blob_sz,
+				    unsigned int *tile_width,
+				    unsigned int *tile_height,
+				    unsigned char *sample_type,
+				    unsigned char *pixel_type,
+				    unsigned char *num_bands,
+				    unsigned char *compression,
+				    int *is_odd_tile, int *has_mask);
 
 /**
  Decodes a Raster Object from the corresponding BLOB serialized format

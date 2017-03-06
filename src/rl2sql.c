@@ -8715,16 +8715,18 @@ static void
 fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 {
 /* SQL function:
-/ GetTileImage(text coverage, int tile_id)
-/ GetTileImage(text coverage, int tile_id, text bg_color)
-/ GetTileImage(text coverage, int tile_id, text bg_color,
-/              int transparent)
+/ GetTileImage(text db_prefix, text coverage, int tile_id)
+/ GetTileImage(text db_prefix, text coverage, int tile_id, 
+/              text bg_color)
+/ GetTileImage(text db_prefix, text coverage, int tile_id, 
+/              text bg_color, int transparent)
 /
 / will return a BLOB containing the Image payload
 / or NULL (INVALID ARGS)
 /
 */
     int err = 0;
+    const char *db_prefix = NULL;
     const char *cvg_name;
     rl2CoveragePtr coverage = NULL;
     rl2PrivCoveragePtr cvg;
@@ -8745,6 +8747,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     char *xtable_tile_data;
     char *table_tiles;
     char *xtable_tiles;
+    char *xdb_prefix;
     char *sql;
     int ret;
     const unsigned char *blob_odd = NULL;
@@ -8771,13 +8774,18 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     double opacity = 1.0;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
-    if (sqlite3_value_type (argv[0]) != SQLITE_TEXT)
+    if (sqlite3_value_type (argv[0]) == SQLITE_TEXT
+	|| sqlite3_value_type (argv[0]) == SQLITE_NULL)
+	;
+    else
 	err = 1;
-    if (sqlite3_value_type (argv[1]) != SQLITE_INTEGER)
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
 	err = 1;
-    if (argc > 2 && sqlite3_value_type (argv[2]) != SQLITE_TEXT)
+    if (sqlite3_value_type (argv[2]) != SQLITE_INTEGER)
 	err = 1;
-    if (argc > 3 && sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+    if (argc > 3 && sqlite3_value_type (argv[3]) != SQLITE_TEXT)
+	err = 1;
+    if (argc > 4 && sqlite3_value_type (argv[4]) != SQLITE_INTEGER)
 	err = 1;
     if (err)
       {
@@ -8786,12 +8794,14 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
       }
 
 /* retrieving the arguments */
-    cvg_name = (const char *) sqlite3_value_text (argv[0]);
-    tile_id = sqlite3_value_int64 (argv[1]);
-    if (argc > 2)
-	bg_color = (const char *) sqlite3_value_text (argv[2]);
+    if (sqlite3_value_type (argv[0]) == SQLITE_TEXT)
+	db_prefix = (const char *) sqlite3_value_text (argv[0]);
+    cvg_name = (const char *) sqlite3_value_text (argv[1]);
+    tile_id = sqlite3_value_int64 (argv[2]);
     if (argc > 3)
-	transparent = sqlite3_value_int (argv[3]);
+	bg_color = (const char *) sqlite3_value_text (argv[3]);
+    if (argc > 4)
+	transparent = sqlite3_value_int (argv[4]);
 
 /* parsing the background color */
     if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) != RL2_OK)
@@ -8799,7 +8809,7 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
 
 /* attempting to load the Coverage definitions from the DBMS */
     sqlite = sqlite3_context_db_handle (context);
-    coverage = rl2_create_coverage_from_dbms (sqlite, cvg_name);
+    coverage = rl2_create_coverage_from_dbms_ex (sqlite, db_prefix, cvg_name);
     if (coverage == NULL)
 	goto error;
     cvg = (rl2PrivCoveragePtr) coverage;
@@ -8827,13 +8837,16 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (has_palette)
       {
 	  /* loading the Coverage's palette */
-	  palette = rl2_get_dbms_palette (sqlite, cvg_name);
+	  palette = rl2_get_dbms_palette_ex (sqlite, db_prefix, cvg_name);
 	  if (palette == NULL)
 	      goto error;
       }
     no_data = cvg->noData;
 
 /* querying the tile */
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     table_tile_data = sqlite3_mprintf ("%s_tile_data", cvg_name);
     xtable_tile_data = rl2_double_quoted_sql (table_tile_data);
     sqlite3_free (table_tile_data);
@@ -8841,12 +8854,13 @@ fnct_GetTileImage (sqlite3_context * context, int argc, sqlite3_value ** argv)
     xtable_tiles = rl2_double_quoted_sql (table_tiles);
     sqlite3_free (table_tiles);
     sql = sqlite3_mprintf ("SELECT d.tile_data_odd, d.tile_data_even, "
-			   "t.pyramid_level FROM \"%s\" AS d "
-			   "JOIN \"%s\" AS t ON (t.tile_id = d.tile_id) "
-			   "WHERE t.tile_id = ?", xtable_tile_data,
-			   xtable_tiles);
+			   "t.pyramid_level FROM \"%s\".\"%s\" AS d "
+			   "JOIN \"%s\".\"%s\" AS t ON (t.tile_id = d.tile_id) "
+			   "WHERE t.tile_id = ?", xdb_prefix, xtable_tile_data,
+			   xdb_prefix, xtable_tiles);
     free (xtable_tile_data);
     free (xtable_tiles);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -10623,12 +10637,6 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
     sqlite3_create_function (db, "RL2_GetMapImageFromVector", 11,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_GetMapImageFromVector, 0, 0);
-    sqlite3_create_function (db, "GetTileImage", 2,
-			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
-			     fnct_GetTileImage, 0, 0);
-    sqlite3_create_function (db, "RL2_GetTileImage", 2,
-			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
-			     fnct_GetTileImage, 0, 0);
     sqlite3_create_function (db, "GetTileImage", 3,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_GetTileImage, 0, 0);
@@ -10639,6 +10647,12 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_GetTileImage, 0, 0);
     sqlite3_create_function (db, "RL2_GetTileImage", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetTileImage, 0, 0);
+    sqlite3_create_function (db, "GetTileImage", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetTileImage, 0, 0);
+    sqlite3_create_function (db, "RL2_GetTileImage", 5,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_GetTileImage, 0, 0);
     sqlite3_create_function (db, "GetTripleBandTileImage", 5,

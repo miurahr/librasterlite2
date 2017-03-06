@@ -3486,6 +3486,11 @@ extern "C"
     RL2_DECLARE rl2PalettePtr rl2_clone_palette (rl2PalettePtr palette);
 
     RL2_DECLARE rl2CoveragePtr
+	rl2_create_coverage_from_dbms_ex (sqlite3 * handle,
+					  const char *db_prefix,
+					  const char *coverage);
+
+    RL2_DECLARE rl2CoveragePtr
 	rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage);
 
     RL2_DECLARE rl2VectorLayerPtr
@@ -3742,6 +3747,10 @@ extern "C"
 
     RL2_DECLARE rl2PalettePtr
 	rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size);
+
+    RL2_DECLARE rl2PalettePtr
+	rl2_get_dbms_palette_ex (sqlite3 * handle, const char *db_prefix,
+				 const char *coverage);
 
     RL2_DECLARE rl2PalettePtr
 	rl2_get_dbms_palette (sqlite3 * handle, const char *coverage);

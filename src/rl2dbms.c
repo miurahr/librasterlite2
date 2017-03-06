@@ -2099,7 +2099,8 @@ rl2_prime_void_tile_palette (void *pixels, unsigned int width,
 }
 
 RL2_DECLARE rl2CoveragePtr
-rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
+rl2_create_coverage_from_dbms_ex (sqlite3 * handle, const char *db_prefix,
+				  const char *coverage)
 {
 /* attempting to create a Coverage Object from the DBMS definition */
     char *sql;
@@ -2124,15 +2125,23 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
     const char *value;
     rl2PixelPtr no_data = NULL;
     rl2CoveragePtr cvg;
+    char *xdb_prefix;
 
 /* querying the Coverage metadata defs */
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     sql =
-	"SELECT sample_type, pixel_type, num_bands, compression, quality, tile_width, "
-	"tile_height, horz_resolution, vert_resolution, srid, nodata_pixel, "
-	"strict_resolution, mixed_resolutions, section_paths, "
-	"section_md5, section_summary "
-	"FROM raster_coverages WHERE Lower(coverage_name) = Lower(?)";
+	sqlite3_mprintf
+	("SELECT sample_type, pixel_type, num_bands, compression, quality, tile_width, "
+	 "tile_height, horz_resolution, vert_resolution, srid, nodata_pixel, "
+	 "strict_resolution, mixed_resolutions, section_paths, "
+	 "section_md5, section_summary "
+	 "FROM \"%s\".raster_coverages WHERE Lower(coverage_name) = Lower(?)",
+	 xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free(sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -2408,8 +2417,8 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 
     if (!ok)
       {
-	  fprintf (stderr, "ERROR: unable to find a Coverage named \"%s\"\n",
-		   coverage);
+	  fprintf (stderr, "ERROR: unable to find a Coverage named \"%s\" on DB \"%s\"\n",
+		   coverage, db_prefix);
 	  return NULL;
       }
 
@@ -2442,6 +2451,16 @@ rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
 	  return NULL;
       }
     return cvg;
+}
+
+RL2_DECLARE rl2CoveragePtr
+rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
+{
+/* 
+/  attempting to create a Coverage Object from the DBMS definition 
+/  just calls rl2_create_coverage_from_dbms_ex() on the MAIN DB
+*/
+    return rl2_create_coverage_from_dbms_ex (handle, NULL, coverage);
 }
 
 RL2_DECLARE rl2VectorLayerPtr
@@ -6187,19 +6206,26 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
 }
 
 RL2_DECLARE rl2PalettePtr
-rl2_get_dbms_palette (sqlite3 * handle, const char *coverage)
+rl2_get_dbms_palette_ex (sqlite3 * handle, const char *db_prefix,
+			 const char *coverage)
 {
 /* attempting to retrieve a Coverage's Palette from the DBMS */
     rl2PalettePtr palette = NULL;
     char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
+    char *xdb_prefix;
 
     if (handle == NULL || coverage == NULL)
 	return NULL;
 
-    sql = sqlite3_mprintf ("SELECT palette FROM raster_coverages "
-			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql = sqlite3_mprintf ("SELECT palette FROM \"%s\".raster_coverages "
+			   "WHERE Lower(coverage_name) = Lower(%Q)", xdb_prefix,
+			   coverage);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -6240,6 +6266,16 @@ rl2_get_dbms_palette (sqlite3 * handle, const char *coverage)
     if (stmt != NULL)
 	sqlite3_finalize (stmt);
     return NULL;
+}
+
+RL2_DECLARE rl2PalettePtr
+rl2_get_dbms_palette (sqlite3 * handle, const char *coverage)
+{
+/* 
+/  attempting to create a Palette Object from the DBMS definition 
+/  just calls rl2_get_dbms_palette_ex() on the MAIN DB
+*/
+    return rl2_get_dbms_palette_ex (handle, NULL, coverage);
 }
 
 RL2_DECLARE int

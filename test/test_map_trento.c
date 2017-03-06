@@ -132,7 +132,7 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
     path = sqlite3_mprintf ("./%s_tile_%d.png", coverage, tile_id);
     sql =
 	sqlite3_mprintf
-	("SELECT BlobToFile(RL2_GetTileImage(%Q, %d, '#e0ffe0', %d), %Q)",
+	("SELECT BlobToFile(RL2_GetTileImage(NULL, %Q, %d, '#e0ffe0', %d), %Q)",
 	 coverage, tile_id, transparent, path);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);

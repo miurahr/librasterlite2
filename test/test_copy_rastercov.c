@@ -303,7 +303,7 @@ main (int argc, char *argv[])
     spatialite_cleanup_ex (cache);
     rl2_cleanup_private (priv_data);
     spatialite_shutdown ();
-    
+
     unlink ("copy_origin.sqlite");
     return result;
 }

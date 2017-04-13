@@ -1,7 +1,7 @@
 IsValidRasterStatistics - NULL stats
 :memory: #use in-memory database
-SELECT RL2_IsValidRasterStatistics('alpha', NULL);
+SELECT RL2_IsValidRasterStatistics('MAIN', 'alpha', NULL);
 1 # rows (not including the header row)
 1 # columns
-RL2_IsValidRasterStatistics('alpha', NULL)
+RL2_IsValidRasterStatistics('MAIN', 'alpha', NULL)
 -1

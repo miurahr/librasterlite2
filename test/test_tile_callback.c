@@ -535,7 +535,7 @@ test_uint8_gray (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -593,7 +593,7 @@ test_uint8_palette (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, "MAIN", info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -652,7 +652,7 @@ test_4bit_palette (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, "main", info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -706,7 +706,7 @@ test_2bit_palette (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -758,7 +758,7 @@ test_1bit_palette (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -807,7 +807,7 @@ test_uint8_rgb (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -855,7 +855,7 @@ test_int16_grid (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -903,7 +903,7 @@ test_double_grid (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -951,7 +951,7 @@ test_monochrome (sqlite3 * handle)
 	  return 0;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, info.coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, info.coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);

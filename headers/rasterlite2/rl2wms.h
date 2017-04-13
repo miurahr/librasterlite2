@@ -86,7 +86,6 @@ extern "C"
  \param cache_handle handle to local WMS cache
  \param url pointer to some WMS-GetCapabilities XML Document.
  \param proxy pointer to some HTTP PROXY: may be NULL. 
- \param err_msg on completion will contain an error message (if any)
 
  \return the pointer to the corresponding WMS-Catalog object: NULL on failure
  
@@ -100,8 +99,7 @@ extern "C"
     RL2_DECLARE rl2WmsCatalogPtr create_wms_catalog (rl2WmsCachePtr
 						     cache_handle,
 						     const char *url,
-						     const char *proxy,
-						     char **err_msg);
+						     const char *proxy);
 
 /**
  Destroys a WMS-Catalog object freeing any allocated resource 
@@ -1512,7 +1510,6 @@ extern "C"
  \param from_cache boolean value: if TRUE simply an attempt to retrieve
  the requested image from cached data will be performed.\n
  Otherwise a full HTTP request will be forwarded for any uncached request.
- \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to an RGBA buffer containing the requested image:
  NULL if any error is encountered.
@@ -1537,8 +1534,7 @@ extern "C"
 						  int width, int height,
 						  const char *style,
 						  const char *format,
-						  int opaque, int from_cache,
-						  char **err_msg);
+						  int opaque, int from_cache);
 
 /**
  Performs a WMS GetMap request - HTTP POST
@@ -1565,7 +1561,6 @@ extern "C"
  \param from_cache boolean value: if TRUE simply an attempt to retrieve
  the requested image from cached data will be performed.\n
  Otherwise a full HTTP request will be forwarded for any uncached request.
- \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to an RGBA buffer containing the requested image:
  NULL if any error is encountered.\n
@@ -1591,8 +1586,7 @@ extern "C"
 						   int width, int height,
 						   const char *style,
 						   const char *format,
-						   int opaque, int from_cache,
-						   char **err_msg);
+						   int opaque, int from_cache);
 
 /**
  Performs a WMS GetMap [TileService] request - HTTP GET
@@ -1606,7 +1600,6 @@ extern "C"
  \param from_cache boolean value: if TRUE simply an attempt to retrieve
  the requested image from cached data will be performed.\n
  Otherwise a full HTTP request will be forwarded for any uncached request.
- \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to an RGBA buffer containing the requested image:
  NULL if any error is encountered.
@@ -1626,8 +1619,7 @@ extern "C"
 							      const char *proxy,
 							      int width,
 							      int height,
-							      int from_cache,
-							      char **err_msg);
+							      int from_cache);
 
 /**
  Performs a WMS GetMap [TileService] request - HTTP POST
@@ -1641,7 +1633,6 @@ extern "C"
  \param from_cache boolean value: if TRUE simply an attempt to retrieve
  the requested image from cached data will be performed.\n
  Otherwise a full HTTP request will be forwarded for any uncached request.
- \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to an RGBA buffer containing the requested image:
  NULL if any error is encountered.\n
@@ -1663,8 +1654,7 @@ extern "C"
 							       *proxy,
 							       int width,
 							       int height,
-							       int from_cache,
-							       char **err_msg);
+							       int from_cache);
 
 /**
  Performs a WMS GetFeatureInfo request - HTTP GET
@@ -1685,7 +1675,6 @@ extern "C"
  \param height vertical dimension (in pixels) of the requested image.
  \param img_x X coordinate (in pixels) of the point to be queryied.
  \param img_y Y coordinate (in pixels) of the point to be queryied.
- \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to a WMS-FeatureCollection object:
  NULL if any error is encountered or if no result is available.
@@ -1712,8 +1701,7 @@ extern "C"
 				   double miny,
 				   double maxx,
 				   double maxy,
-				   int width, int height,
-				   int img_x, int img_y, char **err_msg);
+				   int width, int height, int img_x, int img_y);
 
 /**
  Performs a WMS GetFeatureInfo request - HTTP POST
@@ -1734,7 +1722,6 @@ extern "C"
  \param height vertical dimension (in pixels) of the requested image.
  \param img_x X coordinate (in pixels) of the point to be queried.
  \param img_y Y coordinate (in pixels) of the point to be queried.
- \param err_msg on completion will contain an error message (if any)
  
  \return a pointer to a WMS-FeatureCollection object:
  NULL if any error is encountered or if no result is available.\n
@@ -1763,7 +1750,7 @@ extern "C"
 				    double maxx,
 				    double maxy,
 				    int width, int height,
-				    int img_x, int img_y, char **err_msg);
+				    int img_x, int img_y);
 
 /**
  Destroys a WMS-FeatureCollection object freeing any allocated resource 

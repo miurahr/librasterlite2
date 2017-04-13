@@ -220,7 +220,7 @@ delete_section_pyramid (sqlite3 * handle, const char *coverage,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("DELETE FROM \"%s\" WHERE pyramid_level > 0 AND section_id = %s",
+	("DELETE FROM main.\"%s\" WHERE pyramid_level > 0 AND section_id = %s",
 	 xtable, sect_id);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &err_msg);
@@ -258,7 +258,7 @@ check_section_pyramid (sqlite3 * handle, const char *coverage,
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
-	sqlite3_mprintf ("SELECT Count(*) FROM \"%s\" "
+	sqlite3_mprintf ("SELECT Count(*) FROM main.\"%s\" "
 			 "WHERE section_id = %s AND pyramid_level > 0",
 			 xtable, sect_id);
     free (xtable);
@@ -310,7 +310,7 @@ get_section_infos (sqlite3 * handle, const char *coverage,
     sql =
 	sqlite3_mprintf ("SELECT width, height, MbrMinX(geometry), "
 			 "MbrMinY(geometry), MbrMaxX(geometry), MbrMaxY(geometry) "
-			 "FROM \"%s\" WHERE section_id = ?", xtable);
+			 "FROM main.\"%s\" WHERE section_id = ?", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -352,8 +352,9 @@ get_section_infos (sqlite3 * handle, const char *coverage,
 
 /* Coverage's palette and no-data */
     sql =
-	sqlite3_mprintf ("SELECT palette, nodata_pixel FROM raster_coverages "
-			 "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+	sqlite3_mprintf
+	("SELECT palette, nodata_pixel FROM main.raster_coverages "
+	 "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -4369,7 +4370,8 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
     xtable_tile_data = rl2_double_quoted_sql (table_tile_data);
     sqlite3_free (table_tile_data);
     sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
-			   "FROM \"%s\" WHERE tile_id = ?", xtable_tile_data);
+			   "FROM main.\"%s\" WHERE tile_id = ?",
+			   xtable_tile_data);
     free (xtable_tile_data);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_rd, NULL);
     sqlite3_free (sql);
@@ -4386,7 +4388,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (section_id, pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (section_id, pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -4400,7 +4402,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -4421,7 +4423,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	("INSERT INTO main.\"%s\" (tile_id, pyramid_level, section_id, geometry) "
 	 "VALUES (NULL, ?, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
@@ -4437,7 +4439,7 @@ prepare_section_pyramid_stmts (sqlite3 * handle, const char *coverage,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	("INSERT INTO main.\"%s\" (tile_id, tile_data_odd, tile_data_even) "
 	 "VALUES (?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -4538,8 +4540,8 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		    ("SELECT l.x_resolution_1_1, l.y_resolution_1_1, "
 		     "t.tile_id, MbrMinX(t.geometry), MbrMinY(t.geometry), "
 		     "MbrMaxX(t.geometry), MbrMaxY(t.geometry) "
-		     "FROM \"%s\" AS l "
-		     "JOIN \"%s\" AS t ON (l.section_id = t.section_id "
+		     "FROM main.\"%s\" AS l "
+		     "JOIN main.\"%s\" AS t ON (l.section_id = t.section_id "
 		     "AND l.pyramid_level = t.pyramid_level) "
 		     "WHERE l.pyramid_level = %d AND l.section_id = ?",
 		     xtable_levels, xtable_tiles, id_level);
@@ -4552,8 +4554,8 @@ do_build_section_pyramid (sqlite3 * handle, const char *coverage,
 		    ("SELECT l.x_resolution_1_1, l.y_resolution_1_1, "
 		     "t.tile_id, MbrMinX(t.geometry), MbrMinY(t.geometry), "
 		     "MbrMaxX(t.geometry), MbrMaxY(t.geometry) "
-		     "FROM \"%s\" AS l "
-		     "JOIN \"%s\" AS t ON (l.pyramid_level = t.pyramid_level) "
+		     "FROM main.\"%s\" AS l "
+		     "JOIN main.\"%s\" AS t ON (l.pyramid_level = t.pyramid_level) "
 		     "WHERE l.pyramid_level = %d AND t.section_id = ?",
 		     xtable_levels, xtable_tiles, id_level);
 	    }
@@ -4771,7 +4773,7 @@ get_coverage_extent (sqlite3 * handle, const char *coverage, double *minx,
 /* querying the Coverage metadata defs */
     sql =
 	"SELECT extent_minx, extent_miny, extent_maxx, extent_maxy "
-	"FROM raster_coverages WHERE Lower(coverage_name) = Lower(?)";
+	"FROM main.raster_coverages WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
       {
@@ -4847,7 +4849,8 @@ find_base_resolution (sqlite3 * handle, const char *coverage,
     sqlite3_free (xcoverage);
     sql =
 	sqlite3_mprintf ("SELECT x_resolution_1_1, y_resolution_1_1 "
-			 "FROM \"%s\" WHERE pyramid_level = 0", xxcoverage);
+			 "FROM main.\"%s\" WHERE pyramid_level = 0",
+			 xxcoverage);
     free (xxcoverage);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -4916,7 +4919,7 @@ find_section_base_resolution (sqlite3 * handle, const char *coverage,
     sqlite3_free (xcoverage);
     sql =
 	sqlite3_mprintf ("SELECT x_resolution_1_1, y_resolution_1_1 "
-			 "FROM \"%s\" WHERE section_id = ? AND pyramid_level = 0",
+			 "FROM main.\"%s\" WHERE section_id = ? AND pyramid_level = 0",
 			 xxcoverage);
     free (xxcoverage);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
@@ -5021,7 +5024,7 @@ get_section_raw_raster_data (sqlite3 * handle, int max_threads,
     xxtiles = rl2_double_quoted_sql (xtiles);
     sql =
 	sqlite3_mprintf ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-			 "FROM \"%s\" "
+			 "FROM main.\"%s\" "
 			 "WHERE section_id = ? AND pyramid_level = ? AND ROWID IN ( "
 			 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
 			 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles,
@@ -5042,7 +5045,7 @@ get_section_raw_raster_data (sqlite3 * handle, int max_threads,
     xxdata = rl2_double_quoted_sql (xdata);
     sqlite3_free (xdata);
     sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
-			   "FROM \"%s\" WHERE tile_id = ?", xxdata);
+			   "FROM main.\"%s\" WHERE tile_id = ?", xxdata);
     free (xxdata);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
     sqlite3_free (sql);
@@ -5947,7 +5950,7 @@ get_background_color (sqlite3 * handle, rl2CoveragePtr coverage,
       }
 
 /* Coverage's palette */
-    sql = sqlite3_mprintf ("SELECT palette FROM raster_coverages "
+    sql = sqlite3_mprintf ("SELECT palette FROM main.raster_coverages "
 			   "WHERE Lower(coverage_name) = Lower(%Q)",
 			   cvg->coverageName);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
@@ -6022,7 +6025,7 @@ rl2_build_section_pyramid (sqlite3 * handle, int max_threads,
     unsigned char bgGreen;
     unsigned char bgBlue;
 
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -6130,7 +6133,7 @@ rl2_build_all_section_pyramids (sqlite3 * handle, int max_threads,
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
-    sql = sqlite3_mprintf ("SELECT section_id FROM \"%s\"", xtable);
+    sql = sqlite3_mprintf ("SELECT section_id FROM main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -6250,7 +6253,7 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
     xxtiles = rl2_double_quoted_sql (xtiles);
     sql =
 	sqlite3_mprintf
-	("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) FROM \"%s\" "
+	("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) FROM main.\"%s\" "
 	 "WHERE pyramid_level = ? AND ROWID IN (SELECT ROWID FROM SpatialIndex "
 	 "WHERE f_table_name = %Q AND search_frame = BuildMBR(?, ?, ?, ?)) "
 	 "ORDER BY ST_Area(geometry)", xxtiles, xtiles);
@@ -6265,7 +6268,7 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
 	  goto error;
       }
 
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	goto error;
     cov = (rl2PrivCoveragePtr) cvg;
@@ -6289,7 +6292,7 @@ rl2_build_monolithic_pyramid (sqlite3 * handle, const char *coverage,
     if (!get_coverage_extent (handle, coverage, &minx, &miny, &maxx, &maxy))
 	goto error;
     no_data = rl2_get_coverage_no_data (cvg);
-    palette = rl2_get_dbms_palette (handle, coverage);
+    palette = rl2_get_dbms_palette (handle, NULL, coverage);
     if (!prepare_section_pyramid_stmts
 	(handle, coverage, 0, &stmt_rd, &stmt_levl, &stmt_tils, &stmt_data))
 	goto error;
@@ -6691,7 +6694,7 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
     int ret;
     char *err_msg = NULL;
     int mixed_resolutions =
-	rl2_is_mixed_resolutions_coverage (handle, coverage);
+	rl2_is_mixed_resolutions_coverage (handle, NULL, coverage);
 
     if (mixed_resolutions < 0)
 	return RL2_ERROR;
@@ -6700,7 +6703,8 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
-	sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0", xtable);
+	sqlite3_mprintf ("DELETE FROM main.\"%s\" WHERE pyramid_level > 0",
+			 xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &err_msg);
     sqlite3_free (sql);
@@ -6719,8 +6723,8 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
 	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
-	      sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0",
-			       xtable);
+	      sqlite3_mprintf
+	      ("DELETE FROM main.\"%s\" WHERE pyramid_level > 0", xtable);
 	  free (xtable);
 	  ret = sqlite3_exec (handle, sql, NULL, NULL, &err_msg);
 	  sqlite3_free (sql);
@@ -6740,8 +6744,8 @@ rl2_delete_all_pyramids (sqlite3 * handle, const char *coverage)
 	  xtable = rl2_double_quoted_sql (table);
 	  sqlite3_free (table);
 	  sql =
-	      sqlite3_mprintf ("DELETE FROM \"%s\" WHERE pyramid_level > 0",
-			       xtable);
+	      sqlite3_mprintf
+	      ("DELETE FROM main.\"%s\" WHERE pyramid_level > 0", xtable);
 	  free (xtable);
 	  ret = sqlite3_exec (handle, sql, NULL, NULL, &err_msg);
 	  sqlite3_free (sql);

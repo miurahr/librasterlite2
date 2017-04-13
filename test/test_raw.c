@@ -1176,7 +1176,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
     blob_sz = 0;
 /* Checking RAW pixels - little endian buffer / Section */
     sql = sqlite3_mprintf ("SELECT RL2_ExportSectionRawPixels("
-			   "%Q, 1, %d, %d, BuildMbr(0, 0, ?, ?, %d), 0.01, 0.01, 0)",
+			   "'main', %Q, 1, %d, %d, BuildMbr(0, 0, ?, ?, %d), 0.01, 0.01, 0)",
 			   coverage, width, height, 4326);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -1249,7 +1249,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
     blob_sz = 0;
 /* Checking RAW pixels - big endian buffer / Coverage */
     sql = sqlite3_mprintf ("SELECT RL2_ExportRawPixels("
-			   "%Q, %d, %d, MakePoint(?, ?, %d), 0.01, 0.01, 1)",
+			   "'main', %Q, %d, %d, MakePoint(?, ?, %d), 0.01, 0.01, 1)",
 			   coverage, width, height, 4326);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -1391,7 +1391,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
 
 /* testing base-resolution - Coverage */
     if (rl2_resolve_base_resolution_from_dbms
-	(sqlite, coverage, 0, 0, &x_res, &y_res) != RL2_OK)
+	(sqlite, NULL, coverage, 0, 0, &x_res, &y_res) != RL2_OK)
       {
 	  fprintf (stderr, "ERROR: unable to get BaseResolution (Coverage)\n");
 	  *retcode += -26;
@@ -1415,7 +1415,7 @@ test_grid (sqlite3 * sqlite, unsigned char sample, int *retcode)
       }
 /* testing base-resolution - Section */
     if (rl2_resolve_base_resolution_from_dbms
-	(sqlite, coverage, 1, 2, &x_res, &y_res) != RL2_OK)
+	(sqlite, NULL, coverage, 1, 2, &x_res, &y_res) != RL2_OK)
       {
 	  fprintf (stderr, "ERROR: unable to get BaseResolution (Section)\n");
 	  *retcode += -29;

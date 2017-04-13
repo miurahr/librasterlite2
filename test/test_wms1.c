@@ -57,7 +57,6 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
     rl2WmsCatalogPtr catalog;
     rl2WmsLayerPtr layer;
     rl2WmsLayerPtr child;
-    char *err_msg = NULL;
     const char *url;
     int count;
     const char *str;
@@ -72,7 +71,7 @@ test_GetCapabilities_tuscany (rl2WmsCachePtr cache)
 /* WMS GetCapabilities (valid) */
     url =
 	"http://web.regione.toscana.it/wmsraster/com.rt.wms.RTmap/wms?map=wmsambamm&service=WMS&request=GetCapabilities";
-    catalog = create_wms_catalog (cache, url, NULL, &err_msg);
+    catalog = create_wms_catalog (cache, url, NULL);
     if (catalog == NULL)
       {
 	  fprintf (stderr, "Unable to create a WMS Catalog\n");
@@ -518,7 +517,6 @@ test_GetCapabilities_arizona (rl2WmsCachePtr cache)
     rl2WmsCatalogPtr catalog;
     rl2WmsLayerPtr layer;
     rl2WmsLayerPtr child;
-    char *err_msg = NULL;
     const char *url;
     int count;
     const char *str;
@@ -532,7 +530,7 @@ test_GetCapabilities_arizona (rl2WmsCachePtr cache)
 /* WMS GetCapabilities (valid) */
     url =
 	"http://mrdata.usgs.gov/services/az?request=getcapabilities&service=WMS&version=1.1.1";
-    catalog = create_wms_catalog (cache, url, NULL, &err_msg);
+    catalog = create_wms_catalog (cache, url, NULL);
     if (catalog == NULL)
       {
 	  fprintf (stderr, "Unable to create a WMS Catalog\n");
@@ -933,7 +931,6 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
     rl2WmsCatalogPtr catalog;
     rl2WmsLayerPtr layer;
     rl2WmsLayerPtr child;
-    char *err_msg = NULL;
     const char *url;
     int count;
     const char *str;
@@ -947,7 +944,7 @@ test_GetCapabilities_rer (rl2WmsCachePtr cache)
 /* WMS GetCapabilities (valid) */
     url =
 	"http://mrdata.usgs.gov/services/az?request=getcapabilities&service=WMS&version=1.1.1";
-    catalog = create_wms_catalog (cache, url, NULL, &err_msg);
+    catalog = create_wms_catalog (cache, url, NULL);
     if (catalog == NULL)
       {
 	  fprintf (stderr, "Unable to create a WMS Catalog\n");
@@ -1348,7 +1345,6 @@ test_GetFeatureInfo_gml ()
     rl2WmsFeatureCollectionPtr coll;
     rl2WmsFeatureMemberPtr ftr;
     const char *url;
-    char *err_msg = NULL;
     int count;
     const char *str;
     int ret;
@@ -1381,7 +1377,7 @@ test_GetFeatureInfo_gml ()
 				   "rt_ambamm.idcomuni.rt.poly", "EPSG:3003", 0,
 				   1590122.238032, 4727226.777078,
 				   1618469.603808, 4752914.550184, 437, 396,
-				   257, 219, &err_msg);
+				   257, 219);
     if (coll == NULL)
       {
 	  fprintf (stderr, "GetFeatureInfo (GML): unexpected NULL\n");
@@ -1502,7 +1498,6 @@ test_GetFeatureInfo_xml ()
     rl2WmsFeatureCollectionPtr coll;
     rl2WmsFeatureMemberPtr ftr;
     const char *url;
-    char *err_msg = NULL;
     int count;
     const char *str;
     int ret;
@@ -1532,7 +1527,7 @@ test_GetFeatureInfo_xml ()
 	do_wms_GetFeatureInfo_get (url, NULL, "1.3.0", "text/xml",
 				   "PRV_Provincia", "CRS:84", 0, 9.018668,
 				   42.615796, 13.015085, 46.237264, 437, 396,
-				   254, 184, &err_msg);
+				   254, 184);
     if (coll == NULL)
       {
 	  fprintf (stderr, "GetFeatureInfo (XML): unexpected NULL\n");
@@ -1630,7 +1625,6 @@ main (int argc, char *argv[])
     int val;
     double dblval;
     const char *url;
-    char *err_msg = NULL;
     unsigned char *rgba;
     rl2WmsCachePtr cache;
 
@@ -1725,7 +1719,7 @@ main (int argc, char *argv[])
 			   "rt_ambamm.idcomuni.rt.poly", "EPSG:3003", 0,
 			   1583097.365776, 4704017.773106, 1611444.731553,
 			   4729705.546213, 437, 396, "contorno_con_etichette",
-			   "image/png", 0, 1, &err_msg);
+			   "image/png", 0, 1);
     if (rgba != NULL)
       {
 	  fprintf (stderr, "GetMap (not cached): unexpected result\n");
@@ -1735,8 +1729,7 @@ main (int argc, char *argv[])
 			      "rt_ambamm.idcomuni.rt.poly", "EPSG:3003", 0,
 			      1583097.365776, 4704017.773106, 1611444.731553,
 			      4729705.546213, 437, 396,
-			      "contorno_con_etichette", "image/png", 0, 0,
-			      &err_msg);
+			      "contorno_con_etichette", "image/png", 0, 0);
     if (rgba == NULL)
       {
 	  fprintf (stderr, "GetMap (not cached): unexpected NULL\n");
@@ -1753,8 +1746,7 @@ main (int argc, char *argv[])
 			      "rt_ambamm.idcomuni.rt.poly", "EPSG:3003", 0,
 			      1583097.365776, 4704017.773106, 1611444.731553,
 			      4729705.546213, 437, 396,
-			      "contorno_con_etichette", "image/png", 0, 1,
-			      &err_msg);
+			      "contorno_con_etichette", "image/png", 0, 1);
     if (rgba == NULL)
       {
 	  fprintf (stderr, "GetMap (cached): unexpected result\n");
@@ -1765,8 +1757,7 @@ main (int argc, char *argv[])
 			      "rt_ambamm.idcomuni.rt.poly", "EPSG:3003", 0,
 			      1583097.365776, 4704017.773106, 1611444.731553,
 			      4729705.546213, 437, 396,
-			      "contorno_con_etichette", "image/png", 0, 0,
-			      &err_msg);
+			      "contorno_con_etichette", "image/png", 0, 0);
     if (rgba == NULL)
       {
 	  fprintf (stderr, "GetMap (cached): unexpected NULL\n");

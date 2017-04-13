@@ -184,7 +184,7 @@ test_font (sqlite3 * sqlite, int *retcode)
 
 /* testing ExportFontToFile() */
     sql =
-	"SELECT ExportFontToFile('Karla-BoldItalic', 'out-karla-bold-italic.ttf')";
+	"SELECT ExportFontToFile(NULL, 'Karla-BoldItalic', 'out-karla-bold-italic.ttf')";
     ret = execute_check (sqlite, sql);
     unlink ("out-karla-bold-italic.ttf");
     if (ret != SQLITE_OK)

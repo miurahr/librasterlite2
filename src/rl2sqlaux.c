@@ -69,8 +69,9 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
 RL2_PRIVATE int
-get_coverage_sample_bands (sqlite3 * sqlite, const char *coverage,
-			   unsigned char *sample_type, unsigned char *num_bands)
+get_coverage_sample_bands (sqlite3 * sqlite, const char *db_prefix,
+			   const char *coverage, unsigned char *sample_type,
+			   unsigned char *num_bands)
 {
 /* attempting to retrieve the SampleType and NumBands from a Coverage */
     int i;
@@ -83,11 +84,17 @@ get_coverage_sample_bands (sqlite3 * sqlite, const char *coverage,
     int bands;
     unsigned char xsample_type = RL2_SAMPLE_UNKNOWN;
     unsigned char xnum_bands = RL2_BANDS_UNKNOWN;
+    char *xdb_prefix;
+
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
 
     sql =
 	sqlite3_mprintf
-	("SELECT sample_type, num_bands FROM raster_coverages "
-	 "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+	("SELECT sample_type, num_bands FROM \"%s\".raster_coverages "
+	 "WHERE Lower(coverage_name) = Lower(%Q)", xdb_prefix, coverage);
+    free (xdb_prefix);
     ret = sqlite3_get_table (sqlite, sql, &results, &rows, &columns, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -135,10 +142,11 @@ get_coverage_sample_bands (sqlite3 * sqlite, const char *coverage,
 }
 
 RL2_PRIVATE int
-get_coverage_defs (sqlite3 * sqlite, const char *coverage,
-		   unsigned int *tile_width, unsigned int *tile_height,
-		   unsigned char *sample_type, unsigned char *pixel_type,
-		   unsigned char *num_bands, unsigned char *compression)
+get_coverage_defs (sqlite3 * sqlite, const char *db_prefix,
+		   const char *coverage, unsigned int *tile_width,
+		   unsigned int *tile_height, unsigned char *sample_type,
+		   unsigned char *pixel_type, unsigned char *num_bands,
+		   unsigned char *compression)
 {
 /* attempting to retrieve the main definitions from a Coverage */
     int i;
@@ -157,10 +165,16 @@ get_coverage_defs (sqlite3 * sqlite, const char *coverage,
     unsigned char xcompression = RL2_COMPRESSION_UNKNOWN;
     unsigned short xtile_width = RL2_TILESIZE_UNDEFINED;
     unsigned short xtile_height = RL2_TILESIZE_UNDEFINED;
+    char *xdb_prefix;
 
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     sql = sqlite3_mprintf ("SELECT sample_type, pixel_type, num_bands, "
-			   "compression, tile_width, tile_height FROM raster_coverages "
-			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
+			   "compression, tile_width, tile_height FROM \"%s\".raster_coverages "
+			   "WHERE Lower(coverage_name) = Lower(%Q)", xdb_prefix,
+			   coverage);
+    free (xdb_prefix);
     ret = sqlite3_get_table (sqlite, sql, &results, &rows, &columns, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1368,11 +1382,11 @@ add_base_resolution (ResolutionsListPtr list, int level, int scale,
 }
 
 RL2_PRIVATE int
-rl2_find_best_resolution_level (sqlite3 * handle, const char *coverage,
-				int by_section, sqlite3_int64 section_id,
-				double x_res, double y_res, int *level_id,
-				int *scale, int *real_scale, double *xx_res,
-				double *yy_res)
+rl2_find_best_resolution_level (sqlite3 * handle, const char *db_prefix,
+				const char *coverage, int by_section,
+				sqlite3_int64 section_id, double x_res,
+				double y_res, int *level_id, int *scale,
+				int *real_scale, double *xx_res, double *yy_res)
 {
 /* attempting to identify the optimal resolution level */
     int ret;
@@ -1388,9 +1402,14 @@ rl2_find_best_resolution_level (sqlite3 * handle, const char *coverage,
     sqlite3_stmt *stmt = NULL;
     ResolutionsListPtr list = NULL;
     ResolutionLevelPtr res;
+    char *xdb_prefix;
 
     if (coverage == NULL)
 	return 0;
+
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
 
     if (by_section)
       {
@@ -1408,9 +1427,9 @@ rl2_find_best_resolution_level (sqlite3 * handle, const char *coverage,
 	      sqlite3_mprintf
 	      ("SELECT pyramid_level, x_resolution_1_8, y_resolution_1_8, "
 	       "x_resolution_1_4, y_resolution_1_4, x_resolution_1_2, y_resolution_1_2, "
-	       "x_resolution_1_1, y_resolution_1_1 FROM \"%s\" "
+	       "x_resolution_1_1, y_resolution_1_1 FROM \"%s\".\"%s\" "
 	       "WHERE section_id = %s ORDER BY pyramid_level DESC",
-	       xxcoverage, sctn);
+	       xdb_prefix, xxcoverage, sctn);
       }
     else
       {
@@ -1422,9 +1441,10 @@ rl2_find_best_resolution_level (sqlite3 * handle, const char *coverage,
 	      sqlite3_mprintf
 	      ("SELECT pyramid_level, x_resolution_1_8, y_resolution_1_8, "
 	       "x_resolution_1_4, y_resolution_1_4, x_resolution_1_2, y_resolution_1_2, "
-	       "x_resolution_1_1, y_resolution_1_1 FROM \"%s\" "
-	       "ORDER BY pyramid_level DESC", xxcoverage);
+	       "x_resolution_1_1, y_resolution_1_1 FROM \"%s\".\"%s\" "
+	       "ORDER BY pyramid_level DESC", xdb_prefix, xxcoverage);
       }
+    free (xdb_prefix);
     free (xxcoverage);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -5171,7 +5191,7 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
     int retval = 0;
 
 /* checking if the Coverage already exists */
-    sql = "SELECT coverage_name FROM raster_coverages "
+    sql = "SELECT coverage_name FROM main.raster_coverages "
 	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -5200,7 +5220,7 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
 /* updating the Coverage */
     if (is_queryable < 0)
       {
-	  sql = "UPDATE raster_coverages SET title = ?, abstract = ? "
+	  sql = "UPDATE main.raster_coverages SET title = ?, abstract = ? "
 	      "WHERE Lower(coverage_name) = Lower(?)";
 	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
 	  if (ret != SQLITE_OK)
@@ -5220,7 +5240,7 @@ set_coverage_infos (sqlite3 * sqlite, const char *coverage_name,
     else
       {
 	  sql =
-	      "UPDATE raster_coverages SET title = ?, abstract = ?, is_queryable = ? "
+	      "UPDATE main.raster_coverages SET title = ?, abstract = ?, is_queryable = ? "
 	      "WHERE Lower(coverage_name) = Lower(?)";
 	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
 	  if (ret != SQLITE_OK)
@@ -5270,7 +5290,7 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
 	return 1;
 
 /* checking if the Coverage already exists */
-    sql = "SELECT coverage_name FROM raster_coverages "
+    sql = "SELECT coverage_name FROM main.raster_coverages "
 	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -5301,7 +5321,7 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
     if (copyright == NULL)
       {
 	  /* just updating the License */
-	  sql = "UPDATE raster_coverages SET license = ("
+	  sql = "UPDATE main.raster_coverages SET license = ("
 	      "SELECT id FROM data_licenses WHERE name = ?) "
 	      "WHERE Lower(coverage_name) = Lower(?)";
 	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
@@ -5320,7 +5340,7 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
     else if (license == NULL)
       {
 	  /* just updating the Copyright */
-	  sql = "UPDATE raster_coverages SET copyright = ? "
+	  sql = "UPDATE main.raster_coverages SET copyright = ? "
 	      "WHERE Lower(coverage_name) = Lower(?)";
 	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
 	  if (ret != SQLITE_OK)
@@ -5339,7 +5359,7 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
     else
       {
 	  /* updating both Copyright and License */
-	  sql = "UPDATE raster_coverages SET copyright = ?, license = ("
+	  sql = "UPDATE main.raster_coverages SET copyright = ?, license = ("
 	      "SELECT id FROM data_licenses WHERE name = ?) "
 	      "WHERE Lower(coverage_name) = Lower(?)";
 	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
@@ -5376,7 +5396,7 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
 }
 
 RL2_PRIVATE int
-rl2_test_layer_group (sqlite3 * handle, const char *name)
+rl2_test_layer_group (sqlite3 * handle, const char *db_prefix, const char *name)
 {
 /* testing for an eventual Layer Group */
     int ret;
@@ -5385,9 +5405,18 @@ rl2_test_layer_group (sqlite3 * handle, const char *name)
     int columns;
     int i;
     int ok = 0;
-/* testing if Layer Group exists */
-    char *sql = sqlite3_mprintf ("SELECT group_name FROM SE_styled_groups "
-				 "WHERE Lower(group_name) = Lower(%Q)", name);
+    char *sql;
+    char *xdb_prefix;
+
+/* testing if the Layer Group exists */
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql =
+	sqlite3_mprintf ("SELECT group_name FROM \"%s\".SE_styled_groups "
+			 "WHERE Lower(group_name) = Lower(%Q)", xdb_prefix,
+			 name);
+    free (xdb_prefix);
     ret = sqlite3_get_table (handle, sql, &results, &rows, &columns, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -5399,17 +5428,25 @@ rl2_test_layer_group (sqlite3 * handle, const char *name)
 }
 
 RL2_PRIVATE int
-rl2_is_mixed_resolutions_coverage (sqlite3 * handle, const char *coverage)
+rl2_is_mixed_resolutions_coverage (sqlite3 * handle, const char *db_prefix,
+				   const char *coverage)
 {
 /* querying the Coverage Policies defs */
     char *sql;
     int ret;
     sqlite3_stmt *stmt;
     int value = -1;
-    sql =
-	"SELECT mixed_resolutions "
-	"FROM raster_coverages WHERE Lower(coverage_name) = Lower(?)";
+    char *xdb_prefix;
+
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql = sqlite3_mprintf ("SELECT mixed_resolutions "
+			   "FROM \"%s\".raster_coverages WHERE Lower(coverage_name) = Lower(?)",
+			   xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));

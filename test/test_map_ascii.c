@@ -98,7 +98,7 @@ do_export_ascii (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 
     path = sqlite3_mprintf ("./%s_%d.asc", coverage, scale);
 
-    sql = "SELECT RL2_WriteAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteAsciiGrid('main', ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -143,7 +143,7 @@ do_export_section_ascii (sqlite3 * sqlite, const char *coverage,
 
     path = sqlite3_mprintf ("./%s_sect1_%d.asc", coverage, scale);
 
-    sql = "SELECT RL2_WriteSectionAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteSectionAsciiGrid('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;

@@ -118,7 +118,7 @@ test_tiff (const char *name, unsigned char sample_type,
     const char *tfw_path;
 
     coverage =
-	rl2_create_coverage (name, sample_type, pixel_type, nBands,
+	rl2_create_coverage ("main", name, sample_type, pixel_type, nBands,
 			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
     if (coverage == NULL)
       {
@@ -391,8 +391,9 @@ test_null ()
 	  return -42;
       }
     coverage =
-	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 1,
-			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8,
+			     RL2_PIXEL_GRAYSCALE, 1, RL2_COMPRESSION_PNG, 0,
+			     432, 432, NULL);
     raster = rl2_get_tile_from_tiff_origin (NULL, origin, 0, 0, -1, 0);
     if (raster != NULL)
       {
@@ -531,8 +532,8 @@ test_null ()
 				RL2_SAMPLE_UNKNOWN, RL2_PIXEL_UNKNOWN,
 				RL2_BANDS_UNKNOWN);
     coverage =
-	rl2_create_coverage ("alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 1,
-			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE,
+			     1, RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
     if (rl2_eval_tiff_origin_compatibility (NULL, origin, -1, 0) == RL2_TRUE)
       {
 	  fprintf (stderr,
@@ -554,8 +555,8 @@ test_null ()
       }
     rl2_destroy_coverage (coverage);
     coverage =
-	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE, 1,
-			     RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_PALETTE,
+			     1, RL2_COMPRESSION_PNG, 0, 432, 432, NULL);
     if (rl2_eval_tiff_origin_compatibility (coverage, origin, -1, 0) ==
 	RL2_TRUE)
       {

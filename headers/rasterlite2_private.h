@@ -340,6 +340,7 @@ extern "C"
 
     typedef struct rl2_priv_coverage
     {
+	char *dbPrefix;
 	char *coverageName;
 	unsigned char sampleType;
 	unsigned char pixelType;
@@ -362,6 +363,7 @@ extern "C"
 
     typedef struct rl2_priv_vector_layer
     {
+	char *db_prefix;
 	char *f_table_name;
 	char *f_geometry_column;
 	unsigned short geometry_type;
@@ -856,8 +858,9 @@ extern "C"
 
     typedef struct rl2_priv_child_style
     {
-	char *namedLayer;
-	char *namedStyle;
+	const char *dbPrefix;
+	const char *namedLayer;
+	const char *namedStyle;
 	int validLayer;
 	int validStyle;
 	struct rl2_priv_child_style *next;
@@ -866,7 +869,8 @@ extern "C"
 
     typedef struct rl2_priv_group_style
     {
-	char *name;
+	const char *dbPrefix;
+	const char *name;
 	rl2PrivChildStylePtr first;
 	rl2PrivChildStylePtr last;
 	int valid;
@@ -1072,6 +1076,7 @@ extern "C"
     {
 	/* helper struct for passing arguments to aux_group_renderer */
 	sqlite3_context *context;
+	const char *db_prefix;
 	const char *group_name;
 	double minx;
 	double maxx;
@@ -1408,11 +1413,13 @@ extern "C"
 	compute_aggregate_sq_diff (rl2RasterStatisticsPtr aggreg_stats);
 
     RL2_PRIVATE int get_coverage_sample_bands (sqlite3 * sqlite,
+					       const char *db_prefix,
 					       const char *coverage,
 					       unsigned char *sample_type,
 					       unsigned char *num_bands);
 
-    RL2_PRIVATE int get_coverage_defs (sqlite3 * sqlite, const char *coverage,
+    RL2_PRIVATE int get_coverage_defs (sqlite3 * sqlite, const char *db_prefix,
+				       const char *coverage,
 				       unsigned int *tile_width,
 				       unsigned int *tile_height,
 				       unsigned char *sample_type,
@@ -1482,11 +1489,11 @@ extern "C"
 					  double y_res);
 
     RL2_PRIVATE int rl2_find_best_resolution_level (sqlite3 * handle,
+						    const char *db_prefix,
 						    const char *coverage,
 						    int by_section,
 						    sqlite3_int64 section_id,
-						    double x_res,
-						    double y_res,
+						    double x_res, double y_res,
 						    int *level_id, int *scale,
 						    int *real_scale,
 						    double *xx_res,
@@ -1802,7 +1809,9 @@ extern "C"
 								    unsigned
 								    char *xml);
 
-    RL2_PRIVATE rl2GroupStylePtr group_style_from_sld_xml (char *name,
+    RL2_PRIVATE rl2GroupStylePtr group_style_from_sld_xml (const char
+							   *db_prefix,
+							   const char *name,
 							   unsigned char *xml);
 
     RL2_PRIVATE rl2PrivCoverageStylePtr
@@ -1973,13 +1982,14 @@ extern "C"
 					const char *title,
 					const char *abstract, int is_queryable);
 
-    RL2_PRIVATE int set_coverage_copyright (sqlite3 *handle,
-							  const char
-							  *coverage_name,
-							  const char *copyright,
-							  const char *license);
+    RL2_PRIVATE int set_coverage_copyright (sqlite3 * handle,
+					    const char
+					    *coverage_name,
+					    const char *copyright,
+					    const char *license);
 
     RL2_PRIVATE int rl2_test_layer_group (sqlite3 * handle,
+					  const char *db_prefix,
 					  const char *group_name);
 
     RL2_PRIVATE int rl2_rgba_raster_data (sqlite3 * handle,
@@ -2019,6 +2029,7 @@ extern "C"
     RL2_PRIVATE char *rl2_FinalizeMD5Checksum (void *p_md5);
 
     RL2_PRIVATE int rl2_is_mixed_resolutions_coverage (sqlite3 * handle,
+						       const char *db_prefix,
 						       const char *coverage);
 
     RL2_PRIVATE int rl2_has_styled_rgb_colors (rl2RasterSymbolizerPtr style);
@@ -2160,6 +2171,7 @@ extern "C"
 					     unsigned char *blob, int blob_sz);
 
     RL2_PRIVATE int rl2_get_font_from_dbms (sqlite3 * handle,
+					    const char *db_prefix,
 					    const char *facename,
 					    unsigned char **font, int *font_sz);
 

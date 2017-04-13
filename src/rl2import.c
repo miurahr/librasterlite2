@@ -2686,7 +2686,7 @@ do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
+	("INSERT INTO main.\"%s\" (section_id, section_name, file_path, "
 	 "md5_checksum, summary, width, height, geometry) "
 	 "VALUES (NULL, ?, ?, ?, XB_Create(?), ?, ?, ?)", xtable);
     free (xtable);
@@ -2704,7 +2704,7 @@ do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("UPDATE \"%s\" SET statistics = ? WHERE section_id = ?", xtable);
+	("UPDATE main.\"%s\" SET statistics = ? WHERE section_id = ?", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_upd_sect, NULL);
     sqlite3_free (sql);
@@ -2722,7 +2722,7 @@ do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (section_id, pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (section_id, pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -2746,7 +2746,7 @@ do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -2768,7 +2768,7 @@ do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	("INSERT INTO main.\"%s\" (tile_id, pyramid_level, section_id, geometry) "
 	 "VALUES (NULL, 0, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
@@ -2784,7 +2784,7 @@ do_import_common (sqlite3 * handle, int max_threads, const char *src_path,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	("INSERT INTO main.\"%s\" (tile_id, tile_data_odd, tile_data_even) "
 	 "VALUES (?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -3522,7 +3522,7 @@ export_tiff_worlfile_common (sqlite3 * handle, int max_threads,
 
     if (by_section)
       {
-	  /* just a single select Section */
+	  /* just a single selected Section */
 	  if (rl2_get_section_raw_raster_data
 	      (handle, max_threads, cvg, section_id, width, height, minx,
 	       miny, maxx, maxy, xx_res, yy_res, &outbuf, &outbuf_size,
@@ -5761,7 +5761,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
+	("INSERT INTO main.\"%s\" (section_id, section_name, file_path, "
 	 "md5_checksum, summary, width, height, geometry) "
 	 "VALUES (NULL, ?, ?, ?, XB_Create(?), ?, ?, ?)", xtable);
     free (xtable);
@@ -5779,7 +5779,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("UPDATE \"%s\" SET statistics = ? WHERE section_id = ?", xtable);
+	("UPDATE main.\"%s\" SET statistics = ? WHERE section_id = ?", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_upd_sect, NULL);
     sqlite3_free (sql);
@@ -5797,7 +5797,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (section_id, pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (section_id, pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -5821,7 +5821,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -5843,7 +5843,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	("INSERT INTO main.\"%s\" (tile_id, pyramid_level, section_id, geometry) "
 	 "VALUES (NULL, 0, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
@@ -5859,7 +5859,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	("INSERT INTO main.\"%s\" (tile_id, tile_data_odd, tile_data_even) "
 	 "VALUES (?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -6213,7 +6213,7 @@ rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (section_id, section_name, file_path, "
+	("INSERT INTO main.\"%s\" (section_id, section_name, file_path, "
 	 "md5_checksum, summary, width, height, geometry) "
 	 "VALUES (NULL, ?, ?, ?, XB_Create(?), ?, ?, ?)", xtable);
     free (xtable);
@@ -6231,7 +6231,7 @@ rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("UPDATE \"%s\" SET statistics = ? WHERE section_id = ?", xtable);
+	("UPDATE main.\"%s\" SET statistics = ? WHERE section_id = ?", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_upd_sect, NULL);
     sqlite3_free (sql);
@@ -6249,7 +6249,7 @@ rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (section_id, pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (section_id, pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -6273,7 +6273,7 @@ rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
 	  sqlite3_free (table);
 	  sql =
 	      sqlite3_mprintf
-	      ("INSERT OR IGNORE INTO \"%s\" (pyramid_level, "
+	      ("INSERT OR IGNORE INTO main.\"%s\" (pyramid_level, "
 	       "x_resolution_1_1, y_resolution_1_1, "
 	       "x_resolution_1_2, y_resolution_1_2, x_resolution_1_4, "
 	       "y_resolution_1_4, x_resolution_1_8, y_resolution_1_8) "
@@ -6295,7 +6295,7 @@ rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, pyramid_level, section_id, geometry) "
+	("INSERT INTO main.\"%s\" (tile_id, pyramid_level, section_id, geometry) "
 	 "VALUES (NULL, 0, ?, BuildMBR(?, ?, ?, ?, ?))", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tils, NULL);
@@ -6311,7 +6311,7 @@ rl2_load_raw_tiles_into_dbms (sqlite3 * handle,
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("INSERT INTO \"%s\" (tile_id, tile_data_odd, tile_data_even) "
+	("INSERT INTO main.\"%s\" (tile_id, tile_data_odd, tile_data_even) "
 	 "VALUES (?, ?, ?)", xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);

@@ -56,7 +56,6 @@ test_GetCapabilities (rl2WmsCachePtr cache)
     rl2WmsTiledLayerPtr child;
     rl2WmsTilePatternPtr pattern;
     rl2WmsTilePatternPtr clone;
-    char *err_msg = NULL;
     const char *url;
     char *xurl;
     const char *str;
@@ -73,7 +72,7 @@ test_GetCapabilities (rl2WmsCachePtr cache)
 /* WMS GetCapabilities (valid) */
     url =
 	"http://wms.jpl.nasa.gov/wms.cgi?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.1.1";
-    catalog = create_wms_catalog (cache, url, NULL, &err_msg);
+    catalog = create_wms_catalog (cache, url, NULL);
     if (catalog == NULL)
       {
 	  fprintf (stderr, "Unable to create a WMS Catalog\n");
@@ -608,7 +607,6 @@ main (int argc, char *argv[])
 {
     int ret;
     const char *url;
-    char *err_msg = NULL;
     unsigned char *rgba;
     rl2WmsCachePtr cache;
 
@@ -643,16 +641,14 @@ main (int argc, char *argv[])
 /* GetMap - Pass I [not cached] */
     url =
 	"http://wms.jpl.nasa.gov/wms.cgi?request=GetMap&layers=global_mosaic&srs=EPSG:4326&format=image/jpeg&styles=visual&width=512&height=512&bbox=10.312500,42.812500,10.375000,42.875000";
-    rgba =
-	do_wms_GetMap_TileService_get (cache, url, NULL, 512, 512, 1, &err_msg);
+    rgba = do_wms_GetMap_TileService_get (cache, url, NULL, 512, 512, 1);
     if (rgba != NULL)
       {
 	  fprintf (stderr,
 		   "GetMap TileService (not cached): unexpected result\n");
 	  return -87;
       }
-    rgba =
-	do_wms_GetMap_TileService_get (cache, url, NULL, 512, 512, 0, &err_msg);
+    rgba = do_wms_GetMap_TileService_get (cache, url, NULL, 512, 512, 0);
     if (rgba == NULL)
       {
 	  fprintf (stderr,

@@ -70,7 +70,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
     unsigned char blue;
     int scale_forbidden;
     style =
-	rl2_create_feature_type_style_from_dbms (db_handle, coverage,
+	rl2_create_feature_type_style_from_dbms (db_handle, NULL, coverage,
 						 style_name);
     if (style == NULL)
       {
@@ -895,7 +895,7 @@ test_style (sqlite3 * db_handle, const char *coverage,
     unsigned char blue;
     int scale_forbidden;
     style =
-	rl2_create_feature_type_style_from_dbms (db_handle, coverage,
+	rl2_create_feature_type_style_from_dbms (db_handle, "MAIN", coverage,
 						 style_name);
     if (style == NULL)
       {
@@ -1448,7 +1448,7 @@ test_filter (sqlite3 * db_handle, const char *coverage,
     unsigned char type;
     unsigned char blob[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
     style =
-	rl2_create_feature_type_style_from_dbms (db_handle, coverage,
+	rl2_create_feature_type_style_from_dbms (db_handle, NULL, coverage,
 						 style_name);
     if (style == NULL)
       {

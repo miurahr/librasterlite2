@@ -256,6 +256,9 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	getmapimage18.testcase \
 	getmapimage19.testcase \
 	getmapimage20.testcase \
+	getmapimage21.testcase \
+	getmapimage22.testcase \
+	getmapimage23.testcase \
 	getvectorimage1.testcase \
 	getvectorimage2.testcase \
 	getvectorimage3.testcase \
@@ -276,6 +279,9 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	getvectorimage18.testcase \
 	getvectorimage19.testcase \
 	getvectorimage20.testcase \
+	getvectorimage21.testcase \
+	getvectorimage22.testcase \
+	getvectorimage23.testcase \
 	gettileimage1.testcase \
 	gettileimage2.testcase \
 	gettileimage3.testcase \
@@ -298,6 +304,7 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	getbandtileimage10.testcase \
 	getbandtileimage11.testcase \
 	getbandtileimage12.testcase \
+	getbandtileimage13.testcase \
 	getmonotileimage1.testcase \
 	getmonotileimage2.testcase \
 	getmonotileimage3.testcase \
@@ -306,6 +313,7 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	getmonotileimage6.testcase \
 	getmonotileimage7.testcase \
 	getmonotileimage8.testcase \
+	getmonotileimage9.testcase \
 	getpalettenumentries1.testcase \
 	getpalettenumentries2.testcase \
 	getpalettecolorentry1.testcase \
@@ -391,6 +399,7 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	exportraw6.testcase \
 	exportraw7.testcase \
 	exportraw8.testcase \
+	exportraw9.testcase \
 	exportsectraw1.testcase \
 	exportsectraw2.testcase \
 	exportsectraw3.testcase \
@@ -400,6 +409,7 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	exportsectraw7.testcase \
 	exportsectraw8.testcase \
 	exportsectraw9.testcase \
+	exportsectraw10.testcase \
 	importraw1.testcase \
 	importraw2.testcase \
 	importraw3.testcase \
@@ -415,6 +425,9 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	isautondvienabled3.testcase \
 	isautondvienabled4.testcase \
 	isautondvienabled5.testcase \
+	isautondvienabled6.testcase \
+	isautondvienabled7.testcase \
+	isautondvienabled8.testcase \
 	isfontbold1.testcase \
 	isfontbold2.testcase \
 	isfontbold3.testcase \
@@ -491,10 +504,12 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	isvalidstats16.testcase \
 	isvalidstats17.testcase \
 	isvalidstats18.testcase \
+	isvalidstats19.testcase \
 	isvalidtile1.testcase \
 	isvalidtile2.testcase \
 	isvalidtile3.testcase \
 	isvalidtile4.testcase \
+	isvalidtile5.testcase \
 	setpixelopaque1.testcase \
 	paletteequals1.testcase \
 	paletteequals2.testcase \

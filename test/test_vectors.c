@@ -58,7 +58,7 @@ test_default_style (sqlite3 * sqlite, int *retcode)
     int ret;
     sqlite3_stmt *stmt = NULL;
     const char *sql = "SELECT coverage_name, "
-	"GetMapImageFromVector(coverage_name, BuildMbr(-180,-90,180,90), 1024, 512) "
+	"GetMapImageFromVector(NULL, coverage_name, BuildMbr(-180,-90,180,90), 1024, 512) "
 	"FROM vector_coverages WHERE coverage_name like 'test_%'";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -110,7 +110,7 @@ test_styles (sqlite3 * sqlite, int *retcode)
     int ret;
     sqlite3_stmt *stmt = NULL;
     const char *sql = "SELECT coverage_name, name, "
-	"GetMapImageFromVector(coverage_name, BuildMbr(-180,-90,180,90), 1024, 512, name) "
+	"GetMapImageFromVector('MAIN', coverage_name, BuildMbr(-180,-90,180,90), 1024, 512, name) "
 	"FROM SE_vector_styled_layers_view WHERE coverage_name like 'test_%'";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)

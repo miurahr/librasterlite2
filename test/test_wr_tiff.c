@@ -1555,8 +1555,9 @@ check_origin (const char *path, const char *tfw_path, int srid, double minx,
       {
 	  /* testing few pixels */
 	  coverage =
-	      rl2_create_coverage ("test", sample_type, pixel_type, num_bands,
-				   RL2_COMPRESSION_NONE, 0, 512, 512, NULL);
+	      rl2_create_coverage (NULL, "test", sample_type, pixel_type,
+				   num_bands, RL2_COMPRESSION_NONE, 0, 512, 512,
+				   NULL);
 	  if (coverage == NULL)
 	    {
 		fprintf (stderr, "ERROR: unable to create the Coverage\n");

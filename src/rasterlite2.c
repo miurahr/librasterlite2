@@ -531,11 +531,11 @@ check_coverage_no_data (rl2PrivPixelPtr pxl_no_data,
 }
 
 RL2_DECLARE rl2CoveragePtr
-rl2_create_coverage (const char *name, unsigned char sample_type,
-		     unsigned char pixel_type, unsigned char num_samples,
-		     unsigned char compression, int quality,
-		     unsigned int tile_width, unsigned int tile_height,
-		     rl2PixelPtr no_data)
+rl2_create_coverage (const char *db_prefix, const char *name,
+		     unsigned char sample_type, unsigned char pixel_type,
+		     unsigned char num_samples, unsigned char compression,
+		     int quality, unsigned int tile_width,
+		     unsigned int tile_height, rl2PixelPtr no_data)
 {
 /* allocating and initializing a Coverage object */
     int len;
@@ -567,6 +567,14 @@ rl2_create_coverage (const char *name, unsigned char sample_type,
     cvg = malloc (sizeof (rl2PrivCoverage));
     if (cvg == NULL)
 	return NULL;
+    if (db_prefix == NULL)
+	cvg->dbPrefix = NULL;
+    else
+      {
+	  len = strlen (db_prefix);
+	  cvg->dbPrefix = malloc (len + 1);
+	  strcpy (cvg->dbPrefix, db_prefix);
+      }
     len = strlen (name);
     cvg->coverageName = malloc (len + 1);
     strcpy (cvg->coverageName, name);
@@ -602,6 +610,8 @@ rl2_destroy_coverage (rl2CoveragePtr ptr)
     rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
     if (cvg == NULL)
 	return;
+    if (cvg->dbPrefix != NULL)
+	free (cvg->dbPrefix);
     if (cvg->coverageName != NULL)
 	free (cvg->coverageName);
     if (cvg->noData != NULL)
@@ -665,6 +675,16 @@ rl2_coverage_georeference (rl2CoveragePtr ptr, int srid, double horz_res,
     cvg->hResolution = horz_res;
     cvg->vResolution = vert_res;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_get_coverage_prefix (rl2CoveragePtr ptr)
+{
+/* return the Coverage DbPrefix */
+    rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) ptr;
+    if (cvg == NULL)
+	return NULL;
+    return cvg->dbPrefix;
 }
 
 RL2_DECLARE const char *
@@ -823,7 +843,7 @@ rl2_get_coverage_resolution (rl2CoveragePtr ptr, double *hResolution,
 }
 
 RL2_DECLARE rl2VectorLayerPtr
-rl2_create_vector_layer (const char *f_table_name,
+rl2_create_vector_layer (const char *db_prefix, const char *f_table_name,
 			 const char *f_geometry_column,
 			 unsigned short geometry_type, int srid,
 			 unsigned char spatial_index)
@@ -837,6 +857,14 @@ rl2_create_vector_layer (const char *f_table_name,
     vector = malloc (sizeof (rl2PrivVectorLayer));
     if (vector == NULL)
 	return NULL;
+    if (db_prefix == NULL)
+	vector->db_prefix = NULL;
+    else
+      {
+	  len = strlen (db_prefix);
+	  vector->db_prefix = malloc (len + 1);
+	  strcpy (vector->db_prefix, db_prefix);
+      }
     len = strlen (f_table_name);
     vector->f_table_name = malloc (len + 1);
     strcpy (vector->f_table_name, f_table_name);
@@ -856,11 +884,23 @@ rl2_destroy_vector_layer (rl2VectorLayerPtr ptr)
     rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
     if (vector == NULL)
 	return;
+    if (vector->db_prefix != NULL)
+	free (vector->db_prefix);
     if (vector->f_table_name != NULL)
 	free (vector->f_table_name);
     if (vector->f_geometry_column != NULL)
 	free (vector->f_geometry_column);
     free (vector);
+}
+
+RL2_DECLARE const char *
+rl2_get_vector_prefix (rl2VectorLayerPtr ptr)
+{
+/* return the Vector Layer Table name */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return NULL;
+    return vector->db_prefix;
 }
 
 RL2_DECLARE const char *

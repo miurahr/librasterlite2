@@ -180,7 +180,7 @@ test_group_style (sqlite3 * db_handle, int no_web_connection, int *retcode)
 
 /* testing Group Style #1 */
     style =
-	rl2_create_group_style_from_dbms (db_handle, "my_group",
+	rl2_create_group_style_from_dbms (db_handle, NULL, "my_group",
 					  "group_style_1");
     if (style == NULL)
       {
@@ -283,7 +283,7 @@ test_group_style (sqlite3 * db_handle, int no_web_connection, int *retcode)
 
 /* testing Group Style #2 */
     style =
-	rl2_create_group_style_from_dbms (db_handle, "my_group",
+	rl2_create_group_style_from_dbms (db_handle, "main", "my_group",
 					  "group_style_2");
     if (style == NULL)
       {
@@ -385,7 +385,8 @@ test_group_style (sqlite3 * db_handle, int no_web_connection, int *retcode)
     rl2_destroy_group_style (style);
 
 /* testing NULL Group Style */
-    style = rl2_create_group_style_from_dbms (db_handle, "lolly", "poppy");
+    style =
+	rl2_create_group_style_from_dbms (db_handle, NULL, "lolly", "poppy");
     if (style != NULL)
       {
 	  fprintf (stderr, "Unexpected success create Group Style\n");
@@ -485,7 +486,8 @@ test_symbolizer_1 (sqlite3 * db_handle, const char *coverage,
     unsigned char green;
     unsigned char blue;
     style =
-	rl2_create_coverage_style_from_dbms (db_handle, coverage, style_name);
+	rl2_create_coverage_style_from_dbms (db_handle, NULL, coverage,
+					     style_name);
     if (style == NULL)
       {
 	  fprintf (stderr, "Unable to retrieve style '%s'\n", style_name);
@@ -824,7 +826,8 @@ test_symbolizer_2 (sqlite3 * db_handle, const char *coverage,
     unsigned char green;
     unsigned char blue;
     style =
-	rl2_create_coverage_style_from_dbms (db_handle, coverage, style_name);
+	rl2_create_coverage_style_from_dbms (db_handle, "main", coverage,
+					     style_name);
     if (style == NULL)
       {
 	  fprintf (stderr, "Unable to retrieve style '%s'\n", style_name);
@@ -1145,7 +1148,8 @@ test_symbolizer_3 (sqlite3 * db_handle, const char *coverage,
     int interpolate;
     double value;
     style =
-	rl2_create_coverage_style_from_dbms (db_handle, coverage, style_name);
+	rl2_create_coverage_style_from_dbms (db_handle, NULL, coverage,
+					     style_name);
     if (style == NULL)
       {
 	  fprintf (stderr, "Unable to retrieve style '%s'\n", style_name);
@@ -1296,7 +1300,8 @@ test_coverage_style (sqlite3 * db_handle, const char *coverage,
     rl2RasterSymbolizerPtr symbolizer;
     const char *name;
     style =
-	rl2_create_coverage_style_from_dbms (db_handle, coverage, style_name);
+	rl2_create_coverage_style_from_dbms (db_handle, NULL, coverage,
+					     style_name);
     if (style == NULL)
       {
 	  fprintf (stderr, "Unable to retrieve style '%s'\n", style_name);

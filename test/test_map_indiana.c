@@ -206,7 +206,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteGeoTiff(NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -263,7 +263,7 @@ do_export_tiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTiff(?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteTiff(NULL, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -316,7 +316,7 @@ do_export_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTiffTfw(?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteTiffTfw(NULL, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -401,7 +401,7 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     path = sqlite3_mprintf ("./%s_%1.0f%s", coverage, radius, suffix);
 
     sql =
-	"SELECT RL2_GetMapImageFromRaster(?, ST_Buffer(?, ?), 512, 512, 'default', ?, '#ffffff', 1, 80)";
+	"SELECT RL2_GetMapImageFromRaster(NULL, ?, ST_Buffer(?, ?), 512, 512, 'default', ?, '#ffffff', 1, 80)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -748,7 +748,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
     if (rl2_get_dbms_section_id
-	(sqlite, coverage, "indiana2", &section_id, &duplicate) != RL2_OK)
+	(sqlite, NULL, coverage, "indiana2", &section_id, &duplicate) != RL2_OK)
       {
 	  fprintf (stderr, "Unexpected error: GetDbmsSectionID\n");
 	  *retcode += -27;
@@ -760,7 +760,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
     if (rl2_resolve_full_section_from_dbms
-	(sqlite, coverage, section_id, x_res, y_res, &minx, &miny, &maxx, &maxy,
+	(sqlite, NULL, coverage, section_id, x_res, y_res, &minx, &miny, &maxx, &maxy,
 	 &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Unexpected error: ResolveDbmsFullSection\n");
@@ -768,7 +768,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
     if (rl2_resolve_full_section_from_dbms
-	(sqlite, coverage, section_id, x_res * 4, y_res * 4, &minx, &miny,
+	(sqlite, NULL, coverage, section_id, x_res * 4, y_res * 4, &minx, &miny,
 	 &maxx, &maxy, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Unexpected error: ResolveDbmsFullSection\n");

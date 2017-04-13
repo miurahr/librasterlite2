@@ -73,127 +73,134 @@ main (int argc, char *argv[])
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
 
-    if (rl2_create_coverage (NULL, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, NULL, RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - NULL name\n");
 	  return -1;
       }
 
-    if (rl2_create_coverage ("alpha", 0xff, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", 0xff, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid sample\n");
 	  return -2;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, 0xff, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, 0xff, 3,
 			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid pixel\n");
 	  return -3;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 0,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 0,
 			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid bands\n");
 	  return -4;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     0xff, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid compression\n");
 	  return -5;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 0, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid tile width\n");
 	  return -6;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 1024, 0, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid tile height\n");
 	  return -7;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 510, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid tile width (x8)\n");
 	  return -8;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 1024, 510, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - invalid tile height (x8)\n");
 	  return -9;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_MONOCHROME, 3,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_MONOCHROME, 3,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - monochrome\n");
 	  return -10;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME, 3,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME, 3,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - monochrome\n");
 	  return -11;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME, 1,
-			     RL2_COMPRESSION_JPEG, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_1_BIT, RL2_PIXEL_MONOCHROME, 1,
+	 RL2_COMPRESSION_JPEG, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - monochrome/jpeg\n");
 	  return -12;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_PALETTE, 3,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_PALETTE, 3,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - palette\n");
 	  return -13;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 1,
-			     RL2_COMPRESSION_JPEG, 70, 1024, 1024,
-			     NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 1,
+	 RL2_COMPRESSION_JPEG, 70, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - palette/jpeg\n");
 	  return -14;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 2,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_4_BIT, RL2_PIXEL_PALETTE, 2,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - palette/jpeg\n");
 	  return -15;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 2,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_GRAYSCALE, 2,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - grayscale bands\n");
 	  return -16;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_GRAYSCALE, 1,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_GRAYSCALE, 1,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - grayscale 16\n");
 	  return -17;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 2,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 2,
 			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - rgb bands\n");
@@ -201,7 +208,7 @@ main (int argc, char *argv[])
       }
 
     coverage =
-	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_RGB, 3,
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL);
     if (coverage == NULL)
       {
@@ -210,57 +217,64 @@ main (int argc, char *argv[])
       }
     rl2_destroy_coverage (coverage);
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_GIF, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - rgb/gif\n");
 	  return -20;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_MULTIBAND, 1,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_MULTIBAND, 1,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - multiband bands\n");
 	  return -21;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_FLOAT, RL2_PIXEL_MULTIBAND, 3,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_FLOAT, RL2_PIXEL_MULTIBAND, 3,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - multiband float\n");
 	  return -22;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_MULTIBAND, 3,
-			     RL2_COMPRESSION_GIF, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_MULTIBAND, 3,
+	 RL2_COMPRESSION_GIF, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - multiband/gif\n");
 	  return -23;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_FLOAT, RL2_PIXEL_DATAGRID, 2,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_FLOAT, RL2_PIXEL_DATAGRID, 2,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - multiband bands\n");
 	  return -24;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_2_BIT, RL2_PIXEL_DATAGRID, 1,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_2_BIT, RL2_PIXEL_DATAGRID, 1,
+	 RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - datagrid 2 bit\n");
 	  return -25;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_DATAGRID, 1,
-			     RL2_COMPRESSION_JPEG, 0, 1024, 1024, NULL) != NULL)
+    if (rl2_create_coverage
+	(NULL, "alpha", RL2_SAMPLE_UINT16, RL2_PIXEL_DATAGRID, 1,
+	 RL2_COMPRESSION_JPEG, 0, 1024, 1024, NULL) != NULL)
       {
 	  fprintf (stderr, "Invalid coverage - datagrid/jpeg\n");
 	  return -26;
       }
 
-    coverage = rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
-				    RL2_COMPRESSION_JPEG, 0, 1024, 1024, NULL);
+    coverage =
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+			     RL2_COMPRESSION_JPEG, 0, 1024, 1024, NULL);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "Unable to create a valid coverage\n");
@@ -477,9 +491,9 @@ main (int argc, char *argv[])
 	  return -61;
       }
 
-    coverage = rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
-				    RL2_COMPRESSION_JPEG, 20, 1024, 1024,
-				    no_data);
+    coverage =
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+			     RL2_COMPRESSION_JPEG, 20, 1024, 1024, no_data);
     if (coverage == NULL)
       {
 	  fprintf (stderr, "Unable to create a valid coverage\n");
@@ -605,7 +619,7 @@ main (int argc, char *argv[])
 	  return -81;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_JPEG, 30, 1024, 1024,
 			     no_data) != NULL)
       {
@@ -619,8 +633,9 @@ main (int argc, char *argv[])
     rl2_destroy_coverage (coverage);
 
     coverage =
-	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_MULTIBAND, 2,
-			     RL2_COMPRESSION_NONE, 0, 1024, 1024, NULL);
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8,
+			     RL2_PIXEL_MULTIBAND, 2, RL2_COMPRESSION_NONE, 0,
+			     1024, 1024, NULL);
 
     if (coverage == NULL)
       {
@@ -669,8 +684,9 @@ main (int argc, char *argv[])
     rl2_destroy_coverage (coverage);
 
     coverage =
-	rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_MULTIBAND, 2,
-			     RL2_COMPRESSION_LZMA, 0, 1024, 1024, NULL);
+	rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8,
+			     RL2_PIXEL_MULTIBAND, 2, RL2_COMPRESSION_LZMA, 0,
+			     1024, 1024, NULL);
 
     if (coverage == NULL)
       {
@@ -717,7 +733,7 @@ main (int argc, char *argv[])
 	  return -94;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_JPEG, 60, 1025, 1024,
 			     no_data) != NULL)
       {
@@ -726,7 +742,7 @@ main (int argc, char *argv[])
 	  return -96;
       }
 
-    if (rl2_create_coverage ("alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
+    if (rl2_create_coverage (NULL, "alpha", RL2_SAMPLE_UINT8, RL2_PIXEL_RGB, 3,
 			     RL2_COMPRESSION_JPEG, 70, 1024, 1025,
 			     no_data) != NULL)
       {

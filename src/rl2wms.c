@@ -4944,7 +4944,7 @@ query_TileService (rl2WmsCachePtr cache_handle,
 
 RL2_DECLARE rl2WmsCatalogPtr
 create_wms_catalog (rl2WmsCachePtr cache_handle, const char *url,
-		    const char *proxy, char **err_msg)
+		    const char *proxy)
 {
 /* attempting to get and parse a WMS GetCapabilities request */
     CURL *curl = NULL;
@@ -4977,7 +4977,6 @@ create_wms_catalog (rl2WmsCachePtr cache_handle, const char *url,
 	    }
       }
 
-    *err_msg = NULL;
     curl = curl_easy_init ();
     if (curl)
       {
@@ -6614,7 +6613,7 @@ static int
 parse_gml (sqlite3 * handle, const char *gml, unsigned char **blob_out,
 	   int *blob_out_sz)
 {
-/* attempring to parse a GML expression */
+/* attempting to parse a GML expression */
     int ret;
     sqlite3_stmt *stmt = NULL;
     const char *sql;
@@ -7021,7 +7020,7 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 		   const char *crs, int swap_xy, double minx, double miny,
 		   double maxx, double maxy, int width, int height,
 		   const char *style, const char *format, int opaque,
-		   int from_cache, char **err_msg)
+		   int from_cache)
 {
 /* attempting to execute a WMS GepMap request [method GET] */
     CURL *curl = NULL;
@@ -7038,7 +7037,6 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
     rl2RasterPtr raster = NULL;
     wmsCachePtr cache = (wmsCachePtr) cache_handle;
 
-    *err_msg = NULL;
     if (from_cache && cache == NULL)
 	return NULL;
 
@@ -7106,7 +7104,7 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 				   miny, maxx, maxy, width, height, style,
 				   format, (opaque == 0) ? "TRUE" : "FALSE");
       }
-    fprintf (stderr, "\n%s\n", request);
+    fprintf (stderr, "%s\n", request);
 
     if (cache != NULL)
       {
@@ -7275,7 +7273,7 @@ do_wms_GetMap_post (rl2WmsCachePtr cache_handle, const char *url,
 		    const char *crs, int swap_xy, double minx, double miny,
 		    double maxx, double maxy, int width, int height,
 		    const char *style, const char *format, int opaque,
-		    int from_cache, char **err_msg)
+		    int from_cache)
 {
 /* attempting to execute a WMS GepMap request [method POST] */
 
@@ -7286,7 +7284,7 @@ do_wms_GetMap_post (rl2WmsCachePtr cache_handle, const char *url,
     if (minx == miny || maxx == maxy || width == height
 	|| opaque == from_cache || width == swap_xy)
 	return NULL;
-    if (style == NULL || format == NULL || err_msg == NULL)
+    if (style == NULL || format == NULL)
 	return NULL;
     return NULL;
 }
@@ -7294,7 +7292,7 @@ do_wms_GetMap_post (rl2WmsCachePtr cache_handle, const char *url,
 RL2_DECLARE unsigned char *
 do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 			       const char *proxy, int width, int height,
-			       int from_cache, char **err_msg)
+			       int from_cache)
 {
 /* attempting to execute a WMS GepMap TileService request [method GET] */
     CURL *curl = NULL;
@@ -7308,7 +7306,6 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
     rl2RasterPtr raster = NULL;
     wmsCachePtr cache = (wmsCachePtr) cache_handle;
 
-    *err_msg = NULL;
     if (from_cache && cache == NULL)
 	return NULL;
 
@@ -7476,12 +7473,12 @@ do_wms_GetMap_TileService_get (rl2WmsCachePtr cache_handle, const char *url,
 RL2_DECLARE unsigned char *
 do_wms_GetMap_TileService_post (rl2WmsCachePtr cache_handle, const char *url,
 				const char *proxy, int width, int height,
-				int from_cache, char **err_msg)
+				int from_cache)
 {
 /* attempting to execute a WMS GepMap TileService request [method POST] */
 
 /* not yet implemented: just a stupid placeholder always returning NULL */
-    if (cache_handle == NULL || url == NULL || proxy == NULL || err_msg == NULL)
+    if (cache_handle == NULL || url == NULL || proxy == NULL)
 	return NULL;
     if (width == height || width == from_cache)
 	return NULL;
@@ -7493,8 +7490,7 @@ do_wms_GetFeatureInfo_get (const char *url, const char *proxy,
 			   const char *version, const char *format,
 			   const char *layer, const char *crs, int swap_xy,
 			   double minx, double miny, double maxx, double maxy,
-			   int width, int height, int mouse_x, int mouse_y,
-			   char **err_msg)
+			   int width, int height, int mouse_x, int mouse_y)
 {
 /* attempting to execute a WMS GepFeatureInfo request [method GET] */
     CURL *curl = NULL;
@@ -7509,8 +7505,6 @@ do_wms_GetFeatureInfo_get (const char *url, const char *proxy,
     const char *crs_prefix = "CRS";
     char *xml_buf;
     int force_marker = check_marker (url);
-
-    *err_msg = NULL;
 
 /* masking NULL arguments */
     if (url == NULL)
@@ -7710,7 +7704,7 @@ do_wms_GetFeatureInfo_post (const char *url, const char *proxy,
 			    const char *layer, const char *crs, int swap_xy,
 			    double minx, double miny, double maxx,
 			    double maxy, int width, int height, int mouse_x,
-			    int mouse_y, char **err_msg)
+			    int mouse_y)
 {
 /* attempting to execute a WMS GepFeatureInfo request [method POST] */
 
@@ -7720,8 +7714,6 @@ do_wms_GetFeatureInfo_post (const char *url, const char *proxy,
 	return NULL;
     if (minx == miny || maxx == maxy || width == height || mouse_x == mouse_y
 	|| swap_xy == mouse_x)
-	return NULL;
-    if (err_msg == NULL)
 	return NULL;
     return NULL;
 }

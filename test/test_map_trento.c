@@ -132,7 +132,7 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
     path = sqlite3_mprintf ("./%s_tile_%d.png", coverage, tile_id);
     sql =
 	sqlite3_mprintf
-	("SELECT BlobToFile(RL2_GetTileImage(NULL, %Q, %d, '#e0ffe0', %d), %Q)",
+	("SELECT BlobToFile(RL2_GetTileImage('main', %Q, %d, '#e0ffe0', %d), %Q)",
 	 coverage, tile_id, transparent, path);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -207,7 +207,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -261,7 +261,7 @@ do_export_jpeg (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteJpeg(?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteJpeg('main', ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -314,7 +314,7 @@ do_export_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteJpegJgw(?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteJpegJgw('main', ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -370,7 +370,7 @@ do_export_section_jpeg (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteSectionJpeg(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteSectionJpeg('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -424,7 +424,7 @@ do_export_section_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteSectionJpegJgw(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteSectionJpegJgw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -510,7 +510,7 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     path = sqlite3_mprintf ("./%s_%1.0f%s", coverage, radius, suffix);
 
     sql =
-	"SELECT RL2_GetMapImageFromRaster(?, ST_Buffer(?, ?), 512, 512, 'default', ?, '#ffffff', 1, 80)";
+	"SELECT RL2_GetMapImageFromRaster('main', ?, ST_Buffer(?, ?), 512, 512, 'default', ?, '#ffffff', 1, 80)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;

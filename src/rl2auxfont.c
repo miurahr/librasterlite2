@@ -630,7 +630,7 @@ rl2_load_font_into_dbms (sqlite3 * handle, unsigned char *blob, int blob_sz)
 	return RL2_ERROR;
 
 /* inserting the Font */
-    sql = "INSERT INTO SE_fonts (font_facename, font) VALUES (?, ?)";
+    sql = "INSERT INTO main.SE_fonts (font_facename, font) VALUES (?, ?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	goto error;
@@ -657,22 +657,32 @@ rl2_load_font_into_dbms (sqlite3 * handle, unsigned char *blob, int blob_sz)
 }
 
 RL2_PRIVATE int
-rl2_get_font_from_dbms (sqlite3 * handle, const char *facename,
-			unsigned char **font, int *font_sz)
+rl2_get_font_from_dbms (sqlite3 * handle, const char *db_prefix,
+			const char *facename, unsigned char **font,
+			int *font_sz)
 {
 /* attempting to fetch a Font from the DBMS */
-    const char *sql;
+    char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
     unsigned char *xfont = NULL;
     int xfont_sz;
+    char *xdb_prefix;
 
     *font = NULL;
     *font_sz = 0;
 
 /* preparing the SQL query statement */
-    sql = "SELECT font FROM SE_fonts WHERE Lower(font_facename) = Lower(?)";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql =
+	sqlite3_mprintf
+	("SELECT font FROM \"%s\".SE_fonts WHERE Lower(font_facename) = Lower(?)",
+	 xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
 	goto error;
     sqlite3_reset (stmt);

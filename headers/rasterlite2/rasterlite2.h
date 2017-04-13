@@ -1305,6 +1305,8 @@ extern "C"
 /**
  Allocates and initializes a new Coverage object
 
+ \param db_prefix the prefix identifying the ATTACHED DB where the
+ Coverage is (may be NULL, and in this case the MAIN db will be targeted)
  \param name a text string intended to be the symbolic Coverage name.
  \param sample_type one of RL2_SAMPLE_1_BIT, RL2_SAMPLE_2_BIT, RL2_SAMPLE_4_BIT,
         RL2_SAMPLE_INT8, RL2_SAMPLE_UINT8, RL2_SAMPLE_INT16, RL2_SAMPLE_UINT16,
@@ -1322,8 +1324,8 @@ extern "C"
  
  \return the pointer to newly created Coverage Object: NULL on failure.
  
- \sa rl2_destroy_coverage, rl2_coverage_georeference, rl2_get_coverage_name,
-		rl2_get_coverage_type, rl2_get_coverage_compression, 
+ \sa rl2_destroy_coverage, rl2_coverage_georeference, rl2_get_coverage_prefix,
+        rl2_get_coverage_name, rl2_get_coverage_type, rl2_get_coverage_compression, 
 		rl2_is_coverage_uncompressed, rl2_is_coverage_compression_lossless, 
 		rl2_is_coverage_compression_lossy, rl2_get_coverage_tile_size,
 		rl2_get_coverage_no_data, rl2_create_coverage_pixel, 
@@ -1333,12 +1335,13 @@ extern "C"
  Coverage object.
  */
     RL2_DECLARE rl2CoveragePtr
-	rl2_create_coverage (const char *name, unsigned char sample_type,
+	rl2_create_coverage (const char *db_prefix, const char *name,
+			     unsigned char sample_type,
 			     unsigned char pixel_type,
 			     unsigned char num_samples,
 			     unsigned char compression, int quality,
-			     unsigned int tile_width,
-			     unsigned int tile_height, rl2PixelPtr no_data);
+			     unsigned int tile_width, unsigned int tile_height,
+			     rl2PixelPtr no_data);
 
 /**
  Destroys a Coverage Object
@@ -1409,6 +1412,17 @@ extern "C"
 	rl2_set_coverage_policies (rl2CoveragePtr cvg, int stric_resolution,
 				   int mixed_resolutions, int section_paths,
 				   int section_md5, int section_summary);
+
+/**
+ Retrieving the DbPrefix from a Coverage Object
+
+ \param cvg pointer to the Coverage Object.
+ 
+ \return pointer to the DbPrefix text string; NULL if any error is encountered.
+
+ \sa rl2_create_coverage
+ */
+    RL2_DECLARE const char *rl2_get_coverage_prefix (rl2CoveragePtr cvg);
 
 /**
  Retrieving the Name from a Coverage Object
@@ -1576,6 +1590,8 @@ extern "C"
 /**
  Allocates and initializes a new Vector Layer object
 
+ \param db_prefix the prefix identifying the ATTACHED DB where the
+ Coverage is (may be NULL, and in this case the MAIN db will be targeted)
  \param f_table_name a text string containing the Table name.
  \param f_geometry_column a text string containing the Geometry Column name
  \param geometry_type the numeric ID of some Geometry class; one between 
@@ -1586,7 +1602,7 @@ extern "C"
  
  \return the pointer to newly created Vector Layer Object: NULL on failure.
  
- \sa rl2_destroy_vector_layer, rl2_get_vector_table_name, 
+ \sa rl2_destroy_vector_layer, rl2_get_vector_prefix, rl2_get_vector_table_name, 
 		rl2_get_vector_geometry_name, rl2_get_vector_geometry_type, 
 		rl2_get_vector_srid, rl2_get_vector_spatial_index
  
@@ -1594,7 +1610,8 @@ extern "C"
  Vector Layer object.
  */
     RL2_DECLARE rl2VectorLayerPtr
-	rl2_create_vector_layer (const char *f_table_name,
+	rl2_create_vector_layer (const char *db_prefix,
+				 const char *f_table_name,
 				 const char *f_geometry_column,
 				 unsigned short geometry_type, int srid,
 				 unsigned char spatial_index);
@@ -1607,6 +1624,18 @@ extern "C"
  \sa rl2_create_vector_layer
  */
     RL2_DECLARE void rl2_destroy_vector_layer (rl2VectorLayerPtr vector);
+
+/**
+ Retrieving the DB prefix from a Vector Layer Object
+
+ \param vector pointer to the Vector Layer Object.
+ 
+ \return pointer to the Table name text string; NULL if any error is 
+ encountered.
+
+ \sa rl2_create_vector_layer, rl2_get_vector_geometry_name
+ */
+    RL2_DECLARE const char *rl2_get_vector_prefix (rl2VectorLayerPtr vector);
 
 /**
  Retrieving the Table name from a Vector Layer Object
@@ -3486,15 +3515,13 @@ extern "C"
     RL2_DECLARE rl2PalettePtr rl2_clone_palette (rl2PalettePtr palette);
 
     RL2_DECLARE rl2CoveragePtr
-	rl2_create_coverage_from_dbms_ex (sqlite3 * handle,
-					  const char *db_prefix,
-					  const char *coverage);
-
-    RL2_DECLARE rl2CoveragePtr
-	rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage);
+	rl2_create_coverage_from_dbms (sqlite3 * handle,
+				       const char *db_prefix,
+				       const char *coverage);
 
     RL2_DECLARE rl2VectorLayerPtr
 	rl2_create_vector_layer_from_dbms (sqlite3 * handle,
+					   const char *db_prefix,
 					   const char *coverage);
 
     RL2_DECLARE int
@@ -3690,6 +3717,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_get_dbms_coverage_default_bands (sqlite3 * handle,
+					     const char *db_prefix,
 					     const char *coverage,
 					     unsigned char *red_band,
 					     unsigned char *green_band,
@@ -3702,6 +3730,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite3 * handle,
+						const char *db_prefix,
 						const char *coverage);
 
     RL2_DECLARE int
@@ -3709,12 +3738,13 @@ extern "C"
 				 sqlite3_int64 section_id);
 
     RL2_DECLARE int
-	rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
-				 const char *section,
+	rl2_get_dbms_section_id (sqlite3 * handle, const char *db_prefix,
+				 const char *coverage, const char *section,
 				 sqlite3_int64 * section_id, int *duplicate);
 
     RL2_DECLARE int
 	rl2_resolve_full_section_from_dbms (sqlite3 * handle,
+					    const char *db_prefix,
 					    const char *coverage,
 					    sqlite3_int64 section_id,
 					    double x_res, double y_res,
@@ -3725,6 +3755,7 @@ extern "C"
 
     RL2_DECLARE int
 	rl2_resolve_base_resolution_from_dbms (sqlite3 * handle,
+					       const char *db_prefix,
 					       const char *coverage,
 					       int by_section,
 					       sqlite3_int64
@@ -3749,11 +3780,8 @@ extern "C"
 	rl2_deserialize_dbms_palette (const unsigned char *blob, int blob_size);
 
     RL2_DECLARE rl2PalettePtr
-	rl2_get_dbms_palette_ex (sqlite3 * handle, const char *db_prefix,
-				 const char *coverage);
-
-    RL2_DECLARE rl2PalettePtr
-	rl2_get_dbms_palette (sqlite3 * handle, const char *coverage);
+	rl2_get_dbms_palette (sqlite3 * handle, const char *db_prefix,
+			      const char *coverage);
 
     RL2_DECLARE int
 	rl2_update_dbms_palette (sqlite3 * handle, const char *coverage,
@@ -4785,16 +4813,19 @@ extern "C"
 
     RL2_DECLARE rl2CoverageStylePtr
 	rl2_create_coverage_style_from_dbms (sqlite3 * handle,
+					     const char *db_prefix,
 					     const char *coverage,
 					     const char *style);
 
     RL2_DECLARE rl2FeatureTypeStylePtr
 	rl2_create_feature_type_style_from_dbms (sqlite3 * handle,
+						 const char *db_prefix,
 						 const char *coverage,
 						 const char *style);
 
     RL2_DECLARE rl2RasterStatisticsPtr
 	rl2_create_raster_statistics_from_dbms (sqlite3 * handle,
+						const char *db_prefix,
 						const char *coverage);
 
     RL2_DECLARE void rl2_destroy_coverage_style (rl2CoverageStylePtr style);
@@ -5350,10 +5381,13 @@ extern "C"
 					    unsigned char *blue);
 
     RL2_DECLARE rl2GroupStylePtr
-	rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
-					  const char *style);
+	rl2_create_group_style_from_dbms (sqlite3 * handle,
+					  const char *db_prefix,
+					  const char *group, const char *style);
 
     RL2_DECLARE void rl2_destroy_group_style (rl2GroupStylePtr style);
+
+    RL2_DECLARE const char *rl2_get_group_style_prefix (rl2GroupStylePtr style);
 
     RL2_DECLARE const char *rl2_get_group_style_name (rl2GroupStylePtr style);
 
@@ -5362,6 +5396,9 @@ extern "C"
 
     RL2_DECLARE int rl2_get_group_style_count (rl2GroupStylePtr style,
 					       int *count);
+
+    RL2_DECLARE const char *rl2_get_group_prefix (rl2GroupStylePtr style,
+						  int index);
 
     RL2_DECLARE const char *rl2_get_group_named_layer (rl2GroupStylePtr style,
 						       int index);
@@ -5425,6 +5462,22 @@ extern "C"
     RL2_DECLARE int
 	rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 				  const char *coverage_name);
+
+    RL2_DECLARE unsigned char *rl2_get_raster_map (sqlite3 * sqlite,
+						   const char *db_prefix,
+						   const char *layer, int srid,
+						   double minx, double miny,
+						   double maxx, double maxy,
+						   int width, int height,
+						   const char *style);
+
+    RL2_DECLARE unsigned char *rl2_get_vector_map (sqlite3 * sqlite,
+						   const char *db_prefix,
+						   const char *layer, int srid,
+						   double minx, double miny,
+						   double maxx, double maxy,
+						   int width, int height,
+						   const char *style);
 
 #ifdef __cplusplus
 }

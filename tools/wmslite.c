@@ -1106,13 +1106,13 @@ connection_init (struct read_connection *conn, const char *path,
 
 /* creating the GetMap SQL statement (Raster) */
     sql =
-	"SELECT RL2_GetMapImageFromRaster(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_GetMapImageFromRaster(NULL, ?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt_raster, NULL);
     if (ret != SQLITE_OK)
 	goto error;
 /* creating the GetMap SQL statement (Vector) */
     sql =
-	"SELECT RL2_GetMapImageFromVector(?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_GetMapImageFromVector(NULL, ?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt_vector, NULL);
     if (ret != SQLITE_OK)
 	goto error;
@@ -3982,7 +3982,7 @@ complete_layer_config (sqlite3 * handle, struct wms_list *list)
 			    style = style->next;
 			    continue;
 			}
-		      stl = rl2_create_group_style_from_dbms (handle,
+		      stl = rl2_create_group_style_from_dbms (handle, NULL,
 							      grp->group_name,
 							      style->name);
 		      if (stl == NULL)
@@ -4349,7 +4349,7 @@ get_vector_coverages (sqlite3 * handle, struct wms_list *list)
     const char *sql;
 
 /* loading all vector layers */
-    sql = "SELECT c.coverage_name, c.f_table_name, c.f_geometry_column, "
+	sql = "SELECT c.coverage_name, c.f_table_name, c.f_geometry_column, "
 	"c.title, c.abstract, g.srid, c.geo_minx, c.geo_miny, c.geo_maxx, "
 	"c.geo_maxy, c.extent_minx, c.extent_miny, c.extent_maxx, "
 	"c.extent_maxy, g.spatial_index_enabled, c.is_queryable "
@@ -4357,7 +4357,31 @@ get_vector_coverages (sqlite3 * handle, struct wms_list *list)
 	"(Upper(c.f_table_name) = Upper(g.f_table_name) AND "
 	"Upper(c.f_geometry_column) = Upper(g.f_geometry_column)) "
 	"WHERE c.extent_minx IS NOT NULL AND c.extent_miny IS NOT NULL "
-	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL";
+	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL AND "
+	"c.topology_name IS NULL AND c.network_name IS NULL "
+	"UNION "
+	"SELECT c.coverage_name, v.f_table_name, v.f_geometry_column, "
+	"c.title, c.abstract, g.srid, c.geo_minx, c.geo_miny, c.geo_maxx, "
+	"c.geo_maxy, c.extent_minx, c.extent_miny, c.extent_maxx, "
+	"c.extent_maxy, g.spatial_index_enabled, c.is_queryable "
+	"FROM vector_coverages AS c JOIN views_geometry_columns AS v ON "
+	"(c.view_name = v.view_name AND c.view_geometry = v.view_geometry) "
+	"JOIN geometry_columns AS g ON (v.f_table_name = g.f_table_name AND "
+	"v.f_geometry_column = g.f_geometry_column) "
+	"WHERE c.extent_minx IS NOT NULL AND c.extent_miny IS NOT NULL "
+	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL AND "
+	"c.view_name IS NOT NULL AND c.view_geometry IS NOT NULL "
+	"UNION "
+	"SELECT c.coverage_name, v.virt_name, v.virt_geometry, "
+	"c.title, c.abstract, v.srid, c.geo_minx, c.geo_miny, c.geo_maxx, "
+	"c.geo_maxy, c.extent_minx, c.extent_miny, c.extent_maxx, "
+	"c.extent_maxy, 0, c.is_queryable "
+	"FROM vector_coverages AS c JOIN virts_geometry_columns AS v ON "
+	"(c.virt_name = v.virt_name AND c.virt_geometry = v.virt_geometry) "
+	"WHERE c.extent_minx IS NOT NULL AND c.extent_miny IS NOT NULL "
+	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL AND "
+	"c.virt_name IS NOT NULL AND c.virt_geometry IS NOT NULL "
+	"ORDER BY c.coverage_name";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;

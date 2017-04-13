@@ -1111,8 +1111,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 
 /* attempting to validate the Group Style */
     group_style =
-	rl2_create_group_style_from_dbms (sqlite, auxgrp->group_name,
-					  auxgrp->style);
+	rl2_create_group_style_from_dbms (sqlite, auxgrp->db_prefix,
+					  auxgrp->group_name, auxgrp->style);
     if (group_style == NULL)
 	goto error;
 
@@ -1226,7 +1226,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		  }
 	    }
 
-	  if (rl2_is_mixed_resolutions_coverage (sqlite, cvg->coverageName) > 0)
+	  if (rl2_is_mixed_resolutions_coverage
+	      (sqlite, cvg->dbPrefix, cvg->coverageName) > 0)
 	    {
 		/* Mixed Resolutions Coverage */
 		by_section = 1;
@@ -1239,8 +1240,8 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp)
 		by_section = 0;
 		/* retrieving the optimal resolution level */
 		if (!rl2_find_best_resolution_level
-		    (sqlite, cvg->coverageName, 0, 0, x_res, y_res, &level_id,
-		     &scale, &xscale, &xx_res, &yy_res))
+		    (sqlite, cvg->dbPrefix, cvg->coverageName, 0, 0, x_res,
+		     y_res, &level_id, &scale, &xscale, &xx_res, &yy_res))
 		    goto error;
 	    }
 	  base_width = (int) (ext_x / xx_res);
@@ -1556,6 +1557,7 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
 /* attempting to return raw pixels from the DBMS Coverage - Mixed Resolutions */
     int ret;
     rl2PixelPtr no_data = NULL;
+    const char *db_prefix;
     const char *coverage;
     unsigned char sample_type;
     unsigned char pixel_type;
@@ -1567,6 +1569,7 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
     unsigned int x;
     unsigned int y;
     rl2RasterSymbolizerPtr xstyle = style;
+    char *xdb_prefix;
     char *xsections;
     char *xxsections;
     char *sql;
@@ -1577,6 +1580,7 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
 	return RL2_ERROR;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	return RL2_ERROR;
@@ -1612,16 +1616,21 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
 	xstyle = NULL;
 
 /* preparing the "sections" SQL query */
-    xsections = sqlite3_mprintf ("%s_sections", coverage);
+    if (db_prefix == NULL)
+	db_prefix = "main";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    xsections = sqlite3_mprintf ("DB=%s.%s_sections", db_prefix, coverage);
     xxsections = rl2_double_quoted_sql (xsections);
     sql =
 	sqlite3_mprintf
 	("SELECT section_id, MbrMinX(geometry), MbrMinY(geometry), "
 	 "MbrMaxX(geometry), MbrMaxY(geometry) "
-	 "FROM \"%s\" WHERE ROWID IN ( "
+	 "FROM \"%s\".\"%s\" WHERE ROWID IN ( "
 	 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxsections, xsections);
+	 "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxsections,
+	 xsections);
     sqlite3_free (xsections);
+    free (xdb_prefix);
     free (xxsections);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -1704,8 +1713,8 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
 		    mxy = section_maxy;
 		/* retrieving the optimal resolution level */
 		if (!rl2_find_best_resolution_level
-		    (handle, coverage, 1, section_id, x_res, y_res, &level_id,
-		     &scale, &xscale, &xx_res, &yy_res))
+		    (handle, db_prefix, coverage, 1, section_id, x_res, y_res,
+		     &level_id, &scale, &xscale, &xx_res, &yy_res))
 		    goto error;
 		w = (unsigned int) ((mxx - mnx) / xx_res);
 		if (((double) w * xx_res) < (mxx - mnx))
@@ -4560,4 +4569,148 @@ rl2_aux_default_image (unsigned int width, unsigned int height,
     if (mask != NULL)
 	free (mask);
     return 0;
+}
+
+RL2_DECLARE unsigned char *
+rl2_get_raster_map (sqlite3 * sqlite, const char *db_prefix, const char *layer,
+		    int srid, double minx, double miny, double maxx,
+		    double maxy, int width, int height, const char *style)
+{
+/* painting a Raster MapLayer */
+    sqlite3_stmt *stmt = NULL;
+    unsigned char *payload;
+    int payload_size;
+    const char *sql;
+    int ret;
+    rl2RasterPtr raster = NULL;
+    unsigned char *rgba = NULL;
+
+    sql =
+	"SELECT RL2_GetMapImageFromRaster(?, ?, BuildMbr(?, ?, ?, ?, ?), ?, ?, ?, 'image/png', '#ffffff', 1)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return NULL;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    if (db_prefix == NULL)
+	sqlite3_bind_null (stmt, 1);
+    else
+	sqlite3_bind_text (stmt, 1, db_prefix, strlen (db_prefix),
+			   SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, layer, strlen (layer), SQLITE_STATIC);
+    sqlite3_bind_double (stmt, 3, minx);
+    sqlite3_bind_double (stmt, 4, miny);
+    sqlite3_bind_double (stmt, 5, maxx);
+    sqlite3_bind_double (stmt, 6, maxy);
+    sqlite3_bind_int (stmt, 7, srid);
+    sqlite3_bind_int (stmt, 8, width);
+    sqlite3_bind_int (stmt, 9, height);
+    if (style == NULL)
+	style = "default";
+    sqlite3_bind_text (stmt, 10, style, strlen (style), SQLITE_STATIC);
+
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      payload = (unsigned char *) sqlite3_column_blob (stmt, 0);
+		      payload_size = sqlite3_column_bytes (stmt, 0);
+		      if (raster != NULL)
+			  rl2_destroy_raster (raster);
+		      raster = rl2_raster_from_png (payload, payload_size, 1);
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+
+    if (raster != NULL)
+      {
+	  /* exporting the image into an RGBA pix-buffer */
+	  int size;
+	  int ret = rl2_raster_data_to_RGBA (raster, &rgba, &size);
+	  rl2_destroy_raster (raster);
+	  if (ret == RL2_OK && rgba != NULL && size == (width * height * 4))
+	      return rgba;
+	  if (rgba != NULL)
+	      free (rgba);
+      }
+    return NULL;
+}
+
+RL2_DECLARE unsigned char *
+rl2_get_vector_map (sqlite3 * sqlite, const char *db_prefix, const char *layer,
+		    int srid, double minx, double miny, double maxx,
+		    double maxy, int width, int height, const char *style)
+{
+/* painting a Vector MapLayer */
+    sqlite3_stmt *stmt = NULL;
+    unsigned char *payload;
+    int payload_size;
+    const char *sql;
+    int ret;
+    rl2RasterPtr raster = NULL;
+    unsigned char *rgba = NULL;
+
+    sql =
+	"SELECT RL2_GetMapImageFromVector(?, ?, BuildMbr(?, ?, ?, ?, ?), ?, ?, ?, 'image/png', '#ffffff', 1)";
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return NULL;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    if (db_prefix == NULL)
+	sqlite3_bind_null (stmt, 1);
+    else
+	sqlite3_bind_text (stmt, 1, db_prefix, strlen (db_prefix),
+			   SQLITE_STATIC);
+    sqlite3_bind_text (stmt, 2, layer, strlen (layer), SQLITE_STATIC);
+    sqlite3_bind_double (stmt, 3, minx);
+    sqlite3_bind_double (stmt, 4, miny);
+    sqlite3_bind_double (stmt, 5, maxx);
+    sqlite3_bind_double (stmt, 6, maxy);
+    sqlite3_bind_int (stmt, 7, srid);
+    sqlite3_bind_int (stmt, 8, width);
+    sqlite3_bind_int (stmt, 9, height);
+    if (style == NULL)
+	style = "default";
+    sqlite3_bind_text (stmt, 10, style, strlen (style), SQLITE_STATIC);
+
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      payload = (unsigned char *) sqlite3_column_blob (stmt, 0);
+		      payload_size = sqlite3_column_bytes (stmt, 0);
+		      if (raster != NULL)
+			  rl2_destroy_raster (raster);
+		      raster = rl2_raster_from_png (payload, payload_size, 1);
+		  }
+	    }
+      }
+    sqlite3_finalize (stmt);
+
+
+    if (raster != NULL)
+      {
+	  /* exporting the image into an RGBA pix-buffer */
+	  int size;
+	  int ret = rl2_raster_data_to_RGBA (raster, &rgba, &size);
+	  rl2_destroy_raster (raster);
+	  if (ret == RL2_OK && rgba != NULL && size == (width * height * 4))
+	      return rgba;
+	  if (rgba != NULL)
+	      free (rgba);
+      }
+    return NULL;
 }

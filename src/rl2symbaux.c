@@ -3965,6 +3965,42 @@ rl2_get_group_style_count (rl2GroupStylePtr style, int *count)
 }
 
 RL2_DECLARE const char *
+rl2_get_group_prefix (rl2GroupStylePtr style, int index)
+{
+/* return the Nth DbPrefix from a Group Style */
+    int cnt = 0;
+    const char *str = NULL;
+    rl2PrivChildStylePtr child;
+    rl2PrivGroupStylePtr stl = (rl2PrivGroupStylePtr) style;
+    if (stl == NULL)
+	return NULL;
+    if (index < 0)
+	return NULL;
+    child = stl->first;
+    while (child != NULL)
+      {
+	  /* counting how many Children */
+	  cnt++;
+	  child = child->next;
+      }
+    if (index >= cnt)
+	return NULL;
+    cnt = 0;
+    child = stl->first;
+    while (child != NULL)
+      {
+	  if (cnt == index)
+	    {
+		str = child->dbPrefix;
+		break;
+	    }
+	  cnt++;
+	  child = child->next;
+      }
+    return str;
+}
+
+RL2_DECLARE const char *
 rl2_get_group_named_layer (rl2GroupStylePtr style, int index)
 {
 /* return the Nth NamedLayer from a Group Style */

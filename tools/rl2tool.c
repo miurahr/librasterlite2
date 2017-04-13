@@ -439,7 +439,7 @@ exec_import (sqlite3 * handle, int max_threads, const char *src_path,
     rl2CoveragePtr cvg = NULL;
 
     time (&start);
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
       {
 	  rl2_destroy_coverage (cvg);
@@ -525,7 +525,7 @@ exec_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	     unsigned int width, unsigned int height)
 {
 /* performing EXPORT */
-    rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	return 0;
 
@@ -537,7 +537,7 @@ exec_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  int err_bbox = 0;
 	  double ext_x;
 	  double ext_y;
-	  rl2_resolve_base_resolution_from_dbms (handle, coverage, 0, 0, &x_res,
+	  rl2_resolve_base_resolution_from_dbms (handle, NULL, coverage, 0, 0, &x_res,
 						 &y_res);
 	  if (minx == DBL_MAX && miny == DBL_MAX && maxx == DBL_MAX
 	      && maxy == DBL_MAX)
@@ -732,7 +732,7 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 		     unsigned int width, unsigned int height, int full_section)
 {
 /* performing SECTION-EXPORT */
-    rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    rl2CoveragePtr cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	return 0;
 
@@ -741,7 +741,7 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  /* attempting to resolve the Section Name into a SectionID */
 	  int duplicate = 0;
 	  if (rl2_get_dbms_section_id
-	      (handle, coverage, section, &section_id, &duplicate) != RL2_OK)
+	      (handle, NULL, coverage, section, &section_id, &duplicate) != RL2_OK)
 	    {
 		if (duplicate)
 		    fprintf (stderr,
@@ -761,7 +761,7 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  char *dumb1;
 	  char *dumb2;
 	  if (rl2_resolve_base_resolution_from_dbms
-	      (handle, coverage, 1, section_id, &x_res, &y_res) != RL2_OK)
+	      (handle, NULL, coverage, 1, section_id, &x_res, &y_res) != RL2_OK)
 	    {
 		fprintf (stderr, "*** Unable to retrieve the BaseResolution\n");
 		goto error;
@@ -778,7 +778,7 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  char *dumb1;
 	  char *dumb2;
 	  if (rl2_resolve_full_section_from_dbms
-	      (handle, coverage, section_id, x_res, y_res, &minx, &miny, &maxx,
+	      (handle, NULL, coverage, section_id, x_res, y_res, &minx, &miny, &maxx,
 	       &maxy, &width, &height) != RL2_OK)
 	    {
 		fprintf (stderr, "*** Unable to resolve Full Section Extent\n");
@@ -1003,7 +1003,7 @@ exec_drop (sqlite3 * handle, const char *coverage)
 /* performing DROP */
     rl2CoveragePtr cvg = NULL;
 
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -1026,7 +1026,7 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section,
 /* deleting a Raster Section */
     rl2CoveragePtr cvg = NULL;
 
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	goto error;
 
@@ -1035,7 +1035,7 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section,
 	  /* attempting to resolve the Section Name into a SectionID */
 	  int duplicate = 0;
 	  if (rl2_get_dbms_section_id
-	      (handle, coverage, section, &section_id, &duplicate) != RL2_OK)
+	      (handle, NULL, coverage, section, &section_id, &duplicate) != RL2_OK)
 	    {
 		if (duplicate)
 		    fprintf (stderr,
@@ -1079,7 +1079,7 @@ exec_pyramidize (sqlite3 * handle, int max_threads, const char *coverage,
 		/* attempting to resolve the Section Name into a SectionID */
 		int duplicate = 0;
 		if (rl2_get_dbms_section_id
-		    (handle, coverage, section, &section_id,
+		    (handle, NULL, coverage, section, &section_id,
 		     &duplicate) != RL2_OK)
 		  {
 		      if (duplicate)
@@ -1128,7 +1128,7 @@ exec_de_pyramidize (sqlite3 * handle, const char *coverage, const char *section,
 		/* attempting to resolve the Section Name into a SectionID */
 		int duplicate = 0;
 		if (rl2_get_dbms_section_id
-		    (handle, coverage, section, &section_id,
+		    (handle, NULL, coverage, section, &section_id,
 		     &duplicate) != RL2_OK)
 		  {
 		      if (duplicate)
@@ -1955,7 +1955,7 @@ exec_list (sqlite3 * handle, const char *coverage, const char *section,
 		/* attempting to resolve the Section Name into a SectionID */
 		int duplicate = 0;
 		if (rl2_get_dbms_section_id
-		    (handle, coverage, section, &section_id,
+		    (handle, NULL, coverage, section, &section_id,
 		     &duplicate) != RL2_OK)
 		  {
 		      if (duplicate)
@@ -2498,7 +2498,7 @@ exec_histogram (sqlite3 * handle, const char *coverage, const char *section,
 		/* attempting to resolve the Section Name into a SectionID */
 		int duplicate = 0;
 		if (rl2_get_dbms_section_id
-		    (handle, coverage, section, &section_id,
+		    (handle, NULL, coverage, section, &section_id,
 		     &duplicate) != RL2_OK)
 		  {
 		      if (duplicate)

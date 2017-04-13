@@ -70,6 +70,14 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #define ERR_FRMT64 "ERROR: unable to decode Tile ID=%lld\n"
 #endif
 
+/* internal constants: Vector Coverage Types */
+#define RL2_VECTOR_COVERAGE_UNKNOWN	0
+#define RL2_VECTOR_COVERAGE_TABLE	1
+#define RL2_VECTOR_COVERAGE_VIEW	2
+#define RL2_VECTOR_COVERAGE_SHP		3
+#define RL2_VECTOR_COVERAGE_TOPOGEO	4
+#define RL2_VECTOR_COVERAGE_TOPONET	5
+
 static int
 insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
 			      unsigned char sample, unsigned char pixel,
@@ -93,7 +101,7 @@ insert_into_raster_coverages (sqlite3 * handle, const char *coverage,
     const char *xpixel = "UNKNOWN";
     const char *xcompression = "UNKNOWN";
 
-    sql = "INSERT INTO raster_coverages (coverage_name, sample_type, "
+    sql = "INSERT INTO main.raster_coverages (coverage_name, sample_type, "
 	"pixel_type, num_bands, compression, quality, tile_width, "
 	"tile_height, horz_resolution, vert_resolution, srid, "
 	"nodata_pixel, palette, strict_resolution, mixed_resolutions, "
@@ -402,7 +410,7 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 			   "BEFORE INSERT ON %Q\nFOR EACH ROW BEGIN\n"
 			   "SELECT RAISE(ABORT,'insert on %s violates constraint: "
 			   "invalid statistics')\nWHERE NEW.statistics IS NOT NULL AND "
-			   "IsValidRasterStatistics(%Q, NEW.statistics) <> 1;\nEND",
+			   "IsValidRasterStatistics(NULL, %Q, NEW.statistics) <> 1;\nEND",
 			   xxtrigger, xcoverage, xcoverage, coverage);
     sqlite3_free (xcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
@@ -425,7 +433,7 @@ create_sections (sqlite3 * handle, const char *coverage, int srid)
 			   "\nFOR EACH ROW BEGIN\n"
 			   "SELECT RAISE(ABORT, 'update on %s violates constraint: "
 			   "invalid statistics')\nWHERE NEW.statistics IS NOT NULL AND "
-			   "IsValidRasterStatistics(%Q, NEW.statistics) <> 1;\nEND",
+			   "IsValidRasterStatistics(NULL, %Q, NEW.statistics) <> 1;\nEND",
 			   xxtrigger, xcoverage, xcoverage, coverage);
     sqlite3_free (xcoverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
@@ -723,7 +731,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid,
     sql = sqlite3_mprintf ("CREATE TRIGGER \"%s\"\n"
 			   "BEFORE INSERT ON %Q\nFOR EACH ROW BEGIN\n"
 			   "SELECT RAISE(ABORT,'insert on %s violates constraint: "
-			   "invalid tile_data')\nWHERE IsValidRasterTile(%Q, "
+			   "invalid tile_data')\nWHERE IsValidRasterTile(NULL, %Q, "
 			   "(SELECT t.pyramid_level FROM \"%s\" AS t WHERE t.tile_id = NEW.tile_id), "
 			   "NEW.tile_data_odd, NEW.tile_data_even) <> 1;\nEND",
 			   xxtrigger, xcoverage, xcoverage, coverage, xxtiles);
@@ -750,7 +758,7 @@ create_tiles (sqlite3 * handle, const char *coverage, int srid,
     sql = sqlite3_mprintf ("CREATE TRIGGER \"%s\"\n"
 			   "BEFORE UPDATE ON %Q\nFOR EACH ROW BEGIN\n"
 			   "SELECT RAISE(ABORT, 'update on %s violates constraint: "
-			   "invalid tile_data')\nWHERE IsValidRasterTile(%Q, "
+			   "invalid tile_data')\nWHERE IsValidRasterTile(NULL, %Q, "
 			   "(SELECT t.pyramid_level FROM \"%s\" AS t WHERE t.tile_id = NEW.tile_id), "
 			   "NEW.tile_data_odd, NEW.tile_data_even) <> 1;\nEND",
 			   xxtrigger, xcoverage, xcoverage, coverage, xxtiles);
@@ -842,7 +850,7 @@ rl2_set_dbms_coverage_default_bands (sqlite3 * handle, const char *coverage,
     int num_bands;
     int count = 0;
 
-    sql = "SELECT num_bands FROM raster_coverages "
+    sql = "SELECT num_bands FROM main.raster_coverages "
 	"WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -896,7 +904,7 @@ rl2_set_dbms_coverage_default_bands (sqlite3 * handle, const char *coverage,
 	goto error;
 
 /* updating the Coverage */
-    sql = "UPDATE raster_coverages SET red_band_index = ?, "
+    sql = "UPDATE main.raster_coverages SET red_band_index = ?, "
 	"green_band_index = ?, blue_band_index = ?, nir_band_index = ? "
 	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
@@ -934,30 +942,39 @@ rl2_set_dbms_coverage_default_bands (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
-rl2_get_dbms_coverage_default_bands (sqlite3 * handle, const char *coverage,
+rl2_get_dbms_coverage_default_bands (sqlite3 * handle, const char *db_prefix,
+				     const char *coverage,
 				     unsigned char *red_band,
 				     unsigned char *green_band,
 				     unsigned char *blue_band,
 				     unsigned char *nir_band)
 {
 /* 
-/  attempring to retrieve the default Red, Green, Blue and NIR bands
+/  attempting to retrieve the default Red, Green, Blue and NIR bands
 /  will work only for a MULTIBAND coverage 
 */
     int ret;
     sqlite3_stmt *stmt = NULL;
-    const char *sql;
+    char *sql;
     int num_bands;
     int red = -1;
     int green = -1;
     int blue = -1;
     int nir = -1;
     int count = 0;
+    char *xdb_prefix;
 
-    sql = "SELECT num_bands, red_band_index, green_band_index, "
-	"blue_band_index, nir_band_index FROM raster_coverages "
-	"WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql =
+	sqlite3_mprintf ("SELECT num_bands, red_band_index, green_band_index, "
+			 "blue_band_index, nir_band_index FROM \"%s\".raster_coverages "
+			 "WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'",
+			 xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  printf ("SELECT MultiBand default Bands SQL error: %s\n",
@@ -1046,12 +1063,12 @@ rl2_enable_dbms_coverage_auto_ndvi (sqlite3 * handle, const char *coverage,
     unsigned char nir_band;
 
     if (rl2_get_dbms_coverage_default_bands
-	(handle, coverage, &red_band, &green_band, &blue_band,
+	(handle, NULL, coverage, &red_band, &green_band, &blue_band,
 	 &nir_band) != RL2_OK)
 	goto error;
 
 /* updating the Coverage */
-    sql = "UPDATE raster_coverages SET enable_auto_ndvi = ? "
+    sql = "UPDATE main.raster_coverages SET enable_auto_ndvi = ? "
 	"WHERE Lower(coverage_name) = Lower(?)";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -1088,15 +1105,16 @@ rl2_enable_dbms_coverage_auto_ndvi (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
-rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite3 * handle, const char *coverage)
+rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite3 * handle, const char *db_prefix,
+					const char *coverage)
 {
 /* 
-/  attempring to retrieve if the Auto NDVI feature is enabled
+/  attempting to retrieve if the Auto NDVI feature is enabled
 /  will work only for a MULTIBAND coverage 
 */
     int ret;
     sqlite3_stmt *stmt = NULL;
-    const char *sql;
+    char *sql;
     int num_bands;
     int red = -1;
     int green = -1;
@@ -1104,11 +1122,19 @@ rl2_is_dbms_coverage_auto_ndvi_enabled (sqlite3 * handle, const char *coverage)
     int nir = -1;
     int enabled = -1;
     int count = 0;
+    char *xdb_prefix;
 
-    sql = "SELECT num_bands, red_band_index, green_band_index, "
-	"blue_band_index, nir_band_index, enable_auto_ndvi FROM raster_coverages "
-	"WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql =
+	sqlite3_mprintf ("SELECT num_bands, red_band_index, green_band_index, "
+			 "blue_band_index, nir_band_index, enable_auto_ndvi FROM \"%s\".raster_coverages "
+			 "WHERE Lower(coverage_name) = Lower(?) AND pixel_type = 'MULTIBAND'",
+			 xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  printf ("SELECT IsEnabled Auto NDVI SQL error: %s\n",
@@ -1253,27 +1279,33 @@ resolve_base_resolution_section (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
-rl2_resolve_base_resolution_from_dbms (sqlite3 * handle, const char *coverage,
-				       int by_section,
-				       sqlite3_int64 section_id,
-				       double *x_res, double *y_res)
+rl2_resolve_base_resolution_from_dbms (sqlite3 * handle, const char *db_prefix,
+				       const char *coverage, int by_section,
+				       sqlite3_int64 section_id, double *x_res,
+				       double *y_res)
 {
 /* resolving the Base Resolution */
     int ret;
     char *sql;
+    char *xdb_prefix;
     double xres;
     double yres;
     int count = 0;
     sqlite3_stmt *stmt = NULL;
 
-    if (rl2_is_mixed_resolutions_coverage (handle, coverage) > 0 && by_section)
+    if (rl2_is_mixed_resolutions_coverage (handle, db_prefix, coverage) > 0
+	&& by_section)
 	return resolve_base_resolution_section (handle, coverage, section_id,
 						x_res, y_res);
 
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     sql =
 	sqlite3_mprintf ("SELECT horz_resolution, vert_resolution "
-			 "FROM raster_coverages WHERE coverage_name = Lower(%Q)",
-			 coverage);
+			 "FROM \"%s\".raster_coverages WHERE coverage_name = Lower(%Q)",
+			 xdb_prefix, coverage);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -1318,7 +1350,8 @@ rl2_resolve_base_resolution_from_dbms (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
-rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
+rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *db_prefix,
+				    const char *coverage,
 				    sqlite3_int64 section_id, double x_res,
 				    double y_res, double *minX, double *minY,
 				    double *maxX, double *maxY,
@@ -1332,6 +1365,7 @@ rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
     unsigned char scale;
     int ret;
     char *sql;
+    char *xdb_prefix;
     char *table;
     char *xtable;
     int count = 0;
@@ -1343,7 +1377,7 @@ rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
     int width = 0;
     int height = 0;
 
-    cvg = rl2_create_coverage_from_dbms (handle, coverage);
+    cvg = rl2_create_coverage_from_dbms (handle, NULL, coverage);
     if (cvg == NULL)
 	return RL2_ERROR;
     if (rl2_find_matching_resolution
@@ -1355,13 +1389,18 @@ rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
       }
     rl2_destroy_coverage (cvg);
 
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf ("SELECT MbrMinX(geometry), MbrMinY(geometry), "
 			 "MbrMaxX(geometry), MbrMaxY(geometry), width, height "
-			 "FROM \"%s\" WHERE section_id = ?", xtable);
+			 "FROM \"%s\".\"%s\" WHERE section_id = ?", xdb_prefix,
+			 xtable);
+    free (xdb_prefix);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -1433,25 +1472,31 @@ rl2_resolve_full_section_from_dbms (sqlite3 * handle, const char *coverage,
 }
 
 RL2_DECLARE int
-rl2_get_dbms_section_id (sqlite3 * handle, const char *coverage,
-			 const char *section, sqlite3_int64 * section_id,
-			 int *duplicate)
+rl2_get_dbms_section_id (sqlite3 * handle, const char *db_prefix,
+			 const char *coverage, const char *section,
+			 sqlite3_int64 * section_id, int *duplicate)
 {
 /* retrieving a Section ID by its name */
     int ret;
     char *sql;
+    char *xdb_prefix;
     char *table;
     char *xtable;
     int count = 0;
     sqlite3_stmt *stmt = NULL;
 
     *duplicate = 0;
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
     sql =
 	sqlite3_mprintf
-	("SELECT section_id FROM \"%s\" WHERE section_name = ?", xtable);
+	("SELECT section_id FROM \"%s\".\"%s\" WHERE section_name = ?",
+	 xdb_prefix, xtable);
+    free (xdb_prefix);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -1511,7 +1556,9 @@ rl2_delete_dbms_section (sqlite3 * handle, const char *coverage,
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
-    sql = sqlite3_mprintf ("DELETE FROM \"%s\" WHERE section_id = ?", xtable);
+    sql =
+	sqlite3_mprintf ("DELETE FROM main.\"%s\" WHERE section_id = ?",
+			 xtable);
     free (xtable);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
@@ -1577,7 +1624,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* dropping the SECTIONS spatial index */
     table = sqlite3_mprintf ("idx_%s_sections_geometry", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
+    sql = sqlite3_mprintf ("DROP TABLE main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -1609,7 +1656,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* dropping the TILES spatial index */
     table = sqlite3_mprintf ("idx_%s_tiles_geometry", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
+    sql = sqlite3_mprintf ("DROP TABLE main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -1625,7 +1672,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* dropping the TILE_DATA table */
     table = sqlite3_mprintf ("%s_tile_data", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
+    sql = sqlite3_mprintf ("DROP TABLE main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -1642,7 +1689,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
     table = sqlite3_mprintf ("%s_tiles", coverage);
     xtable = rl2_double_quoted_sql (table);
     sqlite3_free (table);
-    sql = sqlite3_mprintf ("DELETE FROM geometry_columns "
+    sql = sqlite3_mprintf ("DELETE FROM main.geometry_columns "
 			   "WHERE Lower(f_table_name) = Lower(%Q)", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
@@ -1658,7 +1705,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* deleting the SECTIONS Geometry definition */
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DELETE FROM geometry_columns "
+    sql = sqlite3_mprintf ("DELETE FROM main.geometry_columns "
 			   "WHERE Lower(f_table_name) = Lower(%Q)", xtable);
     free (xtable);
     sqlite3_free (table);
@@ -1675,7 +1722,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* dropping the TILES table */
     table = sqlite3_mprintf ("%s_tiles", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
+    sql = sqlite3_mprintf ("DROP TABLE main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -1691,7 +1738,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* dropping the SECTIONS table */
     table = sqlite3_mprintf ("%s_sections", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
+    sql = sqlite3_mprintf ("DROP TABLE main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -1707,7 +1754,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
 /* dropping the LEVELS table */
     table = sqlite3_mprintf ("%s_levels", coverage);
     xtable = rl2_double_quoted_sql (table);
-    sql = sqlite3_mprintf ("DROP TABLE \"%s\"", xtable);
+    sql = sqlite3_mprintf ("DROP TABLE main.\"%s\"", xtable);
     free (xtable);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -1721,7 +1768,7 @@ rl2_drop_dbms_coverage (sqlite3 * handle, const char *coverage)
     sqlite3_free (table);
 
 /* deleting the Raster Coverage definition */
-    sql = sqlite3_mprintf ("DELETE FROM raster_coverages "
+    sql = sqlite3_mprintf ("DELETE FROM main.raster_coverages "
 			   "WHERE Lower(coverage_name) = Lower(%Q)", coverage);
     ret = sqlite3_exec (handle, sql, NULL, NULL, &sql_err);
     sqlite3_free (sql);
@@ -2099,8 +2146,8 @@ rl2_prime_void_tile_palette (void *pixels, unsigned int width,
 }
 
 RL2_DECLARE rl2CoveragePtr
-rl2_create_coverage_from_dbms_ex (sqlite3 * handle, const char *db_prefix,
-				  const char *coverage)
+rl2_create_coverage_from_dbms (sqlite3 * handle, const char *db_prefix,
+			       const char *coverage)
 {
 /* attempting to create a Coverage Object from the DBMS definition */
     char *sql;
@@ -2141,7 +2188,7 @@ rl2_create_coverage_from_dbms_ex (sqlite3 * handle, const char *db_prefix,
 	 xdb_prefix);
     free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
-    sqlite3_free(sql);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -2417,14 +2464,16 @@ rl2_create_coverage_from_dbms_ex (sqlite3 * handle, const char *db_prefix,
 
     if (!ok)
       {
-	  fprintf (stderr, "ERROR: unable to find a Coverage named \"%s\" on DB \"%s\"\n",
+	  fprintf (stderr,
+		   "ERROR: unable to find a Coverage named \"%s\" on DB \"%s\"\n",
 		   coverage, db_prefix);
 	  return NULL;
       }
 
     cvg =
-	rl2_create_coverage (coverage, sample, pixel, num_bands, compression,
-			     quality, tile_width, tile_height, no_data);
+	rl2_create_coverage (db_prefix, coverage, sample, pixel, num_bands,
+			     compression, quality, tile_width, tile_height,
+			     no_data);
     if (cvg == NULL)
       {
 	  fprintf (stderr,
@@ -2453,18 +2502,105 @@ rl2_create_coverage_from_dbms_ex (sqlite3 * handle, const char *db_prefix,
     return cvg;
 }
 
-RL2_DECLARE rl2CoveragePtr
-rl2_create_coverage_from_dbms (sqlite3 * handle, const char *coverage)
+static int
+sniff_vector_coverage (sqlite3 * handle, const char *db_prefix,
+		       const char *coverage)
 {
-/* 
-/  attempting to create a Coverage Object from the DBMS definition 
-/  just calls rl2_create_coverage_from_dbms_ex() on the MAIN DB
-*/
-    return rl2_create_coverage_from_dbms_ex (handle, NULL, coverage);
+/* sniffing the Vector Coverage type */
+    char *sql;
+    int ret;
+    sqlite3_stmt *stmt;
+    int type = RL2_VECTOR_COVERAGE_UNKNOWN;
+    char *xdb_prefix;
+
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql =
+	sqlite3_mprintf
+	("SELECT f_table_name, f_geometry_column, view_name, view_geometry, "
+	 "virt_name, virt_geometry, topology_name, network_name "
+	 "FROM \"%s\".vector_coverages WHERE Lower(coverage_name) = Lower(?)",
+	 xdb_prefix);
+    free (xdb_prefix);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
+	  return type;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_text (stmt, 1, coverage, strlen (coverage), SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		int ok_f_table_name = -1;
+		int ok_f_geometry_column = -1;
+		int ok_view_name = -1;
+		int ok_view_geometry = -1;
+		int ok_virt_name = -1;
+		int ok_virt_geometry = -1;
+		int ok_topology_name = -1;
+		int ok_network_name = -1;
+		if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
+		    ok_f_table_name = 1;
+		else if (sqlite3_column_type (stmt, 0) == SQLITE_NULL)
+		    ok_f_table_name = 0;
+		if (sqlite3_column_type (stmt, 1) == SQLITE_TEXT)
+		    ok_f_geometry_column = 1;
+		else if (sqlite3_column_type (stmt, 1) == SQLITE_NULL)
+		    ok_f_geometry_column = 0;
+		if (sqlite3_column_type (stmt, 2) == SQLITE_TEXT)
+		    ok_view_name = 1;
+		else if (sqlite3_column_type (stmt, 2) == SQLITE_NULL)
+		    ok_view_name = 0;
+		if (sqlite3_column_type (stmt, 3) == SQLITE_TEXT)
+		    ok_view_geometry = 1;
+		else if (sqlite3_column_type (stmt, 3) == SQLITE_NULL)
+		    ok_view_geometry = 0;
+		if (sqlite3_column_type (stmt, 4) == SQLITE_TEXT)
+		    ok_virt_name = 1;
+		else if (sqlite3_column_type (stmt, 4) == SQLITE_NULL)
+		    ok_virt_name = 0;
+		if (sqlite3_column_type (stmt, 5) == SQLITE_TEXT)
+		    ok_virt_geometry = 1;
+		else if (sqlite3_column_type (stmt, 5) == SQLITE_NULL)
+		    ok_virt_geometry = 0;
+		if (sqlite3_column_type (stmt, 6) == SQLITE_TEXT)
+		    ok_topology_name = 1;
+		else if (sqlite3_column_type (stmt, 6) == SQLITE_NULL)
+		    ok_topology_name = 0;
+		if (sqlite3_column_type (stmt, 7) == SQLITE_TEXT)
+		    ok_network_name = 1;
+		else if (sqlite3_column_type (stmt, 7) == SQLITE_NULL)
+		    ok_network_name = 0;
+		if (ok_f_table_name == 1 && ok_f_geometry_column == 1
+		    && ok_topology_name == 0 && ok_network_name == 0)
+		    type = RL2_VECTOR_COVERAGE_TABLE;
+		if (ok_view_name == 1 && ok_view_geometry == 1)
+		    type = RL2_VECTOR_COVERAGE_VIEW;
+		if (ok_virt_name == 1 && ok_virt_geometry == 1)
+		    type = RL2_VECTOR_COVERAGE_SHP;
+		if (ok_topology_name == 1)
+		    type = RL2_VECTOR_COVERAGE_TOPOGEO;
+		if (ok_network_name == 1)
+		    type = RL2_VECTOR_COVERAGE_TOPONET;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return type;
 }
 
 RL2_DECLARE rl2VectorLayerPtr
-rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *coverage)
+rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *db_prefix,
+				   const char *coverage)
 {
 /* attempting to create a Vector Layer Object from the DBMS definition */
     char *sql;
@@ -2476,16 +2612,62 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *coverage)
     int srid;
     int spatial_index;
     int ok = 0;
+    int vector_type = RL2_VECTOR_COVERAGE_UNKNOWN;
     rl2VectorLayerPtr vector;
+    char *xdb_prefix;
+
+    vector_type = sniff_vector_coverage (handle, db_prefix, coverage);
+    if (vector_type == RL2_VECTOR_COVERAGE_UNKNOWN)
+	goto invalid;
 
 /* querying the Vector Layer metadata defs */
-    sql =
-	"SELECT c.f_table_name, c.f_geometry_column, g.srid, g.geometry_type, "
-	"g.spatial_index_enabled FROM vector_coverages AS c "
-	"JOIN geometry_columns AS g ON (c.f_table_name = g.f_table_name "
-	"AND c.f_geometry_column = g.f_geometry_column) "
-	"WHERE Lower(c.coverage_name) = Lower(?)";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    if (vector_type == RL2_VECTOR_COVERAGE_TABLE)
+      {
+	  /* Vector Coverage based on some SpatialTable */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT c.f_table_name, c.f_geometry_column, g.srid, g.geometry_type, "
+	       "g.spatial_index_enabled FROM \"%s\".vector_coverages AS c "
+	       "JOIN \"%s\". geometry_columns AS g ON (c.f_table_name = g.f_table_name "
+	       "AND c.f_geometry_column = g.f_geometry_column) "
+	       "WHERE Lower(c.coverage_name) = Lower(?) AND "
+	       "c.topology_name IS NULL AND c.network_name IS NULL", xdb_prefix,
+	       xdb_prefix);
+      }
+    else if (vector_type == RL2_VECTOR_COVERAGE_VIEW)
+      {
+	  /* Vector Coverage based on some SpatialView */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT v.f_table_name, v.f_geometry_column, g.srid, g.geometry_type, "
+	       "g.spatial_index_enabled FROM \"%s\".vector_coverages AS c "
+	       "JOIN \"%s\".views_geometry_columns AS v ON "
+	       "(c.view_name = v.view_name AND c.view_geometry = v.view_geometry) "
+	       "JOIN \"%s\".geometry_columns AS g ON (v.f_table_name = g.f_table_name "
+	       "AND v.f_geometry_column = g.f_geometry_column) "
+	       "WHERE Lower(c.coverage_name) = Lower(?) AND "
+	       "c.view_name IS NOT NULL AND c.view_geometry IS NOT NULL",
+	       xdb_prefix, xdb_prefix, xdb_prefix);
+      }
+    else if (vector_type == RL2_VECTOR_COVERAGE_SHP)
+      {
+	  /* Vector Coverage based on some VirtualSHP */
+	  sql =
+	      sqlite3_mprintf
+	      ("SELECT v.virt_name, v.virt_geometry, v.srid, v.geometry_type, 0 "
+	       "FROM \"%s\".vector_coverages AS c "
+	       "JOIN \"%s\".virts_geometry_columns AS v ON "
+	       "(c.virt_name = v.virt_name AND c.virt_geometry = v.virt_geometry) "
+	       "WHERE Lower(v.virt_name) = Lower(?) AND "
+	       "c.virt_name IS NOT NULL AND c.virt_geometry IS NOT NULL",
+	       xdb_prefix, xdb_prefix, xdb_prefix);
+      }
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -2551,10 +2733,11 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *coverage)
       }
     sqlite3_finalize (stmt);
 
+  invalid:
     if (!ok)
       {
 	  fprintf (stderr,
-		   "ERROR: unable to find a Vector Layer named \"%s\"\n",
+		   "ERROR: unable to find a valid Vector Layer named \"%s\"\n",
 		   coverage);
 	  if (f_table_name != NULL)
 	      free (f_table_name);
@@ -2564,7 +2747,7 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *coverage)
       }
 
     vector =
-	rl2_create_vector_layer (f_table_name, f_geometry_column,
+	rl2_create_vector_layer (db_prefix, f_table_name, f_geometry_column,
 				 geometry_type, srid, spatial_index);
     free (f_table_name);
     free (f_geometry_column);
@@ -4581,7 +4764,8 @@ rl2_find_matching_resolution (sqlite3 * handle, rl2CoveragePtr cvg,
     if (coverage->coverageName == NULL)
 	return RL2_ERROR;
 
-    if (rl2_is_mixed_resolutions_coverage (handle, coverage->coverageName) > 0)
+    if (rl2_is_mixed_resolutions_coverage
+	(handle, coverage->dbPrefix, coverage->coverageName) > 0)
 	mixed_resolutions = 1;
     if (!by_section && mixed_resolutions)
       {
@@ -4883,6 +5067,7 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
 				int *mask_size)
 {
 /* attempting to return a transparency mask from the DBMS Coverage */
+    const char *db_prefix;
     const char *coverage;
     unsigned char level;
     unsigned char scale;
@@ -4890,6 +5075,7 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
     double yy_res = y_res;
     unsigned char *bufpix = NULL;
     int bufpix_size;
+    char *xdb_prefix;
     char *xtiles;
     char *xxtiles;
     char *xdata;
@@ -4901,6 +5087,7 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
 
     if (cvg == NULL || handle == NULL)
 	goto error;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	goto error;
@@ -4919,18 +5106,24 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
       }
 
 /* preparing the "tiles" SQL query */
+    if (db_prefix == NULL)
+	db_prefix = "main";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = rl2_double_quoted_sql (xtiles);
+    sqlite3_free (xtiles);
+    xtiles = sqlite3_mprintf ("DB=%s.%s_tiles", db_prefix, coverage);
     if (by_section)
       {
 	  /* only from a single Section */
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" "
+	       "FROM \"%s\".\"%s\" "
 	       "WHERE section_id = ? AND pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       xtiles);
       }
     else
       {
@@ -4938,12 +5131,15 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "FROM \"%s\".\"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       xtiles);
       }
     sqlite3_free (xtiles);
+    free (xdb_prefix);
     free (xxtiles);
+fprintf(stderr, "%s\n", sql);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -4953,12 +5149,16 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
       }
 
     /* preparing the data SQL query - only ODD */
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     xdata = sqlite3_mprintf ("%s_tile_data", coverage);
     xxdata = rl2_double_quoted_sql (xdata);
     sqlite3_free (xdata);
     sql = sqlite3_mprintf ("SELECT tile_data_odd "
-			   "FROM \"%s\" WHERE tile_id = ?", xxdata);
+			   "FROM \"%s\".\"%s\" WHERE tile_id = ?", xdb_prefix,
+			   xxdata);
+    free (xdb_prefix);
     free (xxdata);
+fprintf(stderr, "%s\n", sql);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -5009,6 +5209,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     rl2PalettePtr plt = NULL;
     rl2PixelPtr no_data = NULL;
     rl2PixelPtr kill_no_data = NULL;
+    const char *db_prefix;
     const char *coverage;
     unsigned char level;
     unsigned char scale;
@@ -5021,6 +5222,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     unsigned char pixel_type;
     unsigned char cvg_pixel_type;
     unsigned char num_bands;
+    char *xdb_prefix;
     char *xtiles;
     char *xxtiles;
     char *xdata;
@@ -5042,6 +5244,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 
     if (cvg == NULL || handle == NULL)
 	goto error;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	goto error;
@@ -5054,12 +5257,12 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 	goto error;
 
     if (rl2_get_dbms_coverage_default_bands
-	(handle, coverage, &red_band, &green_band, &blue_band,
+	(handle, NULL, coverage, &red_band, &green_band, &blue_band,
 	 &nir_band) == RL2_OK)
       {
 	  /* testing for Auto NDVI */
-	  if (rl2_is_dbms_coverage_auto_ndvi_enabled (handle, coverage) ==
-	      RL2_TRUE)
+	  if (rl2_is_dbms_coverage_auto_ndvi_enabled
+	      (handle, db_prefix, coverage) == RL2_TRUE)
 	      auto_ndvi = 1;
       }
 
@@ -5093,7 +5296,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 	  /* Pyramid tiles PALETTE */
 	  rl2PixelPtr nd = NULL;
 	  nd = rl2_get_coverage_no_data (cvg);
-	  plt = rl2_get_dbms_palette (handle, coverage);
+	  plt = rl2_get_dbms_palette (handle, db_prefix, coverage);
 	  if (nd != NULL)
 	    {
 		/* creating an RGB NoData pixel */
@@ -5163,7 +5366,7 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 	  if (pixel_type == RL2_PIXEL_PALETTE)
 	    {
 		/* attempting to retrieve the Coverage's Palette */
-		plt = rl2_get_dbms_palette (handle, coverage);
+		plt = rl2_get_dbms_palette (handle, db_prefix, coverage);
 		if (plt == NULL)
 		    goto error;
 	    }
@@ -5280,18 +5483,24 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
       }
 
 /* preparing the "tiles" SQL query */
+    if (db_prefix == NULL)
+	db_prefix = "main";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = rl2_double_quoted_sql (xtiles);
+    sqlite3_free (xtiles);
+    xtiles = sqlite3_mprintf ("DB=%s.%s_tiles", db_prefix, coverage);
     if (by_section)
       {
 	  /* only from a single Section */
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" "
+	       "FROM \"%s\".\"%s\" "
 	       "WHERE section_id = ? AND pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       xtiles);
       }
     else
       {
@@ -5299,11 +5508,13 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "FROM \"%s\".\"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       xtiles);
       }
     sqlite3_free (xtiles);
+    free (xdb_prefix);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
     sqlite3_free (sql);
@@ -5316,11 +5527,14 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     if (scale == RL2_SCALE_1)
       {
 	  /* preparing the data SQL query - both ODD and EVEN */
+	  xdb_prefix = rl2_double_quoted_sql (db_prefix);
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
 	  xxdata = rl2_double_quoted_sql (xdata);
 	  sqlite3_free (xdata);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
-				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
+				 "FROM \"%s\".\"%s\" WHERE tile_id = ?",
+				 xdb_prefix, xxdata);
+	  free (xdb_prefix);
 	  free (xxdata);
 	  ret =
 	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -5335,11 +5549,14 @@ rl2_get_raw_raster_data_common (sqlite3 * handle, int max_threads,
     else
       {
 	  /* preparing the data SQL query - only ODD */
+	  xdb_prefix = rl2_double_quoted_sql (db_prefix);
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
 	  xxdata = rl2_double_quoted_sql (xdata);
 	  sqlite3_free (xdata);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd "
-				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
+				 "FROM \"%s\".\"%s\" WHERE tile_id = ?",
+				 xdb_prefix, xxdata);
+	  free (xdb_prefix);
 	  free (xxdata);
 	  ret =
 	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
@@ -5487,6 +5704,7 @@ get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
+    const char *db_prefix;
     const char *coverage;
     unsigned char level;
     unsigned char scale;
@@ -5497,6 +5715,7 @@ get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
+    char *xdb_prefix;
     char *xtiles;
     char *xxtiles;
     char *xdata;
@@ -5508,6 +5727,7 @@ get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 
     if (cvg == NULL || handle == NULL)
 	goto error;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	goto error;
@@ -5549,8 +5769,13 @@ get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
       }
 
 /* preparing the "tiles" SQL query */
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = rl2_double_quoted_sql (xtiles);
+    sqlite3_free (xtiles);
+    xtiles = sqlite3_mprintf ("DB=%s.%s_tiles", db_prefix, coverage);
     if (by_section)
       {
 	  /* only from a single Section */
@@ -5563,11 +5788,11 @@ get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" "
+	       "FROM \"%s\".\"%s\" "
 	       "WHERE section_id = %s AND pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, sctn,
-	       xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       sctn, xtiles);
       }
     else
       {
@@ -5575,11 +5800,13 @@ get_triple_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "FROM \"%s\".\"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       xtiles);
       }
     sqlite3_free (xtiles);
+    free (xdb_prefix);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
     sqlite3_free (sql);
@@ -5686,6 +5913,7 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 {
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
+    const char *db_prefix;
     const char *coverage;
     unsigned char level;
     unsigned char scale;
@@ -5696,6 +5924,7 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
     unsigned char sample_type;
     unsigned char pixel_type;
     unsigned char num_bands;
+    char *xdb_prefix;
     char *xtiles;
     char *xxtiles;
     char *xdata;
@@ -5707,6 +5936,7 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 
     if (cvg == NULL || handle == NULL)
 	goto error;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	goto error;
@@ -5744,8 +5974,13 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
       }
 
 /* preparing the "tiles" SQL query */
+    if (db_prefix == NULL)
+	db_prefix = "main";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = rl2_double_quoted_sql (xtiles);
+    sqlite3_free (xtiles);
+    xtiles = sqlite3_mprintf ("DB=%s.%s_tiles", db_prefix, coverage);
 
     if (by_section)
       {
@@ -5759,11 +5994,11 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" "
+	       "FROM \"%s\".\"%s\" "
 	       "WHERE section_id = %s AND pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, sctn,
-	       xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       sctn, xtiles);
       }
     else
       {
@@ -5771,11 +6006,13 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
 	  sql =
 	      sqlite3_mprintf
 	      ("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	       "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	       "FROM \"%s\".\"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
 	       "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	       "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	       xtiles);
       }
     sqlite3_free (xtiles);
+    free (xdb_prefix);
     free (xxtiles);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
     sqlite3_free (sql);
@@ -5786,11 +6023,14 @@ get_mono_band_raw_raster_data_common (int by_section, sqlite3 * handle,
       }
 
     /* preparing the data SQL query - both ODD and EVEN */
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
     xdata = sqlite3_mprintf ("%s_tile_data", coverage);
     xxdata = rl2_double_quoted_sql (xdata);
     sqlite3_free (xdata);
     sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
-			   "FROM \"%s\" WHERE tile_id = ?", xxdata);
+			   "FROM \"%s\".\"%s\" WHERE tile_id = ?", xdb_prefix,
+			   xxdata);
+    free (xdb_prefix);
     free (xxdata);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
     sqlite3_free (sql);
@@ -5878,6 +6118,7 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
 /* attempting to return a buffer containing raw pixels from the DBMS Coverage + bgcolor */
     int ret;
     rl2PixelPtr no_data = NULL;
+    const char *db_prefix;
     const char *coverage;
     unsigned char sample_type;
     unsigned char pixel_type;
@@ -5889,6 +6130,7 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
     if (rl2_get_coverage_type (cvg, &sample_type, &pixel_type, &num_bands) !=
 	RL2_OK)
 	return RL2_ERROR;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	return RL2_ERROR;
@@ -5921,7 +6163,8 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
       {
 	  /* Palette */
 	  int index = -1;
-	  rl2PalettePtr palette = rl2_get_dbms_palette (handle, coverage);
+	  rl2PalettePtr palette =
+	      rl2_get_dbms_palette (handle, db_prefix, coverage);
 	  if (palette != NULL)
 	    {
 		/* searching the background color from within the palette */
@@ -6206,8 +6449,8 @@ rl2_get_raw_raster_data_bgcolor (sqlite3 * handle, int max_threads,
 }
 
 RL2_DECLARE rl2PalettePtr
-rl2_get_dbms_palette_ex (sqlite3 * handle, const char *db_prefix,
-			 const char *coverage)
+rl2_get_dbms_palette (sqlite3 * handle, const char *db_prefix,
+		      const char *coverage)
 {
 /* attempting to retrieve a Coverage's Palette from the DBMS */
     rl2PalettePtr palette = NULL;
@@ -6266,16 +6509,6 @@ rl2_get_dbms_palette_ex (sqlite3 * handle, const char *db_prefix,
     if (stmt != NULL)
 	sqlite3_finalize (stmt);
     return NULL;
-}
-
-RL2_DECLARE rl2PalettePtr
-rl2_get_dbms_palette (sqlite3 * handle, const char *coverage)
-{
-/* 
-/  attempting to create a Palette Object from the DBMS definition 
-/  just calls rl2_get_dbms_palette_ex() on the MAIN DB
-*/
-    return rl2_get_dbms_palette_ex (handle, NULL, coverage);
 }
 
 RL2_DECLARE int
@@ -6447,7 +6680,7 @@ rl2_check_dbms_palette (sqlite3 * handle, rl2CoveragePtr coverage,
     rl2PrivTiffOriginPtr origin = (rl2PrivTiffOriginPtr) tiff;
     if (cvg == NULL || origin == NULL)
 	return RL2_ERROR;
-    palette = rl2_get_dbms_palette (handle, cvg->coverageName);
+    palette = rl2_get_dbms_palette (handle, cvg->dbPrefix, cvg->coverageName);
     if (palette == NULL)
 	goto error;
     plt = (rl2PrivPalettePtr) palette;
@@ -6734,24 +6967,31 @@ rl2_update_dbms_coverage (sqlite3 * handle, const char *coverage)
 }
 
 RL2_DECLARE rl2CoverageStylePtr
-rl2_create_coverage_style_from_dbms (sqlite3 * handle, const char *coverage,
-				     const char *style)
+rl2_create_coverage_style_from_dbms (sqlite3 * handle, const char *db_prefix,
+				     const char *coverage, const char *style)
 {
 /* attempting to load and parse a Coverage Style */
-    const char *sql;
+    char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
     rl2CoverageStylePtr stl = NULL;
     char *name = NULL;
     unsigned char *xml = NULL;
     int done = 0;
+    char *xdb_prefix;
 
-    sql = "SELECT s.style_name, XB_GetDocument(s.style) "
-	"FROM SE_raster_styled_layers AS r "
-	"JOIN SE_raster_styles AS s ON (r.style_id = s.style_id) "
-	"WHERE Lower(r.coverage_name) = Lower(?) AND "
-	"Lower(s.style_name) = Lower(?)";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql = sqlite3_mprintf ("SELECT s.style_name, XB_GetDocument(s.style) "
+			   "FROM \"%s\".SE_raster_styled_layers AS r "
+			   "JOIN \"%s\".SE_raster_styles AS s ON (r.style_id = s.style_id) "
+			   "WHERE Lower(r.coverage_name) = Lower(?) AND "
+			   "Lower(s.style_name) = Lower(?)", xdb_prefix,
+			   xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -6774,7 +7014,7 @@ rl2_create_coverage_style_from_dbms (sqlite3 * handle, const char *coverage,
 		const unsigned char *ustr;
 		if (!done)
 		  {
-		      /* reteiving just the first reference in case of duplicates */
+		      /* retrieving just the first reference in case of duplicates */
 		      done = 1;
 		      if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
 			{
@@ -6825,24 +7065,32 @@ rl2_create_coverage_style_from_dbms (sqlite3 * handle, const char *coverage,
 
 RL2_DECLARE rl2FeatureTypeStylePtr
 rl2_create_feature_type_style_from_dbms (sqlite3 * handle,
+					 const char *db_prefix,
 					 const char *coverage,
 					 const char *style)
 {
 /* attempting to load and parse a Feature Type Style */
-    const char *sql;
+    char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
     rl2FeatureTypeStylePtr stl = NULL;
     char *name = NULL;
     unsigned char *xml = NULL;
     int done = 0;
+    char *xdb_prefix;
 
-    sql = "SELECT s.style_name, XB_GetDocument(s.style) "
-	"FROM SE_vector_styled_layers AS v "
-	"JOIN SE_vector_styles AS s ON (v.style_id = s.style_id) "
-	"WHERE Lower(v.coverage_name) = Lower(?) "
-	"AND Lower(s.style_name) = Lower(?)";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql = sqlite3_mprintf ("SELECT s.style_name, XB_GetDocument(s.style) "
+			   "FROM \"%s\".SE_vector_styled_layers AS v "
+			   "JOIN \"%s\".SE_vector_styles AS s ON (v.style_id = s.style_id) "
+			   "WHERE Lower(v.coverage_name) = Lower(?) "
+			   "AND Lower(s.style_name) = Lower(?)", xdb_prefix,
+			   xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -6865,7 +7113,7 @@ rl2_create_feature_type_style_from_dbms (sqlite3 * handle,
 		const unsigned char *ustr;
 		if (!done)
 		  {
-		      /* reteiving just the first reference in case of duplicates */
+		      /* retrieving just the first reference in case of duplicates */
 		      done = 1;
 		      if (sqlite3_column_type (stmt, 0) == SQLITE_TEXT)
 			{
@@ -6986,11 +7234,11 @@ test_named_style (sqlite3 * handle, const char *namedLayer,
 }
 
 RL2_DECLARE rl2GroupStylePtr
-rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
-				  const char *style)
+rl2_create_group_style_from_dbms (sqlite3 * handle, const char *db_prefix,
+				  const char *group, const char *style)
 {
 /* attempting to load and parse a Layer Group style */
-    const char *sql;
+    char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
     rl2GroupStylePtr stl = NULL;
@@ -6999,12 +7247,19 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
     rl2PrivGroupStylePtr grp_stl;
     rl2PrivChildStylePtr child;
     int done = 0;
+    char *xdb_prefix;
 
-    sql = "SELECT s.style_name, XB_GetDocument(s.style) "
-	"FROM SE_styled_group_styles AS g "
-	"JOIN SE_group_styles AS s ON (g.style_id = s.style_id) "
-	"WHERE Lower(g.group_name) = Lower(?) AND Lower(s.style_name) = Lower(?)";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql = sqlite3_mprintf ("SELECT s.style_name, XB_GetDocument(s.style) "
+			   "FROM \"%s\".SE_styled_group_styles AS g "
+			   "JOIN \"%s\".SE_group_styles AS s ON (g.style_id = s.style_id) "
+			   "WHERE Lower(g.group_name) = Lower(?) AND Lower(s.style_name) = Lower(?)",
+			   xdb_prefix, xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -7065,7 +7320,7 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
       }
 
 /* final validation */
-    stl = group_style_from_sld_xml (name, xml);
+    stl = group_style_from_sld_xml (db_prefix, name, xml);
     if (stl == NULL)
 	goto error;
     grp_stl = (rl2PrivGroupStylePtr) stl;
@@ -7113,17 +7368,25 @@ rl2_create_group_style_from_dbms (sqlite3 * handle, const char *group,
 }
 
 RL2_DECLARE rl2RasterStatisticsPtr
-rl2_create_raster_statistics_from_dbms (sqlite3 * handle, const char *coverage)
+rl2_create_raster_statistics_from_dbms (sqlite3 * handle,
+					const char *db_prefix,
+					const char *coverage)
 {
 /* attempting to load a Covrage's RasterStatistics object */
-    const char *sql;
+    char *sql;
     int ret;
     sqlite3_stmt *stmt = NULL;
     rl2RasterStatisticsPtr stats = NULL;
+    char *xdb_prefix;
 
-    sql = "SELECT statistics FROM raster_coverages "
-	"WHERE Lower(coverage_name) = Lower(?)";
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    sql = sqlite3_mprintf ("SELECT statistics FROM \"%s\".raster_coverages "
+			   "WHERE Lower(coverage_name) = Lower(?)", xdb_prefix);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
     if (ret != SQLITE_OK)
       {
 	  fprintf (stderr, "SQL error: %s\n%s\n", sql, sqlite3_errmsg (handle));
@@ -7164,7 +7427,6 @@ rl2_create_raster_statistics_from_dbms (sqlite3 * handle, const char *coverage)
 	sqlite3_finalize (stmt);
     return NULL;
 }
-
 
 RL2_DECLARE int
 rl2_check_raster_coverage_destination (sqlite3 * sqlite,

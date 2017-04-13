@@ -8,6 +8,7 @@ EXTRA_DIST = exportfont1.testcase \
 	exportfont11.testcase \
 	exportfont12.testcase \
 	exportfont13.testcase \
+	exportfont14.testcase \
 	loadfont1.testcase \
 	loadfont2.testcase \
 	loadfont3.testcase \
@@ -101,6 +102,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writeascii16.testcase \
 	writeascii17.testcase \
 	writeascii18.testcase \
+	writeascii19.testcase \
 	writesectionascii1.testcase \
 	writesectionascii2.testcase \
 	writesectionascii3.testcase \
@@ -118,7 +120,8 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionascii16.testcase \
 	writesectionascii17.testcase \
 	writesectionascii18.testcase \
-	writesectionascii18.testcase \
+	writesectionascii19.testcase \
+	writesectionascii20.testcase \
 	writendviascii1.testcase \
 	writendviascii2.testcase \
 	writendviascii3.testcase \
@@ -137,6 +140,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writendviascii16.testcase \
 	writendviascii17.testcase \
 	writendviascii18.testcase \
+	writendviascii19.testcase \
 	writesectionndviascii1.testcase \
 	writesectionndviascii2.testcase \
 	writesectionndviascii3.testcase \
@@ -157,6 +161,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionndviascii18.testcase \
 	writesectionndviascii19.testcase \
 	writesectionndviascii20.testcase \
+	writesectionndviascii21.testcase \
 	writebandtiff1.testcase \
 	writebandtiff2.testcase \
 	writebandtiff3.testcase \
@@ -184,6 +189,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writebandtiff25.testcase \
 	writebandtiff26.testcase \
 	writebandtiff27.testcase \
+	writebandtiff28.testcase \
 	writebandtifftfw1.testcase \
 	writebandtifftfw2.testcase \
 	writebandtifftfw3.testcase \
@@ -211,6 +217,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writebandtifftfw25.testcase \
 	writebandtifftfw26.testcase \
 	writebandtifftfw27.testcase \
+	writebandtifftfw28.testcase \
 	writesectionbandtiff1.testcase \
 	writesectionbandtiff2.testcase \
 	writesectionbandtiff3.testcase \
@@ -239,6 +246,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionbandtiff26.testcase \
 	writesectionbandtiff27.testcase \
 	writesectionbandtiff28.testcase \
+	writesectionbandtiff29.testcase \
 	writesectionbandtifftfw1.testcase \
 	writesectionbandtifftfw2.testcase \
 	writesectionbandtifftfw3.testcase \
@@ -267,6 +275,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionbandtifftfw26.testcase \
 	writesectionbandtifftfw27.testcase \
 	writesectionbandtifftfw28.testcase \
+	writesectionbandtifftfw29.testcase \
 	writebandgeotiff1.testcase \
 	writebandgeotiff2.testcase \
 	writebandgeotiff3.testcase \
@@ -295,6 +304,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writebandgeotiff26.testcase \
 	writebandgeotiff27.testcase \
 	writebandgeotiff28.testcase \
+	writebandgeotiff29.testcase \
 	writesectionbandgeotiff1.testcase \
 	writesectionbandgeotiff2.testcase \
 	writesectionbandgeotiff3.testcase \
@@ -324,6 +334,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionbandgeotiff27.testcase \
 	writesectionbandgeotiff28.testcase \
 	writesectionbandgeotiff29.testcase \
+	writesectionbandgeotiff30.testcase \
 	writemonotiff1.testcase \
 	writemonotiff2.testcase \
 	writemonotiff3.testcase \
@@ -345,6 +356,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writemonotiff19.testcase \
 	writemonotiff20.testcase \
 	writemonotiff21.testcase \
+	writemonotiff22.testcase \
 	writemonotifftfw1.testcase \
 	writemonotifftfw2.testcase \
 	writemonotifftfw3.testcase \
@@ -366,6 +378,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writemonotifftfw19.testcase \
 	writemonotifftfw20.testcase \
 	writemonotifftfw21.testcase \
+	writemonotifftfw22.testcase \
 	writesectionmonotiff1.testcase \
 	writesectionmonotiff2.testcase \
 	writesectionmonotiff3.testcase \
@@ -388,6 +401,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionmonotiff20.testcase \
 	writesectionmonotiff21.testcase \
 	writesectionmonotiff22.testcase \
+	writesectionmonotiff23.testcase \
 	writesectionmonotifftfw1.testcase \
 	writesectionmonotifftfw2.testcase \
 	writesectionmonotifftfw3.testcase \
@@ -410,6 +424,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionmonotifftfw20.testcase \
 	writesectionmonotifftfw21.testcase \
 	writesectionmonotifftfw22.testcase \
+	writesectionmonotifftfw23.testcase \
 	writemonogeotiff1.testcase \
 	writemonogeotiff2.testcase \
 	writemonogeotiff3.testcase \
@@ -455,6 +470,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionmonogeotiff21.testcase \
 	writesectionmonogeotiff22.testcase \
 	writesectionmonogeotiff23.testcase \
+	writesectionmonogeotiff24.testcase \
 	writegeotiff1.testcase \
 	writegeotiff2.testcase \
 	writegeotiff3.testcase \
@@ -474,6 +490,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writegeotiff17.testcase \
 	writegeotiff18.testcase \
 	writegeotiff19.testcase \
+	writegeotiff20.testcase \
 	writesectiongeotiff1.testcase \
 	writesectiongeotiff2.testcase \
 	writesectiongeotiff3.testcase \
@@ -494,6 +511,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectiongeotiff18.testcase \
 	writesectiongeotiff19.testcase \
 	writesectiongeotiff20.testcase \
+	writesectiongeotiff21.testcase \
 	writejpeg1.testcase \
 	writejpeg2.testcase \
 	writejpeg3.testcase \
@@ -509,6 +527,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writejpeg13.testcase \
 	writejpeg14.testcase \
 	writejpeg15.testcase \
+	writejpeg16.testcase \
 	writejpegjgw1.testcase \
 	writejpegjgw2.testcase \
 	writejpegjgw3.testcase \
@@ -524,6 +543,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writejpegjgw13.testcase \
 	writejpegjgw14.testcase \
 	writejpegjgw15.testcase \
+	writejpegjgw16.testcase \
 	writesectionjpeg1.testcase \
 	writesectionjpeg2.testcase \
 	writesectionjpeg3.testcase \
@@ -540,6 +560,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionjpeg14.testcase \
 	writesectionjpeg15.testcase \
 	writesectionjpeg16.testcase \
+	writesectionjpeg17.testcase \
 	writesectionjpegjgw1.testcase \
 	writesectionjpegjgw2.testcase \
 	writesectionjpegjgw3.testcase \
@@ -556,6 +577,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectionjpegjgw14.testcase \
 	writesectionjpegjgw15.testcase \
 	writesectionjpegjgw16.testcase \
+	writesectionjpegjgw17.testcase \
 	writetiff1.testcase \
 	writetiff2.testcase \
 	writetiff3.testcase \
@@ -574,6 +596,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writetiff16.testcase \
 	writetiff17.testcase \
 	writetiff18.testcase \
+	writetiff19.testcase \
 	writesectiontiff1.testcase \
 	writesectiontiff2.testcase \
 	writesectiontiff3.testcase \
@@ -593,6 +616,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectiontiff17.testcase \
 	writesectiontiff18.testcase \
 	writesectiontiff19.testcase \
+	writesectiontiff20.testcase \
 	writetifftfw1.testcase \
 	writetifftfw2.testcase \
 	writetifftfw3.testcase \
@@ -611,6 +635,7 @@ EXTRA_DIST = exportfont1.testcase \
 	writetifftfw16.testcase \
 	writetifftfw17.testcase \
 	writetifftfw18.testcase \
+	writetifftfw19.testcase \
 	writesectiontifftfw1.testcase \
 	writesectiontifftfw2.testcase \
 	writesectiontifftfw3.testcase \
@@ -629,7 +654,5 @@ EXTRA_DIST = exportfont1.testcase \
 	writesectiontifftfw16.testcase \
 	writesectiontifftfw17.testcase \
 	writesectiontifftfw18.testcase \
-	writesectiontifftfw19.testcase 
-
-
-
+	writesectiontifftfw19.testcase \
+	writesectiontifftfw20.testcase

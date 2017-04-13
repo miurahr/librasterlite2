@@ -4309,6 +4309,7 @@ parse_sld (xmlNodePtr node, rl2PrivGroupStylePtr style)
 			{
 			    rl2PrivChildStylePtr child =
 				malloc (sizeof (rl2PrivChildStyle));
+			    child->dbPrefix = style->dbPrefix;
 			    child->namedLayer = namedLayer;
 			    child->namedStyle = namedStyle;
 			    child->validLayer = 0;
@@ -4349,7 +4350,8 @@ parse_group_style (xmlNodePtr node, rl2PrivGroupStylePtr style)
 }
 
 RL2_PRIVATE rl2GroupStylePtr
-group_style_from_sld_xml (char *name, unsigned char *xml)
+group_style_from_sld_xml (const char *db_prefix, const char *name,
+			  unsigned char *xml)
 {
 /* attempting to build a Layer Group Style object from an SLD XML style */
     rl2PrivGroupStylePtr style = NULL;
@@ -4360,6 +4362,7 @@ group_style_from_sld_xml (char *name, unsigned char *xml)
     style = malloc (sizeof (rl2PrivGroupStyle));
     if (style == NULL)
 	return NULL;
+    style->dbPrefix = db_prefix;
     style->name = name;
     style->first = NULL;
     style->last = NULL;
@@ -4538,12 +4541,13 @@ rl2_create_group_renderer (sqlite3 * sqlite, rl2GroupStylePtr group_style)
 	  /* testing individual layers/styles */
 	  rl2CoverageStylePtr cvg_stl = NULL;
 	  rl2RasterStatisticsPtr stats = NULL;
+	  const char *db_prefix = rl2_get_group_prefix (group_style, i);
 	  const char *layer_name = rl2_get_group_named_layer (group_style, i);
 	  const char *layer_style_name =
 	      rl2_get_group_named_style (group_style, i);
 	  sqlite3_int64 layer_style_id = -1;
 	  rl2CoveragePtr coverage =
-	      rl2_create_coverage_from_dbms (sqlite, layer_name);
+	      rl2_create_coverage_from_dbms (sqlite, db_prefix, layer_name);
 	  rl2PrivCoveragePtr cvg = (rl2PrivCoveragePtr) coverage;
 	  if (rl2_is_valid_group_named_layer (group_style, 0, &valid) == RL2_OK)
 	    {
@@ -4562,6 +4566,7 @@ rl2_create_group_renderer (sqlite3 * sqlite, rl2GroupStylePtr group_style)
 			}
 		      stats =
 			  rl2_create_raster_statistics_from_dbms (sqlite,
+								  db_prefix,
 								  layer_name);
 		  }
 		if ((cvg->pixelType == RL2_PIXEL_DATAGRID

@@ -161,7 +161,7 @@ do_export_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id)
     path = sqlite3_mprintf ("./%s_tile_%d.png", coverage, tile_id);
     sql =
 	sqlite3_mprintf
-	("SELECT BlobToFile(RL2_GetTileImage(NULL, %Q, %d, '#e0ffe0', %d), %Q)",
+	("SELECT BlobToFile(RL2_GetTileImage('main', %Q, %d, '#e0ffe0', %d), %Q)",
 	 coverage, tile_id, transparent, path);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -209,7 +209,7 @@ do_export_tile_image3 (sqlite3 * sqlite, const char *coverage, int tile_id,
     path = sqlite3_mprintf ("./%s_tile_%d_%d.png", coverage, tile_id, band_mix);
     sql =
 	sqlite3_mprintf
-	("SELECT BlobToFile(RL2_GetTripleBandTileImage(%Q, %d, %d, %d, %d, '#e0ffe0', %d), %Q)",
+	("SELECT BlobToFile(RL2_GetTripleBandTileImage('main', %Q, %d, %d, %d, %d, '#e0ffe0', %d), %Q)",
 	 coverage, tile_id, red_band, green_band, blue_band, transparent, path);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -249,7 +249,7 @@ do_export_mono_tile_image (sqlite3 * sqlite, const char *coverage, int tile_id,
 			 band_mix);
     sql =
 	sqlite3_mprintf
-	("SELECT BlobToFile(RL2_GetMonoBandTileImage(%Q, %d, %d, '#e0ffe0', %d), %Q)",
+	("SELECT BlobToFile(RL2_GetMonoBandTileImage('main', %Q, %d, %d, '#e0ffe0', %d), %Q)",
 	 coverage, tile_id, mono_band, transparent, path);
     ret = execute_check (sqlite, sql);
     sqlite3_free (sql);
@@ -324,7 +324,7 @@ do_export_geotiff (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -396,7 +396,7 @@ do_export_band_composed_geotiff (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteTripleBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteTripleBandGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -472,7 +472,7 @@ do_export_band_composed_tiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTripleBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteTripleBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -544,7 +544,7 @@ do_export_band_composed_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTripleBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteTripleBandTiffTfw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -611,7 +611,7 @@ do_export_mono_band_geotiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteMonoBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteMonoBandGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -676,7 +676,7 @@ do_export_mono_band_tiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteMonoBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteMonoBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -737,7 +737,7 @@ do_export_mono_band_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteMonoBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteMonoBandTiffTfw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -799,7 +799,7 @@ do_export_section_triple_geotiff (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteSectionTripleBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteSectionTripleBandGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -861,7 +861,7 @@ do_export_section_triple_tiff (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteSectionTripleBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteSectionTripleBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -922,7 +922,7 @@ do_export_section_triple_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteSectionTripleBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteSectionTripleBandTiffTfw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -983,7 +983,7 @@ do_export_section_mono_geotiff (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteSectionMonoBandGeoTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteSectionMonoBandGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1039,7 +1039,7 @@ do_export_section_mono_tiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteSectionMonoBandTiff(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteSectionMonoBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1095,7 +1095,7 @@ do_export_section_mono_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     yy_res = y_res * (double) scale;
 
     sql =
-	"SELECT RL2_WriteSectionMonoBandTiffTfw(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_WriteSectionMonoBandTiffTfw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1158,7 +1158,7 @@ do_export_map_image (sqlite3 * sqlite, const char *coverage,
 			 monolithic ? "mono" : "sect", style, suffix);
 
     sql =
-	"SELECT BlobToFile(RL2_GetMapImageFromRaster(?, ST_Buffer(?, 100), ?, ?, ?, ?, ?, ?), ?)";
+	"SELECT BlobToFile(RL2_GetMapImageFromRaster('main', ?, ST_Buffer(?, 100), ?, ?, ?, ?, ?, ?), ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1212,7 +1212,7 @@ do_export_ndvi (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom)
     if (xx_res != yy_res)
 	xx_res = (xx_res + yy_res) / 2.0;
 
-    sql = "SELECT RL2_WriteNdviAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteNdviAsciiGrid('main', ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1265,7 +1265,7 @@ do_export_section_ndvi (sqlite3 * sqlite, const char *coverage,
     if (xx_res != yy_res)
 	xx_res = (xx_res + yy_res) / 2.0;
 
-    sql = "SELECT RL2_WriteSectionNdviAsciiGrid(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql = "SELECT RL2_WriteSectionNdviAsciiGrid('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1506,7 +1506,7 @@ test_default_bands (sqlite3 * sqlite, const char *coverage)
       }
 
     sql =
-	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled(%Q)",
+	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)",
 			 coverage);
     ret = execute_check_boolean (sqlite, sql);
     sqlite3_free (sql);
@@ -1547,8 +1547,8 @@ test_default_bands (sqlite3 * sqlite, const char *coverage)
       }
 
     sql =
-	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled(%Q)",
-			 coverage);
+	sqlite3_mprintf
+	("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)", coverage);
     ret = execute_check_boolean (sqlite, sql);
     sqlite3_free (sql);
     if (ret != 0)
@@ -1574,7 +1574,7 @@ test_default_bands (sqlite3 * sqlite, const char *coverage)
       }
 
     sql =
-	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled(%Q)",
+	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)",
 			 coverage);
     ret = execute_check_boolean (sqlite, sql);
     sqlite3_free (sql);
@@ -1751,6 +1751,8 @@ do_test_tile_data (sqlite3 * sqlite, unsigned char compression, int tile_sz)
 	    }
       }
     sqlite3_finalize (stmt);
+    if (err)
+	return 0;
     return 1;
 }
 

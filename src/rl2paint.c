@@ -2985,7 +2985,10 @@ rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
     curve_len = rl2_compute_curve_length (geom);
     do_estimate_text_length (cairo, text, &text_len, &extra_len);
     if ((initial_gap + text_len + (2.0 * extra_len)) > curve_len)
-	return 0;		/* not enough room to place the label */
+      {
+	  rl2_destroy_geometry (geom);
+	  return 0;		/* not enough room to place the label */
+      }
 
     if (repeated)
       {

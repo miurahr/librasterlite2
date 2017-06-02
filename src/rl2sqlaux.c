@@ -6933,7 +6933,7 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 			   "AND search_frame = ST_Transform(?, %d))",
 			   oldsql, rowid, rtree_name, lyr->f_geometry_column,
 			   srid);
-		      free (rtree_name);
+		      sqlite3_free (rtree_name);
 		      sqlite3_free (rowid);
 		      sqlite3_free (oldsql);
 		  }
@@ -6977,7 +6977,7 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 			  ("%s WHERE %s IN (SELECT ROWID FROM SpatialIndex "
 			   "WHERE f_table_name = %Q AND f_geometry_column = %Q AND search_frame = ?)",
 			   oldsql, rowid, rtree_name, lyr->f_geometry_column);
-		      free (rtree_name);
+		      sqlite3_free (rtree_name);
 		      sqlite3_free (rowid);
 		      sqlite3_free (oldsql);
 		  }
@@ -7029,7 +7029,6 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 	    }
 
 	  /* preparing the SQL statement */
-	  fprintf (stderr, "%s\n", sql);
 	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
 	  sqlite3_free (sql);
 	  if (ret != SQLITE_OK)

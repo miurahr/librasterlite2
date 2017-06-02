@@ -2955,8 +2955,8 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
     rl2PrivVectorSymbolizerItemPtr item;
     int stroke = 0;
     int fill = 0;
-    int pen_cap;
-    int pen_join;
+    int pen_cap = RL2_PEN_CAP_BUTT;
+    int pen_join = RL2_PEN_JOIN_MITER;
     double opacity;
     unsigned char norm_opacity;
     rl2PolygonPtr polyg;

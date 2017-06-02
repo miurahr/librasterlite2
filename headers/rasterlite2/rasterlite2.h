@@ -364,6 +364,19 @@ extern "C"
     typedef rl2VectorLayer *rl2VectorLayerPtr;
 
 /**
+ Typedef for RL2 Vector MultiLayer object (opaque, hidden)
+
+ \sa rl2VectorMultiLayerPtr
+ */
+    typedef struct rl2_vector_multi_layer rl2VectorMultiLayer;
+/**
+ Typedef for RL2 Vector MultiLayer object pointer (opaque, hidden)
+
+ \sa rl2VectorMultiLayer
+ */
+    typedef rl2VectorMultiLayer *rl2VectorMultiLayerPtr;
+
+/**
  Typedef for RL2 CoverageStyle object (opaque, hidden)
 
  \sa rl2CoverageStylePtr
@@ -626,16 +639,30 @@ extern "C"
     typedef rl2RasterStatistics *rl2RasterStatisticsPtr;
 
 /**
+ Typedef for RL2 Canvas
+
+ \sa rl2CanvasPtr
+ */
+    typedef struct rl2_canvas rl2Canvas;
+
+/**
+ Typedef for RL2 Canvas 
+
+ \sa rl2Canvas
+ */
+    typedef rl2Canvas *rl2CanvasPtr;
+
+/**
  Typedef for RL2 in-memory PDF target object
 
- \sa rl2MemPtrPtr
+ \sa rl2MemPdfPtr
  */
     typedef struct rl2_mem_pdf_target rl2MemPdf;
 
 /**
  Typedef for RL2 in-memory PDF target
 
- \sa rl2MemPtr
+ \sa rl2MemPdf
  */
     typedef rl2MemPdf *rl2MemPdfPtr;
 
@@ -1594,6 +1621,14 @@ extern "C"
  Coverage is (may be NULL, and in this case the MAIN db will be targeted)
  \param f_table_name a text string containing the Table name.
  \param f_geometry_column a text string containing the Geometry Column name
+ \param view_name a text string containing the View name; always expected 
+ to be NULL except than for Vector Layers based on some Spatial View.
+ \param view_geometry a text string containing the View's Geometry Column 
+ name; always expected to be NULL except than for Vector Layers based on 
+ some Spatial View.
+ \param view_rowid a text string containing the View's ROWID Column 
+ name; always expected to be NULL except than for Vector Layers based on 
+ some Spatial View.
  \param geometry_type the numeric ID of some Geometry class; one between 
   GAIA_POINT, GAIA_LINESTRING, GAIA_POLYGON and alike.
  \param srid the SRID value
@@ -1604,7 +1639,8 @@ extern "C"
  
  \sa rl2_destroy_vector_layer, rl2_get_vector_prefix, rl2_get_vector_table_name, 
 		rl2_get_vector_geometry_name, rl2_get_vector_geometry_type, 
-		rl2_get_vector_srid, rl2_get_vector_spatial_index
+		rl2_get_vector_srid, rl2_set_vector_visibility, rl2_is_vector_visible, 
+		rl2_get_vector_spatial_index, rl2_create_vector_multi_layer
  
  \note you are responsible to destroy (before or after) any allocated 
  Vector Layer object.
@@ -1613,6 +1649,9 @@ extern "C"
 	rl2_create_vector_layer (const char *db_prefix,
 				 const char *f_table_name,
 				 const char *f_geometry_column,
+				 const char *view_name,
+				 const char *view_geometry,
+				 const char *view_rowid,
 				 unsigned short geometry_type, int srid,
 				 unsigned char spatial_index);
 
@@ -1704,6 +1743,189 @@ extern "C"
  */
     RL2_DECLARE int rl2_get_vector_spatial_index (rl2VectorLayerPtr vector,
 						  unsigned char *idx);
+
+/**
+ Sets visibility for a Vector Layer Object
+
+ \param vector pointer to the Vector Layer Object.
+ \param is_visible TRUE or FALSE.
+ 
+ \return  RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_vector_layer, rl2_is_vector_visible
+ */
+    RL2_DECLARE int rl2_set_vector_visibility (rl2VectorLayerPtr vector,
+					       int is_visible);
+
+/**
+ Tests if a Vector Layer Object is visible or not
+
+ \param vector pointer to the Vector Layer Object.
+ \param is_visible on completion the variable referenced by this
+ pointer will contain TRUE or FALSE.
+ 
+ \return  RL2_OK on success: RL2_ERROR on failure.
+
+ \sa rl2_create_vector_layer, rl2_set_vector_visibility
+ */
+    RL2_DECLARE int rl2_is_vector_visible (rl2VectorLayerPtr vector,
+					   int *is_visible);
+
+/**
+ Allocates and initializes a new Vector MultiLayer object
+
+ \param count max number of Vector Layers supported by the MultiLayer
+ 
+ \return the pointer to newly created Vector MultiLayer Object: NULL on failure.
+ 
+ \sa rl2_destroy_multi_layer, rl2_get_multilayer_count,
+     rl2_set_multilayer_topogeo, rl2_is_multilayer_topogeo,
+     rl2_set_multilayer_toponet, rl2_is_multilayer_toponet,
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Vector MultiLayer object.
+ */
+    RL2_DECLARE rl2VectorMultiLayerPtr rl2_create_multi_layer (int count);
+
+/**
+ Destroys a Vector MultiLayer Object
+
+ \param vector pointer to object to be destroyed
+
+ \sa rl2_create_multi_layer
+ */
+    RL2_DECLARE void rl2_destroy_multi_layer (rl2VectorMultiLayerPtr vector);
+
+/**
+ Retrieving the max number of Layers allowed by a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ 
+ \return the max number of individual Layers; a negative number on failure
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ */
+    RL2_DECLARE int
+	rl2_get_multilayer_count (rl2VectorMultiLayerPtr multi_layer);
+
+/**
+ Setting the IsTopoGeo flag on a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ \param is_topogeo TRUE or FALSE
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_count, rl2_is_multilayer_topogeo,
+     rl2_set_multilayer_toponet, rl2_is_multilayer_toponet,
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ */
+    RL2_DECLARE int
+	rl2_set_multilayer_topogeo (rl2VectorMultiLayerPtr multi_layer,
+				    int is_topogeo);
+
+/**
+ Retrieving the IsTopoGeo flag from a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ \param is_topogeo on succesfull completion the variable referenced by
+ this pointer will be set to TRUE or FALSE.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_count, rl2_set_multilayer_topogeo,
+     rl2_set_multilayer_toponet, rl2_is_multilayer_toponet,
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ */
+    RL2_DECLARE int
+	rl2_is_multilayer_topogeo (rl2VectorMultiLayerPtr multi_layer,
+				   int *is_topogeo);
+
+/**
+ Setting the IsTopoNet flag on a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ \param is_toponet TRUE or FALSE
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_count, rl2_is_multilayer_toponet,
+     rl2_set_multilayer_topogeo, rl2_is_multilayer_topogeo,
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ */
+    RL2_DECLARE int
+	rl2_set_multilayer_toponet (rl2VectorMultiLayerPtr multi_layer,
+				    int is_toponet);
+
+/**
+ Retrieving the IsTopoNet flag from a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ \param is_toponet on succesfull completion the variable referenced by
+ this pointer will be set to TRUE or FALSE.
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_count, rl2_set_multilayer_toponet,
+     rl2_set_multilayer_topogeo, rl2_is_multilayer_topogeo,
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ */
+    RL2_DECLARE int
+	rl2_is_multilayer_toponet (rl2VectorMultiLayerPtr multi_layer,
+				   int *is_toponet);
+
+/**
+ Retrieving the max number of Layers allowed by a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ 
+ \return the max number of individual Layers; a negative number on failure
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_set_multilayer_topo, rl2_is_multilayer_topo,
+     rl2_get_multilayer_item, rl2_add_layer_to_multilayer
+ */
+    RL2_DECLARE int
+	rl2_get_multilayer_count (rl2VectorMultiLayerPtr multi_layer);
+
+/**
+ Retrieving an individual Layer (by its index) from a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ \param index relative index (base=0) identifies an individual Layer 
+ within the MultiLayer object
+ 
+ \return pointer to the Layer item identified by index: NULL on failure.
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_count, rl2_add_layer_to_multilayer,
+     rl2_set_multilayer_topo, rl2_is_multilayer_topo,
+ */
+    RL2_DECLARE rl2VectorLayerPtr
+	rl2_get_multilayer_item (rl2VectorMultiLayerPtr multi_layer, int index);
+
+/**
+ Inserting an individual Layer into a MultiLayer object
+
+ \param multi_layer pointer to a MultiLayer object
+ \param layer pointer to thel Layer to be inserted into the MultiLayer object
+ 
+ \return RL2_OK on success: RL2_ERROR on failure.
+ 
+ \sa rl2_create_multi_layer, rl2_destroy_vector_multi_layer, 
+     rl2_get_multilayer_count, rl2_get_multilayer_item,
+     rl2_create_vector_layer, rl2_set_multilayer_topo, 
+     rl2_is_multilayer_topo,
+ */
+    RL2_DECLARE int
+	rl2_add_layer_to_multilayer (rl2VectorMultiLayerPtr multi_layer,
+				     rl2VectorLayerPtr layer);
 
 /**
  Allocates and initializes a new Section object
@@ -3519,7 +3741,7 @@ extern "C"
 				       const char *db_prefix,
 				       const char *coverage);
 
-    RL2_DECLARE rl2VectorLayerPtr
+    RL2_DECLARE rl2VectorMultiLayerPtr
 	rl2_create_vector_layer_from_dbms (sqlite3 * handle,
 					   const char *db_prefix,
 					   const char *coverage);
@@ -5463,21 +5685,80 @@ extern "C"
 	rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 				  const char *coverage_name);
 
-    RL2_DECLARE unsigned char *rl2_get_raster_map (sqlite3 * sqlite,
-						   const char *db_prefix,
-						   const char *layer, int srid,
-						   double minx, double miny,
-						   double maxx, double maxy,
-						   int width, int height,
-						   const char *style);
+    RL2_DECLARE int rl2_map_image_blob_from_raster (sqlite3 * sqlite,
+						    const void *data,
+						    const char *db_prefix,
+						    const char *cvg_name,
+						    const unsigned char *blob,
+						    int blob_sz, int width,
+						    int height,
+						    const char *style,
+						    const char *format,
+						    const char *bg_color,
+						    int transparent,
+						    int quality, int reaspect,
+						    unsigned char **img,
+						    int *img_size);
 
-    RL2_DECLARE unsigned char *rl2_get_vector_map (sqlite3 * sqlite,
-						   const char *db_prefix,
-						   const char *layer, int srid,
-						   double minx, double miny,
-						   double maxx, double maxy,
-						   int width, int height,
-						   const char *style);
+    RL2_DECLARE int rl2_map_image_paint_from_raster (sqlite3 * sqlite,
+						     const void *data,
+						     rl2CanvasPtr canvas,
+						     const char *db_prefix,
+						     const char *cvg_name,
+						     const unsigned char *blob,
+						     int blob_sz,
+						     const char *style);
+
+    RL2_DECLARE int rl2_map_image_blob_from_vector (sqlite3 * sqlite,
+						    const void *data,
+						    const char *db_prefix,
+						    const char *cvg_name,
+						    const unsigned char *blob,
+						    int blob_sz, int width,
+						    int height,
+						    const char *style,
+						    const char *format,
+						    const char *bg_color,
+						    int transparent,
+						    int quality, int reaspect,
+						    unsigned char **img,
+						    int *img_size);
+
+    RL2_DECLARE int rl2_map_image_paint_from_vector (sqlite3 * sqlite,
+						     const void *data,
+						     rl2CanvasPtr canvas,
+						     const char *db_prefix,
+						     const char *cvg_name,
+						     const unsigned char *blob,
+						     int blob_sz,
+						     const char *style,
+						     const unsigned char
+						     *quick_style);
+
+    RL2_DECLARE int rl2_map_image_paint_from_vector_ex (sqlite3 * sqlite,
+							const void *data,
+							rl2CanvasPtr canvas,
+							const char *db_prefix,
+							const char *cvg_name,
+							const unsigned char
+							*blob, int blob_sz,
+							const char *style,
+							const unsigned char
+							*quick_style,
+							int with_nodes,
+							int with_edges_or_links,
+							int with_faces,
+							int
+							with_edge_or_link_seeds,
+							int with_face_seeds);
+
+    RL2_DECLARE rl2FeatureTypeStylePtr rl2_feature_type_style_from_xml (const
+									char
+									*name,
+									const
+									unsigned
+									char
+									*xml);
 
 #ifdef __cplusplus
 }

@@ -77,6 +77,23 @@ extern "C"
 #define RL2_PEN_JOIN_ROUND	5262
 #define RL2_PEN_JOIN_BEVEL	5263
 
+#define RL2_UNKNOWN_CANVAS	0x03a
+#define RL2_VECTOR_CANVAS	0x03b
+#define RL2_TOPOLOGY_CANVAS	0x03c
+#define RL2_NETWORK_CANVAS	0x03d
+#define RL2_RASTER_CANVAS	0x03e
+#define RL2_WMS_CANVAS		0x03f
+
+#define RL2_CANVAS_UNKNOWN_CTX		5500
+#define RL2_CANVAS_BASE_CTX			5501
+#define RL2_CANVAS_NODES_CTX		5502
+#define RL2_CANVAS_EDGES_CTX		5503
+#define RL2_CANVAS_LINKS_CTX		5504
+#define RL2_CANVAS_FACES_CTX		5505
+#define RL2_CANVAS_EDGE_SEEDS_CTX	5506
+#define RL2_CANVAS_LINK_SEEDS_CTX	5507
+#define RL2_CANVAS_FACE_SEEDS_CTX	5508
+
     typedef struct rl2_graphics_context rl2GraphicsContext;
     typedef rl2GraphicsContext *rl2GraphicsContextPtr;
 
@@ -92,19 +109,42 @@ extern "C"
 /**
  Creates a generic Graphics Context 
 
- \param width canvass width (in pixels)
- \param height canvass height (in pixels)
+ \param width canvas width (in pixels)
+ \param height canvas height (in pixels)
 
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
  \sa rl2_graph_destroy_context, rl2_graph_create_svg_context,
- rl2_graph_create_pdf_context, rl2_graph_create_mem_pdf_context
+ rl2_graph_create_pdf_context, rl2_graph_create_mem_pdf_context,
+ rl2_graph_context_get_dimensions, rl2_graph_create_context_rgba
  
  \note you are responsible to destroy (before or after) any Graphics Context
  returned by rl2_graph_create_context() by invoking rl2_graph_destroy_context().
  */
     RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_context (int width,
 								int height);
+
+/**
+ Creates a generic Graphics Context initialized from an RGBA image
+
+ \param width canvas width (in pixels)
+ \param height canvas height (in pixels)
+ \param rgbaArray pointer to an array of RGBA pixels representing the bitmap
+
+ \return the pointer to the corresponding Graphics Context object: NULL on failure
+ 
+ \sa rl2_graph_destroy_context, rl2_graph_create_svg_context,
+ rl2_graph_create_pdf_context, rl2_graph_create_mem_pdf_context,
+ rl2_graph_context_get_dimensions, rl2_graph_create_context
+ 
+ \note you are responsible to destroy (before or after) any Graphics Context
+ returned by rl2_graph_create_context() by invoking rl2_graph_destroy_context().
+ */
+    RL2_DECLARE rl2GraphicsContextPtr rl2_graph_create_context_rgba (int width,
+								     int height,
+								     unsigned
+								     char
+								     *rgbaArray);
 
 /**
  Destroys a Graphics Context object freeing any allocated resource 
@@ -120,13 +160,13 @@ extern "C"
  Creates an SVG Graphics Context 
 
  \param path pathname of the target SVG output file
- \param width canvass width (in pixels)
- \param height canvass height (in pixels)
+ \param width canvas width (in pixels)
+ \param height canvas height (in pixels)
 
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
  \sa rl2_graph_create_context, rl2_graph_destroy_context, rl2_graph_create_pdf_context,
- rl2_graph_create_mem_pdf_context
+ rl2_graph_create_mem_pdf_context, rl2_graph_context_get_dimensions
  
  \note you are responsible to destroy (before or after) any SVG Graphics Context
  returned by rl2_graph_create_svg_context() by invoking rl2_graph_destroy_context().
@@ -149,7 +189,7 @@ extern "C"
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, rl2_graph_create_mem_pdf_context,
- rl2_graph_destroy_context
+ rl2_graph_destroy_context, rl2_graph_context_get_dimensions
  
  \note you are responsible to destroy (before or after) any PDF Graphics Context
  returned by rl2_graph_create_pdf_context() by invoking rl2_graph_destroy_context().
@@ -179,7 +219,7 @@ extern "C"
  \return the pointer to the corresponding Graphics Context object: NULL on failure
  
  \sa rl2_graph_create_context, rl2_graph_create_svg_context, rl2_graph_create_pdf_context,
- rl2_graph_destroy_context, rl2_create_mem_pdf_target
+ rl2_graph_destroy_context, rl2_create_mem_pdf_target, rl2_graph_context_get_dimensions
  
  \note you are responsible to destroy (before or after) any PDF Graphics Context
  returned by rl2_graph_create_mem_pdf_context() by invoking rl2_graph_destroy_context().
@@ -191,12 +231,29 @@ extern "C"
 					  double margin_height);
 
 /**
+ Retrieves the Width and Height from a Graphics Context
+  
+ \param handle the pointer to a valid Graphics Context.
+ \param width on succesful completione the variable referenced by this
+ pointer will contain the Width value.
+ \param height on succesful completione the variable referenced by this
+ pointer will contain the Height value.
+ 
+ \return RL2_OK on succes; RL2_ERROR on failure
+ 
+ \sa rl2_graph_create_context, rl2_graph_create_svg_context, rl2_graph_create_mem_pdf_context
+ */
+    RL2_DECLARE int
+	rl2_graph_context_get_dimensions (rl2GraphicsContextPtr handle,
+					  int *width, int *height);
+
+/**
  Create an in-memory PDF target
  
  \return the handle to an initially empty in-memory PDF target: NULL on failure
  
  \sa rl2_graph_create_mem_pdf_context, rl2_destroy_mem_pdf_target,
- rl2_get_mem_pdf_buffer
+ rl2_get_mem_pdf_buffer, rl2_graph_context_get_dimensions
  
  \note you are responsible to destroy (before or after) any in-memory PDF target
  returned by rl2_create_mem_pdf_target() by invoking rl2_destroy_mem_pdf_target().
@@ -767,9 +824,9 @@ extern "C"
 						    unsigned char alpha);
 
 /**
- Draws a Graphic Symbol into the Canvass
+ Draws a Graphic Symbol into the Canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param pattern the pointer to a valid  Pattern returned by a previous call
  \param width of the rendered image.
  \param height of the rendered image.
@@ -800,9 +857,9 @@ extern "C"
 						   double anchor_point_y);
 
 /**
- Draws a Mark Symbol into the Canvass
+ Draws a Mark Symbol into the Canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param mark_type expected to be one between RL2_GRAPHIC_MARK_SQUARE,
   RL2_GRAPHIC_MARK_CIRCLE, RL2_GRAPHIC_MARK_TRIANGLE, 
   RL2_GRAPHIC_MARK_STAR, RL2_GRAPHIC_MARK_CROSS and RL2_GRAPHIC_MARK_X 
@@ -1026,9 +1083,9 @@ extern "C"
     RL2_DECLARE void rl2_graph_destroy_bitmap (rl2GraphicsBitmapPtr bitmap);
 
 /**
- Drawing a Rectangle into a canvass
+ Drawing a Rectangle into a canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param x the X coordinate of the top left corner of the rectangle.
  \param y the Y coordinate of the top left corner of the rectangle.
  \param width the width of the rectangle.
@@ -1048,9 +1105,9 @@ extern "C"
 					      double height);
 
 /**
- Drawing a Rectangle with rounded corners into a canvass
+ Drawing a Rectangle with rounded corners into a canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param x the X coordinate of the top left corner of the rectangle.
  \param y the Y coordinate of the top left corner of the rectangle.
  \param width the width of the rectangle.
@@ -1073,9 +1130,9 @@ extern "C"
 						      double radius);
 
 /**
- Drawing an Ellipse into a canvass
+ Drawing an Ellipse into a canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param x the X coordinate of the top left corner of the rectangle
  into which the ellipse is inscribed.
  \param y the Y coordinate of the top left corner of the rectangle.
@@ -1096,9 +1153,9 @@ extern "C"
 					    double height);
 
 /**
- Drawing a Circular Sector into a canvass
+ Drawing a Circular Sector into a canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param center_x the X coordinate of the circle's centre.
  \param center_y the Y coordinate of the circle's centre.
  \param radius the circle's radius.
@@ -1122,9 +1179,9 @@ extern "C"
 						  double to_angle);
 
 /**
- Drawing a straight Line into a canvass
+ Drawing a straight Line into a canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param x0 the X coordinate of the first point.
  \param y0 the Y coordinate of the first point.
  \param x1 the X coordinate of the second point.
@@ -1146,7 +1203,7 @@ extern "C"
 /**
  Begins a new SubPath
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param x the X coordinate of the point.
  \param y the Y coordinate of the point.
 
@@ -1161,7 +1218,7 @@ extern "C"
 /**
  Add a line into the current SubPath
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param x the X coordinate of the destination point.
  \param y the Y coordinate of the destination point.
 
@@ -1176,7 +1233,7 @@ extern "C"
 /**
  Terminates the current SubPath
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
 
  \return 0 (false) on error, any other value on success.
  
@@ -1188,9 +1245,9 @@ extern "C"
 /**
  Fills the current Path using the currently set Brush
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param preserve if true the current Path will be preserved into the
- current Canvass, otherwise it will be definitely removed.
+ current Canvas, otherwise it will be definitely removed.
 
  \return 0 (false) on error, any other value on success.
  
@@ -1203,9 +1260,9 @@ extern "C"
 /**
  Strokes the current Path using the currently set Pen
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param preserve if true the current Path will be preserved into the
- current Canvass, otherwise it will be definitely removed.
+ current Canvas, otherwise it will be definitely removed.
 
  \return 0 (false) on error, any other value on success.
  
@@ -1216,10 +1273,10 @@ extern "C"
 					   int preserve);
 
 /**
- Draws a text into the Canvass using the currently set Font
+ Draws a text into the Canvas using the currently set Font
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
- \param text string to be printed into the canvass.
+ \param context the pointer to a valid Graphics Context (aka Canvas).
+ \param text string to be printed into the canvas.
  \param x the X coordinate of the top left corner of the text.
  \param y the Y coordinate of the top left corner of the text.
  \param angle an angle (in decimal degrees) to rotate the text.
@@ -1245,8 +1302,8 @@ extern "C"
  Draws a text warped along a curve using the currently set Font
 
  \param handle connection handle
- \param context the pointer to a valid Graphics Context (aka Canvass).
- \param text string to be printed into the canvass.
+ \param context the pointer to a valid Graphics Context (aka Canvas).
+ \param text string to be printed into the canvas.
  \param points number of item in both X and Y arrays
  \param x array of X coordinates.
  \param y array of Y coordinates; both X and Y arrays represent
@@ -1275,10 +1332,10 @@ extern "C"
 						int repeated);
 
 /**
- Computes the extent corresponding to a text into the Canvass using the currently set Font
+ Computes the extent corresponding to a text into the Canvas using the currently set Font
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
- \param text string to be printed into the canvass.
+ \param context the pointer to a valid Graphics Context (aka Canvas).
+ \param text string to be printed into the canvas.
  \param pre_x on completion this variable will contain the horizontal 
   spacing before the text.
  \param pre_y on completion this variable will contain the vertical
@@ -1303,9 +1360,9 @@ extern "C"
 					       double *post_y);
 
 /**
- Draws a Bitmap into the Canvass
+ Draws a Bitmap into the Canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param bitmap the pointer to a valid Graphics Bitmap to be rendered.
  \param x the X coordinate of the image's left upper corner.
  \param y the Y coordinate of the image's left upper corner.
@@ -1321,9 +1378,9 @@ extern "C"
 					   double x, double y);
 
 /**
- Draws a Rescaled Bitmap into the Canvass
+ Draws a Rescaled Bitmap into the Canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param bitmap the pointer to a valid Graphics Bitmap to be rendered.
  \param scale_x the Scale Factor for X axis.
  \param scale_y the Scale Factor for Y axis.
@@ -1365,9 +1422,24 @@ extern "C"
 					unsigned int outheight);
 
 /**
- Creates an RGB Array corresponding to the current Canvass
+ Merges a Graphics Context into another
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param ctx_out the pointer to a valid Graphics Context (aka Canvas)
+ receiving the merged result.
+ \param ctx_in the pointer to another valid Graphics Context providing
+ data to be merged.
+
+ \return RL2_OK on succes; RL2_ERROR on failure.
+ 
+ \note both Graphics Contexts must have identical Width and Height
+ */
+    RL2_DECLARE int rl2_graph_merge (rl2GraphicsContextPtr ctx_out,
+				     rl2GraphicsContextPtr ctx_in);
+
+/**
+ Creates an RGB Array corresponding to the current Canvas
+
+ \param context the pointer to a valid Graphics Context (aka Canvas).
 
  \return the pointer to the RGB Array: NULL on failure.
  
@@ -1380,9 +1452,9 @@ extern "C"
 	*rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context);
 
 /**
- Creates an Array of Alpha values corresponding to the current Canvass
+ Creates an Array of Alpha values corresponding to the current Canvas
 
- \param context the pointer to a valid Graphics Context (aka Canvass).
+ \param context the pointer to a valid Graphics Context (aka Canvas).
  \param half_transparent after successful completion this variable will
  ontain 1 or 0, accordingly to the presence of half-transparencies 
  strictly requiring an alpha band.
@@ -1397,6 +1469,180 @@ extern "C"
     RL2_DECLARE unsigned char
 	*rl2_graph_get_context_alpha_array (rl2GraphicsContextPtr context,
 					    int *half_transparent);
+
+/**
+ Allocates and initializes a new Canvas object (generic Vector Layer)
+
+ \param ref_ctx pointer to Graphics Context
+ 
+ \return the pointer to newly created Canvas Object: NULL on failure.
+ 
+ \sa rl2_destroy_canvas, rl2_create_topology_canvas, rl2_create_network_canvas, 
+ rl2_create_raster_canves, rl2_create_wms_canvas, rl2_get_canvas_type,
+ rl2_get_canvas_ctx, rl2_is_canvas_ready, rl2_is_canvas_error
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Canvas object.
+ */
+    RL2_DECLARE rl2CanvasPtr rl2_create_vector_canvas (rl2GraphicsContextPtr
+						       ref_ctx);
+
+/**
+ Allocates and initializes a new Canvas object (Topology Layer)
+
+ \param ref_ctx pointer to base Graphics Context
+ \param ref_ctx_nodes pointer to Nodes Graphics Context (may be NULL)
+ \param ref_ctx_edges pointer to Edges Graphics Context (may be NULL)
+ \param ref_ctx_faces pointer to Faces Graphics Context (may be NULL)
+ \param ref_ctx_edge_seeds pointer to Edge Seeds Graphics Context (may be NULL)
+ \param ref_ctx_face_seeds pointer to Face Seeds Graphics Context (may be NULL)
+ 
+ \return the pointer to newly created Canvas Object: NULL on failure.
+ 
+ \sa rl2_destroy_canvas, rl2_create_vector_canvas, rl2_create_network_canvas, 
+ rl2_create_raster_canves, rl2_create_wms_canvas, rl2_get_canvas_type,
+ rl2_get_canvas_ctx, rl2_is_canvas_ready, rl2_is_canvas_error
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Canvas object.
+ */
+    RL2_DECLARE rl2CanvasPtr rl2_create_topology_canvas (rl2GraphicsContextPtr
+							 ref_ctx,
+							 rl2GraphicsContextPtr
+							 ref_ctx_nodes,
+							 rl2GraphicsContextPtr
+							 ref_ctx_edges,
+							 rl2GraphicsContextPtr
+							 ref_ctx_faces,
+							 rl2GraphicsContextPtr
+							 ref_ctx_edge_seeds,
+							 rl2GraphicsContextPtr
+							 ref_ctx_face_seeds);
+
+/**
+ Allocates and initializes a new Canvas object (Topology Layer)
+
+ \param ref_ctx pointer to base Graphics Context
+ \param ref_ctx_nodes pointer to Nodes Graphics Context (may be NULL)
+ \param ref_ctx_links pointer to Links Graphics Context (may be NULL)
+ \param ref_ctx_link_seeds pointer to Link Seeds Graphics Context (may be NULL)
+ 
+ \return the pointer to newly created Canvas Object: NULL on failure.
+ 
+ \sa rl2_destroy_canvas, rl2_create_vector_canvas, rl2_create_topology_canvas, 
+ rl2_create_raster_canves, rl2_create_wms_canvas, rl2_get_canvas_type,
+ rl2_get_canvas_ctx, rl2_is_canvas_ready, rl2_is_canvas_error
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Canvas object.
+ */
+    RL2_DECLARE rl2CanvasPtr rl2_create_network_canvas (rl2GraphicsContextPtr
+							ref_ctx,
+							rl2GraphicsContextPtr
+							ref_ctx_nodes,
+							rl2GraphicsContextPtr
+							ref_ctx_links,
+							rl2GraphicsContextPtr
+							ref_ctx_link_seeds);
+
+/**
+ Allocates and initializes a new Canvas object (Raster Layer)
+
+ \param ref_ctx pointer to Graphics Context
+ 
+ \return the pointer to newly created Canvas Object: NULL on failure.
+ 
+ \sa rl2_destroy_canvas, rl2_create_vector_canvas, rl2_create_topology_canvas, 
+ rl2_create_network_canves, rl2_create_wms_canvas, rl2_get_canvas_type,
+ rl2_get_canvas_ctx, rl2_is_canvas_ready, rl2_is_canvas_error
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Canvas object.
+ */
+    RL2_DECLARE rl2CanvasPtr rl2_create_raster_canvas (rl2GraphicsContextPtr
+						       ref_ctx);
+
+/**
+ Allocates and initializes a new Canvas object (WMS Layer)
+
+ \param ref_ctx pointer to Graphics Context
+ 
+ \return the pointer to newly created Canvas Object: NULL on failure.
+ 
+ \sa rl2_destroy_canvas, rl2_create_vector_canvas, rl2_create_topology_canvas, 
+ rl2_create_network_canves, rl2_create_raster_canvas, rl2_get_canvas_type,
+ rl2_get_canvas_ctx, rl2_is_canvas_ready, rl2_is_canvas_error
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Canvas object.
+ */
+    RL2_DECLARE rl2CanvasPtr rl2_create_wms_canvas (rl2GraphicsContextPtr
+						    ref_ctx);
+
+/**
+ Destroys a Canvas Object
+
+ \param canvas pointer to object to be destroyed
+
+ \sa rl2_create_vector_canvas, rl2_create_topology_canvas, rl2_create_network_canvas, 
+ rl2_create_raster_canves, rl2_create_wms_canvas
+ */
+    RL2_DECLARE void rl2_destroy_canvas (rl2CanvasPtr canvas);
+
+/**
+ Retrieving the Type of a Canvas object
+
+ \param canvas pointer to a Canvas object
+ 
+ \return the type of the Canvas object
+ 
+ \sa rl2_create_vector_canvas, rl2_create_topology_canvas, 
+ rl2_create_network_canves, rl2_create_raster_canvas, rl2_create_wms_canvas,
+ rl2_get_canvas_ctx
+ */
+    RL2_DECLARE int rl2_get_canvas_type (rl2CanvasPtr canvas);
+
+/**
+ Retrieving the Graphics Context from a Canvas object
+
+ \param canvas pointer to a Canvas object
+ \param which one between RL2_CANVAS_BASE_CTX, RL2_CANVAS_NODES_CTX,
+ RL2_CANVAS_EDGES_CTX, RL2_CANVAS_LINKS_CTX, RL2_CANVAS_FACES_CTX,
+ RL2_CANVAS_EDGE_SEEDS_CTX, RL2_CANVAS_LINK_SEEDS_CTX, RL2_CANVAS_FACE_CTX
+ 
+ \return a pointer to a Graphics Context object (may be NULL)
+ 
+ \sa rl2_create_vector_canvas, rl2_create_topology_canvas, 
+ rl2_create_network_canves, rl2_create_raster_canvas, rl2_create_wms_canvas,
+ rl2_get_canvas_type, rl2_is_canvas_ready, rl2_is_canvas_error
+ */
+    RL2_DECLARE rl2GraphicsContextPtr
+	rl2_get_canvas_ctx (rl2CanvasPtr canvas, int which);
+
+/**
+ Testing if a Canvas object is ready to be used (rendered)
+
+ \param canvas pointer to a Canvas object
+ \param which one between RL2_CANVAS_BASE_CTX, RL2_CANVAS_NODES_CTX,
+ RL2_CANVAS_EDGES_CTX, RL2_CANVAS_LINKS_CTX, RL2_CANVAS_FACES_CTX,
+ RL2_CANVAS_EDGE_SEEDS_CTX, RL2_CANVAS_LINK_SEEDS_CTX, RL2_CANVAS_FACE_CTX
+ 
+ \return RL2_TRUE or RL2_FALSE
+ 
+ \sa rl2_create_vector_canvas, rl2_create_topology_canvas, 
+ rl2_create_network_canves, rl2_create_raster_canvas, rl2_create_wms_canvas,
+ rl2_get_canvas_type, rl2_get_canvas_ctx, rl2_is_canvas_error
+ */
+    RL2_DECLARE int rl2_is_canvas_ready (rl2CanvasPtr canvas, int wich);
+
+    RL2_DECLARE unsigned char *rl2_get_vector_map (sqlite3 * sqlite,
+						   rl2CanvasPtr canvas,
+						   const char *db_prefix,
+						   const char *layer, int srid,
+						   double minx, double miny,
+						   double maxx, double maxy,
+						   int width, int height,
+						   const char *style);
 
 #ifdef __cplusplus
 }

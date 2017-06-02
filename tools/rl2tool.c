@@ -537,8 +537,8 @@ exec_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  int err_bbox = 0;
 	  double ext_x;
 	  double ext_y;
-	  rl2_resolve_base_resolution_from_dbms (handle, NULL, coverage, 0, 0, &x_res,
-						 &y_res);
+	  rl2_resolve_base_resolution_from_dbms (handle, NULL, coverage, 0, 0,
+						 &x_res, &y_res);
 	  if (minx == DBL_MAX && miny == DBL_MAX && maxx == DBL_MAX
 	      && maxy == DBL_MAX)
 	    {
@@ -741,7 +741,8 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  /* attempting to resolve the Section Name into a SectionID */
 	  int duplicate = 0;
 	  if (rl2_get_dbms_section_id
-	      (handle, NULL, coverage, section, &section_id, &duplicate) != RL2_OK)
+	      (handle, NULL, coverage, section, &section_id,
+	       &duplicate) != RL2_OK)
 	    {
 		if (duplicate)
 		    fprintf (stderr,
@@ -778,8 +779,8 @@ exec_section_export (sqlite3 * handle, int max_threads, const char *dst_path,
 	  char *dumb1;
 	  char *dumb2;
 	  if (rl2_resolve_full_section_from_dbms
-	      (handle, NULL, coverage, section_id, x_res, y_res, &minx, &miny, &maxx,
-	       &maxy, &width, &height) != RL2_OK)
+	      (handle, NULL, coverage, section_id, x_res, y_res, &minx, &miny,
+	       &maxx, &maxy, &width, &height) != RL2_OK)
 	    {
 		fprintf (stderr, "*** Unable to resolve Full Section Extent\n");
 		goto error;
@@ -1035,7 +1036,8 @@ exec_delete (sqlite3 * handle, const char *coverage, const char *section,
 	  /* attempting to resolve the Section Name into a SectionID */
 	  int duplicate = 0;
 	  if (rl2_get_dbms_section_id
-	      (handle, NULL, coverage, section, &section_id, &duplicate) != RL2_OK)
+	      (handle, NULL, coverage, section, &section_id,
+	       &duplicate) != RL2_OK)
 	    {
 		if (duplicate)
 		    fprintf (stderr,

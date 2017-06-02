@@ -3626,11 +3626,13 @@ rl2_point_symbolizer_get_rotation (rl2PointSymbolizerPtr symbolizer,
 {
 /* return a Point Symbolizer Rotation */
     rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    fprintf (stderr, "GetRotation2\n");
     if (sym == NULL)
 	return RL2_ERROR;
     if (sym->graphic == NULL)
 	return RL2_ERROR;
     *rotation = sym->graphic->rotation;
+    fprintf (stderr, "GetRotation2 %f\n", *rotation);
     return RL2_OK;
 }
 

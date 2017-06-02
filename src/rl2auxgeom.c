@@ -1762,6 +1762,281 @@ rl2_geometry_from_blob (const unsigned char *blob, int size)
     return geom;
 }
 
+RL2_PRIVATE int
+rl2_geometry_to_blob (rl2GeometryPtr geom, unsigned char **result, int *size)
+{
+/* builds the SpatiaLite BLOB representation for this GEOMETRY */
+    int ib;
+    int iv;
+    double x;
+    double y;
+    int entities = 0;
+    int n_points = 0;
+    int n_linestrings = 0;
+    int n_polygons = 0;
+    int type;
+    unsigned char *ptr;
+    rl2PointPtr pt;
+    rl2LinestringPtr ln;
+    rl2PolygonPtr pg;
+    rl2RingPtr rng;
+    rl2PointPtr point = NULL;
+    rl2LinestringPtr line = NULL;
+    rl2PolygonPtr polyg = NULL;
+    int endian_arch = rl2GeomEndianArch ();
+
+/* setting up a fake MBR and SRID */
+    geom->minx = 0.0;
+    geom->miny = 0.0;
+    geom->maxx = 0.0;
+    geom->maxy = 0.0;
+    geom->srid = -1;
+
+/* how many entities, and of what kind, do we have ? */
+    pt = geom->first_point;
+    while (pt)
+      {
+	  point = pt;
+	  entities++;
+	  n_points++;
+	  pt = pt->next;
+      }
+    ln = geom->first_linestring;
+    while (ln)
+      {
+	  line = ln;
+	  entities++;
+	  n_linestrings++;
+	  ln = ln->next;
+      }
+    pg = geom->first_polygon;
+    while (pg)
+      {
+	  polyg = pg;
+	  entities++;
+	  n_polygons++;
+	  pg = pg->next;
+      }
+    *size = 0;
+    *result = NULL;
+    if (n_points == 0 && n_polygons == 0 && n_linestrings == 0)
+	return 0;
+/* ok, we can determine the geometry class */
+    if (n_points == 1 && n_linestrings == 0 && n_polygons == 0)
+	type = GAIA_POINT;
+    else if (n_points > 1 && n_linestrings == 0 && n_polygons == 0)
+	type = GAIA_MULTIPOINT;
+    else if (n_points == 0 && n_linestrings == 1 && n_polygons == 0)
+	type = GAIA_LINESTRING;
+    else if (n_points == 0 && n_linestrings > 1 && n_polygons == 0)
+	type = GAIA_MULTILINESTRING;
+    else if (n_points == 0 && n_linestrings == 0 && n_polygons == 1)
+	type = GAIA_POLYGON;
+    else if (n_points == 0 && n_linestrings == 0 && n_polygons > 1)
+	type = GAIA_MULTIPOLYGON;
+    else
+	type = GAIA_GEOMETRYCOLLECTION;
+/* and now we compute the size of BLOB */
+    *size = 44;			/* header size */
+    switch (type)
+      {
+      case GAIA_POINT:
+	  *size += (sizeof (double) * 2);	/* [x,y] coords */
+	  break;
+      case GAIA_LINESTRING:
+	  *size += (4 + ((sizeof (double) * 2) * line->points));	/* # points + [x,y] for each vertex */
+	  break;
+      case GAIA_POLYGON:
+	  rng = polyg->exterior;
+	  *size += (8 + ((sizeof (double) * 2) * rng->points));	/* # rings + # points + [x.y] array - exterior ring */
+	  for (ib = 0; ib < polyg->num_interiors; ib++)
+	    {
+		rng = polyg->interiors + ib;
+		*size += (4 + ((sizeof (double) * 2) * rng->points));	/* # points + [x,y] array - interior ring */
+	    }
+	  break;
+      default:
+	  /* this one is not a simple geometry; should be a MULTIxxxx or a GEOMETRyCOLLECTION */
+	  *size += 4;		/* # entities */
+	  point = geom->first_point;
+	  while (point)
+	    {
+		*size += 5;	/* entity header */
+		*size += (sizeof (double) * 2);	/* two doubles for each POINT */
+		point = point->next;
+	    }
+	  line = geom->first_linestring;
+	  while (line)
+	    {
+		*size += 5;	/* entity header */
+		*size += (4 + ((sizeof (double) * 2) * line->points));	/* # points + [x,y] for each vertex */
+		line = line->next;
+	    }
+	  polyg = geom->first_polygon;
+	  while (polyg)
+	    {
+		*size += 5;	/* entity header */
+		rng = polyg->exterior;
+		*size += (8 + ((sizeof (double) * 2) * rng->points));	/* # rings + # points + [x,y] array - exterior ring */
+		for (ib = 0; ib < polyg->num_interiors; ib++)
+		  {
+		      rng = polyg->interiors + ib;
+		      *size += (4 + ((sizeof (double) * 2) * rng->points));	/* # points + [x,y] array - interior ring */
+		  }
+		polyg = polyg->next;
+	    }
+      };
+    *result = malloc (*size);
+    ptr = *result;
+/* and finally we build the BLOB */
+    switch (type)
+      {
+      case GAIA_POINT:
+	  *ptr = GAIA_MARK_START;	/* START signature */
+	  *(ptr + 1) = GAIA_LITTLE_ENDIAN;	/* byte ordering */
+	  rl2GeomExport32 (ptr + 2, geom->srid, 1, endian_arch);	/* the SRID */
+	  rl2GeomExport64 (ptr + 6, geom->minx, 1, endian_arch);	/* MBR - minimum x */
+	  rl2GeomExport64 (ptr + 14, geom->miny, 1, endian_arch);	/* MBR - minimum y */
+	  rl2GeomExport64 (ptr + 22, geom->maxx, 1, endian_arch);	/* MBR - maximum x */
+	  rl2GeomExport64 (ptr + 30, geom->maxy, 1, endian_arch);	/* MBR - maximum y */
+	  *(ptr + 38) = GAIA_MARK_MBR;	/* MBR signature */
+	  rl2GeomExport32 (ptr + 39, GAIA_POINT, 1, endian_arch);	/* class POINT */
+	  rl2GeomExport64 (ptr + 43, point->x, 1, endian_arch);	/* x */
+	  rl2GeomExport64 (ptr + 51, point->y, 1, endian_arch);	/* y */
+	  *(ptr + 59) = GAIA_MARK_END;	/* END signature */
+	  break;
+      case GAIA_LINESTRING:
+	  *ptr = GAIA_MARK_START;	/* START signature */
+	  *(ptr + 1) = GAIA_LITTLE_ENDIAN;	/* byte ordering */
+	  rl2GeomExport32 (ptr + 2, geom->srid, 1, endian_arch);	/* the SRID */
+	  rl2GeomExport64 (ptr + 6, geom->minx, 1, endian_arch);	/* MBR - minimum x */
+	  rl2GeomExport64 (ptr + 14, geom->miny, 1, endian_arch);	/* MBR - minimum y */
+	  rl2GeomExport64 (ptr + 22, geom->maxx, 1, endian_arch);	/* MBR - maximum x */
+	  rl2GeomExport64 (ptr + 30, geom->maxy, 1, endian_arch);	/* MBR - maximum y */
+	  *(ptr + 38) = GAIA_MARK_MBR;	/* MBR signature */
+	  rl2GeomExport32 (ptr + 39, GAIA_LINESTRING, 1, endian_arch);	/* class LINESTRING */
+	  rl2GeomExport32 (ptr + 43, line->points, 1, endian_arch);	/* # points */
+	  ptr += 47;
+	  for (iv = 0; iv < line->points; iv++)
+	    {
+		gaiaGetPoint (line->coords, iv, &x, &y);
+		rl2GeomExport64 (ptr, x, 1, endian_arch);
+		rl2GeomExport64 (ptr + 8, y, 1, endian_arch);
+		ptr += 16;
+	    }
+	  *ptr = GAIA_MARK_END;	/* END signature */
+	  break;
+      case GAIA_POLYGON:
+	  *ptr = GAIA_MARK_START;	/* START signature */
+	  *(ptr + 1) = GAIA_LITTLE_ENDIAN;	/* byte ordering */
+	  rl2GeomExport32 (ptr + 2, geom->srid, 1, endian_arch);	/* the SRID */
+	  rl2GeomExport64 (ptr + 6, geom->minx, 1, endian_arch);	/* MBR - minimum x */
+	  rl2GeomExport64 (ptr + 14, geom->miny, 1, endian_arch);	/* MBR - minimum y */
+	  rl2GeomExport64 (ptr + 22, geom->maxx, 1, endian_arch);	/* MBR - maximum x */
+	  rl2GeomExport64 (ptr + 30, geom->maxy, 1, endian_arch);	/* MBR - maximum y */
+	  *(ptr + 38) = GAIA_MARK_MBR;	/* MBR signature */
+	  rl2GeomExport32 (ptr + 39, GAIA_POLYGON, 1, endian_arch);	/* class POLYGON */
+	  rl2GeomExport32 (ptr + 43, polyg->num_interiors + 1, 1, endian_arch);	/* # rings */
+	  rng = polyg->exterior;
+	  rl2GeomExport32 (ptr + 47, rng->points, 1, endian_arch);	/* # points - exterior ring */
+	  ptr += 51;
+	  for (iv = 0; iv < rng->points; iv++)
+	    {
+		gaiaGetPoint (rng->coords, iv, &x, &y);
+		rl2GeomExport64 (ptr, x, 1, endian_arch);	/* x - exterior ring */
+		rl2GeomExport64 (ptr + 8, y, 1, endian_arch);	/* y - exterior ring */
+		ptr += 16;
+	    }
+	  for (ib = 0; ib < polyg->num_interiors; ib++)
+	    {
+		rng = polyg->interiors + ib;
+		rl2GeomExport32 (ptr, rng->points, 1, endian_arch);	/* # points - interior ring */
+		ptr += 4;
+		for (iv = 0; iv < rng->points; iv++)
+		  {
+		      gaiaGetPoint (rng->coords, iv, &x, &y);
+		      rl2GeomExport64 (ptr, x, 1, endian_arch);	/* x - interior ring */
+		      rl2GeomExport64 (ptr + 8, y, 1, endian_arch);	/* y - interior ring */
+		      ptr += 16;
+		  }
+	    }
+	  *ptr = GAIA_MARK_END;	/* END signature */
+	  break;
+      default:
+	  /* this one is a MULTIxxxx or a GEOMETRyCOLLECTION - building the main header */
+	  *ptr = GAIA_MARK_START;	/* START signature */
+	  *(ptr + 1) = GAIA_LITTLE_ENDIAN;	/* byte ordering */
+	  rl2GeomExport32 (ptr + 2, geom->srid, 1, endian_arch);	/* the SRID */
+	  rl2GeomExport64 (ptr + 6, geom->minx, 1, endian_arch);	/* MBR - minimum x */
+	  rl2GeomExport64 (ptr + 14, geom->miny, 1, endian_arch);	/* MBR - minimum y */
+	  rl2GeomExport64 (ptr + 22, geom->maxx, 1, endian_arch);	/* MBR - maximum x */
+	  rl2GeomExport64 (ptr + 30, geom->maxy, 1, endian_arch);	/* MBR - maximum y */
+	  *(ptr + 38) = GAIA_MARK_MBR;	/* MBR signature */
+	  rl2GeomExport32 (ptr + 39, type, 1, endian_arch);	/* geometric class */
+	  rl2GeomExport32 (ptr + 43, entities, 1, endian_arch);	/* # entities */
+	  ptr += 47;
+	  point = geom->first_point;
+	  while (point)
+	    {
+		*ptr = GAIA_MARK_ENTITY;	/* ENTITY signature */
+		rl2GeomExport32 (ptr + 1, GAIA_POINT, 1, endian_arch);	/* class POINT */
+		rl2GeomExport64 (ptr + 5, point->x, 1, endian_arch);	/* x */
+		rl2GeomExport64 (ptr + 13, point->y, 1, endian_arch);	/* y */
+		ptr += 21;
+		point = point->next;
+	    }
+	  line = geom->first_linestring;
+	  while (line)
+	    {
+		*ptr = GAIA_MARK_ENTITY;	/* ENTITY signature */
+		rl2GeomExport32 (ptr + 1, GAIA_LINESTRING, 1, endian_arch);	/* class LINESTRING */
+		rl2GeomExport32 (ptr + 5, line->points, 1, endian_arch);	/* # points */
+		ptr += 9;
+		for (iv = 0; iv < line->points; iv++)
+		  {
+		      gaiaGetPoint (line->coords, iv, &x, &y);
+		      rl2GeomExport64 (ptr, x, 1, endian_arch);	/* x */
+		      rl2GeomExport64 (ptr + 8, y, 1, endian_arch);	/* y */
+		      ptr += 16;
+		  }
+		line = line->next;
+	    }
+	  polyg = geom->first_polygon;
+	  while (polyg)
+	    {
+		*ptr = GAIA_MARK_ENTITY;	/* ENTITY signature */
+		rl2GeomExport32 (ptr + 1, GAIA_POLYGON, 1, endian_arch);	/* class POLYGON */
+		rl2GeomExport32 (ptr + 5, polyg->num_interiors + 1, 1, endian_arch);	/* # rings */
+		rng = polyg->exterior;
+		rl2GeomExport32 (ptr + 9, rng->points, 1, endian_arch);	/* # points - exterior ring */
+		ptr += 13;
+		for (iv = 0; iv < rng->points; iv++)
+		  {
+		      gaiaGetPoint (rng->coords, iv, &x, &y);
+		      rl2GeomExport64 (ptr, x, 1, endian_arch);	/* x - exterior ring */
+		      rl2GeomExport64 (ptr + 8, y, 1, endian_arch);	/* y - exterior ring */
+		      ptr += 16;
+		  }
+		for (ib = 0; ib < polyg->num_interiors; ib++)
+		  {
+		      rng = polyg->interiors + ib;
+		      rl2GeomExport32 (ptr, rng->points, 1, endian_arch);	/* # points - interior ring */
+		      ptr += 4;
+		      for (iv = 0; iv < rng->points; iv++)
+			{
+			    gaiaGetPoint (rng->coords, iv, &x, &y);
+			    rl2GeomExport64 (ptr, x, 1, endian_arch);	/* x - interior ring */
+			    rl2GeomExport64 (ptr + 8, y, 1, endian_arch);	/* y - interior ring */
+			    ptr += 16;
+			}
+		  }
+		polyg = polyg->next;
+	    }
+	  *ptr = GAIA_MARK_END;	/* END signature */
+      };
+    return 1;
+}
+
 RL2_PRIVATE void
 rl2_destroy_geometry (rl2GeometryPtr geom)
 {
@@ -2157,6 +2432,69 @@ rl2_clone_linestring (rl2LinestringPtr in)
 	      ln_out->miny = y;
 	  if (y > ln_out->maxy)
 	      ln_out->maxy = y;
+      }
+    return out;
+}
+
+RL2_PRIVATE rl2GeometryPtr
+rl2_clone_polygons (rl2GeometryPtr in)
+{
+/* cloning a (Multi)Polygon geometry */
+    rl2GeometryPtr out;
+    rl2PolygonPtr pg_in;
+    rl2PolygonPtr pg_out;
+    rl2RingPtr rng_in;
+    rl2RingPtr rng_out;
+    int iv;
+    int ib;
+
+    out = rl2CreateGeometry ();
+    pg_in = in->first_polygon;
+    while (pg_in != NULL)
+      {
+	  rng_in = pg_in->exterior;
+	  pg_out =
+	      rl2AddPolygonToGeometry (out, rng_in->points,
+				       pg_in->num_interiors);
+	  rng_out = pg_out->exterior;
+	  for (iv = 0; iv < rng_in->points; iv++)
+	    {
+		/* cloning the exterior ring */
+		double x;
+		double y;
+		rl2GetPoint (rng_in->coords, iv, &x, &y);
+		rl2SetPoint (rng_out->coords, iv, x, y);
+		if (x < rng_out->minx)
+		    rng_out->minx = x;
+		if (x > rng_out->maxx)
+		    rng_out->maxx = x;
+		if (y < rng_out->miny)
+		    rng_out->miny = y;
+		if (y > rng_out->maxy)
+		    rng_out->maxy = y;
+	    }
+	  for (ib = 0; ib < pg_in->num_interiors; ib++)
+	    {
+		rng_in = pg_in->interiors + ib;
+		rng_out = rl2AddInteriorRing (pg_out, ib, rng_in->points);
+		for (iv = 0; iv < rng_in->points; iv++)
+		  {
+		      /* cloning an interior ring */
+		      double x;
+		      double y;
+		      rl2GetPoint (rng_in->coords, iv, &x, &y);
+		      rl2SetPoint (rng_out->coords, iv, x, y);
+		      if (x < rng_out->minx)
+			  rng_out->minx = x;
+		      if (x > rng_out->maxx)
+			  rng_out->maxx = x;
+		      if (y < rng_out->miny)
+			  rng_out->miny = y;
+		      if (y > rng_out->maxy)
+			  rng_out->maxy = y;
+		  }
+	    }
+	  pg_in = pg_in->next;
       }
     return out;
 }

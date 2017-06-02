@@ -5050,6 +5050,9 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
 /* attempting to return a Shaded Relief mask from the DBMS Coverage */
     rl2PixelPtr no_data = NULL;
     const char *coverage;
+    const char *db_prefix;
+    char *xdb_prefix;
+    char *xrtree;
     unsigned char level;
     unsigned char scale;
     double xx_res = x_res;
@@ -5083,6 +5086,7 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
     coverage = rl2_get_coverage_name (cvg);
     if (coverage == NULL)
 	goto error;
+    db_prefix = rl2_get_coverage_prefix (cvg);
     if (rl2_find_matching_resolution
 	(handle, cvg, by_section, section_id, &xx_res, &yy_res, &level,
 	 &scale) != RL2_OK)
@@ -5096,17 +5100,25 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
     if (no_data == NULL)
 	goto error;
 
+
 /* preparing the "tiles" SQL query */
     xtiles = sqlite3_mprintf ("%s_tiles", coverage);
     xxtiles = rl2_double_quoted_sql (xtiles);
+    if (db_prefix == NULL)
+	db_prefix = "MAIN";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    xrtree = sqlite3_mprintf ("DB=%s.%s_tiles", db_prefix, coverage);
     sql =
 	sqlite3_mprintf
 	("SELECT tile_id, MbrMinX(geometry), MbrMaxY(geometry) "
-	 "FROM \"%s\" " "WHERE pyramid_level = ? AND ROWID IN ( "
+	 "FROM \"%s\".\"%s\" WHERE pyramid_level = ? AND ROWID IN ( "
 	 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
-	 "AND search_frame = BuildMBR(?, ?, ?, ?))", xxtiles, xtiles);
+	 "AND search_frame = BuildMBR(?, ?, ?, ?))", xdb_prefix, xxtiles,
+	 xrtree);
     sqlite3_free (xtiles);
+    sqlite3_free (xrtree);
     free (xxtiles);
+    free (xdb_prefix);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_tiles, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -5122,9 +5134,14 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
 	  xxdata = rl2_double_quoted_sql (xdata);
 	  sqlite3_free (xdata);
+	  if (db_prefix == NULL)
+	      db_prefix = "MAIN";
+	  xdb_prefix = rl2_double_quoted_sql (db_prefix);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd, tile_data_even "
-				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
+				 "FROM \"%s\".\"%s\" WHERE tile_id = ?",
+				 xdb_prefix, xxdata);
 	  free (xxdata);
+	  free (xdb_prefix);
 	  ret =
 	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
 	  sqlite3_free (sql);
@@ -5141,9 +5158,15 @@ rl2_build_shaded_relief_mask (sqlite3 * handle, int max_threads,
 	  xdata = sqlite3_mprintf ("%s_tile_data", coverage);
 	  xxdata = rl2_double_quoted_sql (xdata);
 	  sqlite3_free (xdata);
+	  if (db_prefix == NULL)
+	      db_prefix = "MAIN";
+	  xdb_prefix = rl2_double_quoted_sql (db_prefix);
 	  sql = sqlite3_mprintf ("SELECT tile_data_odd "
-				 "FROM \"%s\" WHERE tile_id = ?", xxdata);
+				 "FROM \"%s\".\"%s\" WHERE tile_id = ?",
+				 xdb_prefix, xxdata);
 	  free (xxdata);
+	  free (xdb_prefix);
+	  fprintf (stderr, "%s\n", sql);
 	  ret =
 	      sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
 	  sqlite3_free (sql);

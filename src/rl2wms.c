@@ -7104,7 +7104,6 @@ do_wms_GetMap_get (rl2WmsCachePtr cache_handle, const char *url,
 				   miny, maxx, maxy, width, height, style,
 				   format, (opaque == 0) ? "TRUE" : "FALSE");
       }
-    fprintf (stderr, "%s\n", request);
 
     if (cache != NULL)
       {

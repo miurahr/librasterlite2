@@ -69,6 +69,11 @@ main (int argc, char *argv[])
     int quality;
     unsigned int tileWidth;
     unsigned int tileHeight;
+    int strict_resolution;
+    int mixed_resolutions;
+    int section_paths;
+    int section_md5;
+    int section_summary;
 
     if (argc > 1 || argv[0] == NULL)
 	argc = 1;		/* silencing stupid compiler warnings */
@@ -318,6 +323,14 @@ main (int argc, char *argv[])
 	  return -33;
       }
 
+    if (rl2_get_coverage_policies
+	(coverage, &strict_resolution, &mixed_resolutions, &section_paths,
+	 &section_md5, &section_summary) != RL2_OK)
+      {
+	  fprintf (stderr, "Unexpected coverage Policies\n");
+	  return -233;
+      }
+
     if (rl2_get_coverage_compression (coverage, &compression, &quality) !=
 	RL2_OK)
       {
@@ -427,6 +440,14 @@ main (int argc, char *argv[])
       {
 	  fprintf (stderr, "ERROR: NULL coverage compression\n");
 	  return -50;
+      }
+
+    if (rl2_get_coverage_policies
+	(NULL, &strict_resolution, &mixed_resolutions, &section_paths,
+	 &section_md5, &section_summary) != RL2_ERROR)
+      {
+	  fprintf (stderr, "ERROR: NULL coverage policies\n");
+	  return -250;
       }
 
     if (rl2_is_coverage_uncompressed (NULL, &is_compressed) != RL2_ERROR)

@@ -760,8 +760,8 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
     if (rl2_resolve_full_section_from_dbms
-	(sqlite, NULL, coverage, section_id, x_res, y_res, &minx, &miny, &maxx, &maxy,
-	 &width, &height) != RL2_OK)
+	(sqlite, NULL, coverage, section_id, x_res, y_res, &minx, &miny, &maxx,
+	 &maxy, &width, &height) != RL2_OK)
       {
 	  fprintf (stderr, "Unexpected error: ResolveDbmsFullSection\n");
 	  *retcode += -29;

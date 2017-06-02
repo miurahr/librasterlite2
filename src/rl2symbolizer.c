@@ -4164,8 +4164,8 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
     free (dupl);
 }
 
-RL2_PRIVATE rl2FeatureTypeStylePtr
-feature_type_style_from_xml (char *name, unsigned char *xml)
+RL2_DECLARE rl2FeatureTypeStylePtr
+rl2_feature_type_style_from_xml (const char *name, const unsigned char *xml)
 {
 /* attempting to build a Feature Type Style object from an SLD/SE XML style */
     rl2PrivFeatureTypeStylePtr style = NULL;

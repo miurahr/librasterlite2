@@ -497,7 +497,8 @@ do_export_band_composed_tiff (sqlite3 * sqlite, const char *coverage,
 	return 0;
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
-    sql = "SELECT RL2_WriteTripleBandTiff(NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteTripleBandTiff(NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -569,7 +570,8 @@ do_export_band_composed_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTripleBandTiffTfw(NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteTripleBandTiffTfw(NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;

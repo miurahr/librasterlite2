@@ -196,7 +196,8 @@ do_export_section_geotiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteSectionGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteSectionGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;

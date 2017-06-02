@@ -689,11 +689,14 @@ alloc_wms_vector_layer (const char *layer, const char *f_table_name,
     if (specific->f_table_name == NULL)
 	goto error;
     strcpy (specific->f_table_name, f_table_name);
-    len = strlen (f_geometry_column);
-    specific->f_geometry_column = malloc (len + 1);
-    if (specific->f_geometry_column == NULL)
-	goto error;
-    strcpy (specific->f_geometry_column, f_geometry_column);
+    if (f_geometry_column == NULL)
+	specific->f_geometry_column = NULL;
+    else
+      {
+	  len = strlen (f_geometry_column);
+	  specific->f_geometry_column = malloc (len + 1);
+	  strcpy (specific->f_geometry_column, f_geometry_column);
+      }
     specific->has_spatial_index = has_spatial_index;
     lyr->child_layer = 0;
     lyr->first_style = NULL;
@@ -1106,13 +1109,13 @@ connection_init (struct read_connection *conn, const char *path,
 
 /* creating the GetMap SQL statement (Raster) */
     sql =
-	"SELECT RL2_GetMapImageFromRaster(NULL, ?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_GetMapImageFromRaster(NULL, ?, BuildMbr(?, ?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt_raster, NULL);
     if (ret != SQLITE_OK)
 	goto error;
 /* creating the GetMap SQL statement (Vector) */
     sql =
-	"SELECT RL2_GetMapImageFromVector(NULL, ?, BuildMbr(?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
+	"SELECT RL2_GetMapImageFromVector(NULL, ?, BuildMbr(?, ?, ?, ?, ?), ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (db_handle, sql, strlen (sql), &stmt_vector, NULL);
     if (ret != SQLITE_OK)
 	goto error;
@@ -1940,6 +1943,19 @@ parse_bgcolor (const char *bgcolor, unsigned char *red, unsigned char *green,
     return 1;
 }
 
+static struct wms_alt_srid *
+find_wms_alt_srid (struct wms_layer *lyr, int srid)
+{
+    struct wms_alt_srid *alt = lyr->first_srid;
+    while (alt != NULL)
+      {
+	  if (alt->srid == srid)
+	      return alt;
+	  alt = alt->next;
+      }
+    return NULL;
+}
+
 static int
 exists_layer (struct wms_list *list, const char *layer, int srid,
 	      int wms_version, int *swap_xy, double minx, double miny,
@@ -1947,6 +1963,11 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 	      unsigned char *layer_type)
 {
 /* checking a required layer for validity */
+    int has_flipped_axes;
+    double lyr_minx;
+    double lyr_miny;
+    double lyr_maxx;
+    double lyr_maxy;
     struct wms_group *grp;
     struct wms_layer *lyr = list->first_layer;
     while (lyr != NULL)
@@ -1955,32 +1976,49 @@ exists_layer (struct wms_list *list, const char *layer, int srid,
 	  if (strcmp (lyr->layer_name, layer) == 0)
 	    {
 		struct wms_vector_layer *specific = lyr->layer_specific;
-		if (lyr->srid != srid)
-		    return WMS_MISMATCHING_SRID;
-		if (wms_version == WMS_VERSION_130 && lyr->has_flipped_axes)
+		if (lyr->srid == srid)
+		  {
+		      has_flipped_axes = lyr->has_flipped_axes;
+		      lyr_minx = lyr->minx;
+		      lyr_miny = lyr->miny;
+		      lyr_maxx = lyr->maxx;
+		      lyr_maxy = lyr->maxy;
+		  }
+		else
+		  {
+		      struct wms_alt_srid *alt = find_wms_alt_srid (lyr, srid);
+		      if (alt == NULL)
+			  return WMS_MISMATCHING_SRID;
+		      has_flipped_axes = alt->has_flipped_axes;
+		      lyr_minx = alt->minx;
+		      lyr_miny = alt->miny;
+		      lyr_maxx = alt->maxx;
+		      lyr_maxy = alt->maxy;
+		  }
+		if (wms_version == WMS_VERSION_130 && has_flipped_axes)
 		    *swap_xy = 1;
 		else
 		    *swap_xy = 0;
 		if (*swap_xy)
 		  {
-		      if (lyr->minx > maxy)
+		      if (lyr_minx > maxy)
 			  return WMS_LAYER_OUT_OF_BBOX;
-		      if (lyr->maxx < miny)
+		      if (lyr_maxx < miny)
 			  return WMS_LAYER_OUT_OF_BBOX;
-		      if (lyr->miny > maxx)
+		      if (lyr_miny > maxx)
 			  return WMS_LAYER_OUT_OF_BBOX;
-		      if (lyr->maxy < minx)
+		      if (lyr_maxy < minx)
 			  return WMS_LAYER_OUT_OF_BBOX;
 		  }
 		else
 		  {
-		      if (lyr->minx > maxx)
+		      if (lyr_minx > maxx)
 			  return WMS_LAYER_OUT_OF_BBOX;
-		      if (lyr->maxx < minx)
+		      if (lyr_maxx < minx)
 			  return WMS_LAYER_OUT_OF_BBOX;
-		      if (lyr->miny > maxy)
+		      if (lyr_miny > maxy)
 			  return WMS_LAYER_OUT_OF_BBOX;
-		      if (lyr->maxy < miny)
+		      if (lyr_maxy < miny)
 			  return WMS_LAYER_OUT_OF_BBOX;
 		  }
 		*layer_name = lyr->layer_name;
@@ -3201,35 +3239,36 @@ wms_get_map (struct wms_args *args, int socket, struct server_log_item *log)
     sqlite3_bind_double (stmt, 3, args->miny);
     sqlite3_bind_double (stmt, 4, args->maxx);
     sqlite3_bind_double (stmt, 5, args->maxy);
-    sqlite3_bind_int (stmt, 6, args->width);
-    sqlite3_bind_int (stmt, 7, args->height);
-    sqlite3_bind_text (stmt, 8, args->style, strlen (args->style),
+    sqlite3_bind_int (stmt, 6, args->srid);
+    sqlite3_bind_int (stmt, 7, args->width);
+    sqlite3_bind_int (stmt, 8, args->height);
+    sqlite3_bind_text (stmt, 9, args->style, strlen (args->style),
 		       SQLITE_STATIC);
     if (args->format == RL2_OUTPUT_FORMAT_TIFF)
-	sqlite3_bind_text (stmt, 9, "image/tiff", strlen ("image/tiff"),
+	sqlite3_bind_text (stmt, 10, "image/tiff", strlen ("image/tiff"),
 			   SQLITE_TRANSIENT);
     else if (args->format == RL2_OUTPUT_FORMAT_PDF)
-	sqlite3_bind_text (stmt, 9, "application/x-pdf",
+	sqlite3_bind_text (stmt, 10, "application/x-pdf",
 			   strlen ("application/x-pdf"), SQLITE_TRANSIENT);
     else if (args->format == RL2_OUTPUT_FORMAT_JPEG)
-	sqlite3_bind_text (stmt, 9, "image/jpeg", strlen ("image/jpeg"),
+	sqlite3_bind_text (stmt, 10, "image/jpeg", strlen ("image/jpeg"),
 			   SQLITE_TRANSIENT);
     else
-	sqlite3_bind_text (stmt, 9, "image/png", strlen ("image/png"),
+	sqlite3_bind_text (stmt, 10, "image/png", strlen ("image/png"),
 			   SQLITE_TRANSIENT);
     if (args->has_bgcolor)
 	sprintf (bgcolor, "#%02x%02x%02x", args->red, args->green, args->blue);
     else
 	strcpy (bgcolor, "#ffffff");
-    sqlite3_bind_text (stmt, 10, bgcolor, strlen (bgcolor), SQLITE_TRANSIENT);
+    sqlite3_bind_text (stmt, 11, bgcolor, strlen (bgcolor), SQLITE_TRANSIENT);
     if (args->transparent == WMS_OPAQUE)
-	sqlite3_bind_int (stmt, 11, 0);
+	sqlite3_bind_int (stmt, 12, 0);
     else
-	sqlite3_bind_int (stmt, 11, 1);
+	sqlite3_bind_int (stmt, 12, 1);
     if (args->format == RL2_OUTPUT_FORMAT_JPEG)
-	sqlite3_bind_int (stmt, 12, 80);
+	sqlite3_bind_int (stmt, 13, 80);
     else
-	sqlite3_bind_int (stmt, 12, 100);
+	sqlite3_bind_int (stmt, 13, 100);
     while (1)
       {
 	  ret = sqlite3_step (stmt);
@@ -4349,7 +4388,7 @@ get_vector_coverages (sqlite3 * handle, struct wms_list *list)
     const char *sql;
 
 /* loading all vector layers */
-	sql = "SELECT c.coverage_name, c.f_table_name, c.f_geometry_column, "
+    sql = "SELECT c.coverage_name, c.f_table_name, c.f_geometry_column, "
 	"c.title, c.abstract, g.srid, c.geo_minx, c.geo_miny, c.geo_maxx, "
 	"c.geo_maxy, c.extent_minx, c.extent_miny, c.extent_maxx, "
 	"c.extent_maxy, g.spatial_index_enabled, c.is_queryable "
@@ -4381,7 +4420,26 @@ get_vector_coverages (sqlite3 * handle, struct wms_list *list)
 	"WHERE c.extent_minx IS NOT NULL AND c.extent_miny IS NOT NULL "
 	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL AND "
 	"c.virt_name IS NOT NULL AND c.virt_geometry IS NOT NULL "
-	"ORDER BY c.coverage_name";
+	"UNION "
+	"SELECT c.coverage_name, t.topology_name, NULL, "
+	"c.title, c.abstract, t.srid, c.geo_minx, c.geo_miny, c.geo_maxx, "
+	"c.geo_maxy, c.extent_minx, c.extent_miny, c.extent_maxx, "
+	"c.extent_maxy, 1, c.is_queryable "
+	"FROM vector_coverages AS c JOIN topologies AS t ON "
+	"(c.topology_name = t.topology_name) "
+	"WHERE c.extent_minx IS NOT NULL AND c.extent_miny IS NOT NULL "
+	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL AND "
+	"c.topology_name IS NOT NULL "
+	"UNION "
+	"SELECT c.coverage_name, n.network_name, NULL, "
+	"c.title, c.abstract, n.srid, c.geo_minx, c.geo_miny, c.geo_maxx, "
+	"c.geo_maxy, c.extent_minx, c.extent_miny, c.extent_maxx, "
+	"c.extent_maxy, 1, c.is_queryable "
+	"FROM vector_coverages AS c JOIN networks AS n ON "
+	"(c.network_name = n.network_name) "
+	"WHERE c.extent_minx IS NOT NULL AND c.extent_miny IS NOT NULL "
+	"AND c.extent_maxx IS NOT NULL AND c.extent_maxy IS NOT NULL AND "
+	"c.network_name IS NOT NULL " "ORDER BY c.coverage_name";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;

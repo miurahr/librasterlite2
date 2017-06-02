@@ -197,28 +197,23 @@ unpremultiply (unsigned char c, unsigned char a)
     return (unsigned char) x;
 }
 
-RL2_DECLARE rl2GraphicsContextPtr
-rl2_graph_create_context (int width, int height)
+RL2_DECLARE int
+rl2_graph_context_get_dimensions (rl2GraphicsContextPtr handle, int *width,
+				  int *height)
 {
-/* creating a generic Graphics Context */
-    RL2GraphContextPtr ctx;
+/* retrieving Width and Height from a Graphics Context */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) handle;
+    if (ctx == NULL)
+	return RL2_ERROR;
+    *width = cairo_image_surface_get_width (ctx->surface);
+    *height = cairo_image_surface_get_height (ctx->surface);
+    return RL2_OK;
+}
 
-    ctx = malloc (sizeof (RL2GraphContext));
-    if (!ctx)
-	return NULL;
-
-    ctx->type = RL2_SURFACE_IMG;
-    ctx->clip_surface = NULL;
-    ctx->clip_cairo = NULL;
-    ctx->surface =
-	cairo_image_surface_create (CAIRO_FORMAT_ARGB32, width, height);
-    if (cairo_surface_status (ctx->surface) == CAIRO_STATUS_SUCCESS)
-	;
-    else
-	goto error1;
-    ctx->cairo = cairo_create (ctx->surface);
-    if (cairo_status (ctx->cairo) == CAIRO_STATUS_NO_MEMORY)
-	goto error2;
+static void
+do_initialize_context (RL2GraphContextPtr ctx)
+{
+/* common initialization tasks */
 
 /* setting up a default Black Pen */
     ctx->current_pen.is_solid_color = 1;
@@ -246,11 +241,6 @@ rl2_graph_create_context (int width, int height)
     ctx->current_brush.alpha = 1.0;
     ctx->current_brush.pattern = NULL;
 
-/* priming a transparent background */
-    cairo_rectangle (ctx->cairo, 0, 0, width, height);
-    cairo_set_source_rgba (ctx->cairo, 0.0, 0.0, 0.0, 0.0);
-    cairo_fill (ctx->cairo);
-
 /* setting up default Font options */
     ctx->font_red = 0.0;
     ctx->font_green = 0.0;
@@ -262,6 +252,133 @@ rl2_graph_create_context (int width, int height)
     ctx->halo_green = 1.0;
     ctx->halo_blue = 1.0;
     ctx->halo_alpha = 1.0;
+}
+
+RL2_DECLARE rl2GraphicsContextPtr
+rl2_graph_create_context (int width, int height)
+{
+/* creating a generic Graphics Context */
+    RL2GraphContextPtr ctx;
+
+    ctx = malloc (sizeof (RL2GraphContext));
+    if (!ctx)
+	return NULL;
+
+    ctx->type = RL2_SURFACE_IMG;
+    ctx->clip_surface = NULL;
+    ctx->clip_cairo = NULL;
+    ctx->surface =
+	cairo_image_surface_create (CAIRO_FORMAT_ARGB32, width, height);
+    if (cairo_surface_status (ctx->surface) == CAIRO_STATUS_SUCCESS)
+	;
+    else
+	goto error1;
+    ctx->cairo = cairo_create (ctx->surface);
+    if (cairo_status (ctx->cairo) == CAIRO_STATUS_NO_MEMORY)
+	goto error2;
+
+    do_initialize_context (ctx);
+
+/* priming a transparent background */
+    cairo_rectangle (ctx->cairo, 0, 0, width, height);
+    cairo_set_source_rgba (ctx->cairo, 0.0, 0.0, 0.0, 0.0);
+    cairo_fill (ctx->cairo);
+    return (rl2GraphicsContextPtr) ctx;
+
+  error2:
+    cairo_destroy (ctx->cairo);
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+  error1:
+    cairo_surface_destroy (ctx->surface);
+    return NULL;
+}
+
+static int
+rl2cr_endian_arch ()
+{
+/* checking if target CPU is a little-endian one */
+    union cvt
+    {
+	unsigned char byte[4];
+	int int_value;
+    } convert;
+    convert.int_value = 1;
+    if (convert.byte[0] == 0)
+	return 0;
+    return 1;
+}
+
+static void
+adjust_for_endianness (unsigned char *rgbaArray, int width, int height)
+{
+/* Adjusting from RGBA to ARGB respecting platform endianness */
+    int x;
+    int y;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+    unsigned char *p_in = rgbaArray;
+    unsigned char *p_out = rgbaArray;
+    int little_endian = rl2cr_endian_arch ();
+
+    for (y = 0; y < height; y++)
+      {
+	  for (x = 0; x < width; x++)
+	    {
+		red = *p_in++;
+		green = *p_in++;
+		blue = *p_in++;
+		alpha = *p_in++;
+		if (little_endian)
+		  {
+		      *p_out++ = blue;
+		      *p_out++ = green;
+		      *p_out++ = red;
+		      *p_out++ = alpha;
+		  }
+		else
+		  {
+		      *p_out++ = alpha;
+		      *p_out++ = red;
+		      *p_out++ = green;
+		      *p_out++ = blue;
+		  }
+	    }
+      }
+}
+
+RL2_DECLARE rl2GraphicsContextPtr
+rl2_graph_create_context_rgba (int width, int height, unsigned char *rgbaArray)
+{
+/* creating a generic Graphics Context */
+    RL2GraphContextPtr ctx;
+
+    if (rgbaArray == NULL)
+	return NULL;
+
+    adjust_for_endianness (rgbaArray, width, height);
+
+    ctx = malloc (sizeof (RL2GraphContext));
+    if (!ctx)
+	return NULL;
+
+    ctx->type = RL2_SURFACE_IMG;
+    ctx->clip_surface = NULL;
+    ctx->clip_cairo = NULL;
+    ctx->surface =
+	cairo_image_surface_create_for_data (rgbaArray, CAIRO_FORMAT_ARGB32,
+					     width, height, width * 4);
+    if (cairo_surface_status (ctx->surface) == CAIRO_STATUS_SUCCESS)
+	;
+    else
+	goto error1;
+    ctx->cairo = cairo_create (ctx->surface);
+    if (cairo_status (ctx->cairo) == CAIRO_STATUS_NO_MEMORY)
+	goto error2;
+
+    do_initialize_context (ctx);
     return (rl2GraphicsContextPtr) ctx;
   error2:
     cairo_destroy (ctx->cairo);
@@ -1200,61 +1317,6 @@ rl2_graph_set_font (rl2GraphicsContextPtr context, rl2GraphicsFontPtr font)
     return 1;
 }
 
-static int
-rl2cr_endian_arch ()
-{
-/* checking if target CPU is a little-endian one */
-    union cvt
-    {
-	unsigned char byte[4];
-	int int_value;
-    } convert;
-    convert.int_value = 1;
-    if (convert.byte[0] == 0)
-	return 0;
-    return 1;
-}
-
-static void
-adjust_for_endianness (unsigned char *rgbaArray, int width, int height)
-{
-/* Adjusting from RGBA to ARGB respecting platform endianness */
-    int x;
-    int y;
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
-    unsigned char alpha;
-    unsigned char *p_in = rgbaArray;
-    unsigned char *p_out = rgbaArray;
-    int little_endian = rl2cr_endian_arch ();
-
-    for (y = 0; y < height; y++)
-      {
-	  for (x = 0; x < width; x++)
-	    {
-		red = *p_in++;
-		green = *p_in++;
-		blue = *p_in++;
-		alpha = *p_in++;
-		if (little_endian)
-		  {
-		      *p_out++ = blue;
-		      *p_out++ = green;
-		      *p_out++ = red;
-		      *p_out++ = alpha;
-		  }
-		else
-		  {
-		      *p_out++ = alpha;
-		      *p_out++ = red;
-		      *p_out++ = green;
-		      *p_out++ = blue;
-		  }
-	    }
-      }
-}
-
 RL2_DECLARE rl2GraphicsPatternPtr
 rl2_graph_create_pattern (unsigned char *rgbaArray, int width, int height,
 			  int extend)
@@ -1716,12 +1778,16 @@ rl2_graph_create_toy_font (const char *facename, double size, int style,
 	  fnt->facename = malloc (len + 1);
 	  strcpy (fnt->facename, "sans-serif");
       }
-    else
+    else if (strcasecmp (facename, "monospace") == 0)
       {
-	  /* defaulting to "monospace" */
 	  len = strlen ("monospace");
 	  fnt->facename = malloc (len + 1);
 	  strcpy (fnt->facename, "monospace");
+      }
+    else
+      {
+	  free (fnt);
+	  return NULL;
       }
     if (size < 1.0)
 	fnt->size = 1.0;
@@ -1956,18 +2022,20 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 	return;
     if (fnt->toy_font == 0)
       {
+	  /* True Type Font */
 	  if (fnt->cairo_scaled_font != NULL)
 	      cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+	  if (fnt->cairo_font != NULL)
+	    {
+		if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
+		    cairo_font_face_destroy (fnt->cairo_font);
+	    }
       }
     else
       {
+	  /* Cairo Toy Font */
 	  if (fnt->facename != NULL)
 	      free (fnt->facename);
-      }
-    if (fnt->cairo_font != NULL)
-      {
-	  if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
-	      cairo_font_face_destroy (fnt->cairo_font);
       }
     free (fnt);
 }
@@ -2542,6 +2610,40 @@ rl2_graph_draw_text (rl2GraphicsContextPtr context, const char *text,
       }
     cairo_restore (cairo);
     return 1;
+}
+
+RL2_PRIVATE void
+rl2_estimate_text_length (void *context, const char *text, double *length,
+			  double *extra)
+{
+/* estimating the text length */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) context;
+    cairo_t *cairo;
+    const char *p = text;
+    int count = 0;
+    double radius = 0.0;
+    cairo_font_extents_t extents;
+
+    *length = 0.0;
+    *extra = 0.0;
+
+    if (ctx == NULL)
+	return;
+    if (text == NULL)
+	return;
+    if (ctx->type == RL2_SURFACE_PDF)
+	cairo = ctx->clip_cairo;
+    else
+	cairo = ctx->cairo;
+
+    while (*p++ != '\0')
+	count++;
+    cairo_font_extents (cairo, &extents);
+    radius =
+	sqrt ((extents.max_x_advance * extents.max_x_advance) +
+	      (extents.height * extents.height)) / 2.0;
+    *length = radius * count;
+    *extra = radius;
 }
 
 static void
@@ -3393,6 +3495,29 @@ rl2_graph_draw_mark_symbol (rl2GraphicsContextPtr context, int mark_type,
     return 1;
 }
 
+RL2_DECLARE int
+rl2_graph_merge (rl2GraphicsContextPtr context_out,
+		 rl2GraphicsContextPtr context_in)
+{
+/* merging two Images into a single one */
+    RL2GraphContextPtr ctx_in = (RL2GraphContextPtr) context_in;
+    RL2GraphContextPtr ctx_out = (RL2GraphContextPtr) context_out;
+
+    if (ctx_in == NULL || ctx_out == NULL)
+	return RL2_ERROR;
+    if (cairo_image_surface_get_width (ctx_in->surface) !=
+	cairo_image_surface_get_width (ctx_out->surface))
+	return RL2_ERROR;
+    if (cairo_image_surface_get_height (ctx_in->surface) !=
+	cairo_image_surface_get_height (ctx_out->surface))
+	return RL2_ERROR;
+
+/* merging */
+    cairo_set_source_surface (ctx_out->cairo, ctx_in->surface, 0, 0);
+    cairo_paint (ctx_out->cairo);
+    return RL2_OK;
+}
+
 RL2_DECLARE unsigned char *
 rl2_graph_get_context_rgb_array (rl2GraphicsContextPtr context)
 {
@@ -3730,6 +3855,298 @@ rl2_get_mem_pdf_buffer (rl2MemPdfPtr target, unsigned char **buffer, int *size)
     mem->buffer = NULL;
     *size = mem->write_offset;
     return RL2_OK;
+}
+
+RL2_DECLARE rl2CanvasPtr
+rl2_create_vector_canvas (rl2GraphicsContextPtr ref_ctx)
+{
+/* allocating and initializing a Canvas object (generic Vector) */
+    rl2PrivCanvasPtr canvas = NULL;
+    if (ref_ctx == NULL)
+	return NULL;
+
+    canvas = malloc (sizeof (rl2PrivCanvas));
+    if (canvas == NULL)
+	return NULL;
+    canvas->type = RL2_VECTOR_CANVAS;
+    canvas->ref_ctx = ref_ctx;
+    canvas->ref_ctx_nodes = NULL;
+    canvas->ref_ctx_edges = NULL;
+    canvas->ref_ctx_links = NULL;
+    canvas->ref_ctx_faces = NULL;
+    canvas->ref_ctx_edge_seeds = NULL;
+    canvas->ref_ctx_link_seeds = NULL;
+    canvas->ref_ctx_face_seeds = NULL;
+    canvas->ctx_ready = RL2_FALSE;
+    canvas->ctx_nodes_ready = RL2_FALSE;
+    canvas->ctx_edges_ready = RL2_FALSE;
+    canvas->ctx_links_ready = RL2_FALSE;
+    canvas->ctx_faces_ready = RL2_FALSE;
+    canvas->ctx_edge_seeds_ready = RL2_FALSE;
+    canvas->ctx_link_seeds_ready = RL2_FALSE;
+    canvas->ctx_face_seeds_ready = RL2_FALSE;
+    return (rl2CanvasPtr) canvas;
+}
+
+RL2_DECLARE rl2CanvasPtr
+rl2_create_topology_canvas (rl2GraphicsContextPtr ref_ctx,
+			    rl2GraphicsContextPtr ref_ctx_nodes,
+			    rl2GraphicsContextPtr ref_ctx_edges,
+			    rl2GraphicsContextPtr ref_ctx_faces,
+			    rl2GraphicsContextPtr ref_ctx_edge_seeds,
+			    rl2GraphicsContextPtr ref_ctx_face_seeds)
+{
+/* allocating and initializing a Canvas object (Topology) */
+    rl2PrivCanvasPtr canvas = NULL;
+    if (ref_ctx == NULL)
+	return NULL;
+    if (ref_ctx_nodes == NULL && ref_ctx_edges == NULL && ref_ctx_faces == NULL
+	&& ref_ctx_edge_seeds && ref_ctx_face_seeds == NULL)
+	return NULL;
+
+    canvas = malloc (sizeof (rl2PrivCanvas));
+    if (canvas == NULL)
+	return NULL;
+    canvas->type = RL2_TOPOLOGY_CANVAS;
+    canvas->ref_ctx = ref_ctx;
+    canvas->ref_ctx_nodes = ref_ctx_nodes;
+    canvas->ref_ctx_edges = ref_ctx_edges;
+    canvas->ref_ctx_links = NULL;
+    canvas->ref_ctx_faces = ref_ctx_faces;
+    canvas->ref_ctx_edge_seeds = ref_ctx_edge_seeds;
+    canvas->ref_ctx_link_seeds = NULL;
+    canvas->ref_ctx_face_seeds = ref_ctx_face_seeds;
+    canvas->ctx_ready = RL2_FALSE;
+    canvas->ctx_nodes_ready = RL2_FALSE;
+    canvas->ctx_edges_ready = RL2_FALSE;
+    canvas->ctx_links_ready = RL2_FALSE;
+    canvas->ctx_faces_ready = RL2_FALSE;
+    canvas->ctx_edge_seeds_ready = RL2_FALSE;
+    canvas->ctx_link_seeds_ready = RL2_FALSE;
+    canvas->ctx_face_seeds_ready = RL2_FALSE;
+    return (rl2CanvasPtr) canvas;
+}
+
+RL2_DECLARE rl2CanvasPtr
+rl2_create_network_canvas (rl2GraphicsContextPtr ref_ctx,
+			   rl2GraphicsContextPtr ref_ctx_nodes,
+			   rl2GraphicsContextPtr ref_ctx_links,
+			   rl2GraphicsContextPtr ref_ctx_link_seeds)
+{
+/* allocating and initializing a Canvas object (Network) */
+    rl2PrivCanvasPtr canvas = NULL;
+    if (ref_ctx == NULL)
+	return NULL;
+    if (ref_ctx_nodes == NULL && ref_ctx_links && ref_ctx_link_seeds == NULL)
+	return NULL;
+
+    canvas = malloc (sizeof (rl2PrivCanvas));
+    if (canvas == NULL)
+	return NULL;
+    canvas->type = RL2_NETWORK_CANVAS;
+    canvas->ref_ctx = ref_ctx;
+    canvas->ref_ctx_nodes = ref_ctx_nodes;
+    canvas->ref_ctx_edges = NULL;
+    canvas->ref_ctx_links = ref_ctx_links;
+    canvas->ref_ctx_faces = NULL;
+    canvas->ref_ctx_edge_seeds = NULL;
+    canvas->ref_ctx_link_seeds = ref_ctx_link_seeds;
+    canvas->ref_ctx_face_seeds = NULL;
+    canvas->ctx_ready = RL2_FALSE;
+    canvas->ctx_nodes_ready = RL2_FALSE;
+    canvas->ctx_edges_ready = RL2_FALSE;
+    canvas->ctx_links_ready = RL2_FALSE;
+    canvas->ctx_faces_ready = RL2_FALSE;
+    canvas->ctx_edge_seeds_ready = RL2_FALSE;
+    canvas->ctx_link_seeds_ready = RL2_FALSE;
+    canvas->ctx_face_seeds_ready = RL2_FALSE;
+    return (rl2CanvasPtr) canvas;
+}
+
+RL2_DECLARE rl2CanvasPtr
+rl2_create_raster_canvas (rl2GraphicsContextPtr ref_ctx)
+{
+/* allocating and initializing a Canvas object (Raster) */
+    rl2PrivCanvasPtr canvas = NULL;
+    if (ref_ctx == NULL)
+	return NULL;
+
+    canvas = malloc (sizeof (rl2PrivCanvas));
+    if (canvas == NULL)
+	return NULL;
+    canvas->type = RL2_RASTER_CANVAS;
+    canvas->ref_ctx = ref_ctx;
+    canvas->ref_ctx_nodes = NULL;
+    canvas->ref_ctx_edges = NULL;
+    canvas->ref_ctx_links = NULL;
+    canvas->ref_ctx_faces = NULL;
+    canvas->ref_ctx_edge_seeds = NULL;
+    canvas->ref_ctx_link_seeds = NULL;
+    canvas->ref_ctx_face_seeds = NULL;
+    canvas->ctx_ready = RL2_FALSE;
+    canvas->ctx_nodes_ready = RL2_FALSE;
+    canvas->ctx_edges_ready = RL2_FALSE;
+    canvas->ctx_links_ready = RL2_FALSE;
+    canvas->ctx_faces_ready = RL2_FALSE;
+    canvas->ctx_edge_seeds_ready = RL2_FALSE;
+    canvas->ctx_link_seeds_ready = RL2_FALSE;
+    canvas->ctx_face_seeds_ready = RL2_FALSE;
+    return (rl2CanvasPtr) canvas;
+}
+
+RL2_DECLARE rl2CanvasPtr
+rl2_create_wms_canvas (rl2GraphicsContextPtr ref_ctx)
+{
+/* allocating and initializing a Canvas object (WMS) */
+    rl2PrivCanvasPtr canvas = NULL;
+    if (ref_ctx == NULL)
+	return NULL;
+
+    canvas = malloc (sizeof (rl2PrivCanvas));
+    if (canvas == NULL)
+	return NULL;
+    canvas->type = RL2_WMS_CANVAS;
+    canvas->ref_ctx = ref_ctx;
+    canvas->ref_ctx_nodes = NULL;
+    canvas->ref_ctx_edges = NULL;
+    canvas->ref_ctx_links = NULL;
+    canvas->ref_ctx_faces = NULL;
+    canvas->ref_ctx_edge_seeds = NULL;
+    canvas->ref_ctx_link_seeds = NULL;
+    canvas->ref_ctx_face_seeds = NULL;
+    canvas->ctx_ready = RL2_FALSE;
+    canvas->ctx_nodes_ready = RL2_FALSE;
+    canvas->ctx_edges_ready = RL2_FALSE;
+    canvas->ctx_links_ready = RL2_FALSE;
+    canvas->ctx_faces_ready = RL2_FALSE;
+    canvas->ctx_edge_seeds_ready = RL2_FALSE;
+    canvas->ctx_link_seeds_ready = RL2_FALSE;
+    canvas->ctx_face_seeds_ready = RL2_FALSE;
+    return (rl2CanvasPtr) canvas;
+}
+
+RL2_DECLARE void
+rl2_destroy_canvas (rl2CanvasPtr ptr)
+{
+/* memory cleanup - destroying a Canvas object */
+    rl2PrivCanvasPtr canvas = (rl2PrivCanvasPtr) ptr;
+    if (canvas == NULL)
+	return;
+    free (canvas);
+}
+
+RL2_DECLARE int
+rl2_get_canvas_type (rl2CanvasPtr ptr)
+{
+/* return the Type from a Canvas */
+    rl2PrivCanvasPtr canvas = (rl2PrivCanvasPtr) ptr;
+    if (canvas == NULL)
+	return RL2_UNKNOWN_CANVAS;
+    return canvas->type;
+}
+
+RL2_DECLARE int
+rl2_is_canvas_ready (rl2CanvasPtr ptr, int which)
+{
+/* checks if a Canvas is ready (rendered)  */
+    rl2PrivCanvasPtr canvas = (rl2PrivCanvasPtr) ptr;
+    if (canvas == NULL)
+	return RL2_FALSE;
+    switch (canvas->type)
+      {
+      case RL2_VECTOR_CANVAS:
+      case RL2_RASTER_CANVAS:
+      case RL2_WMS_CANVAS:
+	  switch (which)
+	    {
+	    case RL2_CANVAS_BASE_CTX:
+		return canvas->ctx_ready;
+	    };
+	  break;
+      case RL2_TOPOLOGY_CANVAS:
+	  switch (which)
+	    {
+	    case RL2_CANVAS_BASE_CTX:
+		return canvas->ctx_ready;
+	    case RL2_CANVAS_NODES_CTX:
+		return canvas->ctx_nodes_ready;
+	    case RL2_CANVAS_EDGES_CTX:
+		return canvas->ctx_edges_ready;
+	    case RL2_CANVAS_FACES_CTX:
+		return canvas->ctx_faces_ready;
+	    case RL2_CANVAS_EDGE_SEEDS_CTX:
+		return canvas->ctx_edge_seeds_ready;
+	    case RL2_CANVAS_FACE_SEEDS_CTX:
+		return canvas->ctx_face_seeds_ready;
+	    };
+	  break;
+      case RL2_NETWORK_CANVAS:
+	  switch (which)
+	    {
+	    case RL2_CANVAS_BASE_CTX:
+		return canvas->ctx_ready;
+	    case RL2_CANVAS_NODES_CTX:
+		return canvas->ctx_nodes_ready;
+	    case RL2_CANVAS_LINKS_CTX:
+		return canvas->ctx_links_ready;
+	    case RL2_CANVAS_LINK_SEEDS_CTX:
+		return canvas->ctx_link_seeds_ready;
+	    };
+	  break;
+      };
+    return RL2_FALSE;
+}
+
+RL2_DECLARE rl2GraphicsContextPtr
+rl2_get_canvas_ctx (rl2CanvasPtr ptr, int which)
+{
+/* return a pointer to soma Graphics Context from a Canvas */
+    rl2PrivCanvasPtr canvas = (rl2PrivCanvasPtr) ptr;
+    if (canvas == NULL)
+	return NULL;
+    switch (canvas->type)
+      {
+      case RL2_VECTOR_CANVAS:
+      case RL2_RASTER_CANVAS:
+      case RL2_WMS_CANVAS:
+	  switch (which)
+	    {
+	    case RL2_CANVAS_BASE_CTX:
+		return canvas->ref_ctx;
+	    };
+	  break;
+      case RL2_TOPOLOGY_CANVAS:
+	  switch (which)
+	    {
+	    case RL2_CANVAS_BASE_CTX:
+		return canvas->ref_ctx;
+	    case RL2_CANVAS_NODES_CTX:
+		return canvas->ref_ctx_nodes;
+	    case RL2_CANVAS_EDGES_CTX:
+		return canvas->ref_ctx_edges;
+	    case RL2_CANVAS_FACES_CTX:
+		return canvas->ref_ctx_faces;
+	    case RL2_CANVAS_EDGE_SEEDS_CTX:
+		return canvas->ref_ctx_edge_seeds;
+	    case RL2_CANVAS_FACE_SEEDS_CTX:
+		return canvas->ref_ctx_face_seeds;
+	    };
+	  break;
+      case RL2_NETWORK_CANVAS:
+	  switch (which)
+	    {
+	    case RL2_CANVAS_BASE_CTX:
+		return canvas->ref_ctx;
+	    case RL2_CANVAS_NODES_CTX:
+		return canvas->ref_ctx_nodes;
+	    case RL2_CANVAS_LINKS_CTX:
+		return canvas->ref_ctx_links;
+	    case RL2_CANVAS_LINK_SEEDS_CTX:
+		return canvas->ref_ctx_link_seeds;
+	    };
+	  break;
+      };
+    return NULL;
 }
 
 RL2_DECLARE void *

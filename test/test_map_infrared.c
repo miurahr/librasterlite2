@@ -472,7 +472,8 @@ do_export_band_composed_tiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTripleBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteTripleBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -544,7 +545,8 @@ do_export_band_composed_tiff_tfw (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteTripleBandTiffTfw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteTripleBandTiffTfw('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -611,7 +613,8 @@ do_export_mono_band_geotiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteMonoBandGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteMonoBandGeoTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1039,7 +1042,8 @@ do_export_section_mono_tiff (sqlite3 * sqlite, const char *coverage,
     xx_res = x_res * (double) scale;
     yy_res = y_res * (double) scale;
 
-    sql = "SELECT RL2_WriteSectionMonoBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteSectionMonoBandTiff('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1265,7 +1269,8 @@ do_export_section_ndvi (sqlite3 * sqlite, const char *coverage,
     if (xx_res != yy_res)
 	xx_res = (xx_res + yy_res) / 2.0;
 
-    sql = "SELECT RL2_WriteSectionNdviAsciiGrid('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    sql =
+	"SELECT RL2_WriteSectionNdviAsciiGrid('main', ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
 	return 0;
@@ -1506,8 +1511,8 @@ test_default_bands (sqlite3 * sqlite, const char *coverage)
       }
 
     sql =
-	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)",
-			 coverage);
+	sqlite3_mprintf
+	("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)", coverage);
     ret = execute_check_boolean (sqlite, sql);
     sqlite3_free (sql);
     if (ret >= 0)
@@ -1574,8 +1579,8 @@ test_default_bands (sqlite3 * sqlite, const char *coverage)
       }
 
     sql =
-	sqlite3_mprintf ("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)",
-			 coverage);
+	sqlite3_mprintf
+	("SELECT RL2_IsRasterCoverageAutoNdviEnabled('main', %Q)", coverage);
     ret = execute_check_boolean (sqlite, sql);
     sqlite3_free (sql);
     if (ret != 1)

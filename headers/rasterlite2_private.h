@@ -366,11 +366,24 @@ extern "C"
 	char *db_prefix;
 	char *f_table_name;
 	char *f_geometry_column;
+	char *view_name;
+	char *view_geometry;
+	char *view_rowid;
 	unsigned short geometry_type;
 	int srid;
 	unsigned char spatial_index;
+	int visible;
     } rl2PrivVectorLayer;
     typedef rl2PrivVectorLayer *rl2PrivVectorLayerPtr;
+
+    typedef struct rl2_priv_vector_multi_layer
+    {
+	rl2PrivVectorLayerPtr *layers;
+	int count;
+	int is_topogeo;
+	int is_toponet;
+    } rl2PrivVectorMultiLayer;
+    typedef rl2PrivVectorMultiLayer *rl2PrivVectorMultiLayerPtr;
 
     typedef struct rl2_priv_tiff_origin
     {
@@ -1070,12 +1083,16 @@ extern "C"
 	unsigned char *outbuf;
 	rl2PalettePtr palette;
 	unsigned char out_pixel;
+	unsigned char *image;
+	int image_size;
+	void *graphics_ctx;
     };
 
     struct aux_group_renderer
     {
 	/* helper struct for passing arguments to aux_group_renderer */
-	sqlite3_context *context;
+	sqlite3 *sqlite;
+	const void *data;
 	const char *db_prefix;
 	const char *group_name;
 	double minx;
@@ -1143,6 +1160,11 @@ extern "C"
 	rl2LinestringPtr last_linestring;
 	rl2PolygonPtr first_polygon;
 	rl2PolygonPtr last_polygon;
+	int srid;
+	double minx;
+	double miny;
+	double maxx;
+	double maxy;
     } rl2Geometry;
     typedef rl2Geometry *rl2GeometryPtr;
 
@@ -1258,6 +1280,28 @@ extern "C"
 	float *sr_mask;
     } rl2AuxShadower;
     typedef rl2AuxShadower *rl2AuxShadowerPtr;
+
+    typedef struct rl2_priv_canvas
+    {
+	int type;
+	void *ref_ctx;
+	void *ref_ctx_nodes;
+	void *ref_ctx_edges;
+	void *ref_ctx_links;
+	void *ref_ctx_faces;
+	void *ref_ctx_edge_seeds;
+	void *ref_ctx_link_seeds;
+	void *ref_ctx_face_seeds;
+	int ctx_ready;
+	int ctx_nodes_ready;
+	int ctx_edges_ready;
+	int ctx_links_ready;
+	int ctx_faces_ready;
+	int ctx_edge_seeds_ready;
+	int ctx_link_seeds_ready;
+	int ctx_face_seeds_ready;
+    } rl2PrivCanvas;
+    typedef rl2PrivCanvas *rl2PrivCanvasPtr;
 
     RL2_PRIVATE int
 	rl2_blob_from_file (const char *path, unsigned char **blob,
@@ -1804,11 +1848,6 @@ extern "C"
 							     unsigned char
 							     *xml);
 
-    RL2_PRIVATE rl2FeatureTypeStylePtr feature_type_style_from_xml (char
-								    *name,
-								    unsigned
-								    char *xml);
-
     RL2_PRIVATE rl2GroupStylePtr group_style_from_sld_xml (const char
 							   *db_prefix,
 							   const char *name,
@@ -1999,9 +2038,7 @@ extern "C"
 					  double maxy, rl2PalettePtr palette,
 					  rl2PixelPtr no_data);
 
-    RL2_PRIVATE int rl2_aux_render_image (struct aux_renderer *aux,
-					  unsigned char **ximage,
-					  int *ximage_size);
+    RL2_PRIVATE int rl2_aux_render_image (struct aux_renderer *aux);
 
     RL2_PRIVATE int rl2_aux_default_image (unsigned int width,
 					   unsigned int height,
@@ -2012,9 +2049,13 @@ extern "C"
 					   unsigned char **ximage,
 					   int *ximage_size);
 
-    RL2_PRIVATE void rl2_aux_group_renderer (struct aux_group_renderer *auxgrp);
+    RL2_PRIVATE int rl2_aux_group_renderer (struct aux_group_renderer *auxgrp,
+					    unsigned char **blob,
+					    int *blob_size);
 
     RL2_PRIVATE double rl2_get_shaded_relief_scale_factor (sqlite3 * handle,
+							   const char
+							   *db_prefix,
 							   const char
 							   *coverage);
 
@@ -2127,16 +2168,18 @@ extern "C"
 
     RL2_PRIVATE void rl2_draw_vector_feature (void *ctx, sqlite3 * handle,
 					      const void *priv_data,
-					      rl2VectorSymbolizerPtr
-					      symbolizer, int height,
-					      double minx, double miny,
-					      double maxx, double maxy,
-					      double x_res, double y_res,
-					      rl2GeometryPtr geom,
+					      rl2VectorSymbolizerPtr symbolizer,
+					      int height, double minx,
+					      double miny, double maxx,
+					      double maxy, double x_res,
+					      double y_res, rl2GeometryPtr geom,
 					      rl2VariantArrayPtr variant);
 
     RL2_PRIVATE rl2GeometryPtr
 	rl2_geometry_from_blob (const unsigned char *blob, int blob_sz);
+
+    RL2_PRIVATE int rl2_geometry_to_blob (rl2GeometryPtr geom,
+					  unsigned char **blob, int *blob_sz);
 
     RL2_PRIVATE rl2GeometryPtr
 	rl2_curve_from_XY (int points, double *x, double *y);
@@ -2164,6 +2207,8 @@ extern "C"
 
     RL2_PRIVATE rl2GeometryPtr rl2_clone_linestring (rl2LinestringPtr in);
 
+    RL2_PRIVATE rl2GeometryPtr rl2_clone_polygons (rl2GeometryPtr in);
+
     RL2_PRIVATE rl2GeometryPtr
 	rl2_build_circle (double x, double y, double radius);
 
@@ -2189,6 +2234,9 @@ extern "C"
     RL2_PRIVATE void rl2DestroyLinestring (rl2LinestringPtr ptr);
 
     RL2_PRIVATE void rl2DestroyRing (rl2RingPtr ptr);
+
+    RL2_PRIVATE void rl2_estimate_text_length (void *ctx, const char *text,
+					       double *length, double *extra);
 
 #ifdef __cplusplus
 }

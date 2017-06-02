@@ -66,6 +66,56 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
 
+struct aux_raster_render
+{
+/* an ancillary struct for Map Raster rendering */
+    sqlite3 *sqlite;
+    const void *data;
+    rl2CanvasPtr canvas;
+    const char *db_prefix;
+    const char *cvg_name;
+    const unsigned char *blob;
+    int blob_sz;
+    int width;
+    int height;
+    const char *style;
+    const char *format;
+    const char *bg_color;
+    int transparent;
+    int quality;
+    int reaspect;
+    unsigned char *img;
+    int img_size;
+};
+
+struct aux_vector_render
+{
+/* an ancillary struct for Map Vector rendering */
+    sqlite3 *sqlite;
+    const void *data;
+    rl2CanvasPtr canvas;
+    const char *db_prefix;
+    const char *cvg_name;
+    const unsigned char *blob;
+    int blob_sz;
+    int width;
+    int height;
+    const char *style;
+    const unsigned char *quick_style;
+    const char *format;
+    const char *bg_color;
+    int transparent;
+    int quality;
+    int reaspect;
+    unsigned char *img;
+    int img_size;
+    int with_nodes;
+    int with_edges_or_links;
+    int with_faces;
+    int with_edge_or_link_seeds;
+    int with_face_seeds;
+};
+
 #define RL2_UNUSED() if (argc || argv) argc = argc;
 
 RL2_PRIVATE int
@@ -172,8 +222,8 @@ get_coverage_defs (sqlite3 * sqlite, const char *db_prefix,
     xdb_prefix = rl2_double_quoted_sql (db_prefix);
     sql = sqlite3_mprintf ("SELECT sample_type, pixel_type, num_bands, "
 			   "compression, tile_width, tile_height FROM \"%s\".raster_coverages "
-			   "WHERE Lower(coverage_name) = Lower(%Q)", xdb_prefix,
-			   coverage);
+			   "WHERE Lower(coverage_name) = Lower(%Q)",
+			   xdb_prefix, coverage);
     free (xdb_prefix);
     ret = sqlite3_get_table (sqlite, sql, &results, &rows, &columns, NULL);
     sqlite3_free (sql);
@@ -4565,7 +4615,7 @@ get_payload_from_rgb_rgba_transparent (unsigned int width,
       {
 	  for (col = 0; col < width; col++)
 	    {
-		if (*p_alpha++ >= 128)
+		if (*p_alpha++ > 128)
 		    *p_msk++ = 1;	/* Opaque */
 		else
 		    *p_msk++ = 0;	/* Transparent */
@@ -5334,8 +5384,8 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
 	  sqlite3_reset (stmt);
 	  sqlite3_clear_bindings (stmt);
 	  sqlite3_bind_text (stmt, 1, license, strlen (license), SQLITE_STATIC);
-	  sqlite3_bind_text (stmt, 2, coverage_name,
-			     strlen (coverage_name), SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 2, coverage_name, strlen (coverage_name),
+			     SQLITE_STATIC);
       }
     else if (license == NULL)
       {
@@ -5374,8 +5424,8 @@ set_coverage_copyright (sqlite3 * sqlite, const char *coverage_name,
 	  sqlite3_bind_text (stmt, 1, copyright, strlen (copyright),
 			     SQLITE_STATIC);
 	  sqlite3_bind_text (stmt, 2, license, strlen (license), SQLITE_STATIC);
-	  sqlite3_bind_text (stmt, 3, coverage_name,
-			     strlen (coverage_name), SQLITE_STATIC);
+	  sqlite3_bind_text (stmt, 3, coverage_name, strlen (coverage_name),
+			     SQLITE_STATIC);
       }
     ret = sqlite3_step (stmt);
     if (ret == SQLITE_DONE || ret == SQLITE_ROW)
@@ -5536,4 +5586,1870 @@ rl2_double_quoted_sql (const char *value)
       }
     *p_out = '\0';
     return out;
+}
+
+static int
+test_geographic_srid (sqlite3 * handle, int srid)
+{
+/* testing if some SRID is of the Geographic type */
+    int ret;
+    int is_geographic = 0;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+
+    sql = "SELECT SridIsGeographic(?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return 0;
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_int (stmt, 1, srid);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	      is_geographic = sqlite3_column_int (stmt, 0);
+      }
+    sqlite3_finalize (stmt);
+    return is_geographic;
+}
+
+static double
+standard_scale (sqlite3 * handle, int srid, int width, int height,
+		double ext_x, double ext_y)
+{
+/* computing the standard (normalized) scale */
+    double linear_res;
+    double factor;
+    int is_geographic = test_geographic_srid (handle, srid);
+    if (is_geographic)
+      {
+	  /* geographic (long/lat) CRS */
+	  double metres = ext_x * (6378137.0 * 2.0 * 3.141592653589793) / 360.0;
+	  linear_res = metres / (double) width;
+      }
+    else
+      {
+	  /* planar (projected) CRS */
+	  double x_res = ext_x / (double) width;
+	  double y_res = ext_y / (double) height;
+	  linear_res = sqrt (x_res * y_res);
+      }
+    factor = linear_res / 0.000254;
+    return factor * (0.28 / 0.254);
+}
+
+static void
+do_set_canvas_ready (rl2CanvasPtr ptr, int which)
+{
+/* setting a Canvas as ready to be used */
+    rl2PrivCanvasPtr canvas = (rl2PrivCanvasPtr) ptr;
+    if (canvas == NULL)
+	return;
+    switch (which)
+      {
+      case RL2_CANVAS_BASE_CTX:
+	  canvas->ctx_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_NODES_CTX:
+	  canvas->ctx_nodes_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_EDGES_CTX:
+	  canvas->ctx_edges_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_LINKS_CTX:
+	  canvas->ctx_links_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_FACES_CTX:
+	  canvas->ctx_faces_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_EDGE_SEEDS_CTX:
+	  canvas->ctx_edge_seeds_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_LINK_SEEDS_CTX:
+	  canvas->ctx_link_seeds_ready = RL2_TRUE;
+	  break;
+      case RL2_CANVAS_FACE_SEEDS_CTX:
+	  canvas->ctx_face_seeds_ready = RL2_TRUE;
+	  break;
+      };
+}
+
+static int
+do_paint_map_from_raster (struct aux_raster_render *args)
+{
+/* 
+* rendering a Map Image from a Raster Coverage 
+* common implementation
+*/
+    sqlite3 *sqlite;
+    const void *data;
+    rl2CanvasPtr canvas;
+    const char *db_prefix;
+    const char *cvg_name;
+    const unsigned char *blob;
+    int blob_sz;
+    int width;
+    int height;
+    const char *style;
+    const char *format;
+    const char *bg_color;
+    int transparent;
+    int quality;
+    int reaspect;
+    rl2CoveragePtr coverage = NULL;
+    rl2PrivCoveragePtr cvg;
+    int out_srid;
+    int base_width;
+    int base_height;
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+    int max_threads = 1;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    double ext_x;
+    double ext_y;
+    double x_res;
+    double y_res;
+    int srid;
+    int level_id;
+    int scale;
+    int xscale;
+    double map_scale;
+    double xx_res;
+    double yy_res;
+    double aspect_org;
+    double aspect_dst;
+    int ok_style;
+    int ok_format;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+    unsigned char *image = NULL;
+    int image_size;
+    rl2PalettePtr palette = NULL;
+    double confidence;
+    unsigned char format_id = RL2_OUTPUT_FORMAT_UNKNOWN;
+    unsigned char out_pixel = RL2_PIXEL_UNKNOWN;
+    rl2CoverageStylePtr cvg_stl = NULL;
+    rl2RasterSymbolizerPtr symbolizer = NULL;
+    rl2RasterStatisticsPtr stats = NULL;
+    int aux_symbolizer = 0;
+    double opacity = 1.0;
+    struct aux_renderer aux;
+    int was_monochrome;
+    int by_section = 0;
+
+    sqlite = args->sqlite;
+    data = args->data;
+    canvas = args->canvas;
+    db_prefix = args->db_prefix;
+    cvg_name = args->cvg_name;
+    blob = args->blob;
+    blob_sz = args->blob_sz;
+    width = args->width;
+    height = args->height;
+    style = args->style;
+    format = args->format;
+    bg_color = args->bg_color;
+    transparent = args->transparent;
+    quality = args->quality;
+    reaspect = args->reaspect;
+
+/* coarse args validation */
+    if (sqlite == NULL)
+	goto error;
+    if (data != NULL)
+      {
+	  struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
+	  max_threads = priv_data->max_threads;
+	  if (max_threads < 1)
+	      max_threads = 1;
+	  if (max_threads > 64)
+	      max_threads = 64;
+      }
+    if (width < 64)
+	goto error;
+    if (height < 64)
+	goto error;
+/* validating the format */
+    if (canvas)
+	ok_format = 1;
+    else
+      {
+	  ok_format = 0;
+	  if (strcmp (format, "image/png") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_PNG;
+		ok_format = 1;
+	    }
+	  if (strcmp (format, "image/jpeg") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_JPEG;
+		ok_format = 1;
+	    }
+	  if (strcmp (format, "image/tiff") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_TIFF;
+		ok_format = 1;
+	    }
+	  if (strcmp (format, "application/x-pdf") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_PDF;
+		ok_format = 1;
+	    }
+      }
+    if (!ok_format)
+	goto error;
+    if (!canvas)
+      {
+	  /* parsing the background color */
+	  if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) !=
+	      RL2_OK)
+	      goto error;
+      }
+    else
+      {
+	  bg_red = 255;
+	  bg_green = 255;
+	  bg_blue = 255;
+      }
+/* checking the Geometry */
+    if (rl2_parse_bbox_srid
+	(sqlite, blob, blob_sz, &out_srid, &minx, &miny, &maxx,
+	 &maxy) != RL2_OK)
+	goto error;
+
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    if (ext_x <= 0.0 || ext_y <= 0.0)
+	goto error;
+    if (rl2_test_layer_group (sqlite, db_prefix, cvg_name))
+      {
+	  /* switching the whole task to the Group renderer */
+	  struct aux_group_renderer aux;
+	  fprintf (stderr, "------------ GROUP\n");
+	  aux.sqlite = sqlite;
+	  aux.data = data;
+	  aux.db_prefix = db_prefix;
+	  aux.group_name = cvg_name;
+	  aux.minx = minx;
+	  aux.maxx = maxx;
+	  aux.miny = miny;
+	  aux.maxy = maxy;
+	  aux.width = width;
+	  aux.height = height;
+	  aux.style = style;
+	  aux.format_id = format_id;
+	  aux.bg_red = bg_red;
+	  aux.bg_green = bg_green;
+	  aux.bg_blue = bg_blue;
+	  aux.transparent = transparent;
+	  aux.quality = quality;
+	  aux.reaspect = reaspect;
+	  if (rl2_aux_group_renderer (&aux, &image, &image_size) == RL2_OK)
+	    {
+		args->img = image;
+		args->img_size = image_size;
+		return RL2_OK;
+	    }
+	  else
+	    {
+		args->img = NULL;
+		args->img_size = 0;
+		return RL2_ERROR;
+	    }
+      }
+
+    x_res = ext_x / (double) width;
+    y_res = ext_y / (double) height;
+    map_scale = standard_scale (sqlite, out_srid, width, height, ext_x, ext_y);
+/* validating the style */
+    ok_style = 0;
+    if (style == NULL)
+	style = "default";
+    if (strcasecmp (style, "default") == 0)
+	ok_style = 1;
+    else
+      {
+	  /* attempting to get a Coverage Style */
+	  cvg_stl =
+	      rl2_create_coverage_style_from_dbms (sqlite, db_prefix,
+						   cvg_name, style);
+	  if (cvg_stl == NULL)
+	      goto error;
+	  symbolizer =
+	      rl2_get_symbolizer_from_coverage_style (cvg_stl, map_scale);
+	  if (symbolizer == NULL)
+	    {
+		/* invisible at the currect scale */
+		if (!rl2_aux_default_image
+		    (width, height, bg_red, bg_green, bg_blue, format_id,
+		     transparent, quality, &image, &image_size))
+		    goto error;
+		goto done;
+	    }
+	  stats =
+	      rl2_create_raster_statistics_from_dbms (sqlite, db_prefix,
+						      cvg_name);
+	  if (stats == NULL)
+	      goto error;
+	  ok_style = 1;
+      }
+    if (!ok_style)
+	goto error;
+
+/* attempting to load the Coverage definitions from the DBMS */
+    coverage = rl2_create_coverage_from_dbms (sqlite, db_prefix, cvg_name);
+    if (coverage == NULL)
+	goto error;
+    if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
+	srid = -1;
+    if (out_srid > 0 && srid > 0)
+      {
+	  if (out_srid != srid)
+	    {
+		/* raster reprojection isn't yet supported */
+		goto error;
+	    }
+      }
+    cvg = (rl2PrivCoveragePtr) coverage;
+    out_pixel = RL2_PIXEL_UNKNOWN;
+    if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
+	&& cvg->nBands == 3)
+	out_pixel = RL2_PIXEL_RGB;
+    if (cvg->sampleType == RL2_SAMPLE_UINT8
+	&& cvg->pixelType == RL2_PIXEL_GRAYSCALE && cvg->nBands == 1)
+	out_pixel = RL2_PIXEL_GRAYSCALE;
+    if (cvg->pixelType == RL2_PIXEL_PALETTE && cvg->nBands == 1)
+	out_pixel = RL2_PIXEL_PALETTE;
+    if (cvg->pixelType == RL2_PIXEL_MONOCHROME && cvg->nBands == 1)
+	out_pixel = RL2_PIXEL_MONOCHROME;
+
+    if (cvg->pixelType == RL2_PIXEL_MULTIBAND && cvg_stl == NULL)
+      {
+	  /* attempting to create a default RGB Coverage Style */
+	  unsigned char red_band;
+	  unsigned char green_band;
+	  unsigned char blue_band;
+	  unsigned char nir_band;
+	  if (rl2_get_dbms_coverage_default_bands
+	      (sqlite, db_prefix, cvg_name, &red_band, &green_band,
+	       &blue_band, &nir_band) == RL2_OK)
+	    {
+		/* ok, using the declared default bands */
+		rl2PrivCoverageStylePtr stl =
+		    rl2_create_default_coverage_style ();
+		rl2PrivStyleRulePtr rule = rl2_create_default_style_rule ();
+		rl2PrivRasterSymbolizerPtr symb =
+		    rl2_create_default_raster_symbolizer ();
+		aux_symbolizer = 1;
+		symb->bandSelection = malloc (sizeof (rl2PrivBandSelection));
+		symb->bandSelection->selectionType = RL2_BAND_SELECTION_TRIPLE;
+		symb->bandSelection->redBand = red_band;
+		symb->bandSelection->greenBand = green_band;
+		symb->bandSelection->blueBand = blue_band;
+		symb->bandSelection->grayContrast =
+		    RL2_CONTRAST_ENHANCEMENT_NONE;
+		rule->style_type = RL2_RASTER_STYLE;
+		rule->style = symbolizer;
+		stl->first_rule = rule;
+		stl->last_rule = rule;
+		cvg_stl = (rl2CoverageStylePtr) stl;
+		symbolizer = (rl2RasterSymbolizerPtr) symb;
+		if (stats == NULL)
+		  {
+		      stats =
+			  rl2_create_raster_statistics_from_dbms (sqlite,
+								  db_prefix,
+								  cvg_name);
+		      if (stats == NULL)
+			  goto error;
+		  }
+	    }
+      }
+
+    if ((cvg->pixelType == RL2_PIXEL_DATAGRID
+	 || cvg->pixelType == RL2_PIXEL_MULTIBAND) && cvg_stl == NULL)
+      {
+	  /* creating a default Coverage Style */
+	  rl2PrivCoverageStylePtr stl = rl2_create_default_coverage_style ();
+	  rl2PrivStyleRulePtr rule = rl2_create_default_style_rule ();
+	  rl2PrivRasterSymbolizerPtr symb =
+	      rl2_create_default_raster_symbolizer ();
+	  aux_symbolizer = 1;
+	  symb->bandSelection = malloc (sizeof (rl2PrivBandSelection));
+	  symb->bandSelection->selectionType = RL2_BAND_SELECTION_MONO;
+	  symb->bandSelection->grayBand = 0;
+	  symb->bandSelection->grayContrast = RL2_CONTRAST_ENHANCEMENT_NONE;
+	  rule->style_type = RL2_RASTER_STYLE;
+	  rule->style = symbolizer;
+	  stl->first_rule = rule;
+	  stl->last_rule = rule;
+	  cvg_stl = (rl2CoverageStylePtr) stl;
+	  symbolizer = (rl2RasterSymbolizerPtr) symb;
+	  if (stats == NULL)
+	    {
+		stats =
+		    rl2_create_raster_statistics_from_dbms (sqlite,
+							    db_prefix,
+							    cvg_name);
+		if (stats == NULL)
+		    goto error;
+	    }
+      }
+
+    if (symbolizer != NULL)
+      {
+	  /* applying a RasterSymbolizer */
+	  int yes_no;
+	  int categorize;
+	  int interpolate;
+	  if (rl2_is_raster_symbolizer_triple_band_selected
+	      (symbolizer, &yes_no) == RL2_OK)
+	    {
+		if ((cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT16)
+		    && (cvg->pixelType == RL2_PIXEL_RGB
+			|| cvg->pixelType == RL2_PIXEL_MULTIBAND) && yes_no)
+		    out_pixel = RL2_PIXEL_RGB;
+	    }
+	  if (rl2_is_raster_symbolizer_mono_band_selected
+	      (symbolizer, &yes_no, &categorize, &interpolate) == RL2_OK)
+	    {
+		if ((cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT16)
+		    && (cvg->pixelType == RL2_PIXEL_RGB
+			|| cvg->pixelType == RL2_PIXEL_MULTIBAND
+			|| cvg->pixelType == RL2_PIXEL_GRAYSCALE) && yes_no)
+		    out_pixel = RL2_PIXEL_GRAYSCALE;
+		if ((cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT16)
+		    && cvg->pixelType == RL2_PIXEL_MULTIBAND && yes_no
+		    && (categorize || interpolate))
+		    out_pixel = RL2_PIXEL_RGB;
+		if ((cvg->sampleType == RL2_SAMPLE_INT8
+		     || cvg->sampleType == RL2_SAMPLE_UINT8
+		     || cvg->sampleType == RL2_SAMPLE_INT16
+		     || cvg->sampleType == RL2_SAMPLE_UINT16
+		     || cvg->sampleType == RL2_SAMPLE_INT32
+		     || cvg->sampleType == RL2_SAMPLE_UINT32
+		     || cvg->sampleType == RL2_SAMPLE_FLOAT
+		     || cvg->sampleType == RL2_SAMPLE_DOUBLE)
+		    && cvg->pixelType == RL2_PIXEL_DATAGRID && yes_no)
+		    out_pixel = RL2_PIXEL_GRAYSCALE;
+	    }
+	  if (rl2_get_raster_symbolizer_opacity (symbolizer, &opacity) !=
+	      RL2_OK)
+	      opacity = 1.0;
+	  if (opacity > 1.0)
+	      opacity = 1.0;
+	  if (opacity < 0.0)
+	      opacity = 0.0;
+	  if (opacity < 1.0)
+	      transparent = 1;
+      }
+    if (out_pixel == RL2_PIXEL_UNKNOWN)
+      {
+	  fprintf (stderr, "*** Unsupported Pixel !!!!\n");
+	  goto error;
+      }
+
+    if (rl2_is_mixed_resolutions_coverage (sqlite, db_prefix, cvg_name) > 0)
+      {
+	  /* Mixed Resolutions Coverage */
+	  by_section = 1;
+	  xx_res = x_res;
+	  yy_res = y_res;
+      }
+    else
+      {
+	  /* ordinary Coverage */
+	  by_section = 0;
+	  /* retrieving the optimal resolution level */
+	  if (!rl2_find_best_resolution_level
+	      (sqlite, db_prefix, cvg_name, 0, 0, x_res, y_res, &level_id,
+	       &scale, &xscale, &xx_res, &yy_res))
+	      goto error;
+      }
+    base_width = (int) (ext_x / xx_res);
+    base_height = (int) (ext_y / yy_res);
+    if ((base_width <= 0 && base_width >= USHRT_MAX)
+	|| (base_height <= 0 && base_height >= USHRT_MAX))
+	goto error;
+    if ((base_width * base_height) > (8192 * 8192))
+      {
+	  /* warning: this usually implies missing Pyramid support */
+	  fprintf (stderr,
+		   "ERROR: a really huge image (%u x %u) has been requested;\n"
+		   "this is usually caused by a missing multi-resolution Pyramid.\n"
+		   "Please build a Pyramid supporting '%s'\n\n", base_width,
+		   base_height, cvg_name);
+	  goto error;
+      }
+    aspect_org = (double) base_width / (double) base_height;
+    aspect_dst = (double) width / (double) height;
+    confidence = aspect_org / 100.0;
+    if (aspect_dst >= (aspect_org - confidence)
+	|| aspect_dst <= (aspect_org + confidence))
+	;
+    else if (aspect_org != aspect_dst && !reaspect)
+	goto error;
+
+    if (by_section)
+      {
+	  /* Mixed Resolutions Coverage */
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		out_pixel = RL2_PIXEL_GRAYSCALE;
+		was_monochrome = 1;
+	    }
+	  if (out_pixel == RL2_PIXEL_PALETTE)
+	      out_pixel = RL2_PIXEL_RGB;
+	  if (rl2_get_raw_raster_data_mixed_resolutions
+	      (sqlite, max_threads, coverage, base_width, base_height,
+	       minx, miny, maxx, maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	       bg_blue, symbolizer, stats) != RL2_OK)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		rl2_destroy_coverage_style (cvg_stl);
+		cvg_stl = NULL;
+	    }
+      }
+    else
+      {
+	  /* ordinary Coverage */
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		if (level_id != 0 && scale != 1)
+		  {
+		      out_pixel = RL2_PIXEL_GRAYSCALE;
+		      was_monochrome = 1;
+		  }
+	    }
+	  if (out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		if (level_id != 0 && scale != 1)
+		    out_pixel = RL2_PIXEL_RGB;
+	    }
+	  if (rl2_get_raw_raster_data_bgcolor
+	      (sqlite, max_threads, coverage, base_width, base_height,
+	       minx, miny, maxx, maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	       bg_blue, symbolizer, stats) != RL2_OK)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		rl2_destroy_coverage_style (cvg_stl);
+		cvg_stl = NULL;
+	    }
+      }
+
+/* preparing the aux struct for passing rendering arguments */
+    aux.sqlite = sqlite;
+    aux.max_threads = max_threads;
+    aux.width = width;
+    aux.height = height;
+    aux.base_width = base_width;
+    aux.base_height = base_height;
+    aux.minx = minx;
+    aux.miny = miny;
+    aux.maxx = maxx;
+    aux.maxy = maxy;
+    aux.srid = srid;
+    if (by_section)
+      {
+	  aux.by_section = 1;
+	  aux.x_res = x_res;
+	  aux.y_res = y_res;
+      }
+    else
+      {
+	  aux.by_section = 0;
+	  aux.xx_res = xx_res;
+	  aux.yy_res = yy_res;
+      }
+    aux.transparent = transparent;
+    aux.opacity = opacity;
+    aux.quality = quality;
+    aux.format_id = format_id;
+    aux.bg_red = bg_red;
+    aux.bg_green = bg_green;
+    aux.bg_blue = bg_blue;
+    aux.coverage = coverage;
+    aux.symbolizer = symbolizer;
+    aux.stats = stats;
+    aux.outbuf = outbuf;
+    aux.palette = palette;
+    aux.out_pixel = out_pixel;
+    aux.image = NULL;
+    aux.image_size = 0;
+    aux.graphics_ctx = NULL;
+    if (canvas)
+      {
+	  /* using the Canvas Base Graphics Context */
+	  aux.graphics_ctx = rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+      }
+    if (rl2_aux_render_image (&aux) != RL2_OK)
+	goto error;
+
+  done:
+    args->img = aux.image;
+    args->img_size = aux.image_size;
+    rl2_destroy_coverage (coverage);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (cvg_stl != NULL)
+	rl2_destroy_coverage_style (cvg_stl);
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
+    if (aux_symbolizer && symbolizer)
+	rl2_destroy_raster_symbolizer ((rl2PrivRasterSymbolizerPtr) symbolizer);
+    if (canvas)
+	do_set_canvas_ready (canvas, RL2_CANVAS_BASE_CTX);
+    return RL2_OK;
+
+  error:
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    if (palette != NULL)
+	rl2_destroy_palette (palette);
+    if (cvg_stl != NULL)
+	rl2_destroy_coverage_style (cvg_stl);
+    if (stats != NULL)
+	rl2_destroy_raster_statistics (stats);
+    if (aux_symbolizer && symbolizer)
+	rl2_destroy_raster_symbolizer ((rl2PrivRasterSymbolizerPtr) symbolizer);
+    args->img = NULL;
+    args->img_size = 0;
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_map_image_blob_from_raster (sqlite3 * sqlite, const void *data,
+				const char *db_prefix, const char *cvg_name,
+				const unsigned char *blob, int blob_sz,
+				int width, int height, const char *style,
+				const char *format, const char *bg_color,
+				int transparent, int quality, int reaspect,
+				unsigned char **img, int *img_size)
+{
+/* rendering a Map Image from a Raster Coverage - BLOB */
+    struct aux_raster_render aux;
+    aux.sqlite = sqlite;
+    aux.data = data;
+    aux.canvas = NULL;
+    aux.db_prefix = db_prefix;
+    aux.cvg_name = cvg_name;
+    aux.blob = blob;
+    aux.blob_sz = blob_sz;
+    aux.width = width;
+    aux.height = height;
+    aux.style = style;
+    aux.format = format;
+    aux.bg_color = bg_color;
+    aux.transparent = transparent;
+    aux.quality = quality;
+    aux.reaspect = reaspect;
+    aux.img = NULL;
+    aux.img_size = 0;
+    if (do_paint_map_from_raster (&aux) == RL2_OK)
+      {
+	  *img = aux.img;
+	  *img_size = aux.img_size;
+	  return RL2_OK;
+      }
+    *img = NULL;
+    *img_size = 0;
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_map_image_paint_from_raster (sqlite3 * sqlite, const void *data,
+				 rl2CanvasPtr canvas, const char *db_prefix,
+				 const char *cvg_name,
+				 const unsigned char *blob, int blob_sz,
+				 const char *style)
+{
+/* rendering a Map Image from a Raster Coverage - Graphics Context */
+    struct aux_raster_render aux;
+    rl2GraphicsContextPtr ctx;
+    int width;
+    int height;
+
+    if (canvas == NULL)
+	return RL2_ERROR;
+    ctx = rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+    if (ctx == NULL)
+	return RL2_ERROR;
+    if (rl2_graph_context_get_dimensions (ctx, &width, &height) != RL2_OK)
+	return RL2_ERROR;
+
+    aux.sqlite = sqlite;
+    aux.data = data;
+    aux.canvas = canvas;
+    aux.db_prefix = db_prefix;
+    aux.cvg_name = cvg_name;
+    aux.blob = blob;
+    aux.blob_sz = blob_sz;
+    aux.width = width;
+    aux.height = height;
+    aux.style = style;
+    aux.format = NULL;
+    aux.bg_color = NULL;
+    aux.transparent = 1;
+    aux.quality = 100;
+    aux.reaspect = 1;
+    aux.img = NULL;
+    aux.img_size = 0;
+    return do_paint_map_from_raster (&aux);
+}
+
+static int
+do_paint_map_from_vector (struct aux_vector_render *aux)
+{
+/* 
+* rendering a Map Image from a Vector Coverage 
+* common implementation
+*/
+    rl2VectorMultiLayerPtr multi = NULL;
+    sqlite3 *sqlite;
+    const void *priv_data;
+    rl2CanvasPtr canvas;
+    const char *db_prefix;
+    const char *cvg_name;
+    const unsigned char *blob;
+    int blob_sz;
+    int width;
+    int height;
+    const char *style;
+    const unsigned char *quickStyle;
+    const char *format;
+    const char *bg_color;
+    int transparent;
+    int quality;
+    int reaspect;
+    int out_srid;
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+    sqlite3_stmt *stmt = NULL;
+    double minx;
+    double maxx;
+    double miny;
+    double maxy;
+    double ext_x;
+    double ext_y;
+    double x_res;
+    double y_res;
+    double scale;
+    int srid;
+    int ok_style;
+    int ok_format;
+    unsigned char *image = NULL;
+    int image_size;
+    unsigned char format_id = RL2_OUTPUT_FORMAT_UNKNOWN;
+    rl2FeatureTypeStylePtr lyr_stl = NULL;
+    rl2VectorSymbolizerPtr symbolizer = NULL;
+    char *xdb_prefix;
+    char *quoted;
+    char *sql;
+    char *oldsql;
+    int columns = 0;
+    int i;
+    int j;
+    int ret;
+    int reproject_on_the_fly;
+    int has_extra_columns;
+    rl2VariantArrayPtr variant = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
+    int half_transparent;
+    int is_topogeo = 0;
+    int is_toponet = 0;
+
+    sqlite = aux->sqlite;
+    priv_data = aux->data;
+    canvas = aux->canvas;
+    db_prefix = aux->db_prefix;
+    cvg_name = aux->cvg_name;
+    blob = aux->blob;
+    blob_sz = aux->blob_sz;
+    width = aux->width;
+    height = aux->height;
+    style = aux->style;
+    quickStyle = aux->quick_style;
+    format = aux->format;
+    bg_color = aux->bg_color;
+    transparent = aux->transparent;
+    quality = aux->quality;
+    reaspect = aux->reaspect;
+
+/* coarse args validation */
+    if (sqlite == NULL)
+	goto error;
+    if (width < 64)
+	goto error;
+    if (height < 64)
+	goto error;
+/* validating the format */
+    if (canvas)
+	ok_format = 1;
+    else
+      {
+	  ok_format = 0;
+	  if (strcmp (format, "image/png") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_PNG;
+		ok_format = 1;
+	    }
+	  if (strcmp (format, "image/jpeg") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_JPEG;
+		ok_format = 1;
+	    }
+	  if (strcmp (format, "image/tiff") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_TIFF;
+		ok_format = 1;
+	    }
+	  if (strcmp (format, "application/x-pdf") == 0)
+	    {
+		format_id = RL2_OUTPUT_FORMAT_PDF;
+		ok_format = 1;
+	    }
+      }
+    if (!ok_format)
+	goto error;
+    if (!canvas)
+      {
+	  /* parsing the background color */
+	  if (rl2_parse_hexrgb (bg_color, &bg_red, &bg_green, &bg_blue) !=
+	      RL2_OK)
+	      goto error;
+      }
+/* checking the Geometry */
+    if (rl2_parse_bbox_srid
+	(sqlite, blob, blob_sz, &out_srid, &minx, &miny, &maxx,
+	 &maxy) != RL2_OK)
+	goto error;
+
+/* attempting to load the VectorLayer definitions from the DBMS */
+    multi = rl2_create_vector_layer_from_dbms (sqlite, db_prefix, cvg_name);
+    if (multi == NULL)
+	goto error;
+
+    ext_x = maxx - minx;
+    ext_y = maxy - miny;
+    if (ext_x <= 0.0 || ext_y <= 0.0)
+	goto error;
+    x_res = ext_x / (double) width;
+    y_res = ext_y / (double) height;
+    scale = standard_scale (sqlite, out_srid, width, height, ext_x, ext_y);
+/* validating the style */
+    ok_style = 0;
+    if (style == NULL)
+	style = "default";
+    if (strcasecmp (style, "default") == 0)
+	ok_style = 1;
+    else if (quickStyle != NULL)
+      {
+	  /* attempting to validate the QuickStyle */
+	  lyr_stl = rl2_feature_type_style_from_xml (style, quickStyle);
+	  if (lyr_stl == NULL)
+	      goto error;
+	  ok_style = 1;
+      }
+    else
+      {
+	  /* attempting to get a FeatureType Style */
+	  lyr_stl =
+	      rl2_create_feature_type_style_from_dbms (sqlite, db_prefix,
+						       cvg_name, style);
+	  if (lyr_stl == NULL)
+	      goto error;
+	  ok_style = 1;
+      }
+    if (!ok_style)
+	goto error;
+
+    if (lyr_stl != NULL)
+      {
+	  /* testing for style conditional visibility */
+	  if (!rl2_is_visible_style (lyr_stl, scale))
+	    {
+		ctx = rl2_graph_create_context (width, height);
+		if (ctx == NULL)
+		    goto error;
+		goto done;
+	    }
+      }
+    rl2_is_multilayer_topogeo (multi, &is_topogeo);
+    rl2_is_multilayer_toponet (multi, &is_toponet);
+
+    if (!canvas)
+      {
+	  /* preparing a Graphics Context */
+	  ctx = rl2_graph_create_context (width, height);
+      }
+
+    for (j = 0; j < rl2_get_multilayer_count (multi); j++)
+      {
+	  /* looping on MultiLayer individual Layers */
+	  const char *classname = NULL;
+	  char *toponame;
+	  int len;
+	  int is_face = 0;
+	  int is_seed = 0;
+	  int visible = 0;
+	  rl2VectorLayerPtr layer = NULL;
+	  rl2PrivVectorLayerPtr lyr;
+	  layer = rl2_get_multilayer_item (multi, j);
+	  if (layer == NULL)
+	      continue;
+	  if (rl2_is_vector_visible (layer, &visible) != RL2_OK)
+	      visible = 0;
+	  if (!visible)
+	      continue;
+
+	  if (rl2_get_vector_srid (layer, &srid) != RL2_OK)
+	      srid = -1;
+	  lyr = (rl2PrivVectorLayerPtr) layer;
+	  if (out_srid <= 0)
+	      out_srid = srid;
+	  if (srid > 0 && out_srid > 0 && out_srid != srid)
+	      reproject_on_the_fly = 1;
+	  else
+	      reproject_on_the_fly = 0;
+
+	  if (canvas)
+	    {
+		/* using an external Graphics Context */
+		if (is_topogeo)
+		  {
+		      len = strlen (lyr->f_table_name);
+		      if (len > 5)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_face") == 0)
+			      {
+				  /* using the Canvas Faces Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_FACES_CTX);
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_edge") == 0)
+			      {
+				  /* using the Canvas Edges Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_EDGES_CTX);
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_node") == 0)
+			      {
+				  /* using the Canvas Nodes Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_NODES_CTX);
+			      }
+			}
+		      if (strlen (lyr->f_table_name) > 6)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 6, "_seeds") == 0)
+			      {
+				  /* using the Canvas FaceSeeds Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_FACE_SEEDS_CTX);
+			      }
+			}
+		  }
+		else if (is_toponet)
+		  {
+		      len = strlen (lyr->f_table_name);
+		      if (len > 5)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_link") == 0)
+			      {
+				  /* using the Canvas Links Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_LINKS_CTX);
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_node") == 0)
+			      {
+				  /* using the Canvas Nodes Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_NODES_CTX);
+			      }
+			}
+		      if (strlen (lyr->f_table_name) > 6)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 6, "_seeds") == 0)
+			      {
+				  /* using the Canvas LinkSeeds Graphics Context */
+				  ctx =
+				      rl2_get_canvas_ctx (canvas,
+							  RL2_CANVAS_LINK_SEEDS_CTX);
+			      }
+			}
+		  }
+		else
+		  {
+		      /* using the Canvas Base Graphics Context */
+		      ctx = rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+		  }
+	    }
+	  if (ctx == NULL)
+	      goto error;
+
+	  /* priming the Graphic Context */
+	  if (transparent)
+	      rl2_graph_set_brush (ctx, 255, 255, 255, 0);
+	  else
+	      rl2_graph_set_brush (ctx, bg_red, bg_green, bg_blue, 255);
+	  rl2_graph_draw_rectangle (ctx, -1, -1, width + 2, height + 2);
+
+	  /* composing the SQL query */
+	  toponame = sqlite3_mprintf ("%s", lyr->f_table_name);
+	  len = strlen (lyr->f_table_name);
+	  if (len > 5)
+	    {
+		if (strcasecmp (lyr->f_table_name + len - 5, "_face") == 0)
+		  {
+		      is_face = 1;
+		      *(toponame + len - 5) = '\0';
+		  }
+	    }
+	  if (is_topogeo && is_face)
+	    {
+		if (reproject_on_the_fly)
+		    sql =
+			sqlite3_mprintf
+			("SELECT ST_Transform(ST_GetFaceGeometry(%Q, face_id), %d)",
+			 toponame, out_srid);
+		else
+		    sql =
+			sqlite3_mprintf
+			("SELECT ST_GetFaceGeometry(%Q, face_id)", toponame);
+	    }
+	  else
+	    {
+		if (lyr->view_geometry != NULL)
+		    quoted = rl2_double_quoted_sql (lyr->view_geometry);
+		else
+		    quoted = rl2_double_quoted_sql (lyr->f_geometry_column);
+		if (reproject_on_the_fly)
+		    sql =
+			sqlite3_mprintf ("SELECT ST_Transform(\"%s\", %d)",
+					 quoted, out_srid);
+		else
+		    sql = sqlite3_mprintf ("SELECT \"%s\"", quoted);
+		free (quoted);
+	    }
+	  sqlite3_free (toponame);
+	  has_extra_columns = 0;
+	  if (lyr_stl != NULL)
+	    {
+		/* may be that the Symbolizer requires some extra column */
+		columns = rl2_get_feature_type_style_columns_count (lyr_stl);
+		for (i = 0; i < columns; i++)
+		  {
+		      int skip_topo_sublayer = 0;
+		      /* adding columns required by Filters and TextSymbolizers */
+		      const char *col_name =
+			  rl2_get_feature_type_style_column_name (lyr_stl, i);
+		      if (is_topogeo && strcasecmp (col_name, "topoclass") == 0)
+			{
+			    /* TopoGeo: adding the feature class column for Styling */
+			    is_face = 0;
+			    is_seed = 0;
+			    classname = NULL;
+			    len = strlen (lyr->f_table_name);
+			    if (len > 5)
+			      {
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 5,
+				       "_face") == 0)
+				    {
+					classname = "face";
+					if (aux->with_faces == 0)
+					    skip_topo_sublayer = 1;
+				    }
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 5,
+				       "_edge") == 0)
+				    {
+					classname = "edge";
+					if (aux->with_edges_or_links == 0)
+					    skip_topo_sublayer = 1;
+				    }
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 5,
+				       "_node") == 0)
+				    {
+					classname = "node";
+					if (aux->with_nodes == 0)
+					    skip_topo_sublayer = 1;
+				    }
+			      }
+			    if (strlen (lyr->f_table_name) > 6)
+			      {
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 6,
+				       "_seeds") == 0)
+				    {
+					classname = "seeds";
+					is_seed = 1;
+					if (aux->with_edge_or_link_seeds == 0
+					    && aux->with_face_seeds == 0)
+					    skip_topo_sublayer = 1;
+				    }
+			      }
+			    if (skip_topo_sublayer)
+			      {
+				  /* skipping this Topo Primitive Class */
+				  sqlite3_free (sql);
+				  goto skip_topo_sublayer;
+			      }
+			    if (classname != NULL)
+			      {
+				  oldsql = sql;
+				  if (is_seed)
+				    {
+					sql =
+					    sqlite3_mprintf
+					    ("%s, CASE WHEN edge_id IS NOT NULL THEN 'edge_seed' "
+					     "WHEN face_id IS NOT NULL THEN 'face_seed' END AS topoclass",
+					     oldsql);
+				    }
+				  else
+				      sql =
+					  sqlite3_mprintf
+					  ("%s, %Q AS topoclass", oldsql,
+					   classname);
+				  sqlite3_free (oldsql);
+				  has_extra_columns = 1;
+			      }
+			}
+		      else if (is_toponet
+			       && strcasecmp (col_name, "topoclass") == 0)
+			{
+			    /* TopoNet: adding the feature class column for Styling */
+			    classname = NULL;
+			    len = strlen (lyr->f_table_name);
+			    if (len > 5)
+			      {
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 5,
+				       "_link") == 0)
+				    {
+					classname = "link";
+					if (aux->with_edges_or_links == 0)
+					    skip_topo_sublayer = 1;
+				    }
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 5,
+				       "_node") == 0)
+				    {
+					classname = "node";
+					if (aux->with_nodes == 0)
+					    skip_topo_sublayer = 1;
+				    }
+			      }
+			    if (strlen (lyr->f_table_name) > 6)
+			      {
+				  if (strcasecmp
+				      (lyr->f_table_name + len - 6,
+				       "_seeds") == 0)
+				    {
+					classname = "link_seed";
+					if (aux->with_edge_or_link_seeds == 0)
+					    skip_topo_sublayer = 1;
+				    }
+			      }
+			    if (skip_topo_sublayer)
+			      {
+				  /* skipping this Topo Primitive Class */
+				  sqlite3_free (sql);
+				  goto skip_topo_sublayer;
+			      }
+			    if (classname != NULL)
+			      {
+				  oldsql = sql;
+				  sql =
+				      sqlite3_mprintf ("%s, %Q AS topoclass",
+						       oldsql, classname);
+				  sqlite3_free (oldsql);
+				  has_extra_columns = 1;
+			      }
+			}
+		      else
+			{
+			    oldsql = sql;
+			    quoted = rl2_double_quoted_sql (col_name);
+			    sql =
+				sqlite3_mprintf ("%s, \"%s\"", oldsql, quoted);
+			    free (quoted);
+			    sqlite3_free (oldsql);
+			    has_extra_columns = 1;
+			}
+		  }
+	    }
+	  else
+	    {
+		/* there is no Symbolizer */
+		int skip_topo_sublayer = 0;
+		if (is_topogeo)
+		  {
+		      len = strlen (lyr->f_table_name);
+		      if (len > 5)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_face") == 0)
+			      {
+				  if (aux->with_faces == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_edge") == 0)
+			      {
+				  if (aux->with_edges_or_links == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_node") == 0)
+			      {
+				  if (aux->with_nodes == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			}
+		      if (strlen (lyr->f_table_name) > 6)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 6, "_seeds") == 0)
+			      {
+				  if (aux->with_edge_or_link_seeds == 0
+				      && aux->with_face_seeds == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			}
+		      if (skip_topo_sublayer)
+			{
+			    /* skipping this Topo Primitive Class */
+			    sqlite3_free (sql);
+			    goto skip_topo_sublayer;
+			}
+		  }
+		else if (is_toponet)
+		  {
+		      len = strlen (lyr->f_table_name);
+		      if (len > 5)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_link") == 0)
+			      {
+				  if (aux->with_edges_or_links == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_node") == 0)
+			      {
+				  if (aux->with_nodes == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			}
+		      if (strlen (lyr->f_table_name) > 6)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 6, "_seeds") == 0)
+			      {
+				  if (aux->with_edge_or_link_seeds == 0)
+				      skip_topo_sublayer = 1;
+			      }
+			}
+		      if (skip_topo_sublayer)
+			{
+			    /* skipping this Topo Primitive Class */
+			    sqlite3_free (sql);
+			    goto skip_topo_sublayer;
+			}
+		  }
+	    }
+	  if (db_prefix == NULL)
+	      db_prefix = "main";
+	  xdb_prefix = rl2_double_quoted_sql (db_prefix);
+	  if (lyr->view_name != NULL)
+	      quoted = rl2_double_quoted_sql (lyr->view_name);
+	  else
+	      quoted = rl2_double_quoted_sql (lyr->f_table_name);
+	  oldsql = sql;
+	  sql =
+	      sqlite3_mprintf ("%s FROM \"%s\".\"%s\"", oldsql, xdb_prefix,
+			       quoted);
+	  free (xdb_prefix);
+	  free (quoted);
+	  sqlite3_free (oldsql);
+	  if (reproject_on_the_fly)
+	    {
+		if (lyr->spatial_index)
+		  {
+		      /* queryng the R*Tree Spatial Index */
+		      char *rowid;
+		      char *rtree_name = sqlite3_mprintf ("DB=%s.%s", db_prefix,
+							  lyr->f_table_name);
+		      oldsql = sql;
+		      if (lyr->view_rowid != NULL)
+			{
+			    char *qrowid =
+				rl2_double_quoted_sql (lyr->view_rowid);
+			    rowid = sqlite3_mprintf ("\"%s\"", qrowid);
+			    free (qrowid);
+			}
+		      else
+			  rowid = sqlite3_mprintf ("ROWID");
+		      sql =
+			  sqlite3_mprintf
+			  ("%s WHERE %s IN (SELECT ROWID FROM SpatialIndex "
+			   "WHERE f_table_name = %Q AND f_geometry_column = %Q "
+			   "AND search_frame = ST_Transform(?, %d))",
+			   oldsql, rowid, rtree_name, lyr->f_geometry_column,
+			   srid);
+		      free (rtree_name);
+		      sqlite3_free (rowid);
+		      sqlite3_free (oldsql);
+		  }
+		else
+		  {
+		      /* applying MBR filtering */
+		      oldsql = sql;
+		      if (lyr->view_geometry != NULL)
+			  quoted = rl2_double_quoted_sql (lyr->view_geometry);
+		      else
+			  quoted =
+			      rl2_double_quoted_sql (lyr->f_geometry_column);
+		      sql =
+			  sqlite3_mprintf
+			  ("%s WHERE MbrIntersects(\"%s\", ST_Transform(?, %d))",
+			   oldsql, quoted, srid);
+		      free (quoted);
+		      sqlite3_free (oldsql);
+		  }
+	    }
+	  else
+	    {
+		if (lyr->spatial_index)
+		  {
+		      /* queryng the R*Tree Spatial Index */
+		      char *rowid;
+		      char *rtree_name = sqlite3_mprintf ("DB=%s.%s", db_prefix,
+							  lyr->f_table_name);
+		      oldsql = sql;
+		      if (lyr->view_rowid != NULL)
+			{
+			    char *qrowid =
+				rl2_double_quoted_sql (lyr->view_rowid);
+			    rowid = sqlite3_mprintf ("\"%s\"", qrowid);
+			    free (qrowid);
+			}
+		      else
+			  rowid = sqlite3_mprintf ("ROWID");
+		      sql =
+			  sqlite3_mprintf
+			  ("%s WHERE %s IN (SELECT ROWID FROM SpatialIndex "
+			   "WHERE f_table_name = %Q AND f_geometry_column = %Q AND search_frame = ?)",
+			   oldsql, rowid, rtree_name, lyr->f_geometry_column);
+		      free (rtree_name);
+		      sqlite3_free (rowid);
+		      sqlite3_free (oldsql);
+		  }
+		else
+		  {
+		      /* applying MBR filtering */
+		      oldsql = sql;
+		      if (lyr->view_geometry != NULL)
+			  quoted = rl2_double_quoted_sql (lyr->view_geometry);
+		      else
+			  quoted =
+			      rl2_double_quoted_sql (lyr->f_geometry_column);
+		      sql =
+			  sqlite3_mprintf ("%s WHERE MbrIntersects(\"%s\", ?)",
+					   oldsql, quoted);
+		      free (quoted);
+		      sqlite3_free (oldsql);
+		  }
+	    }
+	  if (is_topogeo)
+	    {
+		if (is_face)
+		  {
+		      oldsql = sql;
+		      sql = sqlite3_mprintf ("%s AND face_id > 0", oldsql);
+		      sqlite3_free (oldsql);
+		  }
+		if (is_seed)
+		  {
+		      if (aux->with_edge_or_link_seeds != 0
+			  && aux->with_face_seeds == 0)
+			{
+			    oldsql = sql;
+			    sql =
+				sqlite3_mprintf ("%s AND edge_id IS NOT NULL",
+						 oldsql);
+			    sqlite3_free (oldsql);
+			}
+		      if (aux->with_edge_or_link_seeds == 0
+			  && aux->with_face_seeds != 0)
+			{
+			    oldsql = sql;
+			    sql =
+				sqlite3_mprintf ("%s AND face_id IS NOT NULL",
+						 oldsql);
+			    sqlite3_free (oldsql);
+			}
+		  }
+	    }
+
+	  /* preparing the SQL statement */
+	  fprintf (stderr, "%s\n", sql);
+	  ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+	  sqlite3_free (sql);
+	  if (ret != SQLITE_OK)
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (sqlite));
+		goto error;
+	    }
+
+	  sqlite3_reset (stmt);
+	  sqlite3_clear_bindings (stmt);
+	  sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+	  while (1)
+	    {
+		/* scrolling the result set rows */
+		ret = sqlite3_step (stmt);
+		if (ret == SQLITE_DONE)
+		    break;	/* end of result set */
+		if (ret == SQLITE_ROW)
+		  {
+		      rl2GeometryPtr geom = NULL;
+		      if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+			{
+			    /* fetching Geometry */
+			    const void *g_blob = sqlite3_column_blob (stmt, 0);
+			    int g_blob_sz = sqlite3_column_bytes (stmt, 0);
+			    geom =
+				rl2_geometry_from_blob ((const unsigned char
+							 *) g_blob, g_blob_sz);
+			}
+		      if (has_extra_columns)
+			{
+			    if (variant != NULL)
+				rl2_destroy_variant_array (variant);
+			    variant = rl2_create_variant_array (columns);
+			    for (i = 0; i < columns; i++)
+			      {
+				  const char *col_name =
+				      rl2_get_feature_type_style_column_name
+				      (lyr_stl,
+				       i);
+				  switch (sqlite3_column_type (stmt, 1 + i))
+				    {
+				    case SQLITE_INTEGER:
+					rl2_set_variant_int (variant, i,
+							     col_name,
+							     sqlite3_column_int64
+							     (stmt, i + 1));
+					break;
+				    case SQLITE_FLOAT:
+					rl2_set_variant_double (variant, i,
+								col_name,
+								sqlite3_column_double
+								(stmt, i + 1));
+					break;
+				    case SQLITE_TEXT:
+					rl2_set_variant_text (variant, i,
+							      col_name,
+							      (const char *)
+							      sqlite3_column_text
+							      (stmt, i + 1),
+							      sqlite3_column_bytes
+							      (stmt, i + 1));
+					break;
+				    case SQLITE_BLOB:
+					rl2_set_variant_blob (variant, i,
+							      col_name,
+							      sqlite3_column_blob
+							      (stmt, i + 1),
+							      sqlite3_column_bytes
+							      (stmt, i + 1));
+					break;
+				    default:
+					rl2_set_variant_null (variant, i,
+							      col_name);
+					break;
+				    };
+			      }
+			}
+		      if (geom != NULL)
+			{
+			    /* drawing a styled Feature */
+			    int scale_forbidden = 0;
+			    symbolizer = NULL;
+			    if (lyr_stl != NULL)
+				symbolizer =
+				    rl2_get_symbolizer_from_feature_type_style
+				    (lyr_stl, scale, variant, &scale_forbidden);
+			    if (!scale_forbidden)
+				rl2_draw_vector_feature (ctx, sqlite, priv_data,
+							 symbolizer, height,
+							 minx, miny, maxx,
+							 maxy, x_res, y_res,
+							 geom, variant);
+			    rl2_destroy_geometry (geom);
+			}
+		  }
+	    }
+	  sqlite3_finalize (stmt);
+	  stmt = NULL;
+
+	skip_topo_sublayer:
+	  if (canvas != NULL)
+	    {
+		int which = RL2_CANVAS_UNKNOWN_CTX;
+		if (is_topogeo)
+		  {
+		      len = strlen (lyr->f_table_name);
+		      if (len > 5)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_face") == 0)
+			      {
+				  /* using the Canvas Faces Graphics Context */
+				  which = RL2_CANVAS_FACES_CTX;
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_edge") == 0)
+			      {
+				  /* using the Canvas Edges Graphics Context */
+				  which = RL2_CANVAS_EDGES_CTX;
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_node") == 0)
+			      {
+				  /* using the Canvas Nodes Graphics Context */
+				  which = RL2_CANVAS_NODES_CTX;
+			      }
+			}
+		      if (strlen (lyr->f_table_name) > 6)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 6, "_seeds") == 0)
+			      {
+				  /* using the Canvas FaceSeeds Graphics Context */
+				  which = RL2_CANVAS_FACE_SEEDS_CTX;
+			      }
+			}
+		  }
+		else if (is_toponet)
+		  {
+		      len = strlen (lyr->f_table_name);
+		      if (len > 5)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_link") == 0)
+			      {
+				  /* using the Canvas Links Graphics Context */
+				  which = RL2_CANVAS_LINKS_CTX;
+			      }
+			    if (strcasecmp
+				(lyr->f_table_name + len - 5, "_node") == 0)
+			      {
+				  /* using the Canvas Nodes Graphics Context */
+				  which = RL2_CANVAS_NODES_CTX;
+			      }
+			}
+		      if (strlen (lyr->f_table_name) > 6)
+			{
+			    if (strcasecmp
+				(lyr->f_table_name + len - 6, "_seeds") == 0)
+			      {
+				  /* using the Canvas LinkSeeds Graphics Context */
+				  which = RL2_CANVAS_LINK_SEEDS_CTX;
+			      }
+			}
+		  }
+		else
+		  {
+		      /* using the Canvas Base Graphics Context */
+		      which = RL2_CANVAS_BASE_CTX;
+		  }
+		do_set_canvas_ready (canvas, which);
+	    }
+      }
+
+  done:
+    if (canvas != NULL)
+      {
+	  rl2_destroy_multi_layer (multi);
+	  if (lyr_stl != NULL)
+	      rl2_destroy_feature_type_style (lyr_stl);
+	  if (variant != NULL)
+	      rl2_destroy_variant_array (variant);
+	  aux->img = NULL;
+	  aux->img_size = 0;
+	  if (is_topogeo)
+	    {
+		/* merging Topology sub-Layers */
+		rl2GraphicsContextPtr ctx_in;
+		rl2GraphicsContextPtr ctx_out =
+		    rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_FACES_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_EDGES_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_NODES_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_EDGE_SEEDS_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_FACE_SEEDS_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		do_set_canvas_ready (canvas, RL2_CANVAS_BASE_CTX);
+	    }
+	  if (is_toponet)
+	    {
+		/* merging Network sub-Layers */
+		rl2GraphicsContextPtr ctx_in;
+		rl2GraphicsContextPtr ctx_out =
+		    rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_LINKS_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_NODES_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		ctx_in = rl2_get_canvas_ctx (canvas, RL2_CANVAS_LINK_SEEDS_CTX);
+		if (ctx_out != NULL && ctx_in != NULL)
+		    rl2_graph_merge (ctx_out, ctx_in);
+		do_set_canvas_ready (canvas, RL2_CANVAS_BASE_CTX);
+	    }
+	  return RL2_OK;
+      }
+    rl2_destroy_multi_layer (multi);
+    multi = NULL;
+    if (lyr_stl != NULL)
+	rl2_destroy_feature_type_style (lyr_stl);
+    lyr_stl = NULL;
+    if (variant != NULL)
+	rl2_destroy_variant_array (variant);
+    variant = NULL;
+
+    rgb = rl2_graph_get_context_rgb_array (ctx);
+    alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
+    if (rgb == NULL || alpha == NULL)
+	goto error;
+
+    rl2_graph_destroy_context (ctx);
+    ctx = NULL;
+
+    if (!get_payload_from_rgb_rgba_transparent
+	(width, height, rgb, alpha, format_id, quality, &image, &image_size,
+	 1.0, half_transparent))
+	goto error;
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    aux->img = image;
+    aux->img_size = image_size;
+    return RL2_OK;
+
+  error:
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    if (canvas == NULL)
+      {
+	  if (ctx != NULL)
+	      rl2_graph_destroy_context (ctx);
+      }
+    rl2_destroy_multi_layer (multi);
+    multi = NULL;
+    if (lyr_stl != NULL)
+	rl2_destroy_feature_type_style (lyr_stl);
+    if (variant != NULL)
+	rl2_destroy_variant_array (variant);
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    aux->img = NULL;
+    aux->img_size = 0;
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_map_image_blob_from_vector (sqlite3 * sqlite, const void *data,
+				const char *db_prefix, const char *cvg_name,
+				const unsigned char *blob, int blob_sz,
+				int width, int height, const char *style,
+				const char *format, const char *bg_color,
+				int transparent, int quality, int reaspect,
+				unsigned char **img, int *img_size)
+{
+/* rendering a Map Image from a Vector Coverage - BLOB */
+    struct aux_vector_render aux;
+    aux.sqlite = sqlite;
+    aux.data = data;
+    aux.canvas = NULL;
+    aux.db_prefix = db_prefix;
+    aux.cvg_name = cvg_name;
+    aux.blob = blob;
+    aux.blob_sz = blob_sz;
+    aux.width = width;
+    aux.height = height;
+    aux.style = style;
+    aux.quick_style = NULL;
+    aux.format = format;
+    aux.bg_color = bg_color;
+    aux.transparent = transparent;
+    aux.quality = quality;
+    aux.reaspect = reaspect;
+    aux.img = NULL;
+    aux.img_size = 0;
+    aux.with_nodes = 1;
+    aux.with_edges_or_links = 1;
+    aux.with_faces = 0;
+    aux.with_edge_or_link_seeds = 1;
+    aux.with_face_seeds = 1;
+    if (do_paint_map_from_vector (&aux) == RL2_OK)
+      {
+	  *img = aux.img;
+	  *img_size = aux.img_size;
+	  return RL2_OK;
+      }
+    *img = NULL;
+    *img_size = 0;
+    return RL2_ERROR;
+}
+
+RL2_DECLARE int
+rl2_map_image_paint_from_vector (sqlite3 * sqlite, const void *data,
+				 rl2CanvasPtr canvas, const char *db_prefix,
+				 const char *cvg_name,
+				 const unsigned char *blob, int blob_sz,
+				 const char *style,
+				 const unsigned char *quick_style)
+{
+/* rendering a Map Image from a Vector Coverage - Graphics Context */
+    struct aux_vector_render aux;
+    rl2GraphicsContextPtr ctx;
+    int width;
+    int height;
+
+    if (canvas == NULL)
+	return RL2_ERROR;
+    ctx = rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+    if (ctx == NULL)
+	return RL2_ERROR;
+    if (rl2_graph_context_get_dimensions (ctx, &width, &height) != RL2_OK)
+	return RL2_ERROR;
+
+    aux.sqlite = sqlite;
+    aux.data = data;
+    aux.canvas = canvas;
+    aux.db_prefix = db_prefix;
+    aux.cvg_name = cvg_name;
+    aux.blob = blob;
+    aux.blob_sz = blob_sz;
+    aux.width = width;
+    aux.height = height;
+    aux.style = style;
+    aux.quick_style = quick_style;
+    aux.format = NULL;
+    aux.bg_color = NULL;
+    aux.transparent = 1;
+    aux.quality = 100;
+    aux.reaspect = 1;
+    aux.img = NULL;
+    aux.img_size = 0;
+    aux.with_nodes = 1;
+    aux.with_edges_or_links = 1;
+    aux.with_faces = 0;
+    aux.with_edge_or_link_seeds = 1;
+    aux.with_face_seeds = 1;
+    return do_paint_map_from_vector (&aux);
+}
+
+RL2_DECLARE int
+rl2_map_image_paint_from_vector_ex (sqlite3 * sqlite, const void *data,
+				    rl2CanvasPtr canvas, const char *db_prefix,
+				    const char *cvg_name,
+				    const unsigned char *blob, int blob_sz,
+				    const char *style,
+				    const unsigned char *quick_style,
+				    int with_nodes, int with_edges_or_links,
+				    int with_faces, int with_edge_or_link_seeds,
+				    int with_face_seeds)
+{
+/* rendering a Map Image from a Vector Coverage - Graphics Context - extended */
+    struct aux_vector_render aux;
+    rl2GraphicsContextPtr ctx;
+    int width;
+    int height;
+
+    if (canvas == NULL)
+	return RL2_ERROR;
+    ctx = rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+    if (ctx == NULL)
+	return RL2_ERROR;
+    if (rl2_graph_context_get_dimensions (ctx, &width, &height) != RL2_OK)
+	return RL2_ERROR;
+
+    aux.sqlite = sqlite;
+    aux.data = data;
+    aux.canvas = canvas;
+    aux.db_prefix = db_prefix;
+    aux.cvg_name = cvg_name;
+    aux.blob = blob;
+    aux.blob_sz = blob_sz;
+    aux.width = width;
+    aux.height = height;
+    aux.style = style;
+    aux.quick_style = quick_style;
+    aux.format = NULL;
+    aux.bg_color = NULL;
+    aux.transparent = 1;
+    aux.quality = 100;
+    aux.reaspect = 1;
+    aux.img = NULL;
+    aux.img_size = 0;
+    aux.with_nodes = with_nodes;
+    aux.with_edges_or_links = with_edges_or_links;
+    aux.with_faces = with_faces;
+    aux.with_edge_or_link_seeds = with_edge_or_link_seeds;
+    aux.with_face_seeds = with_face_seeds;
+    return do_paint_map_from_vector (&aux);
 }

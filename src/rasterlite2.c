@@ -844,14 +844,21 @@ rl2_get_coverage_resolution (rl2CoveragePtr ptr, double *hResolution,
 
 RL2_DECLARE rl2VectorLayerPtr
 rl2_create_vector_layer (const char *db_prefix, const char *f_table_name,
-			 const char *f_geometry_column,
+			 const char *f_geometry_column, const char *view_name,
+			 const char *view_geometry, const char *view_rowid,
 			 unsigned short geometry_type, int srid,
 			 unsigned char spatial_index)
 {
-/* allocating and initializing a Coverage object */
+/* allocating and initializing a Vector Layer object */
     int len;
     rl2PrivVectorLayerPtr vector = NULL;
     if (f_table_name == NULL || f_geometry_column == NULL)
+	return NULL;
+    if (view_name == NULL && view_geometry == NULL && view_rowid == NULL)
+	;
+    else if (view_name != NULL && view_geometry != NULL && view_rowid != NULL)
+	;
+    else
 	return NULL;
 
     vector = malloc (sizeof (rl2PrivVectorLayer));
@@ -871,9 +878,31 @@ rl2_create_vector_layer (const char *db_prefix, const char *f_table_name,
     len = strlen (f_geometry_column);
     vector->f_geometry_column = malloc (len + 1);
     strcpy (vector->f_geometry_column, f_geometry_column);
+    vector->view_name = NULL;
+    vector->view_geometry = NULL;
+    vector->view_rowid = NULL;
+    if (view_name != NULL)
+      {
+	  len = strlen (view_name);
+	  vector->view_name = malloc (len + 1);
+	  strcpy (vector->view_name, view_name);
+      }
+    if (view_geometry != NULL)
+      {
+	  len = strlen (view_geometry);
+	  vector->view_geometry = malloc (len + 1);
+	  strcpy (vector->view_geometry, view_geometry);
+      }
+    if (view_rowid != NULL)
+      {
+	  len = strlen (view_rowid);
+	  vector->view_rowid = malloc (len + 1);
+	  strcpy (vector->view_rowid, view_rowid);
+      }
     vector->geometry_type = geometry_type;
     vector->srid = srid;
     vector->spatial_index = spatial_index;
+    vector->visible = 1;
     return (rl2VectorLayerPtr) vector;
 }
 
@@ -890,6 +919,12 @@ rl2_destroy_vector_layer (rl2VectorLayerPtr ptr)
 	free (vector->f_table_name);
     if (vector->f_geometry_column != NULL)
 	free (vector->f_geometry_column);
+    if (vector->view_name != NULL)
+	free (vector->view_name);
+    if (vector->view_geometry != NULL)
+	free (vector->view_geometry);
+    if (vector->view_rowid != NULL)
+	free (vector->view_rowid);
     free (vector);
 }
 
@@ -956,6 +991,164 @@ rl2_get_vector_spatial_index (rl2VectorLayerPtr ptr,
 	return RL2_ERROR;
     *spatial_index = vector->spatial_index;
     return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_set_vector_visibility (rl2VectorLayerPtr ptr, int is_visible)
+{
+/* set the VectorLayer Visibility flag */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return RL2_ERROR;
+    vector->visible = is_visible;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_is_vector_visible (rl2VectorLayerPtr ptr, int *is_visible)
+{
+/* return the VectorLayer Visibility flag */
+    rl2PrivVectorLayerPtr vector = (rl2PrivVectorLayerPtr) ptr;
+    if (vector == NULL)
+	return RL2_ERROR;
+    *is_visible = vector->visible;
+    return RL2_OK;
+}
+
+RL2_DECLARE rl2VectorMultiLayerPtr
+rl2_create_multi_layer (int count)
+{
+/* allocating and initializing a Vector MultiLayer object */
+    int i;
+    rl2PrivVectorMultiLayerPtr multi = NULL;
+    if (count <= 0)
+	return NULL;
+
+    multi = malloc (sizeof (rl2PrivVectorMultiLayer));
+    if (multi == NULL)
+	return NULL;
+    multi->count = count;
+    multi->is_topogeo = 0;
+    multi->is_toponet = 0;
+    multi->layers = malloc (sizeof (rl2PrivVectorLayerPtr) * count);
+    if (multi->layers == NULL)
+      {
+	  multi->count = 0;
+	  rl2_destroy_multi_layer ((rl2VectorMultiLayerPtr) multi);
+	  return NULL;
+      }
+    for (i = 0; i < count; i++)
+	*(multi->layers + i) = NULL;
+    return (rl2VectorMultiLayerPtr) multi;
+}
+
+RL2_DECLARE void
+rl2_destroy_multi_layer (rl2VectorMultiLayerPtr ptr)
+{
+/* memory cleanup - destroying a Vector MultiLayer object */
+    int i;
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return;
+    for (i = 0; i < multi->count; i++)
+      {
+	  rl2PrivVectorLayerPtr lyr = *(multi->layers + i);
+	  if (lyr == NULL)
+	      continue;
+	  rl2_destroy_vector_layer ((rl2VectorLayerPtr) lyr);
+      }
+    if (multi->layers != NULL)
+	free (multi->layers);
+    free (multi);
+}
+
+RL2_DECLARE int
+rl2_get_multilayer_count (rl2VectorMultiLayerPtr ptr)
+{
+/* return the total count of Layers within a Vector MultiLayer */
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return -1;
+    return multi->count;
+}
+
+RL2_DECLARE int
+rl2_set_multilayer_topogeo (rl2VectorMultiLayerPtr ptr, int is_topology)
+{
+/* set the IsTopoGeo flag within a Vector MultiLayer */
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return RL2_ERROR;
+    multi->is_topogeo = is_topology;
+    if (is_topology)
+	multi->is_toponet = 0;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_is_multilayer_topogeo (rl2VectorMultiLayerPtr ptr, int *is_topology)
+{
+/* return the IsTopoGeo flag from a Vector MultiLayer */
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return RL2_ERROR;
+    *is_topology = multi->is_topogeo;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_set_multilayer_toponet (rl2VectorMultiLayerPtr ptr, int is_network)
+{
+/* set IsTopoNet flag within a Vector MultiLayer */
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return RL2_ERROR;
+    if (is_network)
+	multi->is_topogeo = 0;
+    multi->is_toponet = is_network;
+    return RL2_OK;
+}
+
+RL2_DECLARE int
+rl2_is_multilayer_toponet (rl2VectorMultiLayerPtr ptr, int *is_network)
+{
+/* return the IsTopoNet flag from a Vector MultiLayer */
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return RL2_ERROR;
+    *is_network = multi->is_toponet;
+    return RL2_OK;
+}
+
+RL2_DECLARE rl2VectorLayerPtr
+rl2_get_multilayer_item (rl2VectorMultiLayerPtr ptr, int index)
+{
+/* return a pointer to the Vector Layer identified by index */
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return NULL;
+    if (index >= 0 && index < multi->count)
+	return (rl2VectorLayerPtr) (*(multi->layers + index));
+    return NULL;
+}
+
+RL2_DECLARE int
+rl2_add_layer_to_multilayer (rl2VectorMultiLayerPtr ptr, rl2VectorLayerPtr lyr)
+{
+/* inserts a Vector Layer into a MultiLayer */
+    int i;
+    rl2PrivVectorMultiLayerPtr multi = (rl2PrivVectorMultiLayerPtr) ptr;
+    if (multi == NULL)
+	return RL2_ERROR;
+    for (i = 0; i < multi->count; i++)
+      {
+	  if (*(multi->layers + i) == NULL)
+	    {
+		*(multi->layers + i) = (rl2PrivVectorLayerPtr) lyr;
+		return RL2_OK;
+	    }
+      }
+    return RL2_ERROR;
 }
 
 RL2_DECLARE rl2SectionPtr

@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = -I m4
 SUBDIRS = headers src test tools
 
 EXTRA_DIST = mainpage.doxy Android_R4.3.0.mk rasterlite2-4.3.0.mk \
-	Makefile-static-MinGW
+	Makefile-static-MinGW Makefile-static-mingw32 Makefile-static-mingw64
 
 AUTOMAKE_OPTIONS = dist-zip foreign
 

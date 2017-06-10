@@ -17608,6 +17608,53 @@ else
   as_fn_error $? "'libtiff' is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for pj_init_plus in -lproj" >&5
+$as_echo_n "checking for pj_init_plus in -lproj... " >&6; }
+if ${ac_cv_lib_proj_pj_init_plus+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lproj -lm $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pj_init_plus ();
+int
+main ()
+{
+return pj_init_plus ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_proj_pj_init_plus=yes
+else
+  ac_cv_lib_proj_pj_init_plus=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_proj_pj_init_plus" >&5
+$as_echo "$ac_cv_lib_proj_pj_init_plus" >&6; }
+if test "x$ac_cv_lib_proj_pj_init_plus" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBPROJ 1
+_ACEOF
+
+  LIBS="-lproj $LIBS"
+
+else
+  as_fn_error $? "'l'libproj' is required but the version on this system does not support the required features (Version 4.8.0 or later is needed)." "$LINENO" 5
+fi
+
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for GTIFSetFromProj4 in -lgeotiff" >&5
 $as_echo_n "checking for GTIFSetFromProj4 in -lgeotiff... " >&6; }
 if ${ac_cv_lib_geotiff_GTIFSetFromProj4+:} false; then :

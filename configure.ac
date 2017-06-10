@@ -131,6 +131,7 @@ AC_CHECK_LIB(z,inflateInit_,,AC_MSG_ERROR(['libz' is required but it doesn't see
 AC_CHECK_LIB(jpeg,jpeg_start_compress,,AC_MSG_ERROR(['libjpeg' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(gif,DGifSlurp,,AC_MSG_ERROR(['libgif' is required but it doesn't seems to be installed on this system.]),-lm)
 AC_CHECK_LIB(tiff,TIFFClientOpen,,AC_MSG_ERROR(['libtiff' is required but it doesn't seems to be installed on this system.]),-lm)
+AC_CHECK_LIB(proj,pj_init_plus,,AC_MSG_ERROR(['l'libproj' is required but the version on this system does not support the required features (Version 4.8.0 or later is needed).]),-lm)
 AC_CHECK_LIB(geotiff,GTIFSetFromProj4,,AC_MSG_ERROR(['libgeotiff' [>= v.1.2.5] is required but it doesn't seems to be installed on this system.]),-lm)
 
 PKG_CHECK_MODULES([LIBPNG], [libpng], , AC_MSG_ERROR(['libpng' is required but it doesn't seems to be installed on this system.]))

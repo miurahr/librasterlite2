@@ -5,7 +5,7 @@ AM_LDFLAGS = -L../src
 
 bin_PROGRAMS = rl2sniff rl2tool wmslite
 
-AM_CPPFLAGS = @CFLAGS@
+AM_CPPFLAGS = @CFLAGS@ @CPPFLAGS@
 AM_CPPFLAGS += -I$(top_srcdir)/headers
 
 rl2sniff_SOURCES = rl2sniff.c

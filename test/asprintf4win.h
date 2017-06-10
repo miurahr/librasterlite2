@@ -25,6 +25,8 @@
  * $Id: asprintf.c 554 2004-10-30 00:19:27Z fog $
  */
 
+#if defined(__WIN32) && !defined(__MINGW32__)
+
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -78,3 +80,5 @@ asprintf(char **buffer, char *fmt, ...)
     if (nchars < 0) return nchars;
     return size;
 }
+
+#endif

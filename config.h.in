@@ -45,6 +45,9 @@
 /* Define to 1 if you have the `openjp2' library (-lopenjp2). */
 #undef HAVE_LIBOPENJP2
 
+/* Define to 1 if you have the `proj' library (-lproj). */
+#undef HAVE_LIBPROJ
+
 /* Define to 1 if you have the `sqlite3' library (-lsqlite3). */
 #undef HAVE_LIBSQLITE3
 

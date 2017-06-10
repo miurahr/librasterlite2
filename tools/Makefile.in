@@ -327,7 +327,7 @@ AM_CFLAGS = @LIBPNG_CFLAGS@ @LIBWEBP_CFLAGS@ @LIBLZMA_CFLAGS@ \
 	@LIBXML2_CFLAGS@ @LIBFREETYPE2_CFLAGS@
 
 AM_LDFLAGS = -L../src 
-AM_CPPFLAGS = @CFLAGS@ -I$(top_srcdir)/headers
+AM_CPPFLAGS = @CFLAGS@ @CPPFLAGS@ -I$(top_srcdir)/headers
 rl2sniff_SOURCES = rl2sniff.c
 rl2tool_SOURCES = rl2tool.c
 wmslite_SOURCES = wmslite.c

@@ -62,7 +62,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/sqlite.h"
 #endif
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 #include <windows.h>
 #include <process.h>
 #else
@@ -425,7 +425,7 @@ do_encode_tile (rl2AuxImporterTilePtr tile)
     tile->retcode = RL2_ERROR;
 }
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 DWORD WINAPI
 doRunImportThread (void *arg)
 #else
@@ -436,7 +436,7 @@ doRunImportThread (void *arg)
 /* threaded function: preparing a compressed Tile to be imported */
     rl2AuxImporterTilePtr aux_tile = (rl2AuxImporterTilePtr) arg;
     do_encode_tile (aux_tile);
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     return 0;
 #else
     pthread_exit (NULL);
@@ -447,7 +447,7 @@ static void
 start_tile_thread (rl2AuxImporterTilePtr aux_tile)
 {
 /* starting a concurrent thread */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE thread_handle;
     HANDLE *p_thread;
     DWORD dwThreadId;
@@ -713,7 +713,7 @@ do_import_ascii_grid (sqlite3 * handle, int max_threads, const char *src_path,
 		if (thread_count == max_threads || aux_tile->next == NULL)
 		  {
 		      /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      HANDLE *handles;
 		      int z;
 		      int cnt = 0;
@@ -765,7 +765,7 @@ do_import_ascii_grid (sqlite3 * handle, int max_threads, const char *src_path,
 			    if (pTile->retcode != RL2_OK)
 				goto error;
 			}
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      free (handles);
 #endif
 		      thread_count = 0;
@@ -1390,7 +1390,7 @@ do_import_jpeg_image (sqlite3 * handle, int max_threads, const char *src_path,
 		if (thread_count == max_threads || aux_tile->next == NULL)
 		  {
 		      /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      HANDLE *handles;
 		      int z;
 		      int cnt = 0;
@@ -1441,7 +1441,7 @@ do_import_jpeg_image (sqlite3 * handle, int max_threads, const char *src_path,
 			    if (pTile->retcode != RL2_OK)
 				goto error;
 			}
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      free (handles);
 #endif
 		      thread_count = 0;
@@ -1844,7 +1844,7 @@ do_import_jpeg2000_image (sqlite3 * handle, int max_threads,
 		if (thread_count == max_threads || aux_tile->next == NULL)
 		  {
 		      /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      HANDLE *handles;
 		      int z;
 		      int cnt = 0;
@@ -1895,7 +1895,7 @@ do_import_jpeg2000_image (sqlite3 * handle, int max_threads,
 			    if (pTile->retcode != RL2_OK)
 				goto error;
 			}
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      free (handles);
 #endif
 		      thread_count = 0;
@@ -2329,7 +2329,7 @@ do_import_file (sqlite3 * handle, int max_threads, const char *src_path,
 		if (thread_count == max_threads || aux_tile->next == NULL)
 		  {
 		      /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      HANDLE *handles;
 		      int z;
 		      int cnt = 0;
@@ -2380,7 +2380,7 @@ do_import_file (sqlite3 * handle, int max_threads, const char *src_path,
 			    if (pTile->retcode != RL2_OK)
 				goto error;
 			}
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      free (handles);
 #endif
 		      thread_count = 0;
@@ -5942,7 +5942,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
 		if (thread_count == max_threads || aux_tile->next == NULL)
 		  {
 		      /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      HANDLE *handles;
 		      int z;
 		      int cnt = 0;
@@ -5994,7 +5994,7 @@ rl2_load_raw_raster_into_dbms (sqlite3 * handle, int max_threads,
 			    if (pTile->retcode != RL2_OK)
 				goto error;
 			}
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 		      free (handles);
 #endif
 		      thread_count = 0;

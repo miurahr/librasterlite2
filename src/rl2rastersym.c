@@ -46,7 +46,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 #include <windows.h>
 #include <process.h>
 #else
@@ -4903,7 +4903,7 @@ shaded_relief_value (double relief_factor, double scale_factor,
 				  azRadians, ennuple);
 }
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 DWORD WINAPI
 doRunShadowerThread (void *arg)
 #else
@@ -4930,7 +4930,7 @@ doRunShadowerThread (void *arg)
 				       shadower->sample_type,
 				       (rl2PixelPtr) (shadower->no_data));
       }
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     return 0;
 #else
     pthread_exit (NULL);
@@ -4941,7 +4941,7 @@ static void
 start_shadower_thread (rl2AuxShadowerPtr shadower)
 {
 /* starting a concurrent thread */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE thread_handle;
     HANDLE *p_thread;
     DWORD dwThreadId;
@@ -4993,7 +4993,7 @@ do_run_concurrent_shadower (rl2AuxShadowerPtr aux, int max_threads)
 /* concurrent execution of all shadower children threads */
     rl2AuxShadowerPtr shadower;
     int i;
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE *handles;
 #endif
 
@@ -5005,7 +5005,7 @@ do_run_concurrent_shadower (rl2AuxShadowerPtr aux, int max_threads)
       }
 
 /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     handles = malloc (sizeof (HANDLE) * max_threads);
     for (i = 0; i < max_threads; i++)
       {

@@ -46,7 +46,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 #include <windows.h>
 #include <process.h>
 #else
@@ -3306,7 +3306,7 @@ do_decode_masktile (rl2AuxMaskDecoderPtr decoder)
     decoder->retcode = RL2_OK;
 }
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 DWORD WINAPI
 doRunDecoderThread (void *arg)
 #else
@@ -3317,14 +3317,14 @@ doRunDecoderThread (void *arg)
 /* threaded function: decoding a Tile */
     rl2AuxDecoderPtr decoder = (rl2AuxDecoderPtr) arg;
     do_decode_tile (decoder);
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     return 0;
 #else
     pthread_exit (NULL);
 #endif
 }
 
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
 DWORD WINAPI
 doRunMaskDecoderThread (void *arg)
 #else
@@ -3335,7 +3335,7 @@ doRunMaskDecoderThread (void *arg)
 /* threaded function: decoding a Tile */
     rl2AuxMaskDecoderPtr decoder = (rl2AuxMaskDecoderPtr) arg;
     do_decode_masktile (decoder);
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     return 0;
 #else
     pthread_exit (NULL);
@@ -3346,7 +3346,7 @@ static void
 start_decoder_thread (rl2AuxDecoderPtr decoder)
 {
 /* starting a concurrent thread */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE thread_handle;
     HANDLE *p_thread;
     DWORD dwThreadId;
@@ -3396,7 +3396,7 @@ static void
 start_mask_decoder_thread (rl2AuxMaskDecoderPtr decoder)
 {
 /* starting a concurrent thread */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE thread_handle;
     HANDLE *p_thread;
     DWORD dwThreadId;
@@ -3448,7 +3448,7 @@ do_run_decoder_children (rl2AuxDecoderPtr * thread_slots, int thread_count)
 /* concurrent execution of all decoder children threads */
     rl2AuxDecoderPtr decoder;
     int i;
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE *handles;
 #endif
 
@@ -3460,7 +3460,7 @@ do_run_decoder_children (rl2AuxDecoderPtr * thread_slots, int thread_count)
       }
 
 /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     handles = malloc (sizeof (HANDLE) * thread_count);
     for (i = 0; i < thread_count; i++)
       {
@@ -3528,7 +3528,7 @@ do_run_mask_decoder_children (rl2AuxMaskDecoderPtr * thread_slots,
 /* concurrent execution of all mask decoder children threads */
     rl2AuxMaskDecoderPtr decoder;
     int i;
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     HANDLE *handles;
 #endif
 
@@ -3540,7 +3540,7 @@ do_run_mask_decoder_children (rl2AuxMaskDecoderPtr * thread_slots,
       }
 
 /* waiting until all child threads exit */
-#if defined(__WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32) && !defined(__MINGW32__)
     handles = malloc (sizeof (HANDLE) * thread_count);
     for (i = 0; i < thread_count; i++)
       {

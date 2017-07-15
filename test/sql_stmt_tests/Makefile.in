@@ -787,6 +787,34 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	pixelequals6.testcase \
 	pixelequals7.testcase \
 	pixelequals8.testcase \
+	pixelrasterpoint1.testcase \
+	pixelrasterpoint2.testcase \
+	pixelrasterpoint3.testcase \
+	pixelrasterpoint4.testcase \
+	pixelrasterpoint5.testcase \
+	pixelrasterpoint6.testcase \
+	pixelrasterpoint7.testcase \
+	pixelrasterpoint8.testcase \
+	pixelrasterpoint9.testcase \
+	pixelrasterpoint10.testcase \
+	pixelrasterpoint11.testcase \
+	pixelrasterpoint12.testcase \
+	pixelrasterpoint13.testcase \
+	pixelrasterpoint14.testcase \
+	pixelrasterpoint15.testcase \
+	pixelrasterpoint16.testcase \
+	pixelrasterpoint17.testcase \
+	pixelrasterpoint18.testcase \
+	pixelrasterpoint19.testcase \
+	pixelrasterpoint20.testcase \
+	pixelrasterpoint21.testcase \
+	pixelrasterpoint22.testcase \
+	pixelrasterpoint23.testcase \
+	pixelrasterpoint24.testcase \
+	pixelrasterpoint25.testcase \
+	pixelrasterpoint26.testcase \
+	pixelrasterpoint27.testcase \
+	pixelrasterpoint28.testcase \
 	pyramidize1.testcase \
 	pyramidize2.testcase \
 	pyramidize3.testcase \

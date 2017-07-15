@@ -4378,6 +4378,7 @@ common_write_geotiff (int by_section, sqlite3_context * context, int argc,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -4600,7 +4601,7 @@ common_write_geotiff (int by_section, sqlite3_context * context, int argc,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -4752,6 +4753,7 @@ common_write_triple_band_geotiff (int by_section, sqlite3_context * context,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -4998,7 +5000,7 @@ common_write_triple_band_geotiff (int by_section, sqlite3_context * context,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -5172,6 +5174,7 @@ common_write_mono_band_geotiff (int by_section, sqlite3_context * context,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -5396,7 +5399,7 @@ common_write_mono_band_geotiff (int by_section, sqlite3_context * context,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -5559,6 +5562,7 @@ common_write_tiff (int by_section, int with_worldfile,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -5772,7 +5776,7 @@ common_write_tiff (int by_section, int with_worldfile,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -5995,6 +5999,7 @@ common_write_jpeg (int with_worldfile, int by_section,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -6164,7 +6169,7 @@ common_write_jpeg (int with_worldfile, int by_section,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -6338,6 +6343,7 @@ common_write_triple_band_tiff (int with_worldfile, int by_section,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -6576,7 +6582,7 @@ common_write_triple_band_tiff (int with_worldfile, int by_section,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be theraster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -6844,6 +6850,7 @@ common_write_mono_band_tiff (int with_worldfile, int by_section,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -7059,7 +7066,7 @@ common_write_mono_band_tiff (int with_worldfile, int by_section,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -7302,6 +7309,7 @@ common_write_ascii_grid (int by_section, sqlite3_context * context, int argc,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     int is_centered = 1;
     int decimal_digits = 4;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
@@ -7462,7 +7470,7 @@ common_write_ascii_grid (int by_section, sqlite3_context * context, int argc,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * resolution;
@@ -7596,6 +7604,7 @@ common_write_ndvi_ascii_grid (int by_section, sqlite3_context * context,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     int is_centered = 1;
     int decimal_digits = 4;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
@@ -7768,7 +7777,7 @@ common_write_ndvi_ascii_grid (int by_section, sqlite3_context * context,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * resolution;
@@ -7882,6 +7891,219 @@ fnct_WriteSectionNdviAsciiGrid (sqlite3_context * context, int argc,
 /
 */
     common_write_ndvi_ascii_grid (1, context, argc, argv);
+}
+
+static int
+do_find_section_by_point (sqlite3 * handle, const char *db_prefix,
+			  const char *coverage, const unsigned char *blob,
+			  int blob_sz, sqlite3_int64 * section_id)
+{
+/* retrieving the Section ID */
+    int ret;
+    char *xdb_prefix;
+    char *xsections;
+    char *xxsections;
+    char *sql;
+    sqlite3_stmt *stmt = NULL;
+
+    *section_id = 0;
+/* preparing the "sections" SQL query */
+    if (db_prefix == NULL)
+	db_prefix = "main";
+    xdb_prefix = rl2_double_quoted_sql (db_prefix);
+    xsections = sqlite3_mprintf ("DB=%s.%s_sections", db_prefix, coverage);
+    xxsections = rl2_double_quoted_sql (xsections);
+    sql =
+	sqlite3_mprintf
+	("SELECT section_id FROM \"%s\".\"%s\" WHERE ROWID IN ( "
+	 "SELECT ROWID FROM SpatialIndex WHERE f_table_name = %Q "
+	 "AND search_frame = ?)", xdb_prefix, xxsections, xsections);
+    sqlite3_free (xsections);
+    free (xdb_prefix);
+    free (xxsections);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT mixed-res Sections SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    while (1)
+      {
+	  /* scrolling the result set rows */
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;		/* end of result set */
+	  if (ret == SQLITE_ROW)
+	    {
+		*section_id = sqlite3_column_int64 (stmt, 0);
+	    }
+	  else
+	    {
+		fprintf (stderr, "SQL error: %s\n%s\n", sql,
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return 0;
+}
+
+static void
+fnct_GetPixelFromRasterByPoint (sqlite3_context * context, int argc,
+				sqlite3_value ** argv)
+{
+/* SQL function:
+/ GetPixelFromRasterByPoint(text db_prefix, text coverage, 
+/                           BLOB point, int pyramid_level)
+/   or
+/ GetPixelFromRasterByPoint(text db_prefix, text coverage, 
+/                           BLOB point, double x_res, double y_res)
+/
+/ will return a BLOB-Pixel from a Raster Coverage
+/ or NULL (INVALID ARGS)
+/
+*/
+    int err = 0;
+    const char *db_prefix = NULL;
+    const char *cvg_name;
+    int pyramid_level;
+    double x_res;
+    double y_res;
+    int by_res;
+    const unsigned char *blob;
+    int blob_sz;
+    sqlite3 *sqlite;
+    const void *data;
+    rl2PixelPtr pixel = NULL;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+/* testing arguments for validity */
+    err = 0;
+    if (sqlite3_value_type (argv[0]) == SQLITE_TEXT
+	|| sqlite3_value_type (argv[0]) == SQLITE_NULL)
+	;
+    else
+	err = 1;
+    if (sqlite3_value_type (argv[1]) != SQLITE_TEXT)
+	err = 1;
+    if (sqlite3_value_type (argv[2]) != SQLITE_BLOB)
+	err = 1;
+    if (argc >= 5)
+      {
+	  if (sqlite3_value_type (argv[3]) == SQLITE_INTEGER
+	      || sqlite3_value_type (argv[3]) == SQLITE_FLOAT)
+	      ;
+	  else
+	      err = 1;
+	  if (sqlite3_value_type (argv[4]) == SQLITE_INTEGER
+	      || sqlite3_value_type (argv[4]) == SQLITE_FLOAT)
+	      ;
+	  else
+	      err = 1;
+	  by_res = 1;
+      }
+    else
+      {
+	  if (sqlite3_value_type (argv[3]) != SQLITE_INTEGER)
+	      err = 1;
+	  by_res = 0;
+      }
+    if (err != 0)
+      {
+	  sqlite3_result_null (context);
+	  return;
+      }
+
+/* retrieving the arguments */
+    if (sqlite3_value_type (argv[0]) == SQLITE_TEXT)
+	db_prefix = (const char *) sqlite3_value_text (argv[0]);
+    cvg_name = (const char *) sqlite3_value_text (argv[1]);
+    blob = sqlite3_value_blob (argv[2]);
+    blob_sz = sqlite3_value_bytes (argv[2]);
+    if (argc >= 5)
+      {
+	  int value;
+	  if (sqlite3_value_type (argv[3]) == SQLITE_INTEGER)
+	    {
+		value = sqlite3_value_int (argv[3]);
+		x_res = value;
+	    }
+	  else
+	      x_res = sqlite3_value_double (argv[3]);
+	  if (sqlite3_value_type (argv[4]) == SQLITE_INTEGER)
+	    {
+		value = sqlite3_value_int (argv[4]);
+		y_res = value;
+	    }
+	  else
+	      y_res = sqlite3_value_double (argv[4]);
+      }
+    else
+	pyramid_level = sqlite3_value_int (argv[3]);
+
+    sqlite = sqlite3_context_db_handle (context);
+    data = sqlite3_user_data (context);
+
+    if (by_res)
+      {
+	  /* attempting to retrieve the optimal resolution level */
+	  int scale;
+	  int xscale;
+	  double xx_res;
+	  double yy_res;
+	  if (rl2_is_mixed_resolutions_coverage (sqlite, db_prefix, cvg_name) >
+	      0)
+	    {
+		/* Mixed Resolutions Coverage */
+		sqlite3_int64 section_id;
+		if (!do_find_section_by_point
+		    (sqlite, db_prefix, cvg_name, blob, blob_sz, &section_id))
+		    goto error;
+		if (!rl2_find_best_resolution_level
+		    (sqlite, db_prefix, cvg_name, 1, section_id, x_res, y_res,
+		     &pyramid_level, &scale, &xscale, &xx_res, &yy_res))
+		    goto error;
+	    }
+	  else
+	    {
+		/* ordinary Coverage */
+		if (!rl2_find_best_resolution_level
+		    (sqlite, db_prefix, cvg_name, 0, 0, x_res, y_res,
+		     &pyramid_level, &scale, &xscale, &xx_res, &yy_res))
+		    goto error;
+	    }
+      }
+
+    if (rl2_pixel_from_raster_by_point
+	(sqlite, data, db_prefix, cvg_name, pyramid_level, blob, blob_sz,
+	 &pixel) != RL2_OK)
+	sqlite3_result_null (context);
+    else
+      {
+	  unsigned char *xblob;
+	  int xblob_sz;
+	  if (rl2_serialize_dbms_pixel (pixel, &xblob, &xblob_sz) != RL2_OK)
+	      sqlite3_result_null (context);
+	  else
+	      sqlite3_result_blob (context, xblob, xblob_sz, free);
+      }
+    if (pixel != NULL)
+	rl2_destroy_pixel (pixel);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    return;
 }
 
 static void
@@ -9070,6 +9292,7 @@ common_export_raw_pixels (int by_section, sqlite3_context * context, int argc,
     double maxx;
     double miny;
     double maxy;
+    int srid;
     RL2_UNUSED ();		/* LCOV_EXCL_LINE */
 
     if (by_section)
@@ -9225,7 +9448,7 @@ common_export_raw_pixels (int by_section, sqlite3_context * context, int argc,
       }
 
 /* checking the Geometry */
-    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y) == RL2_OK)
+    if (rl2_parse_point (sqlite, blob, blob_sz, &pt_x, &pt_y, &srid) == RL2_OK)
       {
 	  /* assumed to be the raster's Center Point */
 	  double ext_x = (double) width * horz_res;
@@ -9977,6 +10200,18 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
 			     fnct_DePyramidize, 0, 0);
     sqlite3_create_function (db, "RL2_DePyramidize", 3, SQLITE_UTF8, 0,
 			     fnct_DePyramidize, 0, 0);
+    sqlite3_create_function (db, "GetPixelFromRasterByPoint", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetPixelFromRasterByPoint, 0, 0);
+    sqlite3_create_function (db, "GetPixelFromRasterByPoint", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetPixelFromRasterByPoint, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPixelFromRasterByPoint", 4,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetPixelFromRasterByPoint, 0, 0);
+    sqlite3_create_function (db, "RL2_GetPixelFromRasterByPoint", 5,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
+			     fnct_GetPixelFromRasterByPoint, 0, 0);
     sqlite3_create_function (db, "GetMapImageFromRaster", 5,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, priv_data,
 			     fnct_GetMapImageFromRaster, 0, 0);

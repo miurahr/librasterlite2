@@ -1785,8 +1785,6 @@ rl2_raster_georeference_frame (rl2RasterPtr ptr, int srid, double min_x,
     vert_res = vExt / (double) (rst->height);
     rst->hResolution = horz_res;
     rst->vResolution = vert_res;
-    hExt = horz_res * (double) (rst->width);
-    vExt = vert_res * (double) (rst->height);
     return RL2_OK;
 }
 

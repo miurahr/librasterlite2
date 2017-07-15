@@ -486,7 +486,7 @@ add_retry (WmsRetryListPtr lst, double minx, double miny, double maxx,
 
 RL2_PRIVATE int
 rl2_parse_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
-		 double *x, double *y)
+		 double *x, double *y, int *srid)
 {
 /* attempts to get the coordinates from a POINT */
     int ret;
@@ -494,9 +494,10 @@ rl2_parse_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
     const char *sql;
     double pt_x;
     double pt_y;
+    int srid_val;
     int count = 0;
 
-    sql = "SELECT ST_X(?), ST_Y(?) WHERE ST_GeometryType(?) IN "
+    sql = "SELECT ST_X(?), ST_Y(?), ST_SRID(?) WHERE ST_GeometryType(?) IN "
 	"('POINT', 'POINT Z', 'POINT M', 'POINT ZM')";
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
     if (ret != SQLITE_OK)
@@ -511,6 +512,7 @@ rl2_parse_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
     sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
     sqlite3_bind_blob (stmt, 2, blob, blob_sz, SQLITE_STATIC);
     sqlite3_bind_blob (stmt, 3, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_blob (stmt, 4, blob, blob_sz, SQLITE_STATIC);
     while (1)
       {
 	  ret = sqlite3_step (stmt);
@@ -520,6 +522,7 @@ rl2_parse_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
 	    {
 		pt_x = sqlite3_column_double (stmt, 0);
 		pt_y = sqlite3_column_double (stmt, 1);
+		srid_val = sqlite3_column_int (stmt, 2);
 		count++;
 	    }
 	  else
@@ -535,6 +538,7 @@ rl2_parse_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
 	return RL2_ERROR;
     *x = pt_x;
     *y = pt_y;
+    *srid = srid_val;
     return RL2_OK;
 
   error:
@@ -6274,6 +6278,289 @@ rl2_map_image_blob_from_raster (sqlite3 * sqlite, const void *data,
     return RL2_ERROR;
 }
 
+static int
+do_transform_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
+		    int srid, double *x, double *y)
+{
+/* transforming a Point into another SRID */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    const unsigned char *x_blob;
+    int x_blob_sz;
+    int count = 0;
+    double pt_x;
+    double pt_y;
+    int xsrid;
+
+    sql = "SELECT ST_Transform(?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT pixel-reproject SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 2, srid);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      x_blob = sqlite3_column_blob (stmt, 0);
+		      x_blob_sz = sqlite3_column_bytes (stmt, 0);
+		      count++;
+		      if (rl2_parse_point
+			  (handle, x_blob, x_blob_sz, &pt_x, &pt_y,
+			   &xsrid) != RL2_OK)
+			  goto error;
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT wms_reproject; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return 0;
+    *x = pt_x;
+    *y = pt_y;
+    return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return 0;
+}
+
+static void
+do_update_pixel8 (rl2PrivRasterPtr rst, int x, int y, rl2PrivPixelPtr pxl,
+		  int is_signed)
+{
+/* updating the Pixel's values - (U)INT8 */
+    int b;
+    rl2PrivSamplePtr out = pxl->Samples;
+    char *in = (char *) (rst->rasterBuffer);
+    in += (rst->width * y * rst->nBands) + (rst->nBands + x);
+    for (b = 0; b < rst->nBands; b++)
+      {
+	  if (is_signed)
+	      out->int8 = *in++;
+	  else
+	      out->uint8 = *((unsigned char *) in);
+	  in++;
+	  out++;
+      }
+}
+
+static void
+do_update_pixel16 (rl2PrivRasterPtr rst, int x, int y, rl2PrivPixelPtr pxl,
+		   int is_signed)
+{
+/* updating the Pixel's values - (U)INT16 */
+    int b;
+    rl2PrivSamplePtr out = pxl->Samples;
+    short *in = (short *) (rst->rasterBuffer);
+    in += (rst->width * y * rst->nBands) + (rst->nBands + x);
+    for (b = 0; b < rst->nBands; b++)
+      {
+	  if (is_signed)
+	      out->int16 = *in++;
+	  else
+	      out->uint16 = *((unsigned short *) in);
+	  in++;
+	  out++;
+      }
+}
+
+static void
+do_update_pixel32 (rl2PrivRasterPtr rst, int x, int y, rl2PrivPixelPtr pxl,
+		   int is_signed)
+{
+/* updating the Pixel's values - (U)INT32 */
+    int b;
+    rl2PrivSamplePtr out = pxl->Samples;
+    int *in = (int *) (rst->rasterBuffer);
+    in += (rst->width * y * rst->nBands) + (rst->nBands + x);
+    for (b = 0; b < rst->nBands; b++)
+      {
+	  if (is_signed)
+	      out->int32 = *in++;
+	  else
+	      out->uint32 = *((unsigned int *) in);
+	  in++;
+	  out++;
+      }
+}
+
+static void
+do_update_pixelflt (rl2PrivRasterPtr rst, int x, int y, rl2PrivPixelPtr pxl)
+{
+/* updating the Pixel's values - FLOAT */
+    int b;
+    rl2PrivSamplePtr out = pxl->Samples;
+    float *in = (float *) (rst->rasterBuffer);
+    in += (rst->width * y * rst->nBands) + (rst->nBands + x);
+    for (b = 0; b < rst->nBands; b++)
+      {
+	  out->float32 = *in++;
+	  out++;
+      }
+}
+
+static void
+do_update_pixeldbl (rl2PrivRasterPtr rst, int x, int y, rl2PrivPixelPtr pxl)
+{
+/* updating the Pixel's values - DOUBLE */
+    int b;
+    rl2PrivSamplePtr out = pxl->Samples;
+    double *in = (double *) (rst->rasterBuffer);
+    in += (rst->width * y * rst->nBands) + (rst->nBands + x);
+    for (b = 0; b < rst->nBands; b++)
+      {
+	  out->float64 = *in++;
+	  out++;
+      }
+}
+
+static void
+do_update_pixel (rl2PrivRasterPtr rst, int x, int y, rl2PrivPixelPtr pxl)
+{
+/* updating the Pixel's values */
+    if (rst->maskBuffer != NULL)
+      {
+	  unsigned char *mask = rst->maskBuffer + (rst->width * y) + x;
+	  if (mask == 0)
+	    {
+		/* transparent Pixel */
+		return;
+	    }
+      }
+    switch (rst->sampleType)
+      {
+      case RL2_SAMPLE_1_BIT:
+      case RL2_SAMPLE_2_BIT:
+      case RL2_SAMPLE_4_BIT:
+      case RL2_SAMPLE_UINT8:
+	  do_update_pixel8 (rst, x, y, pxl, 0);
+	  break;
+      case RL2_SAMPLE_INT8:
+	  do_update_pixel8 (rst, x, y, pxl, 1);
+	  break;
+      case RL2_SAMPLE_INT16:
+	  do_update_pixel16 (rst, x, y, pxl, 1);
+	  break;
+      case RL2_SAMPLE_UINT16:
+	  do_update_pixel16 (rst, x, y, pxl, 0);
+	  break;
+      case RL2_SAMPLE_INT32:
+	  do_update_pixel32 (rst, x, y, pxl, 1);
+	  break;
+      case RL2_SAMPLE_UINT32:
+	  do_update_pixel32 (rst, x, y, pxl, 0);
+	  break;
+      case RL2_SAMPLE_FLOAT:
+	  do_update_pixelflt (rst, x, y, pxl);
+	  break;
+      case RL2_SAMPLE_DOUBLE:
+	  do_update_pixeldbl (rst, x, y, pxl);
+	  break;
+      };
+}
+
+RL2_DECLARE int
+rl2_pixel_from_raster_by_point (sqlite3 * sqlite, const void *data,
+				const char *db_prefix, const char *cvg_name,
+				int pyramid_level, const unsigned char *blob,
+				int blob_sz, rl2PixelPtr * pixel)
+{
+/* retrieving a Pixel from a Raster Coverage corresponding to a Point Geometry */
+    double x;
+    double y;
+    int srid_pt;
+    int srid_cvg;
+    rl2CoveragePtr coverage = NULL;
+    rl2PalettePtr palette = NULL;
+    rl2RasterPtr raster = NULL;
+    rl2PixelPtr xpixel = NULL;
+
+    *pixel = NULL;
+
+/* validating the Point Geometry */
+    if (rl2_parse_point (sqlite, blob, blob_sz, &x, &y, &srid_pt) != RL2_OK)
+	goto error;
+
+/* attempting to load the Coverage definitions from the DBMS */
+    coverage = rl2_create_coverage_from_dbms (sqlite, db_prefix, cvg_name);
+    if (coverage == NULL)
+	goto error;
+    if (rl2_get_coverage_srid (coverage, &srid_cvg) != RL2_OK)
+	goto error;
+
+/* retrieving the Coverage's Palette */
+    palette = rl2_get_dbms_palette (sqlite, db_prefix, cvg_name);
+
+/* retrieving the NO-DATA pixel */
+    xpixel = rl2_clone_pixel (rl2_get_coverage_no_data (coverage));
+    rl2_destroy_coverage (coverage);
+    coverage = NULL;
+    if (xpixel == NULL)
+	goto error;
+
+    if (srid_cvg != srid_pt)
+      {
+	  /* transforming the Point into the Raster Coverage SRID */
+	  if (!do_transform_point (sqlite, blob, blob_sz, srid_cvg, &x, &y))
+	      goto error;
+      }
+
+    if (rl2_find_cached_raster
+	(data, db_prefix, cvg_name, pyramid_level, x, y, &raster) == RL2_OK)
+	;
+    else if (rl2_load_cached_raster
+	     (sqlite, data, db_prefix, cvg_name, pyramid_level, x, y, palette,
+	      &raster) != RL2_OK)
+	goto error;
+    if (raster != NULL)
+      {
+	  /* extracting the Pixel at coordinates [X,Y] */
+	  rl2PrivRasterPtr rst = (rl2PrivRasterPtr) raster;
+	  rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) xpixel;
+	  int dx = (int) ((x - rst->minX) / rst->hResolution);
+	  int dy = (int) ((rst->maxY - y) / rst->vResolution);
+	  if (dx < 0 || dx >= (int) (rst->width))
+	      goto error;
+	  if (dy < 0 || dy >= (int) (rst->height))
+	      goto error;
+	  if (rst->sampleType != pxl->sampleType
+	      || rst->pixelType != pxl->pixelType || rst->nBands != pxl->nBands)
+	      goto error;
+	  do_update_pixel (rst, dx, dy, pxl);
+      }
+    *pixel = xpixel;
+    return RL2_OK;
+
+  error:
+    if (coverage != NULL)
+	rl2_destroy_coverage (coverage);
+    if (xpixel != NULL)
+	rl2_destroy_pixel (xpixel);
+    *pixel = NULL;
+    return RL2_ERROR;
+}
+
 RL2_DECLARE int
 rl2_map_image_paint_from_raster (sqlite3 * sqlite, const void *data,
 				 rl2CanvasPtr canvas, const char *db_prefix,
@@ -6373,6 +6660,8 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
     int has_extra_columns;
     rl2VariantArrayPtr variant = NULL;
     rl2GraphicsContextPtr ctx = NULL;
+    rl2GraphicsContextPtr ctx_labels = NULL;
+    int has_labels = 0;
     unsigned char *rgb = NULL;
     unsigned char *alpha = NULL;
     int half_transparent;
@@ -6616,6 +6905,14 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 		  {
 		      /* using the Canvas Base Graphics Context */
 		      ctx = rl2_get_canvas_ctx (canvas, RL2_CANVAS_BASE_CTX);
+		  }
+		has_labels = rl2_style_has_labels (lyr_stl);
+		if (has_labels)
+		  {
+		      ctx_labels =
+			  rl2_get_canvas_ctx (canvas, RL2_CANVAS_LABELS_CTX);
+		      if (ctx_labels == NULL)
+			  goto error;
 		  }
 	    }
 	  if (ctx == NULL)
@@ -7118,11 +7415,12 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 				    rl2_get_symbolizer_from_feature_type_style
 				    (lyr_stl, scale, variant, &scale_forbidden);
 			    if (!scale_forbidden)
-				rl2_draw_vector_feature (ctx, sqlite, priv_data,
+				rl2_draw_vector_feature (ctx, ctx_labels,
+							 sqlite, priv_data,
 							 symbolizer, height,
-							 minx, miny, maxx,
-							 maxy, x_res, y_res,
-							 geom, variant);
+							 minx, miny, maxx, maxy,
+							 x_res, y_res, geom,
+							 variant);
 			    rl2_destroy_geometry (geom);
 			}
 		  }

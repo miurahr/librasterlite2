@@ -86,13 +86,14 @@ extern "C"
 
 #define RL2_CANVAS_UNKNOWN_CTX		5500
 #define RL2_CANVAS_BASE_CTX			5501
-#define RL2_CANVAS_NODES_CTX		5502
-#define RL2_CANVAS_EDGES_CTX		5503
-#define RL2_CANVAS_LINKS_CTX		5504
-#define RL2_CANVAS_FACES_CTX		5505
-#define RL2_CANVAS_EDGE_SEEDS_CTX	5506
-#define RL2_CANVAS_LINK_SEEDS_CTX	5507
-#define RL2_CANVAS_FACE_SEEDS_CTX	5508
+#define RL2_CANVAS_LABELS_CTX		5502
+#define RL2_CANVAS_NODES_CTX		5503
+#define RL2_CANVAS_EDGES_CTX		5504
+#define RL2_CANVAS_LINKS_CTX		5505
+#define RL2_CANVAS_FACES_CTX		5506
+#define RL2_CANVAS_EDGE_SEEDS_CTX	5507
+#define RL2_CANVAS_LINK_SEEDS_CTX	5508
+#define RL2_CANVAS_FACE_SEEDS_CTX	5509
 
     typedef struct rl2_graphics_context rl2GraphicsContext;
     typedef rl2GraphicsContext *rl2GraphicsContextPtr;
@@ -1474,6 +1475,7 @@ extern "C"
  Allocates and initializes a new Canvas object (generic Vector Layer)
 
  \param ref_ctx pointer to Graphics Context
+ \param ref_ctx_labels pointer to Labels Graphics Context
  
  \return the pointer to newly created Canvas Object: NULL on failure.
  
@@ -1485,12 +1487,15 @@ extern "C"
  Canvas object.
  */
     RL2_DECLARE rl2CanvasPtr rl2_create_vector_canvas (rl2GraphicsContextPtr
-						       ref_ctx);
+						       ref_ctx,
+						       rl2GraphicsContextPtr
+						       ref_ctx_labels);
 
 /**
  Allocates and initializes a new Canvas object (Topology Layer)
 
  \param ref_ctx pointer to base Graphics Context
+ \param ref_ctx_labels pointer to Labels Graphics Context
  \param ref_ctx_nodes pointer to Nodes Graphics Context (may be NULL)
  \param ref_ctx_edges pointer to Edges Graphics Context (may be NULL)
  \param ref_ctx_faces pointer to Faces Graphics Context (may be NULL)
@@ -1509,6 +1514,8 @@ extern "C"
     RL2_DECLARE rl2CanvasPtr rl2_create_topology_canvas (rl2GraphicsContextPtr
 							 ref_ctx,
 							 rl2GraphicsContextPtr
+							 ref_ctx_labels,
+							 rl2GraphicsContextPtr
 							 ref_ctx_nodes,
 							 rl2GraphicsContextPtr
 							 ref_ctx_edges,
@@ -1523,6 +1530,7 @@ extern "C"
  Allocates and initializes a new Canvas object (Topology Layer)
 
  \param ref_ctx pointer to base Graphics Context
+ \param ref_ctx_labels pointer to Labels Graphics Context
  \param ref_ctx_nodes pointer to Nodes Graphics Context (may be NULL)
  \param ref_ctx_links pointer to Links Graphics Context (may be NULL)
  \param ref_ctx_link_seeds pointer to Link Seeds Graphics Context (may be NULL)
@@ -1538,6 +1546,8 @@ extern "C"
  */
     RL2_DECLARE rl2CanvasPtr rl2_create_network_canvas (rl2GraphicsContextPtr
 							ref_ctx,
+							rl2GraphicsContextPtr
+							ref_ctx_labels,
 							rl2GraphicsContextPtr
 							ref_ctx_nodes,
 							rl2GraphicsContextPtr
@@ -1606,9 +1616,10 @@ extern "C"
  Retrieving the Graphics Context from a Canvas object
 
  \param canvas pointer to a Canvas object
- \param which one between RL2_CANVAS_BASE_CTX, RL2_CANVAS_NODES_CTX,
- RL2_CANVAS_EDGES_CTX, RL2_CANVAS_LINKS_CTX, RL2_CANVAS_FACES_CTX,
- RL2_CANVAS_EDGE_SEEDS_CTX, RL2_CANVAS_LINK_SEEDS_CTX, RL2_CANVAS_FACE_CTX
+ \param which one between RL2_CANVAS_BASE_CTX, RL2_CANVAS_LABELS_CTX,
+ RL2_CANVAS_NODES_CTX, RL2_CANVAS_EDGES_CTX, RL2_CANVAS_LINKS_CTX, 
+ RL2_CANVAS_FACES_CTX, RL2_CANVAS_EDGE_SEEDS_CTX, RL2_CANVAS_LINK_SEEDS_CTX, 
+ RL2_CANVAS_FACE_CTX
  
  \return a pointer to a Graphics Context object (may be NULL)
  
@@ -1623,9 +1634,10 @@ extern "C"
  Testing if a Canvas object is ready to be used (rendered)
 
  \param canvas pointer to a Canvas object
- \param which one between RL2_CANVAS_BASE_CTX, RL2_CANVAS_NODES_CTX,
- RL2_CANVAS_EDGES_CTX, RL2_CANVAS_LINKS_CTX, RL2_CANVAS_FACES_CTX,
- RL2_CANVAS_EDGE_SEEDS_CTX, RL2_CANVAS_LINK_SEEDS_CTX, RL2_CANVAS_FACE_CTX
+ \param which one between RL2_CANVAS_BASE_CTX, RL2_CANVAS_LABELS_CTX,
+ RL2_CANVAS_NODES_CTX, RL2_CANVAS_EDGES_CTX, RL2_CANVAS_LINKS_CTX, 
+ RL2_CANVAS_FACES_CTX, RL2_CANVAS_EDGE_SEEDS_CTX, RL2_CANVAS_LINK_SEEDS_CTX, 
+ RL2_CANVAS_FACE_CTX
  
  \return RL2_TRUE or RL2_FALSE
  

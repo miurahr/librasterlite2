@@ -387,6 +387,234 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 }
 
 static int
+execute_check_value (sqlite3 * sqlite, const char *sql, int *value)
+{
+/* executing an SQL statement returning an Integer value */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = 0;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return -1;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
+	    {
+		*value = sqlite3_column_int (stmt, 0);
+		retcode = 1;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return retcode;
+}
+
+static int
+execute_check_float (sqlite3 * sqlite, const char *sql, double *value)
+{
+/* executing an SQL statement returning a Double value */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = 0;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return -1;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_type (stmt, 0) == SQLITE_FLOAT)
+	    {
+		*value = sqlite3_column_double (stmt, 0);
+		retcode = 1;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    return retcode;
+}
+
+static int
+test_pixel_int8 (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    int value;
+
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'grid_8_deflate_1024', MakePoint(11.75, 42.75, 4326), 0.000833, 0.000833), 0)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #0 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 127)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #0 error: expected 127, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
+test_pixel_int16 (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    int value;
+
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'grid_16_deflate_1024', MakePoint(11.75, 42.75, 4326), 0.000833, 0.000833), 0)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #1 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 304)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #1 error: expected 304, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
+test_pixel_int32 (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    int value;
+
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'grid_32_deflate_1024', MakePoint(11.75, 42.75, 4326), 0.000833, 0.000833), 0)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #2 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 304)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #2 error: expected 304, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
+test_pixel_uint32 (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    int value;
+
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'grid_u32_deflate_1024', MakePoint(11.75, 42.75, 4326), 0.000833, 0.000833), 0)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #3 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 304)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #3 error: expected 304, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
+test_pixel_float (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    double value;
+
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'grid_flt_deflate_1024', MakePoint(11.75, 42.75, 4326), 0.000833, 0.000833), 0)";
+    ret = execute_check_float (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #4 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 304.000000)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #4 error: expected 304.000000, found %f\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
+test_pixel_double (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    double value;
+
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'grid_dbl_deflate_1024', MakePoint(11.75, 42.75, 4326), 0.000833, 0.000833), 0)";
+    ret = execute_check_float (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #5 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 304.000000)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #5 error: expected 304.000000, found %f\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
 test_coverage (sqlite3 * sqlite, unsigned char sample,
 	       unsigned char compression, int tile_sz, int *retcode)
 {
@@ -2079,6 +2307,26 @@ main (int argc, char *argv[])
 	(db_handle, RL2_SAMPLE_UINT8, RL2_COMPRESSION_LZMA, TILE_1024, &ret))
 	return ret;
 #endif /* end LZMA conditional */
+
+/* testing Pixels */
+    ret = -350;
+    if (!test_pixel_int8 (db_handle, &ret))
+	return ret;
+    ret = -350;
+    if (!test_pixel_int16 (db_handle, &ret))
+	return ret;
+    ret = -350;
+    if (!test_pixel_int32 (db_handle, &ret))
+	return ret;
+    ret = -350;
+    if (!test_pixel_uint32 (db_handle, &ret))
+	return ret;
+    ret = -350;
+    if (!test_pixel_float (db_handle, &ret))
+	return ret;
+    ret = -350;
+    if (!test_pixel_double (db_handle, &ret))
+	return ret;
 
 /* dropping all SRTM INT16 Coverages */
     ret = -130;

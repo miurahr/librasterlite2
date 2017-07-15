@@ -5218,6 +5218,8 @@ extern "C"
     RL2_DECLARE int
 	rl2_is_visible_style (rl2FeatureTypeStylePtr style, double scale);
 
+    RL2_DECLARE int rl2_style_has_labels (rl2FeatureTypeStylePtr style);
+
     RL2_DECLARE int
 	rl2_is_valid_vector_symbolizer (rl2VectorSymbolizerPtr symbolizer,
 					int *valid);
@@ -5684,6 +5686,15 @@ extern "C"
     RL2_DECLARE int
 	rl2_copy_raster_coverage (sqlite3 * sqlite, const char *db_prefix,
 				  const char *coverage_name);
+
+    RL2_DECLARE int rl2_pixel_from_raster_by_point (sqlite3 * sqlite,
+						    const void *data,
+						    const char *db_prefix,
+						    const char *cvg_name,
+						    int pyramid_level,
+						    const unsigned char *blob,
+						    int blob_sz,
+						    rl2PixelPtr * pixel);
 
     RL2_DECLARE int rl2_map_image_blob_from_raster (sqlite3 * sqlite,
 						    const void *data,

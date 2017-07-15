@@ -113,6 +113,30 @@ execute_check_boolean (sqlite3 * sqlite, const char *sql)
 }
 
 static int
+execute_check_value (sqlite3 * sqlite, const char *sql, int *value)
+{
+/* executing an SQL statement returning an Integer value */
+    sqlite3_stmt *stmt;
+    int ret;
+    int retcode = 0;
+
+    ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	return -1;
+    ret = sqlite3_step (stmt);
+    if (ret == SQLITE_DONE || ret == SQLITE_ROW)
+      {
+	  if (sqlite3_column_type (stmt, 0) == SQLITE_INTEGER)
+	    {
+		*value = sqlite3_column_int (stmt, 0);
+		retcode = 1;
+	    }
+      }
+    sqlite3_finalize (stmt);
+	return retcode;
+}
+
+static int
 get_max_tile_id (sqlite3 * sqlite, const char *coverage)
 {
 /* retriving the Max tile_id for a given Coverage */
@@ -1762,6 +1786,97 @@ do_test_tile_data (sqlite3 * sqlite, unsigned char compression, int tile_sz)
 }
 
 static int
+test_pixel (sqlite3 * sqlite, int *retcode)
+{
+/* testing GetPixelFromRasterByPoint() */
+    int ret;
+    char *err_msg = NULL;
+    const char *sql;
+    int value;
+
+/* testing band #0 */
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'infrared_png_1024', MakePoint(661136.0, 4847595.0, 32632), 0), 0)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #0 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 215)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #0 error: expected 215, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+
+/* testing band #1 */
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'infrared_png_1024', MakePoint(661136.0, 4847595.0, 32632), 0), 1)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #2 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 201)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #2 error: expected 201, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+
+/* testing band #2 */
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'infrared_png_1024', MakePoint(661136.0, 4847595.0, 32632), 0), 2)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #3 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 192)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #3 error: expected 192, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+
+/* testing band #3 */
+    sql =
+	"SELECT RL2_GetPixelValue(RL2_GetPixelFromRasterByPoint(NULL, 'infrared_png_1024', MakePoint(661136.0, 4847595.0, 32632), 0), 3)";
+    ret = execute_check_value (sqlite, sql, &value);
+    if (!ret)
+      {
+	  fprintf (stderr, "GetPixelFromRasterByPoint #4 error: %s\n", err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -1;
+	  return 0;
+      }
+    if (value != 172)
+      {
+	  fprintf (stderr,
+		   "GetPixelFromRasterByPoint #4 error: expected 172, found %d\n",
+		   value);
+	  *retcode += -1;
+	  return 0;
+      }
+    return 1;
+}
+
+static int
 test_coverage (sqlite3 * sqlite, unsigned char compression, int tile_sz,
 	       int ndvi, int *retcode)
 {
@@ -2881,6 +2996,9 @@ main (int argc, char *argv[])
 	return ret;
     ret = -340;
     if (!test_coverage (db_handle, RL2_COMPRESSION_PNG, TILE_1024, 0, &ret))
+	return ret;
+    ret = -350;
+    if (!test_pixel (db_handle, &ret))
 	return ret;
 
 /* dropping all Coverages */

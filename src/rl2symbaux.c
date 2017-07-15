@@ -963,6 +963,50 @@ rl2_is_visible_style (rl2FeatureTypeStylePtr style, double scale)
     return 1;
 }
 
+RL2_DECLARE int
+rl2_style_has_labels (rl2FeatureTypeStylePtr style)
+{
+/* test if a FeatureTypeStyle has Text Symbolizers */
+    rl2PrivVectorSymbolizerPtr sym;
+    rl2PrivVectorSymbolizerItemPtr item;
+    rl2PrivStyleRulePtr pR;
+    rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
+    if (stl == NULL)
+	return 0;
+    if (stl->first_rule == NULL)
+      {
+	  /* there are no rules */
+	  return 0;
+      }
+
+    pR = stl->first_rule;
+    while (pR != NULL)
+      {
+	  if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+	      ;
+	  else
+	    {
+		/* skipping any invalid rule */
+		pR = pR->next;
+		continue;
+	    }
+	  sym = pR->style;
+	  item = sym->first;
+	  while (item != NULL)
+	    {
+		if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+		    && item->symbolizer != NULL)
+		  {
+		      /* found a valid Text Symbolizer */
+		      return 1;
+		  }
+		item = item->next;
+	    }
+	  pR = pR->next;
+      }
+    return 0;
+}
+
 RL2_PRIVATE void
 rl2_destroy_rule_like_args (rl2PrivRuleLikeArgsPtr args)
 {

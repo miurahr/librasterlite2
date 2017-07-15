@@ -251,14 +251,6 @@ extern "C"
 	struct rl2_private_tt_font *next;
     };
 
-    struct rl2_private_data
-    {
-	int max_threads;
-	void *FTlibrary;
-	struct rl2_private_tt_font *first_font;
-	struct rl2_private_tt_font *last_font;
-    };
-
     typedef union rl2_priv_sample
     {
 	char int8;
@@ -318,6 +310,25 @@ extern "C"
 	rl2PrivPixelPtr noData;
     } rl2PrivRaster;
     typedef rl2PrivRaster *rl2PrivRasterPtr;
+
+    struct rl2_cached_raster
+    {
+	char *db_prefix;
+	char *coverage;
+	int pyramid_level;
+	time_t last_used;
+	rl2PrivRasterPtr raster;
+    };
+
+    struct rl2_private_data
+    {
+	int max_threads;
+	void *FTlibrary;
+	struct rl2_private_tt_font *first_font;
+	struct rl2_private_tt_font *last_font;
+	struct rl2_cached_raster *raster_cache;
+	int raster_cache_items;
+    };
 
     typedef struct rl2_priv_tile
     {
@@ -1285,6 +1296,7 @@ extern "C"
     {
 	int type;
 	void *ref_ctx;
+	void *ref_ctx_labels;
 	void *ref_ctx_nodes;
 	void *ref_ctx_edges;
 	void *ref_ctx_links;
@@ -1293,6 +1305,7 @@ extern "C"
 	void *ref_ctx_link_seeds;
 	void *ref_ctx_face_seeds;
 	int ctx_ready;
+	int ctx_labels_ready;
 	int ctx_nodes_ready;
 	int ctx_edges_ready;
 	int ctx_links_ready;
@@ -2117,7 +2130,7 @@ extern "C"
 
     RL2_PRIVATE int rl2_parse_point (sqlite3 * sqlite,
 				     const unsigned char *blob, int blob_sz,
-				     double *x, double *y);
+				     double *x, double *y, int *srid);
 
     RL2_PRIVATE int rl2_parse_point_generic (sqlite3 * sqlite,
 					     const unsigned char *blob,
@@ -2166,7 +2179,8 @@ extern "C"
 
     RL2_PRIVATE void rl2_destroy_variant_value (rl2PrivVariantValuePtr value);
 
-    RL2_PRIVATE void rl2_draw_vector_feature (void *ctx, sqlite3 * handle,
+    RL2_PRIVATE void rl2_draw_vector_feature (void *ctx, void *ctx_labels,
+					      sqlite3 * handle,
 					      const void *priv_data,
 					      rl2VectorSymbolizerPtr symbolizer,
 					      int height, double minx,
@@ -2237,6 +2251,20 @@ extern "C"
 
     RL2_PRIVATE void rl2_estimate_text_length (void *ctx, const char *text,
 					       double *length, double *extra);
+
+    RL2_PRIVATE int
+	rl2_find_cached_raster (const void *data, const char *db_prefix,
+				const char *coverage, int pyramid_level,
+				double x, double y, rl2RasterPtr * raster);
+
+    RL2_PRIVATE int
+	rl2_load_cached_raster (sqlite3 * handle, const void *data,
+				const char *db_prefix, const char *coverage,
+				int pyramid_level, double x, double y,
+				rl2PalettePtr palette, rl2RasterPtr * raster);
+
+    RL2_PRIVATE void
+	rl2_destroy_private_tt_font (struct rl2_private_tt_font *font);
 
 #ifdef __cplusplus
 }

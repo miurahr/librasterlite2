@@ -1256,7 +1256,7 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp, unsigned char **blob,
     grp = (rl2PrivGroupRendererPtr) group;
     for (i = 0; i < grp->count; i++)
       {
-	  /* rendering all rasters on the same canvass */
+	  /* rendering all rasters on the same canvas */
 	  int is_shaded_relief = 0;
 	  rl2PrivCoveragePtr cvg;
 	  rl2PrivGroupRendererLayerPtr lyr = grp->layers + i;
@@ -4446,15 +4446,17 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 }
 
 RL2_PRIVATE void
-rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle, const void *priv_data,
+rl2_draw_vector_feature (void *p_ctx, void *p_ctx_labels, sqlite3 * handle,
+			 const void *priv_data,
 			 rl2VectorSymbolizerPtr symbolizer, int height,
 			 double minx, double miny, double maxx, double maxy,
 			 double x_res, double y_res, rl2GeometryPtr geom,
 			 rl2VariantArrayPtr variant)
 {
-/* drawing a vector feature on the current canvass */
+/* drawing a vector feature on the current canvas */
     rl2PrivVectorSymbolizerItemPtr item;
     rl2GraphicsContextPtr ctx = (rl2GraphicsContextPtr) p_ctx;
+    rl2GraphicsContextPtr ctx_labels = (rl2GraphicsContextPtr) p_ctx_labels;
     rl2PrivVectorSymbolizerPtr sym = (rl2PrivVectorSymbolizerPtr) symbolizer;
     rl2PrivVectorSymbolizerPtr default_symbolizer = NULL;
 
@@ -4579,11 +4581,10 @@ rl2_draw_vector_feature (void *p_ctx, sqlite3 * handle, const void *priv_data,
 					    (text->label,
 					     val->column_name) != 0)
 					    continue;
-/* to be fixed - sometimes it raises a Cairo exception about Fonts  */
-					draw_labels (ctx, handle, priv_data,
-						     text, height, minx, miny,
-						     maxx, maxy, x_res, y_res,
-						     geom, val);
+					draw_labels (ctx_labels, handle,
+						     priv_data, text, height,
+						     minx, miny, maxx, maxy,
+						     x_res, y_res, geom, val);
 				    }
 			      }
 			}

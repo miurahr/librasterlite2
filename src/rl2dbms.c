@@ -2673,7 +2673,7 @@ rl2_create_vector_layer_from_dbms (sqlite3 * handle, const char *db_prefix,
 	       "FROM \"%s\".vector_coverages AS c "
 	       "JOIN \"%s\".virts_geometry_columns AS v ON "
 	       "(c.virt_name = v.virt_name AND c.virt_geometry = v.virt_geometry) "
-	       "WHERE Lower(v.virt_name) = Lower(?) AND "
+	       "WHERE Lower(c.coverage_name) = Lower(?) AND "
 	       "c.virt_name IS NOT NULL AND c.virt_geometry IS NOT NULL",
 	       xdb_prefix, xdb_prefix, xdb_prefix);
       }

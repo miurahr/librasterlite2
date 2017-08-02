@@ -4026,7 +4026,7 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
       }
     if (value->sqlite3_type == SQLITE_FLOAT)
       {
-	  dummy = sqlite3_mprintf ("1.2f", value->dbl_value);
+	  dummy = sqlite3_mprintf ("%1.2f", value->dbl_value);
 	  label = dummy;
       }
     if (value->sqlite3_type == SQLITE_TEXT)

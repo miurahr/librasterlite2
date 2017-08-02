@@ -6635,6 +6635,12 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
     double maxx;
     double miny;
     double maxy;
+    double ext_min_x;
+    double ext_max_x;
+    double ext_min_y;
+    double ext_max_y;
+    double extended_x;
+    double extended_y;
     double ext_x;
     double ext_y;
     double x_res;
@@ -6733,6 +6739,13 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 	(sqlite, blob, blob_sz, &out_srid, &minx, &miny, &maxx,
 	 &maxy) != RL2_OK)
 	goto error;
+/* computing the extend frame */
+	extended_x = (maxx - minx) / 20.0;
+	ext_min_x = minx - extended_x;
+	ext_max_x = maxx + extended_x;
+	extended_y = (maxy - miny) / 20.0;
+	ext_min_y = miny - extended_y;
+	ext_max_y = maxy + extended_y;
 
 /* attempting to load the VectorLayer definitions from the DBMS */
     multi = rl2_create_vector_layer_from_dbms (sqlite, db_prefix, cvg_name);
@@ -6941,12 +6954,14 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 		if (reproject_on_the_fly)
 		    sql =
 			sqlite3_mprintf
-			("SELECT ST_Transform(ST_GetFaceGeometry(%Q, face_id), %d)",
-			 toponame, out_srid);
+			("SELECT ST_Intersection(ST_Transform(ST_GetFaceGeometry(%Q, face_id), %d), "
+			"BuildMbr(%f, %f, %f, %f))",
+			 toponame, out_srid, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
 		else
 		    sql =
 			sqlite3_mprintf
-			("SELECT ST_GetFaceGeometry(%Q, face_id)", toponame);
+			("SELECT ST_Intersection(ST_GetFaceGeometry(%Q, face_id), "
+			"BuildMbr(%f, %f, %f, %f))", toponame, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
 	    }
 	  else
 	    {
@@ -6956,10 +6971,12 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 		    quoted = rl2_double_quoted_sql (lyr->f_geometry_column);
 		if (reproject_on_the_fly)
 		    sql =
-			sqlite3_mprintf ("SELECT ST_Transform(\"%s\", %d)",
-					 quoted, out_srid);
+			sqlite3_mprintf ("SELECT ST_Intersection(ST_Transform(\"%s\", %d), "
+			"BuildMbr(%f, %f, %f, %f))",
+					 quoted, out_srid, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
 		else
-		    sql = sqlite3_mprintf ("SELECT \"%s\"", quoted);
+		    sql = sqlite3_mprintf ("SELECT ST_Intersection(\"%s\", "
+		    "BuildMbr(%f, %f, %f, %f))", quoted, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
 		free (quoted);
 	    }
 	  sqlite3_free (toponame);

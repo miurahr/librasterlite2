@@ -2682,7 +2682,7 @@ static int
 get_aux_interception_point (sqlite3 * handle, rl2GeometryPtr geom,
 			    rl2GeometryPtr circle, double *x, double *y)
 {
-/* computing and interception point */
+/* computing an interception point */
     sqlite3_stmt *stmt = NULL;
     const char *sql;
     int ret;
@@ -2835,7 +2835,67 @@ aux_reduce_curve (sqlite3 * handle, rl2GeometryPtr geom,
 }
 
 static int
-check_reverse (rl2GeometryPtr geom)
+interpolate_point (sqlite3 * handle, rl2GeometryPtr geom, double percent, double *x, double *y)
+{
+/* interpolating a point on a Line */
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    int ret;
+    unsigned char *blob;
+    int size;
+    int ok = 0;
+
+    rl2_serialize_linestring (geom->first_linestring, &blob, &size);
+
+/* preparing the SQL query statement */
+    sql = "SELECT ST_Line_Interpolate_Point(?, ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+	goto error;
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_blob (stmt, 1, blob, size, free);
+    sqlite3_bind_double (stmt, 2, percent);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      const unsigned char *blob2 =
+			  sqlite3_column_blob (stmt, 0);
+		      int size2 = sqlite3_column_bytes (stmt, 0);
+		      rl2GeometryPtr result =
+			  rl2_geometry_from_blob (blob2, size2);
+		      if (result == NULL)
+			  break;
+		      if (result->first_point == NULL)
+			  break;
+		      *x = result->first_point->x;
+		      *y = result->first_point->y;
+		      rl2_destroy_geometry (result);
+		      ok = 1;
+		  }
+	    }
+	  else
+	      goto error;
+      }
+    if (ok == 0)
+	goto error;
+    sqlite3_finalize (stmt);
+    return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return 0;
+}
+
+static int
+check_reverse (sqlite3 *sqlite, rl2GeometryPtr geom, double text_length)
 {
 /* testing for an inverse label */
     rl2LinestringPtr ln;
@@ -2844,23 +2904,25 @@ check_reverse (rl2GeometryPtr geom)
     double x1;
     double y1;
     double width;
-    double height;
-    int last;
+    double line_length;
+    double percent;
 
     if (geom == NULL)
 	return 0;
     ln = geom->first_linestring;
     if (ln == NULL)
 	return 0;
-    if (ln->points < 2)
-	return 0;
-    last = ln->points - 1;
+    
+    line_length = rl2_compute_curve_length (geom);
+    if (line_length < text_length)
+    return 0;
+    percent = text_length / line_length;
+    if (!interpolate_point(sqlite, geom, percent, &x1, &y1))
+    return 0;
 
     rl2GetPoint (ln->coords, 0, &x0, &y0);
-    rl2GetPoint (ln->coords, last, &x1, &y1);
     width = fabs (x0 - x1);
-    height = fabs (y0 - y1);
-    if (width > 3.0)
+    if (width > 10.0)
       {
 	  if (x0 > x1)
 	      return 1;
@@ -2913,7 +2975,7 @@ rl2_draw_wrapped_label (sqlite3 * handle, rl2GraphicsContextPtr context,
     radius =
 	sqrt ((extents.max_x_advance * extents.max_x_advance) +
 	      (extents.height * extents.height)) / 2.0;
-    if (check_reverse (g))
+    if (check_reverse (handle, g, radius * strlen(text)))
       {
 	  /* reverse text */
 	  int len = strlen (text);
@@ -2947,7 +3009,7 @@ rl2_draw_wrapped_label (sqlite3 * handle, rl2GraphicsContextPtr context,
 	  g = g2;
       }
     if (rev_text)
-	free (rev_text);
+	free (rev_text); 
     return g;
 }
 

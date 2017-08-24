@@ -937,12 +937,57 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 	  return 0;
       }
 
+    ret = rl2_text_symbolizer_get_halo_fill_opacity (text, &dblval);
+    if (strcmp (style_name, "label_3") == 0)
+      {
+	  if (ret == RL2_OK)
+	    {
+		fprintf (stderr,
+			 "%s: Unexpected success Text Symbolizer HaloFillOpacity #1\n",
+			 style_name);
+		*retcode += 64;
+		return 0;
+	    }
+      }
+    else
+      {
+	  if (ret != RL2_OK)
+	    {
+		fprintf (stderr,
+			 "%s: Unable to get Text Symbolizer HaloFillOpacity #1\n",
+			 style_name);
+		*retcode += 65;
+		return 0;
+	    }
+      }
+    intval = 0;
+    if (strcmp (style_name, "label_1") == 0)
+      {
+	  if (dblval == 1.0)
+	      intval = 1;
+      }
+    else if (strcmp (style_name, "label_2") == 0)
+      {
+	  if (dblval == 0.8)
+	      intval = 1;
+      }
+    else
+	intval = 1;
+    if (intval != 1)
+      {
+	  fprintf (stderr,
+		   "%s: Unexpected Text Symbolizer HaloFillOpacity #1: %1.2f\n",
+		   style_name, dblval);
+	  *retcode += 66;
+	  return 0;
+      }
+
     if (rl2_text_symbolizer_has_fill (text, &intval) != RL2_OK)
       {
 	  fprintf (stderr,
 		   "%s: Unable to get Text Symbolizer HasFill #1\n",
 		   style_name);
-	  *retcode += 64;
+	  *retcode += 67;
 	  return 0;
       }
     red = 0;
@@ -966,7 +1011,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "%s: Unexpected Text Symbolizer HasFill #1: %d\n",
 		   style_name, intval);
-	  *retcode += 65;
+	  *retcode += 68;
 	  return 0;
       }
 
@@ -978,7 +1023,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 		fprintf (stderr,
 			 "%s: Unexpected success Text Symbolizer FillColor #1\n",
 			 style_name);
-		*retcode += 66;
+		*retcode += 69;
 		return 0;
 	    }
       }
@@ -989,7 +1034,7 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 		fprintf (stderr,
 			 "%s: Unable to get Text Symbolizer FillColor #1\n",
 			 style_name);
-		*retcode += 67;
+		*retcode += 70;
 		return 0;
 	    }
       }
@@ -1011,7 +1056,52 @@ test_symbolizer (sqlite3 * db_handle, const char *coverage,
 	  fprintf (stderr,
 		   "%s: Unexpected Text Symbolizer FillColor #1: #%02x%02x%02x\n",
 		   style_name, red, green, blue);
-	  *retcode += 69;
+	  *retcode += 71;
+	  return 0;
+      }
+
+    ret = rl2_text_symbolizer_get_fill_opacity (text, &dblval);
+    if (strcmp (style_name, "label_3") == 0)
+      {
+	  if (ret == RL2_OK)
+	    {
+		fprintf (stderr,
+			 "%s: Unexpected success Text Symbolizer FillOpacity #1\n",
+			 style_name);
+		*retcode += 72;
+		return 0;
+	    }
+      }
+    else
+      {
+	  if (ret != RL2_OK)
+	    {
+		fprintf (stderr,
+			 "%s: Unable to get Text Symbolizer FillOpacity #1\n",
+			 style_name);
+		*retcode += 73;
+		return 0;
+	    }
+      }
+    intval = 0;
+    if (strcmp (style_name, "label_1") == 0)
+      {
+	  if (dblval == 1.0)
+	      intval = 1;
+      }
+    else if (strcmp (style_name, "label_2") == 0)
+      {
+	  if (dblval == 0.5)
+	      intval = 1;
+      }
+    else
+	intval = 1;
+    if (intval != 1)
+      {
+	  fprintf (stderr,
+		   "%s: Unexpected Text Symbolizer FillOpacity #1: %1.2f\n",
+		   style_name, dblval);
+	  *retcode += 74;
 	  return 0;
       }
 

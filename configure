@@ -3146,6 +3146,7 @@ $as_echo "#define NDEBUG 1" >>confdefs.h
 
 
 
+
 # config depending options
 
 
@@ -17913,6 +17914,7 @@ fi
     # testing OpenJpeg-2 headers
     # they could be either on -/include/openjpeg-2.0
     #                   or on -/include/openjpeg-2.1
+    #                   or on -/include/openjpeg-2.2
     #
     for ac_header in openjpeg-2.0/openjpeg.h
 do :
@@ -17938,8 +17940,21 @@ fi
 
 done
 
+    for ac_header in openjpeg-2.2/openjpeg.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "openjpeg-2.2/openjpeg.h" "ac_cv_header_openjpeg_2_2_openjpeg_h" "$ac_includes_default"
+if test "x$ac_cv_header_openjpeg_2_2_openjpeg_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_OPENJPEG_2_2_OPENJPEG_H 1
+_ACEOF
+
+fi
+
+done
+
     if test x"$ac_cv_header_openjpeg_2_0_openjpeg_h" != x"yes" &&
-        test x"$ac_cv_header_openjpeg_2_1_openjpeg_h" != x"yes";
+        test x"$ac_cv_header_openjpeg_2_1_openjpeg_h" != x"yes" &&
+        test x"$ac_cv_header_openjpeg_2_2_openjpeg_h" != x"yes";
     then
         as_fn_error $? "'OpenJpeg-2' is required but the header (openjpeg.h) doesn't seem to be installed on this system" "$LINENO" 5
     fi
@@ -17990,35 +18005,6 @@ else
   as_fn_error $? "'libopenjp2' is required but it doesn't seems to be installed on this system." "$LINENO" 5
 fi
 
-    # testing for OpenJpeg 2.0 or 2.1
-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#ifdef HAVE_OPENJPEG_2_1_OPENJPEG_H
-                                       #include <openjpeg-2.1/openjpeg.h>
-                                       #else
-                                       #include <openjpeg-2.0/openjpeg.h>
-                                       #endif
-int
-main ()
-{
-void *d; opj_stream_t *s; opj_stream_set_user_data (s, &d, NULL);
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-
-                      { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-                      $as_echo "#define OPENJPEG_2_1 1" >>confdefs.h
-
-
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 else
   $as_echo "#define OMIT_OPENJPEG 1" >>confdefs.h
 

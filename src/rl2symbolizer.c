@@ -1240,6 +1240,30 @@ svg_parameter_name (xmlNodePtr node, const char **name, const char **value)
 }
 
 static int
+is_table_column (const char *name)
+{
+/* 
+ * testing for a special table column name
+ * 
+ * expected to be declared as:
+ *     @colname@ or
+ *     $colname$
+ * 
+*/
+    int len;
+    if (name == NULL)
+	return 0;
+    len = strlen (name);
+    if (len < 3)
+	return 0;
+    if (*(name + 0) == '@' && *(name + len - 1) == '@')
+	return 1;
+    if (*(name + 0) == '$' && *(name + len - 1) == '$')
+	return 1;
+    return 0;
+}
+
+RL2_PRIVATE int
 parse_sld_se_stroke_dasharray (const char *value, int *count, double **list)
 {
 /* parsing a Stroke Dasharray */
@@ -1372,16 +1396,31 @@ parse_graphic_map_item (xmlNodePtr node, rl2PrivColorReplacementPtr repl)
 		      if (child->type == XML_TEXT_NODE
 			  && child->content != NULL)
 			{
-			    unsigned char red;
-			    unsigned char green;
-			    unsigned char blue;
-			    if (parse_sld_se_color
-				((const char *) (child->content), &red,
-				 &green, &blue))
+			    const char *value = (const char *) (child->content);
+			    if (repl->col_color != NULL)
+				free (repl->col_color);
+			    repl->col_color = NULL;
+			    if (is_table_column (value))
 			      {
-				  repl->red = red;
-				  repl->green = green;
-				  repl->blue = blue;
+				  /* table column name instead of value */
+				  int len = strlen (value) - 1;
+				  repl->col_color = malloc (len + 1);
+				  strcpy (repl->col_color, value + 1);
+				  len = strlen (repl->col_color);
+				  *(repl->col_color + len - 1) = '\0';
+			      }
+			    else
+			      {
+				  unsigned char red;
+				  unsigned char green;
+				  unsigned char blue;
+				  if (parse_sld_se_color
+				      (value, &red, &green, &blue))
+				    {
+					repl->red = red;
+					repl->green = green;
+					repl->blue = blue;
+				    }
 			      }
 			    ok_value = 1;
 			}
@@ -1436,8 +1475,8 @@ parse_graphic_color_replacement (xmlNodePtr node, rl2PrivExternalGraphicPtr ext)
       }
 }
 
-static int
-parse_mark_well_known_type (xmlNodePtr node)
+static void
+parse_mark_well_known_type (xmlNodePtr node, rl2PrivMarkPtr mark)
 {
 /* parsing Mark WellKnownName */
     while (node)
@@ -1453,21 +1492,47 @@ parse_mark_well_known_type (xmlNodePtr node)
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
 			      {
-
 				  const char *type =
 				      (const char *) (child->content);
-				  if (strcasecmp (type, "square") == 0)
-				      return RL2_GRAPHIC_MARK_SQUARE;
-				  if (strcasecmp (type, "circle") == 0)
-				      return RL2_GRAPHIC_MARK_CIRCLE;
-				  if (strcasecmp (type, "triangle") == 0)
-				      return RL2_GRAPHIC_MARK_TRIANGLE;
-				  if (strcasecmp (type, "star") == 0)
-				      return RL2_GRAPHIC_MARK_STAR;
-				  if (strcasecmp (type, "cross") == 0)
-				      return RL2_GRAPHIC_MARK_CROSS;
-				  if (strcasecmp (type, "x") == 0)
-				      return RL2_GRAPHIC_MARK_X;
+				  if (mark->col_mark_type != NULL)
+				      free (mark->col_mark_type);
+				  mark->col_mark_type = NULL;
+				  if (is_table_column (type))
+				    {
+					/* table column name instead of value */
+					int len = strlen (type) - 1;
+					mark->col_mark_type = malloc (len + 1);
+					strcpy (mark->col_mark_type, type + 1);
+					len = strlen (mark->col_mark_type);
+					*(mark->col_mark_type + len - 1) = '\0';
+				    }
+				  else
+				    {
+					if (strcasecmp (type, "square") == 0)
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_SQUARE;
+					else if (strcasecmp (type, "circle") ==
+						 0)
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_CIRCLE;
+					else if (strcasecmp (type, "triangle")
+						 == 0)
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_TRIANGLE;
+					else if (strcasecmp (type, "star") == 0)
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_STAR;
+					else if (strcasecmp (type, "cross") ==
+						 0)
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_CROSS;
+					else if (strcasecmp (type, "x") == 0)
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_X;
+					else
+					    mark->well_known_type =
+						RL2_GRAPHIC_MARK_UNKNOWN;
+				    }
 			      }
 			    child = child->next;
 			}
@@ -1475,7 +1540,6 @@ parse_mark_well_known_type (xmlNodePtr node)
 	    }
 	  node = node->next;
       }
-    return RL2_GRAPHIC_MARK_UNKNOWN;
 }
 
 static void
@@ -1538,74 +1602,228 @@ parse_mark_stroke (xmlNodePtr node, rl2PrivMarkPtr mark)
 					  }
 					if (strcmp (svg_name, "stroke") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (mark->stroke->col_color !=
+						  NULL)
+						  free (mark->
+							stroke->col_color);
+					      mark->stroke->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    mark->stroke->red = red;
-						    mark->stroke->green = green;
-						    mark->stroke->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->stroke->col_color =
+							malloc (len + 1);
+						    strcpy (mark->
+							    stroke->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								stroke->col_color);
+						    *(mark->stroke->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  mark->stroke->red =
+							      red;
+							  mark->stroke->green =
+							      green;
+							  mark->stroke->blue =
+							      blue;
+						      }
 						}
 					  }
 					if (strcmp (svg_name, "stroke-width")
 					    == 0)
-					    mark->stroke->width =
-						atof ((const char *) svg_value);
+					  {
+					      if (mark->stroke->col_width !=
+						  NULL)
+						  free (mark->
+							stroke->col_width);
+					      mark->stroke->col_width = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->stroke->col_width =
+							malloc (len + 1);
+						    strcpy (mark->
+							    stroke->col_width,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								stroke->col_width);
+						    *(mark->stroke->col_width +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    mark->stroke->width =
+							atof ((const char *)
+							      svg_value);
+						}
+					  }
 					if (strcmp
 					    (svg_name, "stroke-linejoin") == 0)
 					  {
-					      if (strcmp (svg_value, "mitre")
-						  == 0)
-						  mark->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_MITRE;
-					      if (strcmp (svg_value, "round")
-						  == 0)
-						  mark->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_ROUND;
-					      if (strcmp (svg_value, "bevel")
-						  == 0)
-						  mark->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_BEVEL;
+					      if (mark->stroke->col_join !=
+						  NULL)
+						  free (mark->stroke->col_join);
+					      mark->stroke->col_join = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->stroke->col_join =
+							malloc (len + 1);
+						    strcpy (mark->
+							    stroke->col_join,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								stroke->col_join);
+						    *(mark->stroke->col_join +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    if (strcmp
+							(svg_value,
+							 "mitre") == 0)
+							mark->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_MITRE;
+						    if (strcmp
+							(svg_value,
+							 "round") == 0)
+							mark->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_ROUND;
+						    if (strcmp
+							(svg_value,
+							 "bevel") == 0)
+							mark->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_BEVEL;
+						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-linecap") == 0)
 					  {
-					      if (strcmp (svg_value, "butt")
-						  == 0)
-						  mark->stroke->linecap =
-						      RL2_STROKE_LINECAP_BUTT;
-					      if (strcmp (svg_value, "round")
-						  == 0)
-						  mark->stroke->linecap =
-						      RL2_STROKE_LINECAP_ROUND;
-					      if (strcmp (svg_value, "square")
-						  == 0)
-						  mark->stroke->linecap =
-						      RL2_STROKE_LINECAP_SQUARE;
+					      if (mark->stroke->col_cap != NULL)
+						  free (mark->stroke->col_cap);
+					      mark->stroke->col_cap = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->stroke->col_cap =
+							malloc (len + 1);
+						    strcpy (mark->
+							    stroke->col_cap,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								stroke->col_cap);
+						    *(mark->stroke->col_cap +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    if (strcmp
+							(svg_value,
+							 "butt") == 0)
+							mark->stroke->linecap =
+							    RL2_STROKE_LINECAP_BUTT;
+						    if (strcmp
+							(svg_value,
+							 "round") == 0)
+							mark->stroke->linecap =
+							    RL2_STROKE_LINECAP_ROUND;
+						    if (strcmp
+							(svg_value,
+							 "square") == 0)
+							mark->stroke->linecap =
+							    RL2_STROKE_LINECAP_SQUARE;
+						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-dasharray") == 0)
 					  {
-					      int dash_count;
-					      double *dash_list = NULL;
-					      if (parse_sld_se_stroke_dasharray
-						  (svg_value, &dash_count,
-						   &dash_list))
+					      if (mark->stroke->col_dash !=
+						  NULL)
+						  free (mark->stroke->col_dash);
+					      mark->stroke->col_dash = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    mark->stroke->dash_count =
-							dash_count;
-						    mark->stroke->dash_list =
-							dash_list;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->stroke->col_dash =
+							malloc (len + 1);
+						    strcpy (mark->
+							    stroke->col_dash,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								stroke->col_dash);
+						    *(mark->stroke->col_dash +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    int dash_count;
+						    double *dash_list = NULL;
+						    if (parse_sld_se_stroke_dasharray (svg_value, &dash_count, &dash_list))
+						      {
+							  mark->
+							      stroke->dash_count
+							      = dash_count;
+							  mark->
+							      stroke->dash_list
+							      = dash_list;
+						      }
 						}
 					  }
 					if (strcmp
 					    (svg_name,
 					     "stroke-dashoffset") == 0)
-					    mark->stroke->dash_offset =
-						atof ((const char *) svg_value);
+					  {
+					      if (mark->stroke->col_dashoff !=
+						  NULL)
+						  free (mark->
+							stroke->col_dashoff);
+					      mark->stroke->col_dashoff = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->stroke->col_dashoff =
+							malloc (len + 1);
+						    strcpy (mark->
+							    stroke->col_dashoff,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								stroke->col_dashoff);
+						    *(mark->
+						      stroke->col_dashoff +
+						      len - 1) = '\0';
+						}
+					      else
+						  mark->stroke->dash_offset =
+						      atof ((const char *)
+							    svg_value);
+					  }
 				    }
 			      }
 			    child = child->next;
@@ -1676,16 +1894,40 @@ parse_mark_fill (xmlNodePtr node, rl2PrivMarkPtr mark)
 					  }
 					if (strcmp (svg_name, "fill") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (mark->fill->col_color != NULL)
+						  free (mark->fill->col_color);
+					      mark->fill->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    mark->fill->red = red;
-						    mark->fill->green = green;
-						    mark->fill->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    mark->fill->col_color =
+							malloc (len + 1);
+						    strcpy (mark->
+							    fill->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (mark->
+								fill->col_color);
+						    *(mark->fill->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  mark->fill->red = red;
+							  mark->fill->green =
+							      green;
+							  mark->fill->blue =
+							      blue;
+						      }
 						}
 					  }
 				    }
@@ -1708,19 +1950,31 @@ parse_graphic (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 	  if (strcmp (name, "ExternalGraphic") == 0)
 	    {
 		xmlNodePtr child = node->children;
+		char *href;
 		rl2PrivExternalGraphicPtr ext;
 		rl2PrivGraphicItemPtr item =
 		    rl2_create_default_external_graphic ();
 		if (item == NULL)
 		    return;
 		ext = (rl2PrivExternalGraphicPtr) (item->item);
-		ext->xlink_href =
-		    parse_graphic_online_resource (node->children);
-		if (ext->xlink_href == NULL)
+		href = parse_graphic_online_resource (node->children);
+		if (href == NULL)
 		  {
 		      rl2_destroy_graphic_item (item);
 		      return;
 		  }
+		if (is_table_column (href))
+		  {
+		      /* table column name instead of value */
+		      int len = strlen (href) - 1;
+		      ext->col_href = malloc (len + 1);
+		      strcpy (ext->col_href, href + 1);
+		      len = strlen (ext->col_href);
+		      *(ext->col_href + len - 1) = '\0';
+		      free (href);
+		  }
+		else
+		    ext->xlink_href = href;
 		while (child)
 		  {
 		      name = (const char *) (child->name);
@@ -1742,8 +1996,7 @@ parse_graphic (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 		if (item == NULL)
 		    return;
 		mark = (rl2PrivMarkPtr) (item->item);
-		mark->well_known_type =
-		    parse_mark_well_known_type (node->children);
+		parse_mark_well_known_type (node->children, mark);
 		parse_mark_fill (node->children, mark);
 		parse_mark_stroke (node->children, mark);
 		if (graphic->first == NULL)
@@ -1817,78 +2070,254 @@ parse_line_stroke (xmlNodePtr node, rl2PrivLineSymbolizerPtr sym)
 					  }
 					if (strcmp (svg_name, "stroke") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (sym->stroke->col_color !=
+						  NULL)
+						  free (sym->stroke->col_color);
+					      sym->stroke->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    sym->stroke->red = red;
-						    sym->stroke->green = green;
-						    sym->stroke->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_color =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_color);
+						    *(sym->stroke->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  sym->stroke->red =
+							      red;
+							  sym->stroke->green =
+							      green;
+							  sym->stroke->blue =
+							      blue;
+						      }
 						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-opacity") == 0)
-					    sym->stroke->opacity =
-						atof ((const char *) svg_value);
+					  {
+					      if (sym->stroke->col_opacity !=
+						  NULL)
+						  free (sym->
+							stroke->col_opacity);
+					      sym->stroke->col_opacity = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_opacity =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_opacity,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_opacity);
+						    *(sym->stroke->col_opacity +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    sym->stroke->opacity =
+							atof ((const char *)
+							      svg_value);
+						}
+					  }
 					if (strcmp (svg_name, "stroke-width")
 					    == 0)
-					    sym->stroke->width =
-						atof ((const char *) svg_value);
+					  {
+					      if (sym->stroke->col_width !=
+						  NULL)
+						  free (sym->stroke->col_width);
+					      sym->stroke->col_width = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_width =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_width,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_width);
+						    *(sym->stroke->col_width +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    sym->stroke->width =
+							atof ((const char *)
+							      svg_value);
+						}
+					  }
 					if (strcmp
 					    (svg_name, "stroke-linejoin") == 0)
 					  {
-					      if (strcmp (svg_value, "mitre")
-						  == 0)
-						  sym->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_MITRE;
-					      if (strcmp (svg_value, "round")
-						  == 0)
-						  sym->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_ROUND;
-					      if (strcmp (svg_value, "bevel")
-						  == 0)
-						  sym->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_BEVEL;
+					      if (sym->stroke->col_join != NULL)
+						  free (sym->stroke->col_join);
+					      sym->stroke->col_join = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_join =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_join,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_join);
+						    *(sym->stroke->col_join +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    if (strcmp
+							(svg_value,
+							 "mitre") == 0)
+							sym->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_MITRE;
+						    if (strcmp
+							(svg_value,
+							 "round") == 0)
+							sym->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_ROUND;
+						    if (strcmp
+							(svg_value,
+							 "bevel") == 0)
+							sym->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_BEVEL;
+						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-linecap") == 0)
 					  {
-					      if (strcmp (svg_value, "butt")
-						  == 0)
-						  sym->stroke->linecap =
-						      RL2_STROKE_LINECAP_BUTT;
-					      if (strcmp (svg_value, "round")
-						  == 0)
-						  sym->stroke->linecap =
-						      RL2_STROKE_LINECAP_ROUND;
-					      if (strcmp (svg_value, "square")
-						  == 0)
-						  sym->stroke->linecap =
-						      RL2_STROKE_LINECAP_SQUARE;
+					      if (sym->stroke->col_cap != NULL)
+						  free (sym->stroke->col_cap);
+					      sym->stroke->col_cap = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_cap =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_cap,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_cap);
+						    *(sym->stroke->col_cap +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    if (strcmp
+							(svg_value,
+							 "butt") == 0)
+							sym->stroke->linecap =
+							    RL2_STROKE_LINECAP_BUTT;
+						    if (strcmp
+							(svg_value,
+							 "round") == 0)
+							sym->stroke->linecap =
+							    RL2_STROKE_LINECAP_ROUND;
+						    if (strcmp
+							(svg_value,
+							 "square") == 0)
+							sym->stroke->linecap =
+							    RL2_STROKE_LINECAP_SQUARE;
+						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-dasharray") == 0)
 					  {
-					      int dash_count;
-					      double *dash_list = NULL;
-					      if (parse_sld_se_stroke_dasharray
-						  (svg_value, &dash_count,
-						   &dash_list))
+					      if (sym->stroke->col_dash != NULL)
+						  free (sym->stroke->col_dash);
+					      sym->stroke->col_dash = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    sym->stroke->dash_count =
-							dash_count;
-						    sym->stroke->dash_list =
-							dash_list;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_dash =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_dash,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_dash);
+						    *(sym->stroke->col_dash +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    int dash_count;
+						    double *dash_list = NULL;
+						    if (parse_sld_se_stroke_dasharray (svg_value, &dash_count, &dash_list))
+						      {
+							  sym->
+							      stroke->dash_count
+							      = dash_count;
+							  sym->
+							      stroke->dash_list
+							      = dash_list;
+						      }
 						}
 					  }
 					if (strcmp
 					    (svg_name,
 					     "stroke-dashoffset") == 0)
-					    sym->stroke->dash_offset =
-						atof ((const char *) svg_value);
+					  {
+					      if (sym->stroke->col_dashoff !=
+						  NULL)
+						  free (sym->
+							stroke->col_dashoff);
+					      sym->stroke->col_dashoff = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_dashoff =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_dashoff,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_dashoff);
+						    *(sym->stroke->col_dashoff +
+						      len - 1) = '\0';
+						}
+					      else
+						  sym->stroke->dash_offset =
+						      atof ((const char *)
+							    svg_value);
+					  }
 				    }
 			      }
 			    child = child->next;
@@ -1915,8 +2344,27 @@ parse_line_offset (xmlNodePtr node, rl2PrivLineSymbolizerPtr sym)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				sym->perpendicular_offset =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (sym->col_perpoff != NULL)
+				      free (sym->col_perpoff);
+				  sym->col_perpoff = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					sym->col_perpoff = malloc (len + 1);
+					strcpy (sym->col_perpoff, value + 1);
+					len = strlen (sym->col_perpoff);
+					*(sym->col_perpoff + len - 1) = '\0';
+				    }
+				  else
+				    {
+					sym->perpendicular_offset =
+					    atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2016,78 +2464,254 @@ parse_polygon_stroke (xmlNodePtr node, rl2PrivPolygonSymbolizerPtr sym)
 					  }
 					if (strcmp (svg_name, "stroke") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (sym->stroke->col_color !=
+						  NULL)
+						  free (sym->stroke->col_color);
+					      sym->stroke->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    sym->stroke->red = red;
-						    sym->stroke->green = green;
-						    sym->stroke->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_color =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_color);
+						    *(sym->stroke->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  sym->stroke->red =
+							      red;
+							  sym->stroke->green =
+							      green;
+							  sym->stroke->blue =
+							      blue;
+						      }
 						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-opacity") == 0)
-					    sym->stroke->opacity =
-						atof ((const char *) svg_value);
+					  {
+					      if (sym->stroke->col_opacity !=
+						  NULL)
+						  free (sym->
+							stroke->col_opacity);
+					      sym->stroke->col_opacity = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_opacity =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_opacity,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_opacity);
+						    *(sym->stroke->col_opacity +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    sym->stroke->opacity =
+							atof ((const char *)
+							      svg_value);
+						}
+					  }
 					if (strcmp (svg_name, "stroke-width")
 					    == 0)
-					    sym->stroke->width =
-						atof ((const char *) svg_value);
+					  {
+					      if (sym->stroke->col_width !=
+						  NULL)
+						  free (sym->stroke->col_width);
+					      sym->stroke->col_width = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_width =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_width,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_width);
+						    *(sym->stroke->col_width +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    sym->stroke->width =
+							atof ((const char *)
+							      svg_value);
+						}
+					  }
 					if (strcmp
 					    (svg_name, "stroke-linejoin") == 0)
 					  {
-					      if (strcmp (svg_value, "mitre")
-						  == 0)
-						  sym->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_MITRE;
-					      if (strcmp (svg_value, "round")
-						  == 0)
-						  sym->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_ROUND;
-					      if (strcmp (svg_value, "bevel")
-						  == 0)
-						  sym->stroke->linejoin =
-						      RL2_STROKE_LINEJOIN_BEVEL;
+					      if (sym->stroke->col_join != NULL)
+						  free (sym->stroke->col_join);
+					      sym->stroke->col_join = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_join =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_join,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_join);
+						    *(sym->stroke->col_join +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    if (strcmp
+							(svg_value,
+							 "mitre") == 0)
+							sym->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_MITRE;
+						    if (strcmp
+							(svg_value,
+							 "round") == 0)
+							sym->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_ROUND;
+						    if (strcmp
+							(svg_value,
+							 "bevel") == 0)
+							sym->stroke->linejoin =
+							    RL2_STROKE_LINEJOIN_BEVEL;
+						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-linecap") == 0)
 					  {
-					      if (strcmp (svg_value, "butt")
-						  == 0)
-						  sym->stroke->linecap =
-						      RL2_STROKE_LINECAP_BUTT;
-					      if (strcmp (svg_value, "round")
-						  == 0)
-						  sym->stroke->linecap =
-						      RL2_STROKE_LINECAP_ROUND;
-					      if (strcmp (svg_value, "square")
-						  == 0)
-						  sym->stroke->linecap =
-						      RL2_STROKE_LINECAP_SQUARE;
+					      if (sym->stroke->col_cap != NULL)
+						  free (sym->stroke->col_cap);
+					      sym->stroke->col_cap = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_cap =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_cap,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_cap);
+						    *(sym->stroke->col_cap +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    if (strcmp
+							(svg_value,
+							 "butt") == 0)
+							sym->stroke->linecap =
+							    RL2_STROKE_LINECAP_BUTT;
+						    if (strcmp
+							(svg_value,
+							 "round") == 0)
+							sym->stroke->linecap =
+							    RL2_STROKE_LINECAP_ROUND;
+						    if (strcmp
+							(svg_value,
+							 "square") == 0)
+							sym->stroke->linecap =
+							    RL2_STROKE_LINECAP_SQUARE;
+						}
 					  }
 					if (strcmp
 					    (svg_name, "stroke-dasharray") == 0)
 					  {
-					      int dash_count;
-					      double *dash_list = NULL;
-					      if (parse_sld_se_stroke_dasharray
-						  (svg_value, &dash_count,
-						   &dash_list))
+					      if (sym->stroke->col_dash != NULL)
+						  free (sym->stroke->col_dash);
+					      sym->stroke->col_dash = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    sym->stroke->dash_count =
-							dash_count;
-						    sym->stroke->dash_list =
-							dash_list;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_dash =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_dash,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_dash);
+						    *(sym->stroke->col_dash +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    int dash_count;
+						    double *dash_list = NULL;
+						    if (parse_sld_se_stroke_dasharray (svg_value, &dash_count, &dash_list))
+						      {
+							  sym->
+							      stroke->dash_count
+							      = dash_count;
+							  sym->
+							      stroke->dash_list
+							      = dash_list;
+						      }
 						}
 					  }
 					if (strcmp
 					    (svg_name,
 					     "stroke-dashoffset") == 0)
-					    sym->stroke->dash_offset =
-						atof ((const char *) svg_value);
+					  {
+					      if (sym->stroke->col_dashoff !=
+						  NULL)
+						  free (sym->
+							stroke->col_dashoff);
+					      sym->stroke->col_dashoff = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->stroke->col_dashoff =
+							malloc (len + 1);
+						    strcpy (sym->
+							    stroke->col_dashoff,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								stroke->col_dashoff);
+						    *(sym->stroke->col_dashoff +
+						      len - 1) = '\0';
+						}
+					      else
+						  sym->stroke->dash_offset =
+						      atof ((const char *)
+							    svg_value);
+					  }
 				    }
 			      }
 			    child = child->next;
@@ -2158,22 +2782,71 @@ parse_polygon_fill (xmlNodePtr node, rl2PrivPolygonSymbolizerPtr sym)
 					  }
 					if (strcmp (svg_name, "fill") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (sym->fill->col_color != NULL)
+						  free (sym->fill->col_color);
+					      sym->fill->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    sym->fill->red = red;
-						    sym->fill->green = green;
-						    sym->fill->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->fill->col_color =
+							malloc (len + 1);
+						    strcpy (sym->
+							    fill->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								fill->col_color);
+						    *(sym->fill->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  sym->fill->red = red;
+							  sym->fill->green =
+							      green;
+							  sym->fill->blue =
+							      blue;
+						      }
 						}
 					  }
 					if (strcmp (svg_name, "fill-opacity")
 					    == 0)
-					    sym->fill->opacity =
-						atof (svg_value);
+					  {
+					      if (sym->fill->col_opacity !=
+						  NULL)
+						  free (sym->fill->col_opacity);
+					      sym->fill->col_opacity = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->fill->col_opacity =
+							malloc (len + 1);
+						    strcpy (sym->
+							    fill->col_opacity,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								fill->col_opacity);
+						    *(sym->fill->col_opacity +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    sym->fill->opacity =
+							atof (svg_value);
+						}
+					  }
 				    }
 			      }
 			    child = child->next;
@@ -2200,8 +2873,27 @@ parse_polygon_offset (xmlNodePtr node, rl2PrivPolygonSymbolizerPtr sym)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				sym->perpendicular_offset =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (sym->col_perpoff != NULL)
+				      free (sym->col_perpoff);
+				  sym->col_perpoff = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					sym->col_perpoff = malloc (len + 1);
+					strcpy (sym->col_perpoff, value + 1);
+					len = strlen (sym->col_perpoff);
+					*(sym->col_perpoff + len - 1) = '\0';
+				    }
+				  else
+				    {
+					sym->perpendicular_offset =
+					    atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2226,8 +2918,26 @@ parse_polygon_displacement_xy (xmlNodePtr node, rl2PrivPolygonSymbolizerPtr sym)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				sym->displacement_x =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (sym->col_displ_x != NULL)
+				      free (sym->col_displ_x);
+				  sym->col_displ_x = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					sym->col_displ_x = malloc (len + 1);
+					strcpy (sym->col_displ_x, value + 1);
+					len = strlen (sym->col_displ_x);
+					*(sym->col_displ_x + len - 1) = '\0';
+				    }
+				  else
+				    {
+					sym->displacement_x = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2238,8 +2948,26 @@ parse_polygon_displacement_xy (xmlNodePtr node, rl2PrivPolygonSymbolizerPtr sym)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				sym->displacement_y =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (sym->col_displ_y != NULL)
+				      free (sym->col_displ_y);
+				  sym->col_displ_y = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					sym->col_displ_y = malloc (len + 1);
+					strcpy (sym->col_displ_y, value + 1);
+					len = strlen (sym->col_displ_y);
+					*(sym->col_displ_y + len - 1) = '\0';
+				    }
+				  else
+				    {
+					sym->displacement_y = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2314,8 +3042,28 @@ parse_point_opacity (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->opacity =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_opacity != NULL)
+				      free (graphic->col_opacity);
+				  graphic->col_opacity = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_opacity = malloc (len + 1);
+					strcpy (graphic->col_opacity,
+						value + 1);
+					len = strlen (graphic->col_opacity);
+					*(graphic->col_opacity +
+					  len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->opacity = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2340,8 +3088,26 @@ parse_point_size (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->size =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_size != NULL)
+				      free (graphic->col_size);
+				  graphic->col_size = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_size = malloc (len + 1);
+					strcpy (graphic->col_size, value + 1);
+					len = strlen (graphic->col_size);
+					*(graphic->col_size + len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->size = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2366,8 +3132,29 @@ parse_point_rotation (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->rotation =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_rotation != NULL)
+				      free (graphic->col_rotation);
+				  graphic->col_rotation = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_rotation =
+					    malloc (len + 1);
+					strcpy (graphic->col_rotation,
+						value + 1);
+					len = strlen (graphic->col_rotation);
+					*(graphic->col_rotation +
+					  len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->rotation = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2392,8 +3179,28 @@ parse_point_anchor_point_xy (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->anchor_point_x =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_point_x != NULL)
+				      free (graphic->col_point_x);
+				  graphic->col_point_x = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_point_x = malloc (len + 1);
+					strcpy (graphic->col_point_x,
+						value + 1);
+					len = strlen (graphic->col_point_x);
+					*(graphic->col_point_x +
+					  len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->anchor_point_x = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2404,8 +3211,28 @@ parse_point_anchor_point_xy (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->anchor_point_y =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_point_y != NULL)
+				      free (graphic->col_point_y);
+				  graphic->col_point_y = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_point_y = malloc (len + 1);
+					strcpy (graphic->col_point_y,
+						value + 1);
+					len = strlen (graphic->col_point_y);
+					*(graphic->col_point_y +
+					  len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->anchor_point_y = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2446,8 +3273,28 @@ parse_point_displacement_xy (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->displacement_x =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_displ_x != NULL)
+				      free (graphic->col_displ_x);
+				  graphic->col_displ_x = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_displ_x = malloc (len + 1);
+					strcpy (graphic->col_displ_x,
+						value + 1);
+					len = strlen (graphic->col_displ_x);
+					*(graphic->col_displ_x +
+					  len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->displacement_x = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2458,8 +3305,28 @@ parse_point_displacement_xy (xmlNodePtr node, rl2PrivGraphicPtr graphic)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				graphic->displacement_y =
-				    atof ((const char *) child->content);
+			      {
+				  const char *value =
+				      (const char *) child->content;
+				  if (graphic->col_displ_y != NULL)
+				      free (graphic->col_displ_y);
+				  graphic->col_displ_y = NULL;
+				  if (is_table_column (value))
+				    {
+					/* table column name instead of value */
+					int len = strlen (value) - 1;
+					graphic->col_displ_y = malloc (len + 1);
+					strcpy (graphic->col_displ_y,
+						value + 1);
+					len = strlen (graphic->col_displ_y);
+					*(graphic->col_displ_y +
+					  len - 1) = '\0';
+				    }
+				  else
+				    {
+					graphic->displacement_y = atof (value);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2564,6 +3431,20 @@ parse_text_label (xmlNodePtr node, rl2PrivTextSymbolizerPtr text)
 				      (const char *) (child->content);
 				  if (text->label != NULL)
 				      free (text->label);
+				  if (text->col_label != NULL)
+				      free (text->col_label);
+				  text->label = NULL;
+				  text->col_label = NULL;
+				  if (is_table_column (label))
+				    {
+					/* table column name instead of value */
+					len = strlen (label) - 1;
+					text->col_label = malloc (len + 1);
+					strcpy (text->col_label, label + 1);
+					len = strlen (text->col_label);
+					*(text->col_label + len - 1) = '\0';
+					return;
+				    }
 				  if (label == NULL)
 				    {
 					text->label = NULL;
@@ -2624,50 +3505,142 @@ parse_text_font (xmlNodePtr node, rl2PrivTextSymbolizerPtr sym)
 					if (strcmp (svg_name, "font-family")
 					    == 0)
 					  {
-					      if (sym->font_families_count <
-						  RL2_MAX_FONT_FAMILIES)
+					      if (sym->col_font != NULL)
+						  free (sym->col_font);
+					      sym->col_font = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    int idx =
-							sym->font_families_count++;
+						    /* table column name instead of value */
 						    int len =
-							strlen (svg_value);
-						    *(sym->font_families +
-						      idx) = malloc (len + 1);
-						    strcpy (*
-							    (sym->font_families
-							     + idx), svg_value);
+							strlen (svg_value) - 1;
+						    sym->col_font =
+							malloc (len + 1);
+						    strcpy (sym->col_font,
+							    svg_value + 1);
+						    len =
+							strlen (sym->col_font);
+						    *(sym->col_font + len - 1) =
+							'\0';
+						}
+					      else
+						{
+						    if (sym->font_families_count
+							< RL2_MAX_FONT_FAMILIES)
+						      {
+							  int idx =
+							      sym->font_families_count++;
+							  int len =
+							      strlen
+							      (svg_value);
+							  *(sym->font_families +
+							    idx) =
+					 malloc (len + 1);
+							  strcpy (*
+								  (sym->font_families
+								   + idx),
+								  svg_value);
+						      }
 						}
 					  }
 					if (strcmp (svg_name, "font-style") ==
 					    0)
 					  {
-					      if (strcasecmp
-						  (svg_value, "normal") == 0)
-						  sym->font_style =
-						      RL2_FONT_STYLE_NORMAL;
-					      if (strcasecmp
-						  (svg_value, "italic") == 0)
-						  sym->font_style =
-						      RL2_FONT_STYLE_ITALIC;
-					      if (strcasecmp
-						  (svg_value, "oblique") == 0)
-						  sym->font_style =
-						      RL2_FONT_STYLE_OBLIQUE;
+					      if (sym->col_style != NULL)
+						  free (sym->col_style);
+					      sym->col_style = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->col_style =
+							malloc (len + 1);
+						    strcpy (sym->col_style,
+							    svg_value + 1);
+						    len =
+							strlen (sym->col_style);
+						    *(sym->col_style + len -
+						      1) = '\0';
+						}
+					      else
+						{
+						    if (strcasecmp
+							(svg_value,
+							 "normal") == 0)
+							sym->font_style =
+							    RL2_FONT_STYLE_NORMAL;
+						    if (strcasecmp
+							(svg_value,
+							 "italic") == 0)
+							sym->font_style =
+							    RL2_FONT_STYLE_ITALIC;
+						    if (strcasecmp
+							(svg_value,
+							 "oblique") == 0)
+							sym->font_style =
+							    RL2_FONT_STYLE_OBLIQUE;
+						}
 					  }
 					if (strcmp (svg_name, "font-weight")
 					    == 0)
 					  {
-					      if (strcasecmp
-						  (svg_value, "normal") == 0)
-						  sym->font_weight =
-						      RL2_FONT_WEIGHT_NORMAL;
-					      if (strcasecmp
-						  (svg_value, "bold") == 0)
-						  sym->font_weight =
-						      RL2_FONT_WEIGHT_BOLD;
+					      if (sym->col_weight != NULL)
+						  free (sym->col_weight);
+					      sym->col_weight = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->col_weight =
+							malloc (len + 1);
+						    strcpy (sym->col_weight,
+							    svg_value + 1);
+						    len =
+							strlen
+							(sym->col_weight);
+						    *(sym->col_weight + len -
+						      1) = '\0';
+						}
+					      else
+						{
+						    if (strcasecmp
+							(svg_value,
+							 "normal") == 0)
+							sym->font_weight =
+							    RL2_FONT_WEIGHT_NORMAL;
+						    if (strcasecmp
+							(svg_value,
+							 "bold") == 0)
+							sym->font_weight =
+							    RL2_FONT_WEIGHT_BOLD;
+						}
 					  }
 					if (strcmp (svg_name, "font-size") == 0)
-					    sym->font_size = atof (svg_value);
+					  {
+					      if (sym->col_size != NULL)
+						  free (sym->col_size);
+					      sym->col_size = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->col_size =
+							malloc (len + 1);
+						    strcpy (sym->col_size,
+							    svg_value + 1);
+						    len =
+							strlen (sym->col_size);
+						    *(sym->col_size + len - 1) =
+							'\0';
+						}
+					      else
+						{
+						    sym->font_size =
+							atof (svg_value);
+						}
+					  }
 				    }
 			      }
 			    child = child->next;
@@ -2694,8 +3667,31 @@ parse_label_anchor_point_xy (xmlNodePtr node, rl2PrivPointPlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->anchor_point_x =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_point_x != NULL)
+				      free (place->col_point_x);
+				  place->col_point_x = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_point_x = malloc (len + 1);
+					strcpy (place->col_point_x,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_point_x);
+					*(place->col_point_x + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->anchor_point_x =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2706,8 +3702,31 @@ parse_label_anchor_point_xy (xmlNodePtr node, rl2PrivPointPlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->anchor_point_y =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_point_y != NULL)
+				      free (place->col_point_y);
+				  place->col_point_y = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_point_y = malloc (len + 1);
+					strcpy (place->col_point_y,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_point_y);
+					*(place->col_point_y + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->anchor_point_y =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2748,8 +3767,31 @@ parse_label_displacement_xy (xmlNodePtr node, rl2PrivPointPlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->displacement_x =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_displ_x != NULL)
+				      free (place->col_displ_x);
+				  place->col_displ_x = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_displ_x = malloc (len + 1);
+					strcpy (place->col_displ_x,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_displ_x);
+					*(place->col_displ_x + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->displacement_x =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2760,8 +3802,31 @@ parse_label_displacement_xy (xmlNodePtr node, rl2PrivPointPlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->displacement_y =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_displ_y != NULL)
+				      free (place->col_displ_y);
+				  place->col_displ_y = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_displ_y = malloc (len + 1);
+					strcpy (place->col_displ_y,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_displ_y);
+					*(place->col_displ_y + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->displacement_y =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2802,8 +3867,31 @@ parse_label_rotation (xmlNodePtr node, rl2PrivPointPlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->rotation =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_rotation != NULL)
+				      free (place->col_rotation);
+				  place->col_rotation = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_rotation = malloc (len + 1);
+					strcpy (place->col_rotation,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_rotation);
+					*(place->col_rotation + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->rotation =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2838,8 +3926,31 @@ parse_label_perpendicular_offset (xmlNodePtr node,
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->perpendicular_offset =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_perpoff != NULL)
+				      free (place->col_perpoff);
+				  place->col_perpoff = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_perpoff = malloc (len + 1);
+					strcpy (place->col_perpoff,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_perpoff);
+					*(place->col_perpoff + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->perpendicular_offset =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2864,8 +3975,31 @@ parse_label_initial_gap (xmlNodePtr node, rl2PrivLinePlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->initial_gap =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_inigap != NULL)
+				      free (place->col_inigap);
+				  place->col_inigap = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_inigap = malloc (len + 1);
+					strcpy (place->col_inigap,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_inigap);
+					*(place->col_inigap + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->initial_gap =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -2890,8 +4024,31 @@ parse_label_gap (xmlNodePtr node, rl2PrivLinePlacementPtr place)
 			{
 			    if (child->type == XML_TEXT_NODE
 				&& child->content != NULL)
-				place->gap =
-				    atof ((const char *) child->content);
+			      {
+				  if (place->col_gap != NULL)
+				      free (place->col_gap);
+				  place->col_gap = NULL;
+				  if (is_table_column
+				      ((const char *) child->content))
+				    {
+					/* table column name instead of value */
+					int len =
+					    strlen ((const char
+						     *) (child->content)) - 1;
+					place->col_gap = malloc (len + 1);
+					strcpy (place->col_gap,
+						(const char *) (child->content)
+						+ 1);
+					len = strlen (place->col_gap);
+					*(place->col_gap + len - 1) = '\0';
+				    }
+				  else
+				    {
+					place->gap =
+					    atof ((const char *)
+						  child->content);
+				    }
+			      }
 			    child = child->next;
 			}
 		  }
@@ -3120,16 +4277,70 @@ parse_halo_fill (xmlNodePtr node, rl2PrivHaloPtr halo)
 					  }
 					if (strcmp (svg_name, "fill") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (halo->fill->col_color != NULL)
+						  free (halo->fill->col_color);
+					      halo->fill->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    halo->fill->red = red;
-						    halo->fill->green = green;
-						    halo->fill->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    halo->fill->col_color =
+							malloc (len + 1);
+						    strcpy (halo->
+							    fill->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (halo->
+								fill->col_color);
+						    *(halo->fill->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  halo->fill->red = red;
+							  halo->fill->green =
+							      green;
+							  halo->fill->blue =
+							      blue;
+						      }
+						}
+					  }
+					if (strcmp (svg_name, "fill-opacity")
+					    == 0)
+					  {
+					      if (halo->fill->col_opacity !=
+						  NULL)
+						  free (halo->
+							fill->col_opacity);
+					      halo->fill->col_opacity = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    halo->fill->col_opacity =
+							malloc (len + 1);
+						    strcpy (halo->
+							    fill->col_opacity,
+							    svg_value + 1);
+						    len =
+							strlen (halo->
+								fill->col_opacity);
+						    *(halo->fill->col_opacity +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    halo->fill->opacity =
+							atof (svg_value);
 						}
 					  }
 				    }
@@ -3181,8 +4392,37 @@ parse_text_halo (xmlNodePtr node, rl2PrivTextSymbolizerPtr sym)
 							(const char
 							 *)
 							(grandchild->content);
-						    sym->halo->radius =
-							atof (radius);
+						    if (sym->halo->col_radius !=
+							NULL)
+							free (sym->
+							      halo->col_radius);
+						    sym->halo->col_radius =
+							NULL;
+						    if (is_table_column
+							(radius))
+						      {
+							  /* table column name instead of value */
+							  int len =
+							      strlen (radius) -
+							      1;
+							  sym->
+							      halo->col_radius =
+							      malloc (len + 1);
+							  strcpy (sym->
+								  halo->col_radius,
+								  radius + 1);
+							  len =
+							      strlen
+							      (sym->halo->col_radius);
+							  *(sym->
+							    halo->col_radius +
+							    len - 1) = '\0';
+						      }
+						    else
+						      {
+							  sym->halo->radius =
+							      atof (radius);
+						      }
 						}
 					      grandchild = grandchild->next;
 					  }
@@ -3211,6 +4451,9 @@ parse_text_fill (xmlNodePtr node, rl2PrivTextSymbolizerPtr sym)
 		  {
 		      xmlNodePtr child = node->children;
 		      sym->fill = rl2_create_default_fill ();
+		      sym->fill->red = 0x00;
+		      sym->fill->green = 0x00;
+		      sym->fill->blue = 0x00;
 		      sym->fill->red = 0;
 		      sym->fill->green = 0;
 		      sym->fill->blue = 0;
@@ -3234,16 +4477,69 @@ parse_text_fill (xmlNodePtr node, rl2PrivTextSymbolizerPtr sym)
 					  }
 					if (strcmp (svg_name, "fill") == 0)
 					  {
-					      unsigned char red;
-					      unsigned char green;
-					      unsigned char blue;
-					      if (parse_sld_se_color
-						  (svg_value, &red, &green,
-						   &blue))
+					      if (sym->fill->col_color != NULL)
+						  free (sym->fill->col_color);
+					      sym->fill->col_color = NULL;
+					      if (is_table_column (svg_value))
 						{
-						    sym->fill->red = red;
-						    sym->fill->green = green;
-						    sym->fill->blue = blue;
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->fill->col_color =
+							malloc (len + 1);
+						    strcpy (sym->
+							    fill->col_color,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								fill->col_color);
+						    *(sym->fill->col_color +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    unsigned char red;
+						    unsigned char green;
+						    unsigned char blue;
+						    if (parse_sld_se_color
+							(svg_value, &red,
+							 &green, &blue))
+						      {
+							  sym->fill->red = red;
+							  sym->fill->green =
+							      green;
+							  sym->fill->blue =
+							      blue;
+						      }
+						}
+					  }
+					if (strcmp (svg_name, "fill-opacity")
+					    == 0)
+					  {
+					      if (sym->fill->col_opacity !=
+						  NULL)
+						  free (sym->fill->col_opacity);
+					      sym->fill->col_opacity = NULL;
+					      if (is_table_column (svg_value))
+						{
+						    /* table column name instead of value */
+						    int len =
+							strlen (svg_value) - 1;
+						    sym->fill->col_opacity =
+							malloc (len + 1);
+						    strcpy (sym->
+							    fill->col_opacity,
+							    svg_value + 1);
+						    len =
+							strlen (sym->
+								fill->col_opacity);
+						    *(sym->fill->col_opacity +
+						      len - 1) = '\0';
+						}
+					      else
+						{
+						    sym->fill->opacity =
+							atof (svg_value);
 						}
 					  }
 				    }
@@ -3978,6 +5274,461 @@ find_feature_type_style (xmlNodePtr node, rl2PrivFeatureTypeStylePtr style,
     return 0;
 }
 
+static int
+count_point_symbolizer_column_names (rl2PointSymbolizerPtr point)
+{
+/* counting Point Symbolizer column names) */
+    int count = 0;
+    int index;
+    int max;
+    if (rl2_point_symbolizer_get_col_opacity (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_col_size (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_col_rotation (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_col_anchor_point_x (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_col_anchor_point_y (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_col_displacement_x (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_col_displacement_y (point) != NULL)
+	count++;
+    if (rl2_point_symbolizer_get_count (point, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int repl_index;
+	  int max_repl;
+	  if (rl2_point_symbolizer_mark_get_col_well_known_type (point, index)
+	      != NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_stroke_color (point, index) !=
+	      NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_stroke_width (point, index) !=
+	      NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_stroke_linejoin (point, index)
+	      != NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_stroke_linecap (point, index) !=
+	      NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_stroke_dash_array (point, index)
+	      != NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_stroke_dash_offset
+	      (point, index) != NULL)
+	      count++;
+	  if (rl2_point_symbolizer_mark_get_col_fill_color (point, index) !=
+	      NULL)
+	      count++;
+	  if (rl2_point_symbolizer_get_col_graphic_href (point, index) != NULL)
+	      count++;
+	  if (rl2_point_symbolizer_get_graphic_recode_count
+	      (point, index, &max_repl) != RL2_OK)
+	      max_repl = 0;
+	  for (repl_index = 0; repl_index < max_repl; repl_index++)
+	    {
+		int color_index;
+		if (rl2_point_symbolizer_get_col_graphic_recode_color
+		    (point, index, repl_index, &color_index) != NULL)
+		    count++;
+	    }
+      }
+    return count;
+}
+
+static int
+count_line_symbolizer_column_names (rl2LineSymbolizerPtr line)
+{
+/* counting Line Symbolizer column names) */
+    int count = 0;
+    int index;
+    int max;
+    if (rl2_line_symbolizer_get_col_graphic_stroke_href (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_color (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_opacity (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_width (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_linejoin (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_linecap (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_dash_array (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_stroke_dash_offset (line) != NULL)
+	count++;
+    if (rl2_line_symbolizer_get_col_perpendicular_offset (line) != NULL)
+	count++;
+    max = 0;
+    if (rl2_line_symbolizer_get_graphic_stroke_recode_count
+	(line, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int color_index;
+	  if (rl2_line_symbolizer_get_col_graphic_stroke_recode_color
+	      (line, index, &color_index) != NULL)
+	      count++;
+      }
+    return count;
+}
+
+static int
+count_polygon_symbolizer_column_names (rl2PolygonSymbolizerPtr polyg)
+{
+/* counting Polygon Symbolizer column names) */
+    int count = 0;
+    int index;
+    int max;
+    if (rl2_polygon_symbolizer_get_col_graphic_stroke_href (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_color (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_opacity (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_width (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_linejoin (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_linecap (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_dash_array (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_stroke_dash_offset (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_graphic_fill_href (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_graphic_fill_href (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_fill_color (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_fill_opacity (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_displacement_x (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_displacement_y (polyg) != NULL)
+	count++;
+    if (rl2_polygon_symbolizer_get_col_perpendicular_offset (polyg) != NULL)
+	count++;
+    max = 0;
+    if (rl2_polygon_symbolizer_get_graphic_stroke_recode_count
+	(polyg, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int color_index;
+	  if (rl2_polygon_symbolizer_get_col_graphic_stroke_recode_color
+	      (polyg, index, &color_index) != NULL)
+	      count++;
+      }
+    max = 0;
+    if (rl2_polygon_symbolizer_get_graphic_fill_recode_count
+	(polyg, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int color_index;
+	  if (rl2_polygon_symbolizer_get_col_graphic_fill_recode_color
+	      (polyg, index, &color_index) != NULL)
+	      count++;
+      }
+    return count;
+}
+
+static int
+count_text_symbolizer_column_names (rl2TextSymbolizerPtr text)
+{
+/* counting Text Symbolizer column names) */
+    int count = 0;
+    if (rl2_text_symbolizer_get_col_label (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_col_font (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_col_style (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_col_weight (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_col_size (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_point_placement_col_anchor_point_x (text) !=
+	NULL)
+	count++;
+    if (rl2_text_symbolizer_get_point_placement_col_anchor_point_y (text) !=
+	NULL)
+	count++;
+    if (rl2_text_symbolizer_get_point_placement_col_displacement_x (text) !=
+	NULL)
+	count++;
+    if (rl2_text_symbolizer_get_point_placement_col_displacement_y (text) !=
+	NULL)
+	count++;
+    if (rl2_text_symbolizer_get_point_placement_col_rotation (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_line_placement_col_perpendicular_offset (text)
+	!= NULL)
+	count++;
+    if (rl2_text_symbolizer_get_line_placement_col_initial_gap (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_line_placement_col_gap (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_halo_col_radius (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_halo_col_fill_color (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_halo_col_fill_opacity (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_col_fill_color (text) != NULL)
+	count++;
+    if (rl2_text_symbolizer_get_col_fill_opacity (text) != NULL)
+	count++;
+    return count;
+}
+
+static void
+do_add_column_name (char **strings, char *dupl, const char *name, int *index)
+{
+/* adding a Column Name (may be duplicated) */
+    int len;
+    int i = *index;
+    if (name != NULL)
+      {
+	  len = strlen (name);
+	  *(strings + i) = malloc (len + 1);
+	  strcpy (*(strings + i), name);
+	  *(dupl + i) = 'N';
+	  i++;
+      }
+    *index = i;
+}
+
+static void
+get_point_symbolizer_strings (char **strings, char *dupl,
+			      rl2PointSymbolizerPtr point, int *idx)
+{
+/* extracting all Point Symbolizer Column Names */
+    const char *str;
+    int index;
+    int max;
+    int i = *idx;
+    str = rl2_point_symbolizer_get_col_opacity (point);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_point_symbolizer_get_col_size (point);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_point_symbolizer_get_col_rotation (point);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_point_symbolizer_get_col_anchor_point_x (point);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_point_symbolizer_get_col_anchor_point_y (point);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_point_symbolizer_get_col_displacement_x (point);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_point_symbolizer_get_col_displacement_y (point);
+    do_add_column_name (strings, dupl, str, &i);
+    if (rl2_point_symbolizer_get_count (point, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int repl_index;
+	  int max_repl;
+	  str =
+	      rl2_point_symbolizer_mark_get_col_well_known_type (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str = rl2_point_symbolizer_mark_get_col_stroke_color (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str = rl2_point_symbolizer_mark_get_col_stroke_width (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str =
+	      rl2_point_symbolizer_mark_get_col_stroke_linejoin (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str = rl2_point_symbolizer_mark_get_col_stroke_linecap (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str =
+	      rl2_point_symbolizer_mark_get_col_stroke_dash_array (point,
+								   index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str =
+	      rl2_point_symbolizer_mark_get_col_stroke_dash_offset (point,
+								    index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str = rl2_point_symbolizer_mark_get_col_fill_color (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  str = rl2_point_symbolizer_get_col_graphic_href (point, index);
+	  do_add_column_name (strings, dupl, str, &i);
+	  if (rl2_point_symbolizer_get_graphic_recode_count
+	      (point, index, &max_repl) != RL2_OK)
+	      max_repl = 0;
+	  for (repl_index = 0; repl_index < max_repl; repl_index++)
+	    {
+		int color_index;
+		str =
+		    rl2_point_symbolizer_get_col_graphic_recode_color
+		    (point, index, repl_index, &color_index);
+		do_add_column_name (strings, dupl, str, &i);
+	    }
+      }
+    *idx = i;
+}
+
+static void
+get_line_symbolizer_strings (char **strings, char *dupl,
+			     rl2LineSymbolizerPtr line, int *idx)
+{
+/* extracting all Line Symbolizer Column Names */
+    const char *str;
+    int i = *idx;
+    int index;
+    int max;
+    str = rl2_line_symbolizer_get_col_graphic_stroke_href (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_color (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_opacity (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_width (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_linejoin (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_linecap (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_dash_array (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_stroke_dash_offset (line);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_line_symbolizer_get_col_perpendicular_offset (line);
+    do_add_column_name (strings, dupl, str, &i);
+    max = 0;
+    if (rl2_line_symbolizer_get_graphic_stroke_recode_count
+	(line, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int color_index;
+	  str = rl2_line_symbolizer_get_col_graphic_stroke_recode_color
+	      (line, index, &color_index);
+	  do_add_column_name (strings, dupl, str, &i);
+      }
+    *idx = i;
+}
+
+static void
+get_polygon_symbolizer_strings (char **strings, char *dupl,
+				rl2PolygonSymbolizerPtr polyg, int *idx)
+{
+/* extracting all Polygon Symbolizer Column Names */
+    const char *str;
+    int i = *idx;
+    int index;
+    int max;
+    str = rl2_polygon_symbolizer_get_col_graphic_stroke_href (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_color (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_opacity (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_width (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_linejoin (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_linecap (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_dash_array (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_stroke_dash_offset (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_graphic_fill_href (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_graphic_fill_href (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_fill_color (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_fill_opacity (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_displacement_x (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_displacement_y (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_polygon_symbolizer_get_col_perpendicular_offset (polyg);
+    do_add_column_name (strings, dupl, str, &i);
+    max = 0;
+    if (rl2_polygon_symbolizer_get_graphic_stroke_recode_count
+	(polyg, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int color_index;
+	  str = rl2_polygon_symbolizer_get_col_graphic_stroke_recode_color
+	      (polyg, index, &color_index);
+	  do_add_column_name (strings, dupl, str, &i);
+      }
+    max = 0;
+    if (rl2_polygon_symbolizer_get_graphic_fill_recode_count
+	(polyg, &max) != RL2_OK)
+	max = 0;
+    for (index = 0; index < max; index++)
+      {
+	  int color_index;
+	  str = rl2_polygon_symbolizer_get_col_graphic_fill_recode_color
+	      (polyg, index, &color_index);
+	  do_add_column_name (strings, dupl, str, &i);
+      }
+
+    *idx = i;
+}
+
+static void
+get_text_symbolizer_strings (char **strings, char *dupl,
+			     rl2TextSymbolizerPtr text, int *idx)
+{
+/* extracting all Text Symbolizer Column Names */
+    const char *str;
+    int i = *idx;
+    str = rl2_text_symbolizer_get_col_label (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_col_font (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_col_style (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_col_weight (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_col_size (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_point_placement_col_anchor_point_x (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_point_placement_col_anchor_point_y (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_point_placement_col_displacement_x (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_point_placement_col_displacement_y (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_point_placement_col_rotation (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str =
+	rl2_text_symbolizer_get_line_placement_col_perpendicular_offset (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_line_placement_col_initial_gap (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_line_placement_col_gap (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_halo_col_radius (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_halo_col_fill_color (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_halo_col_fill_opacity (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_col_fill_color (text);
+    do_add_column_name (strings, dupl, str, &i);
+    str = rl2_text_symbolizer_get_col_fill_opacity (text);
+    do_add_column_name (strings, dupl, str, &i);
+    *idx = i;
+}
+
 static void
 build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 {
@@ -3992,7 +5743,10 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
     rl2PrivStyleRulePtr pR;
     rl2PrivVectorSymbolizerPtr pV;
     rl2PrivVectorSymbolizerItemPtr item;
-    rl2PrivTextSymbolizerPtr text;
+    rl2PointSymbolizerPtr point;
+    rl2LineSymbolizerPtr line;
+    rl2PolygonSymbolizerPtr polyg;
+    rl2TextSymbolizerPtr text;
 
     pR = style->first_rule;
     while (pR != NULL)
@@ -4006,13 +5760,31 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 		item = pV->first;
 		while (item != NULL)
 		  {
+		      if (item->symbolizer_type == RL2_POINT_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    point = item->symbolizer;
+			    count +=
+				count_point_symbolizer_column_names (point);
+			}
+		      if (item->symbolizer_type == RL2_LINE_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    line = item->symbolizer;
+			    count += count_line_symbolizer_column_names (line);
+			}
+		      if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    polyg = item->symbolizer;
+			    count +=
+				count_polygon_symbolizer_column_names (polyg);
+			}
 		      if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
 			  && item->symbolizer != NULL)
 			{
-			    text =
-				(rl2PrivTextSymbolizerPtr) (item->symbolizer);
-			    if (text->label != NULL)
-				count++;
+			    text = item->symbolizer;
+			    count += count_text_symbolizer_column_names (text);
 			}
 		      item = item->next;
 		  }
@@ -4030,13 +5802,31 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 		item = pV->first;
 		while (item != NULL)
 		  {
+		      if (item->symbolizer_type == RL2_POINT_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    point = item->symbolizer;
+			    count +=
+				count_point_symbolizer_column_names (point);
+			}
+		      if (item->symbolizer_type == RL2_LINE_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    line = item->symbolizer;
+			    count += count_line_symbolizer_column_names (line);
+			}
+		      if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    polyg = item->symbolizer;
+			    count +=
+				count_polygon_symbolizer_column_names (polyg);
+			}
 		      if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
 			  && item->symbolizer != NULL)
 			{
-			    text =
-				(rl2PrivTextSymbolizerPtr) (item->symbolizer);
-			    if (text->label != NULL)
-				count++;
+			    text = item->symbolizer;
+			    count += count_text_symbolizer_column_names (text);
 			}
 		      item = item->next;
 		  }
@@ -4066,19 +5856,33 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 		item = pV->first;
 		while (item != NULL)
 		  {
+		      if (item->symbolizer_type == RL2_POINT_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    point = item->symbolizer;
+			    get_point_symbolizer_strings (strings, dupl, point,
+							  &i);
+			}
+		      if (item->symbolizer_type == RL2_LINE_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    line = item->symbolizer;
+			    get_line_symbolizer_strings (strings, dupl, line,
+							 &i);
+			}
+		      if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    polyg = item->symbolizer;
+			    get_polygon_symbolizer_strings (strings, dupl,
+							    polyg, &i);
+			}
 		      if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
 			  && item->symbolizer != NULL)
 			{
-			    text =
-				(rl2PrivTextSymbolizerPtr) (item->symbolizer);
-			    if (text->label != NULL)
-			      {
-				  len = strlen (text->label);
-				  *(strings + i) = malloc (len + 1);
-				  strcpy (*(strings + i), text->label);
-				  *(dupl + i) = 'N';
-				  i++;
-			      }
+			    text = item->symbolizer;
+			    get_text_symbolizer_strings (strings, dupl, text,
+							 &i);
 			}
 		      item = item->next;
 		  }
@@ -4102,19 +5906,33 @@ build_column_names_array (rl2PrivFeatureTypeStylePtr style)
 		item = pV->first;
 		while (item != NULL)
 		  {
+		      if (item->symbolizer_type == RL2_POINT_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    point = item->symbolizer;
+			    get_point_symbolizer_strings (strings, dupl, point,
+							  &i);
+			}
+		      if (item->symbolizer_type == RL2_LINE_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    line = item->symbolizer;
+			    get_line_symbolizer_strings (strings, dupl, line,
+							 &i);
+			}
+		      if (item->symbolizer_type == RL2_POLYGON_SYMBOLIZER
+			  && item->symbolizer != NULL)
+			{
+			    polyg = item->symbolizer;
+			    get_polygon_symbolizer_strings (strings, dupl,
+							    polyg, &i);
+			}
 		      if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
 			  && item->symbolizer != NULL)
 			{
-			    text =
-				(rl2PrivTextSymbolizerPtr) (item->symbolizer);
-			    if (text->label != NULL)
-			      {
-				  len = strlen (text->label);
-				  *(strings + i) = malloc (len + 1);
-				  strcpy (*(strings + i), text->label);
-				  *(dupl + i) = 'N';
-				  i++;
-			      }
+			    text = item->symbolizer;
+			    get_text_symbolizer_strings (strings, dupl, text,
+							 &i);
 			}
 		      item = item->next;
 		  }

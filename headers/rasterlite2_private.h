@@ -656,6 +656,7 @@ extern "C"
 	unsigned char red;
 	unsigned char green;
 	unsigned char blue;
+	char *col_color;	/* table column: color */
 	struct rl2_priv_color_replacement *next;
     } rl2PrivColorReplacement;
     typedef rl2PrivColorReplacement *rl2PrivColorReplacementPtr;
@@ -663,6 +664,7 @@ extern "C"
     typedef struct rl2_priv_external_graphic
     {
 	char *xlink_href;
+	char *col_href;		/* table column: href */
 	rl2PrivColorReplacementPtr first;
 	rl2PrivColorReplacementPtr last;
     } rl2PrivExternalGraphic;
@@ -671,9 +673,9 @@ extern "C"
     typedef struct rl2_priv_mark
     {
 	unsigned char well_known_type;
-	rl2PrivExternalGraphicPtr external_graphic;
 	struct rl2_priv_stroke *stroke;
 	struct rl2_priv_fill *fill;
+	char *col_mark_type;	/* table column: well known type */
     } rl2PrivMark;
     typedef rl2PrivMark *rl2PrivMarkPtr;
 
@@ -696,6 +698,13 @@ extern "C"
 	double anchor_point_y;
 	double displacement_x;
 	double displacement_y;
+	char *col_opacity;	/* table column: opacity */
+	char *col_size;		/* table column: size */
+	char *col_rotation;	/* table column: rotation */
+	char *col_point_x;	/* table column: anchor point x */
+	char *col_point_y;	/* table column: anchor point y */
+	char *col_displ_x;	/* table column: displacement x */
+	char *col_displ_y;	/* table_column: displacement y */
     } rl2PrivGraphic;
     typedef rl2PrivGraphic *rl2PrivGraphicPtr;
 
@@ -712,6 +721,13 @@ extern "C"
 	int dash_count;
 	double *dash_list;
 	double dash_offset;
+	char *col_color;	/* table column: stroke color */
+	char *col_opacity;	/* table column: stroke opacity */
+	char *col_width;	/* table column: width */
+	char *col_join;		/* table column: linejoin */
+	char *col_cap;		/* table_column: linecap */
+	char *col_dash;		/* table_column: dash list */
+	char *col_dashoff;	/* table_column: dash offset */
     } rl2PrivStroke;
     typedef rl2PrivStroke *rl2PrivStrokePtr;
 
@@ -722,6 +738,8 @@ extern "C"
 	unsigned char green;
 	unsigned char blue;
 	double opacity;
+	char *col_color;	/* table column: fill color */
+	char *col_opacity;	/* table column: fill opacity */
     } rl2PrivFill;
     typedef rl2PrivFill *rl2PrivFillPtr;
 
@@ -735,6 +753,7 @@ extern "C"
     {
 	rl2PrivStrokePtr stroke;
 	double perpendicular_offset;
+	char *col_perpoff;	/* table column: perpendicular offset */
     } rl2PrivLineSymbolizer;
     typedef rl2PrivLineSymbolizer *rl2PrivLineSymbolizerPtr;
 
@@ -745,6 +764,9 @@ extern "C"
 	double displacement_x;
 	double displacement_y;
 	double perpendicular_offset;
+	char *col_displ_x;	/* table column: displacement x */
+	char *col_displ_y;	/* table column: displacement y */
+	char *col_perpoff;	/* table column: perpendicular offset */
     } rl2PrivPolygonSymbolizer;
     typedef rl2PrivPolygonSymbolizer *rl2PrivPolygonSymbolizerPtr;
 
@@ -755,6 +777,11 @@ extern "C"
 	double displacement_x;
 	double displacement_y;
 	double rotation;
+	char *col_point_x;	/* table column: anchor point x */
+	char *col_point_y;	/* table column: anchor point y */
+	char *col_displ_x;	/* table column: displacement x */
+	char *col_displ_y;	/* table_column: displacement y */
+	char *col_rotation;	/* table column: rotation */
     } rl2PrivPointPlacement;
     typedef rl2PrivPointPlacement *rl2PrivPointPlacementPtr;
 
@@ -766,6 +793,9 @@ extern "C"
 	double gap;
 	int is_aligned;
 	int generalize_line;
+	char *col_perpoff;	/* table column: perpendicular offset */
+	char *col_inigap;	/* table column: initial gap */
+	char *col_gap;		/* table column: gap */
     } rl2PrivLinePlacement;
     typedef rl2PrivLinePlacement *rl2PrivLinePlacementPtr;
 
@@ -773,6 +803,7 @@ extern "C"
     {
 	double radius;
 	rl2PrivFillPtr fill;
+	char *col_radius;	/* table column: radius */
     } rl2PrivHalo;
     typedef rl2PrivHalo *rl2PrivHaloPtr;
 
@@ -788,6 +819,11 @@ extern "C"
 	void *label_placement;
 	rl2PrivHaloPtr halo;
 	rl2PrivFillPtr fill;
+	char *col_label;	/* table column: label value */
+	char *col_font;		/* table column: font facename */
+	char *col_style;	/* table column: font style */
+	char *col_weight;	/* table_column: font weight */
+	char *col_size;		/* table column: font size */
     } rl2PrivTextSymbolizer;
     typedef rl2PrivTextSymbolizer *rl2PrivTextSymbolizerPtr;
 
@@ -2265,6 +2301,81 @@ extern "C"
 
     RL2_PRIVATE void
 	rl2_destroy_private_tt_font (struct rl2_private_tt_font *font);
+
+    RL2_PRIVATE rl2PrivPointSymbolizerPtr
+	rl2_clone_point_symbolizer (rl2PrivPointSymbolizerPtr in);
+
+    RL2_PRIVATE rl2PrivLineSymbolizerPtr
+	rl2_clone_line_symbolizer (rl2PrivLineSymbolizerPtr in);
+
+    RL2_PRIVATE rl2PrivPolygonSymbolizerPtr
+	rl2_clone_polygon_symbolizer (rl2PrivPolygonSymbolizerPtr in);
+
+    RL2_PRIVATE rl2PrivTextSymbolizerPtr
+	rl2_clone_text_symbolizer (rl2PrivTextSymbolizerPtr in);
+
+    RL2_PRIVATE rl2PrivMarkPtr
+	rl2_point_symbolizer_get_mark_ref (rl2PointSymbolizerPtr point,
+					   int index);
+
+    RL2_PRIVATE rl2PrivExternalGraphicPtr
+	rl2_point_symbolizer_get_external_graphic_ref (rl2PointSymbolizerPtr
+						       point, int index);
+
+    RL2_PRIVATE rl2PrivColorReplacementPtr
+	rl2_point_symbolizer_get_color_replacement_ref (rl2PointSymbolizerPtr
+							point, int index,
+							int repl_index,
+							int *color_index);
+
+    RL2_PRIVATE rl2PrivExternalGraphicPtr
+	rl2_line_symbolizer_get_stroke_external_graphic_ref
+	(rl2LineSymbolizerPtr line);
+
+    RL2_PRIVATE rl2PrivColorReplacementPtr
+	rl2_line_symbolizer_get_stroke_color_replacement_ref
+	(rl2LineSymbolizerPtr line, int index, int *color_index);
+
+    RL2_PRIVATE rl2PrivExternalGraphicPtr
+	rl2_polygon_symbolizer_get_stroke_external_graphic_ref
+	(rl2PolygonSymbolizerPtr polyg);
+
+    RL2_PRIVATE rl2PrivColorReplacementPtr
+	rl2_polygon_symbolizer_get_stroke_color_replacement_ref
+	(rl2PolygonSymbolizerPtr polyg, int index, int *color_index);
+
+    RL2_PRIVATE rl2PrivExternalGraphicPtr
+	rl2_polygon_symbolizer_get_fill_external_graphic_ref
+	(rl2PolygonSymbolizerPtr polyg);
+
+    RL2_PRIVATE rl2PrivColorReplacementPtr
+	rl2_polygon_symbolizer_get_fill_color_replacement_ref
+	(rl2PolygonSymbolizerPtr polyg, int index, int *color_index);
+
+    RL2_PRIVATE void
+	rl2_set_point_symbolizer_dyn_values (rl2PrivVariantArrayPtr var,
+					     rl2PrivPointSymbolizerPtr point);
+
+    RL2_PRIVATE void
+	rl2_set_line_symbolizer_dyn_values (rl2PrivVariantArrayPtr var,
+					    rl2PrivLineSymbolizerPtr line);
+
+    RL2_PRIVATE void
+	rl2_set_polygon_symbolizer_dyn_values (rl2PrivVariantArrayPtr var,
+					       rl2PrivPolygonSymbolizerPtr
+					       polygon);
+
+    RL2_PRIVATE void
+	rl2_set_text_symbolizer_dyn_values (rl2PrivVariantArrayPtr var,
+					    rl2PrivTextSymbolizerPtr text);
+
+    RL2_PRIVATE void
+	rl2_add_dyn_symbolizer (rl2PrivVectorSymbolizerPtr dyn, int type,
+				void *symbolizer);
+
+    RL2_PRIVATE int
+	parse_sld_se_stroke_dasharray (const char *value, int *count,
+				       double **list);
 
 #ifdef __cplusplus
 }

@@ -880,11 +880,10 @@ rl2_get_symbolizer_from_feature_type_style (rl2FeatureTypeStylePtr style,
 	    }
 	  pR = pR->next;
       }
-    if (stl->else_rule != NULL)
+
+    pR = stl->else_rule;
+    if (pR != NULL)
       {
-	  /* applyhing the ELSE rule */
-	  *scale_forbidden = 0;
-	  pR = stl->else_rule;
 	  if (pR->min_scale != DBL_MAX && pR->max_scale != DBL_MAX)
 	    {
 		if (scale >= pR->min_scale && scale < pR->max_scale)
@@ -973,11 +972,6 @@ rl2_style_has_labels (rl2FeatureTypeStylePtr style)
     rl2PrivFeatureTypeStylePtr stl = (rl2PrivFeatureTypeStylePtr) style;
     if (stl == NULL)
 	return 0;
-    if (stl->first_rule == NULL)
-      {
-	  /* there are no rules */
-	  return 0;
-      }
 
     pR = stl->first_rule;
     while (pR != NULL)
@@ -1003,6 +997,27 @@ rl2_style_has_labels (rl2FeatureTypeStylePtr style)
 		item = item->next;
 	    }
 	  pR = pR->next;
+      }
+
+    pR = stl->else_rule;
+    if (pR != NULL)
+      {
+	  if (pR->style_type == RL2_VECTOR_STYLE && pR->style != NULL)
+	      ;
+	  else
+	      return 0;
+	  sym = pR->style;
+	  item = sym->first;
+	  while (item != NULL)
+	    {
+		if (item->symbolizer_type == RL2_TEXT_SYMBOLIZER
+		    && item->symbolizer != NULL)
+		  {
+		      /* found a valid Text Symbolizer */
+		      return 1;
+		  }
+		item = item->next;
+	    }
       }
     return 0;
 }
@@ -1589,6 +1604,7 @@ rl2_create_default_color_replacement ()
     repl->red = 0;
     repl->green = 0;
     repl->blue = 0;
+    repl->col_color = NULL;
     repl->next = NULL;
     return repl;
 }
@@ -1600,6 +1616,7 @@ rl2_create_default_external_graphic ()
     rl2PrivGraphicItemPtr item = malloc (sizeof (rl2PrivGraphicItem));
     rl2PrivExternalGraphicPtr ext = malloc (sizeof (rl2PrivExternalGraphic));
     ext->xlink_href = NULL;
+    ext->col_href = NULL;
     ext->first = NULL;
     ext->last = NULL;
     item->type = RL2_EXTERNAL_GRAPHIC;
@@ -1615,9 +1632,9 @@ rl2_create_default_mark ()
     rl2PrivGraphicItemPtr item = malloc (sizeof (rl2PrivGraphicItem));
     rl2PrivMarkPtr mark = malloc (sizeof (rl2PrivMark));
     mark->well_known_type = RL2_GRAPHIC_MARK_UNKNOWN;
-    mark->external_graphic = NULL;
     mark->stroke = NULL;
     mark->fill = NULL;
+    mark->col_mark_type = NULL;
     item->type = RL2_MARK_GRAPHIC;
     item->item = mark;
     item->next = NULL;
@@ -1632,12 +1649,19 @@ rl2_create_default_graphic ()
     graphic->first = NULL;
     graphic->last = NULL;
     graphic->opacity = 1.0;
-    graphic->size = 10.0;
+    graphic->size = 6.0;
     graphic->rotation = 0.0;
     graphic->anchor_point_x = 0.5;
     graphic->anchor_point_y = 0.5;
     graphic->displacement_x = 0.0;
     graphic->displacement_y = 0.0;
+    graphic->col_opacity = NULL;
+    graphic->col_size = NULL;
+    graphic->col_rotation = NULL;
+    graphic->col_point_x = NULL;
+    graphic->col_point_y = NULL;
+    graphic->col_displ_x = NULL;
+    graphic->col_displ_y = NULL;
     return graphic;
 }
 
@@ -1657,6 +1681,13 @@ rl2_create_default_stroke ()
     stroke->dash_count = 0;
     stroke->dash_list = NULL;
     stroke->dash_offset = 0.0;
+    stroke->col_color = NULL;
+    stroke->col_opacity = NULL;
+    stroke->col_width = NULL;
+    stroke->col_join = NULL;
+    stroke->col_cap = NULL;
+    stroke->col_dash = NULL;
+    stroke->col_dashoff = NULL;
     return stroke;
 }
 
@@ -1670,6 +1701,11 @@ rl2_create_default_point_placement ()
     place->displacement_x = 0.0;
     place->displacement_y = 0.0;
     place->rotation = 0.0;
+    place->col_point_x = NULL;
+    place->col_point_y = NULL;
+    place->col_displ_x = NULL;
+    place->col_displ_y = NULL;
+    place->col_rotation = NULL;
     return place;
 }
 
@@ -1682,8 +1718,10 @@ rl2_create_default_line_placement ()
     place->is_repeated = 0;
     place->initial_gap = 0.0;
     place->gap = 0.0;
-    place->is_aligned = 0;
     place->generalize_line = 0;
+    place->col_perpoff = NULL;
+    place->col_inigap = NULL;
+    place->col_gap = NULL;
     return place;
 }
 
@@ -1697,6 +1735,8 @@ rl2_create_default_fill ()
     fill->green = 128;
     fill->blue = 128;
     fill->opacity = 1.0;
+    fill->col_color = NULL;
+    fill->col_opacity = NULL;
     return fill;
 }
 
@@ -1707,6 +1747,7 @@ rl2_create_default_halo ()
     rl2PrivHaloPtr halo = malloc (sizeof (rl2PrivHalo));
     halo->radius = 1.0;
     halo->fill = NULL;
+    halo->col_radius = NULL;
     return halo;
 }
 
@@ -1751,6 +1792,7 @@ rl2_create_default_line_symbolizer ()
       }
     symbolizer->stroke = NULL;
     symbolizer->perpendicular_offset = 0.0;
+    symbolizer->col_perpoff = NULL;
     item->symbolizer_type = RL2_LINE_SYMBOLIZER;
     item->symbolizer = symbolizer;
     item->next = NULL;
@@ -1778,6 +1820,9 @@ rl2_create_default_polygon_symbolizer ()
     symbolizer->displacement_x = 0.0;
     symbolizer->displacement_y = 0.0;
     symbolizer->perpendicular_offset = 0.0;
+    symbolizer->col_displ_x = NULL;
+    symbolizer->col_displ_y = NULL;
+    symbolizer->col_perpoff = NULL;
     item->symbolizer_type = RL2_POLYGON_SYMBOLIZER;
     item->symbolizer = symbolizer;
     item->next = NULL;
@@ -1802,6 +1847,11 @@ rl2_create_default_text_symbolizer ()
 	  return NULL;
       }
     symbolizer->label = NULL;
+    symbolizer->col_label = NULL;
+    symbolizer->col_font = NULL;
+    symbolizer->col_style = NULL;
+    symbolizer->col_weight = NULL;
+    symbolizer->col_size = NULL;
     symbolizer->font_families_count = 0;
     for (i = 0; i < RL2_MAX_FONT_FAMILIES; i++)
 	*(symbolizer->font_families + i) = NULL;
@@ -2037,6 +2087,27 @@ rl2_line_symbolizer_get_graphic_stroke_href (rl2LineSymbolizerPtr symbolizer)
     return ext->xlink_href;
 }
 
+RL2_PRIVATE rl2PrivExternalGraphicPtr
+rl2_line_symbolizer_get_stroke_external_graphic_ref (rl2LineSymbolizerPtr
+						     symbolizer)
+{
+/* return a pointer to an External Graphic object (Line Stroke)  */
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    if (sym->stroke->graphic == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first->type != RL2_EXTERNAL_GRAPHIC)
+	return NULL;
+    ext = (rl2PrivExternalGraphicPtr) (sym->stroke->graphic->first->item);
+    return ext;
+}
+
 RL2_DECLARE int
 rl2_line_symbolizer_get_graphic_stroke_recode_count (rl2LineSymbolizerPtr
 						     symbolizer, int *count)
@@ -2123,6 +2194,111 @@ rl2_line_symbolizer_get_graphic_stroke_recode_color (rl2LineSymbolizerPtr
     return RL2_ERROR;
 }
 
+RL2_PRIVATE rl2PrivColorReplacementPtr
+rl2_line_symbolizer_get_stroke_color_replacement_ref (rl2LineSymbolizerPtr
+						      symbolizer, int index,
+						      int *color_index)
+{
+/* return a pointer to a ColorReplacement object (Line Stroke) */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke != NULL)
+      {
+	  if (sym->stroke->graphic != NULL)
+	    {
+		if (sym->stroke->graphic->first != NULL)
+		  {
+		      if (sym->stroke->graphic->first->type ==
+			  RL2_EXTERNAL_GRAPHIC
+			  && sym->stroke->graphic->first->item != NULL)
+			{
+			    int cnt = 0;
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (sym->
+							     stroke->graphic->
+							     first->item);
+			    rl2PrivColorReplacementPtr repl = ext->first;
+			    while (repl != NULL)
+			      {
+				  if (cnt == index)
+				    {
+					*color_index = repl->index;
+					return repl;
+				    }
+				  cnt++;
+				  repl = repl->next;
+			      }
+			}
+		  }
+	    }
+      }
+    return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_graphic_stroke_href (rl2LineSymbolizerPtr
+						 symbolizer)
+{
+/* return an eventual Line Symbolizer Table Column Name: Graphic Stroke Href */
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    if (sym->stroke->graphic == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first->type != RL2_EXTERNAL_GRAPHIC)
+	return NULL;
+    ext = (rl2PrivExternalGraphicPtr) (sym->stroke->graphic->first->item);
+    return ext->col_href;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_graphic_stroke_recode_color (rl2LineSymbolizerPtr
+							 symbolizer, int index,
+							 int *color_index)
+{
+/* return an eventual Line Symbolizer Table Column Name: Graphic Stroke Color Replacement */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke != NULL)
+      {
+	  if (sym->stroke->graphic != NULL)
+	    {
+		if (sym->stroke->graphic->first != NULL)
+		  {
+		      if (sym->stroke->graphic->first->type ==
+			  RL2_EXTERNAL_GRAPHIC
+			  && sym->stroke->graphic->first->item != NULL)
+			{
+			    int cnt = 0;
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (sym->
+							     stroke->graphic->
+							     first->item);
+			    rl2PrivColorReplacementPtr repl = ext->first;
+			    while (repl != NULL)
+			      {
+				  if (cnt == index)
+				    {
+					*color_index = repl->index;
+					return repl->col_color;
+				    }
+				  cnt++;
+				  repl = repl->next;
+			      }
+			}
+		  }
+	    }
+      }
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_line_symbolizer_get_stroke_color (rl2LineSymbolizerPtr symbolizer,
 				      unsigned char *red,
@@ -2168,6 +2344,42 @@ rl2_line_symbolizer_get_stroke_width (rl2LineSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_color (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke Color */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_color;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_opacity (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke Opacity */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_opacity;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_width (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke Width */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_width;
+}
+
 RL2_DECLARE int
 rl2_line_symbolizer_get_stroke_linejoin (rl2LineSymbolizerPtr symbolizer,
 					 unsigned char *linejoin)
@@ -2194,6 +2406,30 @@ rl2_line_symbolizer_get_stroke_linecap (rl2LineSymbolizerPtr symbolizer,
 	return RL2_ERROR;
     *linecap = sym->stroke->linecap;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_linejoin (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke LineJoin */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_join;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_linecap (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke LineCap */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_cap;
 }
 
 RL2_DECLARE int
@@ -2244,6 +2480,30 @@ rl2_line_symbolizer_get_stroke_dash_offset (rl2LineSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_dash_array (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke Dash Array */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_dash;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_stroke_dash_offset (rl2LineSymbolizerPtr symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Stroke Dash Offset */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_dashoff;
+}
+
 RL2_DECLARE int
 rl2_line_symbolizer_get_perpendicular_offset (rl2LineSymbolizerPtr symbolizer,
 					      double *offset)
@@ -2254,6 +2514,17 @@ rl2_line_symbolizer_get_perpendicular_offset (rl2LineSymbolizerPtr symbolizer,
 	return RL2_ERROR;
     *offset = sym->perpendicular_offset;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_line_symbolizer_get_col_perpendicular_offset (rl2LineSymbolizerPtr
+						  symbolizer)
+{
+/* return the Line Symbolizer Table Column Name: Perpendicular Offset */
+    rl2PrivLineSymbolizerPtr sym = (rl2PrivLineSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_perpoff;
 }
 
 RL2_DECLARE int
@@ -2298,6 +2569,48 @@ rl2_polygon_symbolizer_has_graphic_stroke (rl2PolygonSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_PRIVATE rl2PrivColorReplacementPtr
+rl2_polygon_symbolizer_get_stroke_color_replacement_ref (rl2PolygonSymbolizerPtr
+							 symbolizer, int index,
+							 int *color_index)
+{
+/* return a pointer to a ColorReplacement object (Polygon Stroke) */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke != NULL)
+      {
+	  if (sym->stroke->graphic != NULL)
+	    {
+		if (sym->stroke->graphic->first != NULL)
+		  {
+		      if (sym->stroke->graphic->first->type ==
+			  RL2_EXTERNAL_GRAPHIC
+			  && sym->stroke->graphic->first->item != NULL)
+			{
+			    int cnt = 0;
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (sym->
+							     stroke->graphic->
+							     first->item);
+			    rl2PrivColorReplacementPtr repl = ext->first;
+			    while (repl != NULL)
+			      {
+				  if (cnt == index)
+				    {
+					*color_index = repl->index;
+					return repl;
+				    }
+				  cnt++;
+				  repl = repl->next;
+			      }
+			}
+		  }
+	    }
+      }
+    return NULL;
+}
+
 RL2_DECLARE const char *
 rl2_polygon_symbolizer_get_graphic_stroke_href (rl2PolygonSymbolizerPtr
 						symbolizer)
@@ -2317,6 +2630,27 @@ rl2_polygon_symbolizer_get_graphic_stroke_href (rl2PolygonSymbolizerPtr
 	return NULL;
     ext = (rl2PrivExternalGraphicPtr) (sym->stroke->graphic->first->item);
     return ext->xlink_href;
+}
+
+RL2_PRIVATE rl2PrivExternalGraphicPtr
+rl2_polygon_symbolizer_get_stroke_external_graphic_ref (rl2PolygonSymbolizerPtr
+							symbolizer)
+{
+/* return a pointer to an External Graphic object (Polygon Stroke) */
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    if (sym->stroke->graphic == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first->type != RL2_EXTERNAL_GRAPHIC)
+	return NULL;
+    ext = (rl2PrivExternalGraphicPtr) (sym->stroke->graphic->first->item);
+    return ext;
 }
 
 RL2_DECLARE int
@@ -2402,6 +2736,68 @@ RL2_DECLARE int
     return RL2_ERROR;
 }
 
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_graphic_stroke_href (rl2PolygonSymbolizerPtr
+						    symbolizer)
+{
+/* return a Polygon Symbolizer Table Column Name: Graphic Stroke Href  */
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    if (sym->stroke->graphic == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first == NULL)
+	return NULL;
+    if (sym->stroke->graphic->first->type != RL2_EXTERNAL_GRAPHIC)
+	return NULL;
+    ext = (rl2PrivExternalGraphicPtr) (sym->stroke->graphic->first->item);
+    return ext->col_href;
+}
+
+RL2_DECLARE const char
+    *rl2_polygon_symbolizer_get_col_graphic_stroke_recode_color
+    (rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index)
+{
+/* return a Polygon Symbolizer Table Column Name: ColorReplacement */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke != NULL)
+      {
+	  if (sym->stroke->graphic != NULL)
+	    {
+		if (sym->stroke->graphic->first != NULL)
+		  {
+		      if (sym->stroke->graphic->first->type ==
+			  RL2_EXTERNAL_GRAPHIC
+			  && sym->stroke->graphic->first->item != NULL)
+			{
+			    int cnt = 0;
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (sym->
+							     stroke->graphic->
+							     first->item);
+			    rl2PrivColorReplacementPtr repl = ext->first;
+			    while (repl != NULL)
+			      {
+				  if (cnt == index)
+				    {
+					*color_index = repl->index;
+					return repl->col_color;
+				    }
+				  cnt++;
+				  repl = repl->next;
+			      }
+			}
+		  }
+	    }
+      }
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_polygon_symbolizer_get_stroke_color (rl2PolygonSymbolizerPtr symbolizer,
 					 unsigned char *red,
@@ -2448,6 +2844,43 @@ rl2_polygon_symbolizer_get_stroke_width (rl2PolygonSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_color (rl2PolygonSymbolizerPtr symbolizer)
+{
+/* return the Polygon Symbolizer Stroke Table Column Name: Stroke Color */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_color;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_opacity (rl2PolygonSymbolizerPtr
+					       symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: Stroke Opacity */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_opacity;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_width (rl2PolygonSymbolizerPtr symbolizer)
+{
+/* return the Polygon Symbolizer Stroke width */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_width;
+}
+
 RL2_DECLARE int
 rl2_polygon_symbolizer_get_stroke_linejoin (rl2PolygonSymbolizerPtr
 					    symbolizer, unsigned char *linejoin)
@@ -2474,6 +2907,32 @@ rl2_polygon_symbolizer_get_stroke_linecap (rl2PolygonSymbolizerPtr symbolizer,
 	return RL2_ERROR;
     *linecap = sym->stroke->linecap;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_linejoin (rl2PolygonSymbolizerPtr
+						symbolizer)
+{
+/* return the Polygon Symbolizer Stroke LineJoin */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_join;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_linecap (rl2PolygonSymbolizerPtr
+					       symbolizer)
+{
+/* return the Polygon Symbolizer Stroke LineCap */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_cap;
 }
 
 RL2_DECLARE int
@@ -2525,6 +2984,32 @@ rl2_polygon_symbolizer_get_stroke_dash_offset (rl2PolygonSymbolizerPtr
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_dash_array (rl2PolygonSymbolizerPtr
+						  symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: Stroke Dash Array */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_dash;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_stroke_dash_offset (rl2PolygonSymbolizerPtr
+						   symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: Stroke Dash Offset */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->stroke == NULL)
+	return NULL;
+    return sym->stroke->col_dashoff;
+}
+
 RL2_DECLARE int
 rl2_polygon_symbolizer_has_fill (rl2PolygonSymbolizerPtr symbolizer, int *fill)
 {
@@ -2566,6 +3051,48 @@ rl2_polygon_symbolizer_has_graphic_fill (rl2PolygonSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_PRIVATE rl2PrivColorReplacementPtr
+rl2_polygon_symbolizer_get_fill_color_replacement_ref (rl2PolygonSymbolizerPtr
+						       symbolizer, int index,
+						       int *color_index)
+{
+/* return a pointer to a ColorReplacement object (Polygon Fill) */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill != NULL)
+      {
+	  if (sym->fill->graphic != NULL)
+	    {
+		if (sym->fill->graphic->first != NULL)
+		  {
+		      if (sym->fill->graphic->first->type ==
+			  RL2_EXTERNAL_GRAPHIC
+			  && sym->fill->graphic->first->item != NULL)
+			{
+			    int cnt = 0;
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (sym->
+							     fill->graphic->
+							     first->item);
+			    rl2PrivColorReplacementPtr repl = ext->first;
+			    while (repl != NULL)
+			      {
+				  if (cnt == index)
+				    {
+					*color_index = repl->index;
+					return repl;
+				    }
+				  cnt++;
+				  repl = repl->next;
+			      }
+			}
+		  }
+	    }
+      }
+    return NULL;
+}
+
 RL2_DECLARE const char *
 rl2_polygon_symbolizer_get_graphic_fill_href (rl2PolygonSymbolizerPtr
 					      symbolizer)
@@ -2585,6 +3112,27 @@ rl2_polygon_symbolizer_get_graphic_fill_href (rl2PolygonSymbolizerPtr
 	return NULL;
     ext = (rl2PrivExternalGraphicPtr) (sym->fill->graphic->first->item);
     return ext->xlink_href;
+}
+
+RL2_PRIVATE rl2PrivExternalGraphicPtr
+rl2_polygon_symbolizer_get_fill_external_graphic_ref (rl2PolygonSymbolizerPtr
+						      symbolizer)
+{
+/* return a pointer to an External Graphic object (Polygon Fill) */
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill == NULL)
+	return NULL;
+    if (sym->fill->graphic == NULL)
+	return NULL;
+    if (sym->fill->graphic->first == NULL)
+	return NULL;
+    if (sym->fill->graphic->first->type != RL2_EXTERNAL_GRAPHIC)
+	return NULL;
+    ext = (rl2PrivExternalGraphicPtr) (sym->fill->graphic->first->item);
+    return ext;
 }
 
 RL2_DECLARE int
@@ -2673,6 +3221,67 @@ rl2_polygon_symbolizer_get_graphic_fill_recode_color (rl2PolygonSymbolizerPtr
     return RL2_ERROR;
 }
 
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_graphic_fill_href (rl2PolygonSymbolizerPtr
+						  symbolizer)
+{
+/* Polygon Symbolizer Table Column Name: Graphic Fill Href  */
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill == NULL)
+	return NULL;
+    if (sym->fill->graphic == NULL)
+	return NULL;
+    if (sym->fill->graphic->first == NULL)
+	return NULL;
+    if (sym->fill->graphic->first->type != RL2_EXTERNAL_GRAPHIC)
+	return NULL;
+    ext = (rl2PrivExternalGraphicPtr) (sym->fill->graphic->first->item);
+    return ext->col_href;
+}
+
+RL2_DECLARE const char *rl2_polygon_symbolizer_get_col_graphic_fill_recode_color
+    (rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index)
+{
+/* Polygon Symbolizer Table Column Name: Graphic Fill Colort Replacement */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill != NULL)
+      {
+	  if (sym->fill->graphic != NULL)
+	    {
+		if (sym->fill->graphic->first != NULL)
+		  {
+		      if (sym->fill->graphic->first->type ==
+			  RL2_EXTERNAL_GRAPHIC
+			  && sym->fill->graphic->first->item != NULL)
+			{
+			    int cnt = 0;
+			    rl2PrivExternalGraphicPtr ext =
+				(rl2PrivExternalGraphicPtr) (sym->
+							     fill->graphic->
+							     first->item);
+			    rl2PrivColorReplacementPtr repl = ext->first;
+			    while (repl != NULL)
+			      {
+				  if (cnt == index)
+				    {
+					*color_index = repl->index;
+					return repl->col_color;
+				    }
+				  cnt++;
+				  repl = repl->next;
+			      }
+			}
+		  }
+	    }
+      }
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_polygon_symbolizer_get_fill_color (rl2PolygonSymbolizerPtr symbolizer,
 				       unsigned char *red,
@@ -2721,13 +3330,70 @@ RL2_DECLARE int
 rl2_polygon_symbolizer_get_displacement (rl2PolygonSymbolizerPtr symbolizer,
 					 double *x, double *y)
 {
-/* return the Polygon Symbolizer Stroke perpendicula offset */
+/* return the Polygon Symbolizer Displacement */
     rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
     if (sym == NULL)
 	return RL2_ERROR;
     *x = sym->displacement_x;
     *y = sym->displacement_y;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_fill_color (rl2PolygonSymbolizerPtr symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: Fill Color */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill == NULL)
+	return NULL;
+    return sym->fill->col_color;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_fill_opacity (rl2PolygonSymbolizerPtr symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: Fill opacity */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill == NULL)
+	return NULL;
+    return sym->fill->col_opacity;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_perpendicular_offset (rl2PolygonSymbolizerPtr
+						     symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: perpendicular offset */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_perpoff;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_displacement_x (rl2PolygonSymbolizerPtr
+					       symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: displacement X */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_displ_x;
+}
+
+RL2_DECLARE const char *
+rl2_polygon_symbolizer_get_col_displacement_y (rl2PolygonSymbolizerPtr
+					       symbolizer)
+{
+/* return the Polygon Symbolizer Table Column Name: displacement Y */
+    rl2PrivPolygonSymbolizerPtr sym = (rl2PrivPolygonSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_displ_y;
 }
 
 RL2_DECLARE const char *
@@ -2738,6 +3404,56 @@ rl2_text_symbolizer_get_label (rl2TextSymbolizerPtr symbolizer)
     if (sym == NULL)
 	return NULL;
     return sym->label;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_label (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer table column name: label */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_label;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_font (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer table column name: font facename */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_font;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_style (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer table column name: font style */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_style;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_weight (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer table column name: font weight */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_weight;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_size (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer table column name: font size */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    return sym->col_size;
 }
 
 RL2_DECLARE int
@@ -2884,6 +3600,86 @@ rl2_text_symbolizer_get_point_placement_rotation (rl2TextSymbolizerPtr
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_point_placement_col_anchor_point_x (rl2TextSymbolizerPtr
+							    symbolizer)
+{
+/* return the Text Symbolizer PointPlacement table column name: Anchor Point X */
+    rl2PrivPointPlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_POINT
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivPointPlacementPtr) (sym->label_placement);
+    return place->col_point_x;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_point_placement_col_anchor_point_y (rl2TextSymbolizerPtr
+							    symbolizer)
+{
+/* return the Text Symbolizer PointPlacement table column name: Anchor Point Y */
+    rl2PrivPointPlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_POINT
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivPointPlacementPtr) (sym->label_placement);
+    return place->col_point_y;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_point_placement_col_displacement_x (rl2TextSymbolizerPtr
+							    symbolizer)
+{
+/* return the Text Symbolizer PointPlacement table column name: Displacement X */
+    rl2PrivPointPlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_POINT
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivPointPlacementPtr) (sym->label_placement);
+    return place->col_displ_x;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_point_placement_col_displacement_y (rl2TextSymbolizerPtr
+							    symbolizer)
+{
+/* return the Text Symbolizer PointPlacement table column name: Displacement Y */
+    rl2PrivPointPlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_POINT
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivPointPlacementPtr) (sym->label_placement);
+    return place->col_displ_y;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_point_placement_col_rotation (rl2TextSymbolizerPtr
+						      symbolizer)
+{
+/* return the Text Symbolizer PointPlacement table column name: Rotation  */
+    rl2PrivPointPlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_POINT
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivPointPlacementPtr) (sym->label_placement);
+    return place->col_rotation;
+}
+
 RL2_DECLARE int
     rl2_text_symbolizer_get_line_placement_perpendicular_offset
     (rl2TextSymbolizerPtr symbolizer, double *offset)
@@ -2988,6 +3784,53 @@ rl2_text_symbolizer_get_line_placement_generalize_line (rl2TextSymbolizerPtr
     return RL2_OK;
 }
 
+RL2_DECLARE const char
+    *rl2_text_symbolizer_get_line_placement_col_perpendicular_offset
+    (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer LinePlacement Column Name: PerpendicularOffset */
+    rl2PrivLinePlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_LINE
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivLinePlacementPtr) (sym->label_placement);
+    return place->col_perpoff;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_line_placement_col_initial_gap (rl2TextSymbolizerPtr
+							symbolizer)
+{
+/* return the Text Symbolizer LinePlacement Column Name: InitialGap */
+    rl2PrivLinePlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_LINE
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivLinePlacementPtr) (sym->label_placement);
+    return place->col_inigap;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_line_placement_col_gap (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer LinePlacement Column Name: Gap */
+    rl2PrivLinePlacementPtr place;
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->label_placement_type != RL2_LABEL_PLACEMENT_LINE
+	|| sym->label_placement == NULL)
+	return NULL;
+    place = (rl2PrivLinePlacementPtr) (sym->label_placement);
+    return place->col_gap;
+}
+
 RL2_DECLARE int
 rl2_text_symbolizer_has_halo (rl2TextSymbolizerPtr symbolizer, int *halo)
 {
@@ -3014,6 +3857,18 @@ rl2_text_symbolizer_get_halo_radius (rl2TextSymbolizerPtr symbolizer,
 	return RL2_ERROR;
     *radius = sym->halo->radius;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_halo_col_radius (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer Halo Table Column Name: Radius */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->halo == NULL)
+	return NULL;
+    return sym->halo->col_radius;
 }
 
 RL2_DECLARE int
@@ -3052,6 +3907,50 @@ rl2_text_symbolizer_get_halo_fill_color (rl2TextSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_halo_col_fill_color (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer Halo Table Column Name: Fill Colour */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->halo == NULL)
+	return NULL;
+    if (sym->halo->fill == NULL)
+	return NULL;
+    return sym->halo->fill->col_color;
+}
+
+RL2_DECLARE int
+rl2_text_symbolizer_get_halo_fill_opacity (rl2TextSymbolizerPtr symbolizer,
+					   double *opacity)
+{
+/* return the Text Symbolizer Halo Opacity */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return RL2_ERROR;
+    if (sym->halo == NULL)
+	return RL2_ERROR;
+    if (sym->halo->fill == NULL)
+	return RL2_ERROR;
+    *opacity = sym->halo->fill->opacity;
+    return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_halo_col_fill_opacity (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer Table Column Name: Halo Opacity */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->halo == NULL)
+	return NULL;
+    if (sym->halo->fill == NULL)
+	return NULL;
+    return sym->halo->fill->col_opacity;
+}
+
 RL2_DECLARE int
 rl2_text_symbolizer_has_fill (rl2TextSymbolizerPtr symbolizer, int *fill)
 {
@@ -3081,6 +3980,44 @@ rl2_text_symbolizer_get_fill_color (rl2TextSymbolizerPtr symbolizer,
     *green = sym->fill->green;
     *blue = sym->fill->blue;
     return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_fill_color (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer Table Column Name: Fill Color */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill == NULL)
+	return NULL;
+    return sym->fill->col_color;
+}
+
+RL2_DECLARE int
+rl2_text_symbolizer_get_fill_opacity (rl2TextSymbolizerPtr symbolizer,
+				      double *opacity)
+{
+/* return the Text Symbolizer Fill Opacity */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return RL2_ERROR;
+    if (sym->fill == NULL)
+	return RL2_ERROR;
+    *opacity = sym->fill->opacity;
+    return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_text_symbolizer_get_col_fill_opacity (rl2TextSymbolizerPtr symbolizer)
+{
+/* return the Text Symbolizer Table Column Name: Fill Opacity */
+    rl2PrivTextSymbolizerPtr sym = (rl2PrivTextSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->fill == NULL)
+	return NULL;
+    return sym->fill->col_opacity;
 }
 
 RL2_DECLARE int
@@ -3214,6 +4151,196 @@ rl2_point_symbolizer_get_graphic_recode_color (rl2PointSymbolizerPtr
     return RL2_ERROR;
 }
 
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_graphic_href (rl2PointSymbolizerPtr symbolizer,
+					   int index)
+{
+/* return the Point Symbolizer Table Column Name: External Graphic Href */
+    int count = 0;
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
+		    ext = (rl2PrivExternalGraphicPtr) (item->item);
+		else
+		    return NULL;
+		return ext->col_href;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_PRIVATE rl2PrivExternalGraphicPtr
+rl2_point_symbolizer_get_external_graphic_ref (rl2PointSymbolizerPtr symbolizer,
+					       int index)
+{
+/* return a pointer to an External Graphic object */
+    int count = 0;
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
+		    ext = (rl2PrivExternalGraphicPtr) (item->item);
+		else
+		    return NULL;
+		return ext;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_DECLARE int
+rl2_point_symbolizer_get_graphic_recode_count (rl2PointSymbolizerPtr
+					       symbolizer, int index,
+					       int *num_items)
+{
+/* return the Point Symbolizer Color Replacement Items Count */
+    int count = 0;
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return RL2_ERROR;
+    if (sym->graphic == NULL)
+	return RL2_ERROR;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		int cnt = 0;
+		rl2PrivColorReplacementPtr repl;
+		if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
+		    ext = (rl2PrivExternalGraphicPtr) (item->item);
+		else
+		    return RL2_ERROR;
+		repl = ext->first;
+		while (repl != NULL)
+		  {
+		      cnt++;
+		      repl = repl->next;
+		  }
+		*num_items = cnt;
+		return RL2_OK;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return RL2_ERROR;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_graphic_recode_color (rl2PointSymbolizerPtr
+						   symbolizer, int index,
+						   int repl_index,
+						   int *color_index)
+{
+/* return the Point Symbolizer Table Column Name: Color Replacement */
+    int count = 0;
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		int cnt = 0;
+		rl2PrivColorReplacementPtr repl;
+		if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
+		    ext = (rl2PrivExternalGraphicPtr) (item->item);
+		else
+		    return NULL;
+		repl = ext->first;
+		while (repl != NULL)
+		  {
+		      if (cnt == repl_index)
+			{
+			    *color_index = repl->index;
+			    return repl->col_color;
+			}
+		      cnt++;
+		      repl = repl->next;
+		  }
+		return NULL;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_PRIVATE rl2PrivColorReplacementPtr
+rl2_point_symbolizer_get_color_replacement_ref (rl2PointSymbolizerPtr
+						symbolizer, int index,
+						int repl_index,
+						int *color_index)
+{
+/* return a pointer to a Color Replacement object */
+    int count = 0;
+    rl2PrivExternalGraphicPtr ext;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		int cnt = 0;
+		rl2PrivColorReplacementPtr repl;
+		if (item->type == RL2_EXTERNAL_GRAPHIC && item->item != NULL)
+		    ext = (rl2PrivExternalGraphicPtr) (item->item);
+		else
+		    return NULL;
+		repl = ext->first;
+		while (repl != NULL)
+		  {
+		      if (cnt == repl_index)
+			{
+			    *color_index = repl->index;
+			    return repl;
+			}
+		      cnt++;
+		      repl = repl->next;
+		  }
+		return NULL;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_point_symbolizer_is_mark (rl2PointSymbolizerPtr symbolizer, int index,
 			      int *mark)
@@ -3286,6 +4413,65 @@ rl2_point_symbolizer_mark_get_well_known_type (rl2PointSymbolizerPtr
 	  item = item->next;
       }
     return RL2_ERROR;
+}
+
+RL2_PRIVATE rl2PrivMarkPtr
+rl2_point_symbolizer_get_mark_ref (rl2PointSymbolizerPtr symbolizer, int index)
+{
+/* return a pointer to a Mark object */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		return mark;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_well_known_type (rl2PointSymbolizerPtr
+						   symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: WellKnownType */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		return mark->col_mark_type;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
 }
 
 RL2_DECLARE int
@@ -3392,6 +4578,70 @@ rl2_point_symbolizer_mark_get_stroke_width (rl2PointSymbolizerPtr symbolizer,
     return RL2_ERROR;
 }
 
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_stroke_color (rl2PointSymbolizerPtr
+						symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Stroke Color */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->stroke == NULL)
+		    return NULL;
+		return mark->stroke->col_color;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_stroke_width (rl2PointSymbolizerPtr
+						symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Stroke Width */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->stroke == NULL)
+		    return NULL;
+		return mark->stroke->col_width;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_point_symbolizer_mark_get_stroke_linejoin (rl2PointSymbolizerPtr
 					       symbolizer, int index,
@@ -3458,6 +4708,70 @@ rl2_point_symbolizer_mark_get_stroke_linecap (rl2PointSymbolizerPtr
 	  item = item->next;
       }
     return RL2_ERROR;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_stroke_linejoin (rl2PointSymbolizerPtr
+						   symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Stroke LineJoin */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->stroke == NULL)
+		    return NULL;
+		return mark->stroke->col_join;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_stroke_linecap (rl2PointSymbolizerPtr
+						  symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Stroke LineCap */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->stroke == NULL)
+		    return NULL;
+		return mark->stroke->col_cap;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
 }
 
 RL2_DECLARE int
@@ -3568,6 +4882,70 @@ rl2_point_symbolizer_mark_get_stroke_dash_offset (rl2PointSymbolizerPtr
     return RL2_ERROR;
 }
 
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_stroke_dash_array (rl2PointSymbolizerPtr
+						     symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Stroke Dash Array */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->stroke == NULL)
+		    return NULL;
+		return mark->stroke->col_dash;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_stroke_dash_offset (rl2PointSymbolizerPtr
+						      symbolizer, int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Stroke Dash Offset */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->stroke == NULL)
+		    return NULL;
+		return mark->stroke->col_dashoff;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
 RL2_DECLARE int
 rl2_point_symbolizer_mark_has_fill (rl2PointSymbolizerPtr symbolizer,
 				    int index, int *fill)
@@ -3626,6 +5004,8 @@ rl2_point_symbolizer_mark_get_fill_color (rl2PointSymbolizerPtr symbolizer,
 		    mark = (rl2PrivMarkPtr) (item->item);
 		else
 		    return RL2_ERROR;
+		if (mark->fill == NULL)
+		    return RL2_ERROR;
 		*red = mark->fill->red;
 		*green = mark->fill->green;
 		*blue = mark->fill->blue;
@@ -3670,13 +5050,11 @@ rl2_point_symbolizer_get_rotation (rl2PointSymbolizerPtr symbolizer,
 {
 /* return a Point Symbolizer Rotation */
     rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
-    fprintf (stderr, "GetRotation2\n");
     if (sym == NULL)
 	return RL2_ERROR;
     if (sym->graphic == NULL)
 	return RL2_ERROR;
     *rotation = sym->graphic->rotation;
-    fprintf (stderr, "GetRotation2 %f\n", *rotation);
     return RL2_OK;
 }
 
@@ -3710,12 +5088,131 @@ rl2_point_symbolizer_get_displacement (rl2PointSymbolizerPtr symbolizer,
     return RL2_OK;
 }
 
+RL2_DECLARE const char *
+rl2_point_symbolizer_mark_get_col_fill_color (rl2PointSymbolizerPtr symbolizer,
+					      int index)
+{
+/* return the Point Symbolizer Mark Table Column Name: Fill Color */
+    int count = 0;
+    rl2PrivMarkPtr mark;
+    rl2PrivGraphicItemPtr item;
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    item = sym->graphic->first;
+    while (item != NULL)
+      {
+	  if (count == index)
+	    {
+		if (item->type == RL2_MARK_GRAPHIC && item->item != NULL)
+		    mark = (rl2PrivMarkPtr) (item->item);
+		else
+		    return NULL;
+		if (mark->fill == NULL)
+		    return NULL;
+		return mark->fill->col_color;
+	    }
+	  count++;
+	  item = item->next;
+      }
+    return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_opacity (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Opacity */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_opacity;
+    return RL2_OK;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_size (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Size */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_size;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_rotation (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Rotation */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_rotation;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_anchor_point_x (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Anchor Point X */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_point_x;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_anchor_point_y (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Anchor Point Y */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_point_y;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_displacement_x (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Displacement X */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_displ_x;
+}
+
+RL2_DECLARE const char *
+rl2_point_symbolizer_get_col_displacement_y (rl2PointSymbolizerPtr symbolizer)
+{
+/* return a Point Symbolizer Table Column Name: Displacement Y */
+    rl2PrivPointSymbolizerPtr sym = (rl2PrivPointSymbolizerPtr) symbolizer;
+    if (sym == NULL)
+	return NULL;
+    if (sym->graphic == NULL)
+	return NULL;
+    return sym->graphic->col_displ_y;
+}
+
 RL2_PRIVATE void
 rl2_destroy_color_replacement (rl2PrivColorReplacementPtr repl)
 {
 /* destroying a Color Replacement object */
     if (repl == NULL)
 	return;
+    if (repl->col_color != NULL)
+	free (repl->col_color);
     free (repl);
 }
 
@@ -3729,6 +5226,8 @@ rl2_destroy_external_graphic (rl2PrivExternalGraphicPtr ext)
 	return;
     if (ext->xlink_href != NULL)
 	free (ext->xlink_href);
+    if (ext->col_href != NULL)
+	free (ext->col_href);
     repl = ext->first;
     while (repl != NULL)
       {
@@ -3745,12 +5244,12 @@ rl2_destroy_mark (rl2PrivMarkPtr mark)
 /* destroying a Mark object */
     if (mark == NULL)
 	return;
-    if (mark->external_graphic != NULL)
-	rl2_destroy_external_graphic (mark->external_graphic);
     if (mark->stroke != NULL)
 	rl2_destroy_stroke (mark->stroke);
     if (mark->fill != NULL)
 	rl2_destroy_fill (mark->fill);
+    if (mark->col_mark_type != NULL)
+	free (mark->col_mark_type);
     free (mark);
 }
 
@@ -3782,6 +5281,20 @@ rl2_destroy_graphic (rl2PrivGraphicPtr graphic)
 	  rl2_destroy_graphic_item (item);
 	  item = itemN;
       }
+    if (graphic->col_opacity != NULL)
+	free (graphic->col_opacity);
+    if (graphic->col_rotation != NULL)
+	free (graphic->col_rotation);
+    if (graphic->col_size != NULL)
+	free (graphic->col_size);
+    if (graphic->col_point_x != NULL)
+	free (graphic->col_point_x);
+    if (graphic->col_point_y != NULL)
+	free (graphic->col_point_y);
+    if (graphic->col_displ_x != NULL)
+	free (graphic->col_displ_x);
+    if (graphic->col_displ_y != NULL)
+	free (graphic->col_displ_y);
     free (graphic);
 }
 
@@ -3795,6 +5308,20 @@ rl2_destroy_stroke (rl2PrivStrokePtr stroke)
 	rl2_destroy_graphic (stroke->graphic);
     if (stroke->dash_list != NULL)
 	free (stroke->dash_list);
+    if (stroke->col_color != NULL)
+	free (stroke->col_color);
+    if (stroke->col_opacity != NULL)
+	free (stroke->col_opacity);
+    if (stroke->col_width != NULL)
+	free (stroke->col_width);
+    if (stroke->col_join != NULL)
+	free (stroke->col_join);
+    if (stroke->col_cap != NULL)
+	free (stroke->col_cap);
+    if (stroke->col_dash != NULL)
+	free (stroke->col_dash);
+    if (stroke->col_dashoff != NULL)
+	free (stroke->col_dashoff);
     free (stroke);
 }
 
@@ -3806,6 +5333,10 @@ rl2_destroy_fill (rl2PrivFillPtr fill)
 	return;
     if (fill->graphic != NULL)
 	rl2_destroy_graphic (fill->graphic);
+    if (fill->col_color != NULL)
+	free (fill->col_color);
+    if (fill->col_opacity != NULL)
+	free (fill->col_opacity);
     free (fill);
 }
 
@@ -3828,6 +5359,8 @@ rl2_destroy_line_symbolizer (rl2PrivLineSymbolizerPtr ptr)
 	return;
     if (ptr->stroke != NULL)
 	rl2_destroy_stroke (ptr->stroke);
+    if (ptr->col_perpoff != NULL)
+	free (ptr->col_perpoff);
     free (ptr);
 }
 
@@ -3841,6 +5374,12 @@ rl2_destroy_polygon_symbolizer (rl2PrivPolygonSymbolizerPtr ptr)
 	rl2_destroy_stroke (ptr->stroke);
     if (ptr->fill != NULL)
 	rl2_destroy_fill (ptr->fill);
+    if (ptr->col_displ_x != NULL)
+	free (ptr->col_displ_x);
+    if (ptr->col_displ_y != NULL)
+	free (ptr->col_displ_y);
+    if (ptr->col_perpoff != NULL)
+	free (ptr->col_perpoff);
     free (ptr);
 }
 
@@ -3850,6 +5389,16 @@ rl2_destroy_point_placement (rl2PrivPointPlacementPtr place)
 /* destroying a PointPlacement object */
     if (place == NULL)
 	return;
+    if (place->col_point_x != NULL)
+	free (place->col_point_x);
+    if (place->col_point_y != NULL)
+	free (place->col_point_y);
+    if (place->col_displ_x != NULL)
+	free (place->col_displ_x);
+    if (place->col_displ_y != NULL)
+	free (place->col_displ_y);
+    if (place->col_rotation != NULL)
+	free (place->col_rotation);
     free (place);
 }
 
@@ -3859,6 +5408,12 @@ rl2_destroy_line_placement (rl2PrivLinePlacementPtr place)
 /* destroying a LinePlacement object */
     if (place == NULL)
 	return;
+    if (place->col_perpoff != NULL)
+	free (place->col_perpoff);
+    if (place->col_inigap != NULL)
+	free (place->col_inigap);
+    if (place->col_gap != NULL)
+	free (place->col_gap);
     free (place);
 }
 
@@ -3870,6 +5425,8 @@ rl2_destroy_halo (rl2PrivHaloPtr halo)
 	return;
     if (halo->fill != NULL)
 	rl2_destroy_fill (halo->fill);
+    if (halo->col_radius != NULL)
+	free (halo->col_radius);
     free (halo);
 }
 
@@ -3882,6 +5439,16 @@ rl2_destroy_text_symbolizer (rl2PrivTextSymbolizerPtr ptr)
 	return;
     if (ptr->label != NULL)
 	free (ptr->label);
+    if (ptr->col_label != NULL)
+	free (ptr->col_label);
+    if (ptr->col_font != NULL)
+	free (ptr->col_font);
+    if (ptr->col_style != NULL)
+	free (ptr->col_style);
+    if (ptr->col_weight != NULL)
+	free (ptr->col_weight);
+    if (ptr->col_size != NULL)
+	free (ptr->col_size);
     for (i = 0; i < RL2_MAX_FONT_FAMILIES; i++)
       {
 	  if (*(ptr->font_families + i) != NULL)

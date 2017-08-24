@@ -2362,7 +2362,7 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 					/* first attempt: Bitmap */
 					pattern =
 					    rl2_create_pattern_from_external_graphic
-					    (handle, xlink_href, 1);
+					    (handle, xlink_href, 0);
 					if (pattern == NULL)
 					  {
 					      /* second attempt: SVG */
@@ -2477,11 +2477,13 @@ draw_points (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 			{
 			    rl2_graph_release_pattern_pen (ctx);
 			    rl2_graph_destroy_pattern (pattern_fill);
+			    pattern_fill = NULL;
 			}
 		      if (pattern_stroke != NULL)
 			{
 			    rl2_graph_release_pattern_pen (ctx);
 			    rl2_graph_destroy_pattern (pattern_stroke);
+			    pattern_stroke = NULL;
 			}
 		      graphic = graphic->next;
 		  }
@@ -3335,11 +3337,13 @@ draw_polygons (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	    {
 		rl2_graph_release_pattern_brush (ctx);
 		rl2_graph_destroy_pattern (pattern_fill);
+		pattern_fill = NULL;
 	    }
 	  if (pattern_stroke != NULL)
 	    {
 		rl2_graph_release_pattern_pen (ctx);
 		rl2_graph_destroy_pattern (pattern_stroke);
+		pattern_stroke = NULL;
 	    }
 	  item = item->next;
       }
@@ -3987,12 +3991,12 @@ static void
 draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
 	     const void *priv_data, rl2PrivTextSymbolizerPtr sym, int height,
 	     double minx, double miny, double maxx, double maxy, double x_res,
-	     double y_res, rl2GeometryPtr geom, rl2PrivVariantValuePtr value)
+	     double y_res, rl2GeometryPtr geom)
 {
 /* drawing TextLabels */
     rl2GraphicsFontPtr font = NULL;
     char *dummy = NULL;
-    const char *label = NULL;
+    const char *label = sym->label;
     int font_style;
     int font_weight;
     double opacity;
@@ -4013,24 +4017,6 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
     int generalize_line = 0;
     int i;
 
-/* preparing the Text */
-    if (value->sqlite3_type == SQLITE_INTEGER)
-      {
-	  dummy = sqlite3_malloc (1024);
-#if defined(_WIN32) && !defined(__MINGW32__)
-	  sprintf (dummy, "%I64d", value->int_value);
-#else
-	  sprintf (dummy, "%lld", value->int_value);
-#endif
-	  label = dummy;
-      }
-    if (value->sqlite3_type == SQLITE_FLOAT)
-      {
-	  dummy = sqlite3_mprintf ("%1.2f", value->dbl_value);
-	  label = dummy;
-      }
-    if (value->sqlite3_type == SQLITE_TEXT)
-	label = (const char *) (value->text_value);
     if (label == NULL)
 	return;
 
@@ -4445,6 +4431,64 @@ draw_labels (rl2GraphicsContextPtr ctx, sqlite3 * handle,
       }
 }
 
+static rl2PrivVectorSymbolizerPtr
+create_dyn_symbolizer (rl2PrivVectorSymbolizerPtr in,
+		       rl2PrivVariantArrayPtr var)
+{
+/* creating a dynamic symbolizer based on current column values */
+    rl2PrivVectorSymbolizerItemPtr item_in;
+    rl2PrivVectorSymbolizerPtr out = rl2_create_default_vector_symbolizer ();
+
+    item_in = in->first;
+    while (item_in != NULL)
+      {
+	  /* copying individual Symbolizers */
+	  if (item_in->symbolizer_type == RL2_POINT_SYMBOLIZER)
+	    {
+		/* cloning a Point Symbolizer */
+		rl2PrivPointSymbolizerPtr point_in = item_in->symbolizer;
+		rl2PrivPointSymbolizerPtr point_out =
+		    rl2_clone_point_symbolizer (point_in);
+		/* handling dynamic values (column based) */
+		rl2_set_point_symbolizer_dyn_values (var, point_out);
+		rl2_add_dyn_symbolizer (out, RL2_POINT_SYMBOLIZER, point_out);
+	    }
+	  if (item_in->symbolizer_type == RL2_LINE_SYMBOLIZER)
+	    {
+		/* cloning a Line Symbolizer */
+		rl2PrivLineSymbolizerPtr line_in = item_in->symbolizer;
+		rl2PrivLineSymbolizerPtr line_out =
+		    rl2_clone_line_symbolizer (line_in);
+		/* handling dynamic values (column based) */
+		rl2_set_line_symbolizer_dyn_values (var, line_out);
+		rl2_add_dyn_symbolizer (out, RL2_LINE_SYMBOLIZER, line_out);
+	    }
+	  if (item_in->symbolizer_type == RL2_POLYGON_SYMBOLIZER)
+	    {
+		/* cloning a Polygon Symbolizer */
+		rl2PrivPolygonSymbolizerPtr polyg_in = item_in->symbolizer;
+		rl2PrivPolygonSymbolizerPtr polyg_out =
+		    rl2_clone_polygon_symbolizer (polyg_in);
+		/* handling dynamic values (column based) */
+		rl2_set_polygon_symbolizer_dyn_values (var, polyg_out);
+		rl2_add_dyn_symbolizer (out, RL2_POLYGON_SYMBOLIZER, polyg_out);
+	    }
+	  if (item_in->symbolizer_type == RL2_TEXT_SYMBOLIZER)
+	    {
+		/* cloning a Text Symbolizer */
+		rl2PrivTextSymbolizerPtr text_in = item_in->symbolizer;
+		rl2PrivTextSymbolizerPtr text_out =
+		    rl2_clone_text_symbolizer (text_in);
+		/* handling dynamic values (column based) */
+		rl2_set_text_symbolizer_dyn_values (var, text_out);
+		rl2_add_dyn_symbolizer (out, RL2_TEXT_SYMBOLIZER, text_out);
+	    }
+	  item_in = item_in->next;
+      }
+
+    return out;
+}
+
 RL2_PRIVATE void
 rl2_draw_vector_feature (void *p_ctx, void *p_ctx_labels, sqlite3 * handle,
 			 const void *priv_data,
@@ -4459,11 +4503,19 @@ rl2_draw_vector_feature (void *p_ctx, void *p_ctx_labels, sqlite3 * handle,
     rl2GraphicsContextPtr ctx_labels = (rl2GraphicsContextPtr) p_ctx_labels;
     rl2PrivVectorSymbolizerPtr sym = (rl2PrivVectorSymbolizerPtr) symbolizer;
     rl2PrivVectorSymbolizerPtr default_symbolizer = NULL;
+    rl2PrivVectorSymbolizerPtr dyn_symbolizer = NULL;
 
     if (ctx == NULL || geom == NULL)
 	return;
 
-    if (sym == NULL)
+    if (sym != NULL)
+      {
+	  /* creating a dynamic symbolizer */
+	  dyn_symbolizer =
+	      create_dyn_symbolizer (sym, (rl2PrivVariantArrayPtr) variant);
+	  sym = dyn_symbolizer;
+      }
+    else
       {
 	  /* creating a default general purpose Symbolizer */
 	  default_symbolizer = rl2_create_default_vector_symbolizer ();
@@ -4551,7 +4603,7 @@ rl2_draw_vector_feature (void *p_ctx, void *p_ctx_labels, sqlite3 * handle,
 	draw_points (ctx, handle, sym, height, minx, miny, maxx, maxy, x_res,
 		     y_res, geom);
 
-    if (sym != NULL)
+    if (sym != NULL && ctx_labels != NULL)
       {
 	  /* then we'll render any eventual TextSymbolizer */
 	  item = sym->first;
@@ -4563,31 +4615,10 @@ rl2_draw_vector_feature (void *p_ctx, void *p_ctx_labels, sqlite3 * handle,
 		      rl2PrivTextSymbolizerPtr text =
 			  (rl2PrivTextSymbolizerPtr) (item->symbolizer);
 		      if (text->label != NULL)
-			{
-			    int v;
-			    rl2PrivVariantArrayPtr var =
-				(rl2PrivVariantArrayPtr) variant;
-			    if (var != NULL)
-			      {
-				  for (v = 0; v < var->count; v++)
-				    {
-					rl2PrivVariantValuePtr val =
-					    *(var->array + v);
-					if (val == NULL)
-					    continue;
-					if (val->column_name == NULL)
-					    continue;
-					if (strcasecmp
-					    (text->label,
-					     val->column_name) != 0)
-					    continue;
-					draw_labels (ctx_labels, handle,
-						     priv_data, text, height,
-						     minx, miny, maxx, maxy,
-						     x_res, y_res, geom, val);
-				    }
-			      }
-			}
+			  draw_labels (ctx_labels, handle,
+				       priv_data, text, height,
+				       minx, miny, maxx, maxy,
+				       x_res, y_res, geom);
 		  }
 		item = item->next;
 	    }
@@ -4595,6 +4626,8 @@ rl2_draw_vector_feature (void *p_ctx, void *p_ctx_labels, sqlite3 * handle,
 
     if (default_symbolizer != NULL)
 	rl2_destroy_vector_symbolizer (default_symbolizer);
+    if (dyn_symbolizer != NULL)
+	rl2_destroy_vector_symbolizer (dyn_symbolizer);
 }
 
 RL2_PRIVATE int

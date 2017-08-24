@@ -5258,10 +5258,22 @@ extern "C"
 						symbolizer, int index);
 
     RL2_DECLARE int
+	rl2_point_symbolizer_get_graphic_recode_count
+	(rl2PointSymbolizerPtr symbolizer, int index, int *count);
+
+    RL2_DECLARE int
 	rl2_point_symbolizer_get_graphic_recode_color
 	(rl2PointSymbolizerPtr symbolizer, int index, int repl_index,
 	 int *color_index, unsigned char *red, unsigned char *green,
 	 unsigned char *blue);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_graphic_href (rl2PointSymbolizerPtr
+						    symbolizer, int index);
+
+    RL2_DECLARE const char *rl2_point_symbolizer_get_col_graphic_recode_color
+	(rl2PointSymbolizerPtr symbolizer, int index, int repl_index,
+	 int *color_index);
 
     RL2_DECLARE int
 	rl2_point_symbolizer_is_mark (rl2PointSymbolizerPtr symbolizer,
@@ -5271,6 +5283,10 @@ extern "C"
 	rl2_point_symbolizer_mark_get_well_known_type (rl2PointSymbolizerPtr
 						       symbolizer, int index,
 						       unsigned char *type);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_well_known_type
+	(rl2PointSymbolizerPtr symbolizer, int index);
 
     RL2_DECLARE int
 	rl2_point_symbolizer_mark_has_stroke (rl2PointSymbolizerPtr symbolizer,
@@ -5288,6 +5304,14 @@ extern "C"
 						    symbolizer, int index,
 						    double *width);
 
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_stroke_color (rl2PointSymbolizerPtr
+							 symbolizer, int index);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_stroke_width (rl2PointSymbolizerPtr
+							 symbolizer, int index);
+
     RL2_DECLARE int
 	rl2_point_symbolizer_mark_get_stroke_linejoin (rl2PointSymbolizerPtr
 						       symbolizer, int index,
@@ -5297,6 +5321,15 @@ extern "C"
 	rl2_point_symbolizer_mark_get_stroke_linecap (rl2PointSymbolizerPtr
 						      symbolizer, int index,
 						      unsigned char *linecap);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_stroke_linejoin
+	(rl2PointSymbolizerPtr symbolizer, int index);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_stroke_linecap (rl2PointSymbolizerPtr
+							   symbolizer,
+							   int index);
 
     RL2_DECLARE int
 	rl2_point_symbolizer_mark_get_stroke_dash_offset (rl2PointSymbolizerPtr
@@ -5313,6 +5346,14 @@ extern "C"
 							symbolizer, int index,
 							int item_index,
 							double *item);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_stroke_dash_array
+	(rl2PointSymbolizerPtr symbolizer, int index);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_stroke_dash_offset
+	(rl2PointSymbolizerPtr symbolizer, int index);
 
     RL2_DECLARE int
 	rl2_point_symbolizer_mark_has_fill (rl2PointSymbolizerPtr symbolizer,
@@ -5345,6 +5386,37 @@ extern "C"
 	rl2_point_symbolizer_get_displacement (rl2PointSymbolizerPtr symbolizer,
 					       double *x, double *y);
 
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_mark_get_col_fill_color (rl2PointSymbolizerPtr
+						       symbolizer, int index);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_opacity (rl2PointSymbolizerPtr
+					       symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_size (rl2PointSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_rotation (rl2PointSymbolizerPtr
+						symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_anchor_point_x (rl2PointSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_anchor_point_y (rl2PointSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_displacement_x (rl2PointSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_point_symbolizer_get_col_displacement_y (rl2PointSymbolizerPtr
+						      symbolizer);
+
     RL2_DECLARE int
 	rl2_line_symbolizer_has_stroke (rl2LineSymbolizerPtr symbolizer,
 					int *stroke);
@@ -5372,6 +5444,14 @@ extern "C"
 					      unsigned char *green,
 					      unsigned char *blue);
 
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_graphic_stroke_href (rl2LineSymbolizerPtr
+							  symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_graphic_stroke_recode_color
+	(rl2LineSymbolizerPtr symbolizer, int index, int *color_index);
+
     RL2_DECLARE int
 	rl2_line_symbolizer_get_stroke_opacity (rl2LineSymbolizerPtr symbolizer,
 						double *opacity);
@@ -5379,6 +5459,18 @@ extern "C"
     RL2_DECLARE int
 	rl2_line_symbolizer_get_stroke_width (rl2LineSymbolizerPtr symbolizer,
 					      double *width);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_color (rl2LineSymbolizerPtr
+						   symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_opacity (rl2LineSymbolizerPtr
+						     symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_width (rl2LineSymbolizerPtr
+						   symbolizer);
 
     RL2_DECLARE int
 	rl2_line_symbolizer_get_stroke_linejoin (rl2LineSymbolizerPtr
@@ -5389,6 +5481,14 @@ extern "C"
 	rl2_line_symbolizer_get_stroke_linecap (rl2LineSymbolizerPtr symbolizer,
 						unsigned char *linecap);
 
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_linejoin (rl2LineSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_linecap (rl2LineSymbolizerPtr
+						     symbolizer);
+
     RL2_DECLARE int
 	rl2_line_symbolizer_get_stroke_dash_offset (rl2LineSymbolizerPtr
 						    symbolizer, double *offset);
@@ -5396,6 +5496,14 @@ extern "C"
     RL2_DECLARE int
 	rl2_line_symbolizer_get_stroke_dash_count (rl2LineSymbolizerPtr
 						   symbolizer, int *count);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_dash_array (rl2LineSymbolizerPtr
+							symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_stroke_dash_offset (rl2LineSymbolizerPtr
+							 symbolizer);
 
     RL2_DECLARE int
 	rl2_line_symbolizer_get_stroke_dash_item (rl2LineSymbolizerPtr
@@ -5406,6 +5514,10 @@ extern "C"
 	rl2_line_symbolizer_get_perpendicular_offset (rl2LineSymbolizerPtr
 						      symbolizer,
 						      double *offset);
+
+    RL2_DECLARE const char
+	*rl2_line_symbolizer_get_col_perpendicular_offset (rl2LineSymbolizerPtr
+							   symbolizer);
 
     RL2_DECLARE int
 	rl2_polygon_symbolizer_has_stroke (rl2PolygonSymbolizerPtr symbolizer,
@@ -5428,6 +5540,14 @@ extern "C"
 	(rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index,
 	 unsigned char *red, unsigned char *green, unsigned char *blue);
 
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_graphic_stroke_href
+	(rl2PolygonSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_graphic_stroke_recode_color
+	(rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index);
+
     RL2_DECLARE int
 	rl2_polygon_symbolizer_get_stroke_color (rl2PolygonSymbolizerPtr
 						 symbolizer, unsigned char *red,
@@ -5442,6 +5562,18 @@ extern "C"
 	rl2_polygon_symbolizer_get_stroke_width (rl2PolygonSymbolizerPtr
 						 symbolizer, double *width);
 
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_color (rl2PolygonSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_opacity (rl2PolygonSymbolizerPtr
+							symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_width (rl2PolygonSymbolizerPtr
+						      symbolizer);
+
     RL2_DECLARE int
 	rl2_polygon_symbolizer_get_stroke_linejoin (rl2PolygonSymbolizerPtr
 						    symbolizer,
@@ -5452,6 +5584,14 @@ extern "C"
 						   symbolizer,
 						   unsigned char *linecap);
 
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_linejoin (rl2PolygonSymbolizerPtr
+							 symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_linecap (rl2PolygonSymbolizerPtr
+							symbolizer);
+
     RL2_DECLARE int
 	rl2_polygon_symbolizer_get_stroke_dash_offset (rl2PolygonSymbolizerPtr
 						       symbolizer,
@@ -5460,6 +5600,14 @@ extern "C"
     RL2_DECLARE int
 	rl2_polygon_symbolizer_get_stroke_dash_count (rl2PolygonSymbolizerPtr
 						      symbolizer, int *count);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_dash_array
+	(rl2PolygonSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_stroke_dash_offset
+	(rl2PolygonSymbolizerPtr symbolizer);
 
     RL2_DECLARE int
 	rl2_polygon_symbolizer_get_stroke_dash_item (rl2PolygonSymbolizerPtr
@@ -5483,9 +5631,21 @@ extern "C"
 	(rl2PolygonSymbolizerPtr symbolizer, int *count);
 
     RL2_DECLARE int
+	rl2_polygon_symbolizer_get_graphic_fill_recode_count
+	(rl2PolygonSymbolizerPtr symbolizer, int *count);
+
+    RL2_DECLARE int
 	rl2_polygon_symbolizer_get_graphic_fill_recode_color
 	(rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index,
 	 unsigned char *red, unsigned char *green, unsigned char *blue);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_graphic_fill_href
+	(rl2PolygonSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_graphic_fill_recode_color
+	(rl2PolygonSymbolizerPtr symbolizer, int index, int *color_index);
 
     RL2_DECLARE int
 	rl2_polygon_symbolizer_get_fill_color (rl2PolygonSymbolizerPtr
@@ -5507,8 +5667,63 @@ extern "C"
 							 symbolizer,
 							 double *offset);
 
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_fill_color (rl2PolygonSymbolizerPtr
+						    symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_fill_opacity (rl2PolygonSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_displacement_x (rl2PolygonSymbolizerPtr
+							symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_displacement_y (rl2PolygonSymbolizerPtr
+							symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_polygon_symbolizer_get_col_perpendicular_offset
+	(rl2PolygonSymbolizerPtr symbolizer);
+
     RL2_DECLARE const char *rl2_text_symbolizer_get_label (rl2TextSymbolizerPtr
 							   symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_label (rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_font (rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_style (rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_weight (rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_size (rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_point_placement_col_anchor_point_x
+	(rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_point_placement_col_anchor_point_y
+	(rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_point_placement_col_displacement_x
+	(rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_point_placement_col_displacement_y
+	(rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_point_placement_col_rotation
+	(rl2TextSymbolizerPtr symbolizer);
 
     RL2_DECLARE int
 	rl2_text_symbolizer_get_font_families_count (rl2TextSymbolizerPtr
@@ -5576,6 +5791,17 @@ extern "C"
 	rl2_text_symbolizer_get_line_placement_generalize_line
 	(rl2TextSymbolizerPtr symbolizer, int *generalize_line);
 
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_line_placement_col_perpendicular_offset
+	(rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_line_placement_col_initial_gap
+	(rl2TextSymbolizerPtr symbolizer);
+
+    RL2_DECLARE const char *rl2_text_symbolizer_get_line_placement_col_gap
+	(rl2TextSymbolizerPtr symbolizer);
+
     RL2_DECLARE int
 	rl2_text_symbolizer_has_halo (rl2TextSymbolizerPtr symbolizer,
 				      int *halo);
@@ -5583,6 +5809,10 @@ extern "C"
     RL2_DECLARE int
 	rl2_text_symbolizer_get_halo_radius (rl2TextSymbolizerPtr symbolizer,
 					     double *radius);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_halo_col_radius (rl2TextSymbolizerPtr
+						  symbolizer);
 
     RL2_DECLARE int
 	rl2_text_symbolizer_has_halo_fill (rl2TextSymbolizerPtr symbolizer,
@@ -5594,6 +5824,18 @@ extern "C"
 						 unsigned char *green,
 						 unsigned char *blue);
 
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_halo_col_fill_color (rl2TextSymbolizerPtr
+						      symbolizer);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_halo_fill_opacity (rl2TextSymbolizerPtr
+						   symbolizer, double *opacity);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_halo_col_fill_opacity (rl2TextSymbolizerPtr
+							symbolizer);
+
     RL2_DECLARE int
 	rl2_text_symbolizer_has_fill (rl2TextSymbolizerPtr symbolizer,
 				      int *fill);
@@ -5603,6 +5845,18 @@ extern "C"
 					    unsigned char *red,
 					    unsigned char *green,
 					    unsigned char *blue);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_fill_color (rl2TextSymbolizerPtr
+						 symbolizer);
+
+    RL2_DECLARE int
+	rl2_text_symbolizer_get_fill_opacity (rl2TextSymbolizerPtr
+					      symbolizer, double *opacity);
+
+    RL2_DECLARE const char
+	*rl2_text_symbolizer_get_col_fill_opacity (rl2TextSymbolizerPtr
+						   symbolizer);
 
     RL2_DECLARE rl2GroupStylePtr
 	rl2_create_group_style_from_dbms (sqlite3 * handle,

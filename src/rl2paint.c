@@ -1763,6 +1763,7 @@ rl2_graph_create_toy_font (const char *facename, double size, int style,
     if (fnt == NULL)
 	return NULL;
     fnt->toy_font = 1;
+    fnt->cairo_scaled_font = NULL;
     fnt->tt_font = NULL;
     if (facename == NULL)
 	facename = "monospace";
@@ -2024,7 +2025,10 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
       {
 	  /* True Type Font */
 	  if (fnt->cairo_scaled_font != NULL)
-	      cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+	    {
+			if (cairo_scaled_font_get_reference_count(fnt->cairo_scaled_font) > 0)
+		cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+	    }
 	  if (fnt->cairo_font != NULL)
 	    {
 		if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
@@ -2036,6 +2040,16 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 	  /* Cairo Toy Font */
 	  if (fnt->facename != NULL)
 	      free (fnt->facename);
+	  if (fnt->cairo_scaled_font != NULL)
+	    {
+			if (cairo_scaled_font_get_reference_count(fnt->cairo_scaled_font) > 0)
+		cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+	    }
+	  if (fnt->cairo_font != NULL)
+	    {
+		if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
+		    cairo_font_face_destroy (fnt->cairo_font);
+	    }
       }
     free (fnt);
 }
@@ -2835,7 +2849,8 @@ aux_reduce_curve (sqlite3 * handle, rl2GeometryPtr geom,
 }
 
 static int
-interpolate_point (sqlite3 * handle, rl2GeometryPtr geom, double percent, double *x, double *y)
+interpolate_point (sqlite3 * handle, rl2GeometryPtr geom, double percent,
+		   double *x, double *y)
 {
 /* interpolating a point on a Line */
     sqlite3_stmt *stmt = NULL;
@@ -2895,7 +2910,7 @@ interpolate_point (sqlite3 * handle, rl2GeometryPtr geom, double percent, double
 }
 
 static int
-check_reverse (sqlite3 *sqlite, rl2GeometryPtr geom, double text_length)
+check_reverse (sqlite3 * sqlite, rl2GeometryPtr geom, double text_length)
 {
 /* testing for an inverse label */
     rl2LinestringPtr ln;
@@ -2912,13 +2927,13 @@ check_reverse (sqlite3 *sqlite, rl2GeometryPtr geom, double text_length)
     ln = geom->first_linestring;
     if (ln == NULL)
 	return 0;
-    
+
     line_length = rl2_compute_curve_length (geom);
     if (line_length < text_length)
-    return 0;
+	return 0;
     percent = text_length / line_length;
-    if (!interpolate_point(sqlite, geom, percent, &x1, &y1))
-    return 0;
+    if (!interpolate_point (sqlite, geom, percent, &x1, &y1))
+	return 0;
 
     rl2GetPoint (ln->coords, 0, &x0, &y0);
     width = fabs (x0 - x1);
@@ -2975,7 +2990,7 @@ rl2_draw_wrapped_label (sqlite3 * handle, rl2GraphicsContextPtr context,
     radius =
 	sqrt ((extents.max_x_advance * extents.max_x_advance) +
 	      (extents.height * extents.height)) / 2.0;
-    if (check_reverse (handle, g, radius * strlen(text)))
+    if (check_reverse (handle, g, radius * strlen (text)))
       {
 	  /* reverse text */
 	  int len = strlen (text);
@@ -3009,7 +3024,7 @@ rl2_draw_wrapped_label (sqlite3 * handle, rl2GraphicsContextPtr context,
 	  g = g2;
       }
     if (rev_text)
-	free (rev_text); 
+	free (rev_text);
     return g;
 }
 

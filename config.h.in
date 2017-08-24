@@ -73,6 +73,9 @@
 /* Define to 1 if you have the <openjpeg-2.1/openjpeg.h> header file. */
 #undef HAVE_OPENJPEG_2_1_OPENJPEG_H
 
+/* Define to 1 if you have the <openjpeg-2.2/openjpeg.h> header file. */
+#undef HAVE_OPENJPEG_2_2_OPENJPEG_H
+
 /* Define to 1 if you have the <png.h> header file. */
 #undef HAVE_PNG_H
 
@@ -156,6 +159,9 @@
 
 /* testing for OpenJpeg 2.1 */
 #undef OPENJPEG_2_1
+
+/* testing for OpenJpeg 2.2 */
+#undef OPENJPEG_2_2
 
 /* Name of package */
 #undef PACKAGE

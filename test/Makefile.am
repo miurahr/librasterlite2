@@ -19,10 +19,13 @@ check_PROGRAMS = test_coverage test_palette \
 	test_map_trieste test_map_infrared \
 	test_map_orbetello test_raster_symbolizer \
 	test_svg test_raw test_openjpeg \
-	test_line_symbolizer test_polygon_symbolizer \
-	test_point_symbolizer test_text_symbolizer \
+	test_line_symbolizer test_line_symbolizer_col \
+	test_polygon_symbolizer test_polygon_symbolizer_col \
+	test_point_symbolizer test_point_symbolizer_col \
+	test_text_symbolizer test_text_symbolizer_col \
 	test_vectors test_font test_copy_rastercov \
-	test_tile_callback test_map_vector
+	test_tile_callback test_map_vector \
+	test_col_symbolizers
 
 AM_CPPFLAGS = -I@srcdir@/../headers @LIBXML2_CFLAGS@
 AM_LDFLAGS = -L../src -lrasterlite2 @LIBCAIRO_LIBS@ @LIBPNG_LIBS@ \

@@ -109,11 +109,17 @@ check_PROGRAMS = test_coverage$(EXEEXT) test_palette$(EXEEXT) \
 	test_map_trieste$(EXEEXT) test_map_infrared$(EXEEXT) \
 	test_map_orbetello$(EXEEXT) test_raster_symbolizer$(EXEEXT) \
 	test_svg$(EXEEXT) test_raw$(EXEEXT) test_openjpeg$(EXEEXT) \
-	test_line_symbolizer$(EXEEXT) test_polygon_symbolizer$(EXEEXT) \
-	test_point_symbolizer$(EXEEXT) test_text_symbolizer$(EXEEXT) \
-	test_vectors$(EXEEXT) test_font$(EXEEXT) \
-	test_copy_rastercov$(EXEEXT) test_tile_callback$(EXEEXT) \
-	test_map_vector$(EXEEXT)
+	test_line_symbolizer$(EXEEXT) \
+	test_line_symbolizer_col$(EXEEXT) \
+	test_polygon_symbolizer$(EXEEXT) \
+	test_polygon_symbolizer_col$(EXEEXT) \
+	test_point_symbolizer$(EXEEXT) \
+	test_point_symbolizer_col$(EXEEXT) \
+	test_text_symbolizer$(EXEEXT) \
+	test_text_symbolizer_col$(EXEEXT) test_vectors$(EXEEXT) \
+	test_font$(EXEEXT) test_copy_rastercov$(EXEEXT) \
+	test_tile_callback$(EXEEXT) test_map_vector$(EXEEXT) \
+	test_col_symbolizers$(EXEEXT)
 subdir = test
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
@@ -194,6 +200,9 @@ test8_LDADD = $(LDADD)
 test9_SOURCES = test9.c
 test9_OBJECTS = test9.$(OBJEXT)
 test9_LDADD = $(LDADD)
+test_col_symbolizers_SOURCES = test_col_symbolizers.c
+test_col_symbolizers_OBJECTS = test_col_symbolizers.$(OBJEXT)
+test_col_symbolizers_LDADD = $(LDADD)
 test_copy_rastercov_SOURCES = test_copy_rastercov.c
 test_copy_rastercov_OBJECTS = test_copy_rastercov.$(OBJEXT)
 test_copy_rastercov_LDADD = $(LDADD)
@@ -209,6 +218,9 @@ test_gif_LDADD = $(LDADD)
 test_line_symbolizer_SOURCES = test_line_symbolizer.c
 test_line_symbolizer_OBJECTS = test_line_symbolizer.$(OBJEXT)
 test_line_symbolizer_LDADD = $(LDADD)
+test_line_symbolizer_col_SOURCES = test_line_symbolizer_col.c
+test_line_symbolizer_col_OBJECTS = test_line_symbolizer_col.$(OBJEXT)
+test_line_symbolizer_col_LDADD = $(LDADD)
 test_load_wms_SOURCES = test_load_wms.c
 test_load_wms_OBJECTS = test_load_wms.$(OBJEXT)
 test_load_wms_LDADD = $(LDADD)
@@ -284,9 +296,17 @@ test_palette_LDADD = $(LDADD)
 test_point_symbolizer_SOURCES = test_point_symbolizer.c
 test_point_symbolizer_OBJECTS = test_point_symbolizer.$(OBJEXT)
 test_point_symbolizer_LDADD = $(LDADD)
+test_point_symbolizer_col_SOURCES = test_point_symbolizer_col.c
+test_point_symbolizer_col_OBJECTS =  \
+	test_point_symbolizer_col.$(OBJEXT)
+test_point_symbolizer_col_LDADD = $(LDADD)
 test_polygon_symbolizer_SOURCES = test_polygon_symbolizer.c
 test_polygon_symbolizer_OBJECTS = test_polygon_symbolizer.$(OBJEXT)
 test_polygon_symbolizer_LDADD = $(LDADD)
+test_polygon_symbolizer_col_SOURCES = test_polygon_symbolizer_col.c
+test_polygon_symbolizer_col_OBJECTS =  \
+	test_polygon_symbolizer_col.$(OBJEXT)
+test_polygon_symbolizer_col_LDADD = $(LDADD)
 test_raster_SOURCES = test_raster.c
 test_raster_OBJECTS = test_raster.$(OBJEXT)
 test_raster_LDADD = $(LDADD)
@@ -305,6 +325,9 @@ test_svg_LDADD = $(LDADD)
 test_text_symbolizer_SOURCES = test_text_symbolizer.c
 test_text_symbolizer_OBJECTS = test_text_symbolizer.$(OBJEXT)
 test_text_symbolizer_LDADD = $(LDADD)
+test_text_symbolizer_col_SOURCES = test_text_symbolizer_col.c
+test_text_symbolizer_col_OBJECTS = test_text_symbolizer_col.$(OBJEXT)
+test_text_symbolizer_col_LDADD = $(LDADD)
 test_tifin_SOURCES = test_tifin.c
 test_tifin_OBJECTS = test_tifin.$(OBJEXT)
 test_tifin_LDADD = $(LDADD)
@@ -363,37 +386,41 @@ am__v_CCLD_1 =
 SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c test13.c \
 	test14.c test15.c test16.c test17.c test18.c test19.c test2.c \
 	test20.c test3.c test4.c test5.c test6.c test7.c test8.c \
-	test9.c test_copy_rastercov.c test_coverage.c test_font.c \
-	test_gif.c test_line_symbolizer.c test_load_wms.c \
-	test_map_ascii.c test_map_gray.c test_map_indiana.c \
-	test_map_infrared.c test_map_mono.c test_map_nile_32.c \
-	test_map_nile_8.c test_map_nile_dbl.c test_map_nile_flt.c \
-	test_map_nile_u16.c test_map_nile_u32.c test_map_nile_u8.c \
-	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
-	test_map_srtm.c test_map_trento.c test_map_trieste.c \
-	test_map_vector.c test_mask.c test_openjpeg.c test_paint.c \
-	test_palette.c test_point_symbolizer.c \
-	test_polygon_symbolizer.c test_raster.c \
-	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
-	test_text_symbolizer.c test_tifin.c test_tile_callback.c \
+	test9.c test_col_symbolizers.c test_copy_rastercov.c \
+	test_coverage.c test_font.c test_gif.c test_line_symbolizer.c \
+	test_line_symbolizer_col.c test_load_wms.c test_map_ascii.c \
+	test_map_gray.c test_map_indiana.c test_map_infrared.c \
+	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
+	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
+	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
+	test_map_orbetello.c test_map_rgb.c test_map_srtm.c \
+	test_map_trento.c test_map_trieste.c test_map_vector.c \
+	test_mask.c test_openjpeg.c test_paint.c test_palette.c \
+	test_point_symbolizer.c test_point_symbolizer_col.c \
+	test_polygon_symbolizer.c test_polygon_symbolizer_col.c \
+	test_raster.c test_raster_symbolizer.c test_raw.c \
+	test_section.c test_svg.c test_text_symbolizer.c \
+	test_text_symbolizer_col.c test_tifin.c test_tile_callback.c \
 	test_vectors.c test_webp.c test_wms1.c test_wms2.c \
 	test_wr_tiff.c
 DIST_SOURCES = check_sql_stmt.c test1.c test10.c test11.c test12.c \
 	test13.c test14.c test15.c test16.c test17.c test18.c test19.c \
 	test2.c test20.c test3.c test4.c test5.c test6.c test7.c \
-	test8.c test9.c test_copy_rastercov.c test_coverage.c \
-	test_font.c test_gif.c test_line_symbolizer.c test_load_wms.c \
-	test_map_ascii.c test_map_gray.c test_map_indiana.c \
-	test_map_infrared.c test_map_mono.c test_map_nile_32.c \
-	test_map_nile_8.c test_map_nile_dbl.c test_map_nile_flt.c \
-	test_map_nile_u16.c test_map_nile_u32.c test_map_nile_u8.c \
-	test_map_noref.c test_map_orbetello.c test_map_rgb.c \
-	test_map_srtm.c test_map_trento.c test_map_trieste.c \
-	test_map_vector.c test_mask.c test_openjpeg.c test_paint.c \
-	test_palette.c test_point_symbolizer.c \
-	test_polygon_symbolizer.c test_raster.c \
-	test_raster_symbolizer.c test_raw.c test_section.c test_svg.c \
-	test_text_symbolizer.c test_tifin.c test_tile_callback.c \
+	test8.c test9.c test_col_symbolizers.c test_copy_rastercov.c \
+	test_coverage.c test_font.c test_gif.c test_line_symbolizer.c \
+	test_line_symbolizer_col.c test_load_wms.c test_map_ascii.c \
+	test_map_gray.c test_map_indiana.c test_map_infrared.c \
+	test_map_mono.c test_map_nile_32.c test_map_nile_8.c \
+	test_map_nile_dbl.c test_map_nile_flt.c test_map_nile_u16.c \
+	test_map_nile_u32.c test_map_nile_u8.c test_map_noref.c \
+	test_map_orbetello.c test_map_rgb.c test_map_srtm.c \
+	test_map_trento.c test_map_trieste.c test_map_vector.c \
+	test_mask.c test_openjpeg.c test_paint.c test_palette.c \
+	test_point_symbolizer.c test_point_symbolizer_col.c \
+	test_polygon_symbolizer.c test_polygon_symbolizer_col.c \
+	test_raster.c test_raster_symbolizer.c test_raw.c \
+	test_section.c test_svg.c test_text_symbolizer.c \
+	test_text_symbolizer_col.c test_tifin.c test_tile_callback.c \
 	test_vectors.c test_webp.c test_wms1.c test_wms2.c \
 	test_wr_tiff.c
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
@@ -1021,6 +1048,10 @@ test9$(EXEEXT): $(test9_OBJECTS) $(test9_DEPENDENCIES) $(EXTRA_test9_DEPENDENCIE
 	@rm -f test9$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test9_OBJECTS) $(test9_LDADD) $(LIBS)
 
+test_col_symbolizers$(EXEEXT): $(test_col_symbolizers_OBJECTS) $(test_col_symbolizers_DEPENDENCIES) $(EXTRA_test_col_symbolizers_DEPENDENCIES) 
+	@rm -f test_col_symbolizers$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_col_symbolizers_OBJECTS) $(test_col_symbolizers_LDADD) $(LIBS)
+
 test_copy_rastercov$(EXEEXT): $(test_copy_rastercov_OBJECTS) $(test_copy_rastercov_DEPENDENCIES) $(EXTRA_test_copy_rastercov_DEPENDENCIES) 
 	@rm -f test_copy_rastercov$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_copy_rastercov_OBJECTS) $(test_copy_rastercov_LDADD) $(LIBS)
@@ -1040,6 +1071,10 @@ test_gif$(EXEEXT): $(test_gif_OBJECTS) $(test_gif_DEPENDENCIES) $(EXTRA_test_gif
 test_line_symbolizer$(EXEEXT): $(test_line_symbolizer_OBJECTS) $(test_line_symbolizer_DEPENDENCIES) $(EXTRA_test_line_symbolizer_DEPENDENCIES) 
 	@rm -f test_line_symbolizer$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_line_symbolizer_OBJECTS) $(test_line_symbolizer_LDADD) $(LIBS)
+
+test_line_symbolizer_col$(EXEEXT): $(test_line_symbolizer_col_OBJECTS) $(test_line_symbolizer_col_DEPENDENCIES) $(EXTRA_test_line_symbolizer_col_DEPENDENCIES) 
+	@rm -f test_line_symbolizer_col$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_line_symbolizer_col_OBJECTS) $(test_line_symbolizer_col_LDADD) $(LIBS)
 
 test_load_wms$(EXEEXT): $(test_load_wms_OBJECTS) $(test_load_wms_DEPENDENCIES) $(EXTRA_test_load_wms_DEPENDENCIES) 
 	@rm -f test_load_wms$(EXEEXT)
@@ -1141,9 +1176,17 @@ test_point_symbolizer$(EXEEXT): $(test_point_symbolizer_OBJECTS) $(test_point_sy
 	@rm -f test_point_symbolizer$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_point_symbolizer_OBJECTS) $(test_point_symbolizer_LDADD) $(LIBS)
 
+test_point_symbolizer_col$(EXEEXT): $(test_point_symbolizer_col_OBJECTS) $(test_point_symbolizer_col_DEPENDENCIES) $(EXTRA_test_point_symbolizer_col_DEPENDENCIES) 
+	@rm -f test_point_symbolizer_col$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_point_symbolizer_col_OBJECTS) $(test_point_symbolizer_col_LDADD) $(LIBS)
+
 test_polygon_symbolizer$(EXEEXT): $(test_polygon_symbolizer_OBJECTS) $(test_polygon_symbolizer_DEPENDENCIES) $(EXTRA_test_polygon_symbolizer_DEPENDENCIES) 
 	@rm -f test_polygon_symbolizer$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_polygon_symbolizer_OBJECTS) $(test_polygon_symbolizer_LDADD) $(LIBS)
+
+test_polygon_symbolizer_col$(EXEEXT): $(test_polygon_symbolizer_col_OBJECTS) $(test_polygon_symbolizer_col_DEPENDENCIES) $(EXTRA_test_polygon_symbolizer_col_DEPENDENCIES) 
+	@rm -f test_polygon_symbolizer_col$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_polygon_symbolizer_col_OBJECTS) $(test_polygon_symbolizer_col_LDADD) $(LIBS)
 
 test_raster$(EXEEXT): $(test_raster_OBJECTS) $(test_raster_DEPENDENCIES) $(EXTRA_test_raster_DEPENDENCIES) 
 	@rm -f test_raster$(EXEEXT)
@@ -1168,6 +1211,10 @@ test_svg$(EXEEXT): $(test_svg_OBJECTS) $(test_svg_DEPENDENCIES) $(EXTRA_test_svg
 test_text_symbolizer$(EXEEXT): $(test_text_symbolizer_OBJECTS) $(test_text_symbolizer_DEPENDENCIES) $(EXTRA_test_text_symbolizer_DEPENDENCIES) 
 	@rm -f test_text_symbolizer$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(test_text_symbolizer_OBJECTS) $(test_text_symbolizer_LDADD) $(LIBS)
+
+test_text_symbolizer_col$(EXEEXT): $(test_text_symbolizer_col_OBJECTS) $(test_text_symbolizer_col_DEPENDENCIES) $(EXTRA_test_text_symbolizer_col_DEPENDENCIES) 
+	@rm -f test_text_symbolizer_col$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(test_text_symbolizer_col_OBJECTS) $(test_text_symbolizer_col_LDADD) $(LIBS)
 
 test_tifin$(EXEEXT): $(test_tifin_OBJECTS) $(test_tifin_DEPENDENCIES) $(EXTRA_test_tifin_DEPENDENCIES) 
 	@rm -f test_tifin$(EXEEXT)
@@ -1224,11 +1271,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test7.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test8.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test9.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_col_symbolizers.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_copy_rastercov.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_coverage.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_font.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_gif.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_line_symbolizer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_line_symbolizer_col.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_load_wms.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_ascii.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_map_gray.Po@am__quote@
@@ -1254,13 +1303,16 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_paint.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_palette.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_point_symbolizer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_point_symbolizer_col.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_polygon_symbolizer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_polygon_symbolizer_col.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raster_symbolizer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_raw.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_section.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_svg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_text_symbolizer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_text_symbolizer_col.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tifin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_tile_callback.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_vectors.Po@am__quote@
@@ -1935,9 +1987,23 @@ test_line_symbolizer.log: test_line_symbolizer$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_line_symbolizer_col.log: test_line_symbolizer_col$(EXEEXT)
+	@p='test_line_symbolizer_col$(EXEEXT)'; \
+	b='test_line_symbolizer_col'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_polygon_symbolizer.log: test_polygon_symbolizer$(EXEEXT)
 	@p='test_polygon_symbolizer$(EXEEXT)'; \
 	b='test_polygon_symbolizer'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_polygon_symbolizer_col.log: test_polygon_symbolizer_col$(EXEEXT)
+	@p='test_polygon_symbolizer_col$(EXEEXT)'; \
+	b='test_polygon_symbolizer_col'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1949,9 +2015,23 @@ test_point_symbolizer.log: test_point_symbolizer$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_point_symbolizer_col.log: test_point_symbolizer_col$(EXEEXT)
+	@p='test_point_symbolizer_col$(EXEEXT)'; \
+	b='test_point_symbolizer_col'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_text_symbolizer.log: test_text_symbolizer$(EXEEXT)
 	@p='test_text_symbolizer$(EXEEXT)'; \
 	b='test_text_symbolizer'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_text_symbolizer_col.log: test_text_symbolizer_col$(EXEEXT)
+	@p='test_text_symbolizer_col$(EXEEXT)'; \
+	b='test_text_symbolizer_col'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1987,6 +2067,13 @@ test_tile_callback.log: test_tile_callback$(EXEEXT)
 test_map_vector.log: test_map_vector$(EXEEXT)
 	@p='test_map_vector$(EXEEXT)'; \
 	b='test_map_vector'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_col_symbolizers.log: test_col_symbolizers$(EXEEXT)
+	@p='test_col_symbolizers$(EXEEXT)'; \
+	b='test_col_symbolizers'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

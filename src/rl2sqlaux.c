@@ -6804,6 +6804,16 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
       {
 	  /* preparing a Graphics Context */
 	  ctx = rl2_graph_create_context (width, height);
+	  if (lyr_stl != NULL)
+	  {
+		has_labels = rl2_style_has_labels (lyr_stl);
+		if (has_labels)
+		  {
+		      ctx_labels = rl2_graph_create_context (width, height);
+		      if (ctx_labels == NULL)
+			  goto error;
+		  }
+	  }
       }
 
     for (j = 0; j < rl2_get_multilayer_count (multi); j++)
@@ -7572,6 +7582,15 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 	    }
 	  return RL2_OK;
       }
+      
+      if (ctx_labels != NULL)
+      {
+		  /* merging Label sub-layer */
+		rl2GraphicsContextPtr ctx_in = ctx_labels;
+		rl2GraphicsContextPtr ctx_out = ctx;
+		    rl2_graph_merge (ctx_out, ctx_in);
+	  }
+	  
     rl2_destroy_multi_layer (multi);
     multi = NULL;
     if (lyr_stl != NULL)
@@ -7588,6 +7607,11 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 
     rl2_graph_destroy_context (ctx);
     ctx = NULL;
+    if (ctx_labels != NULL)
+    {
+		rl2_graph_destroy_context (ctx_labels);
+		ctx_labels = NULL;
+	}
 
     if (!get_payload_from_rgb_rgba_transparent
 	(width, height, rgb, alpha, format_id, quality, &image, &image_size,

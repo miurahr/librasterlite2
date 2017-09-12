@@ -107,6 +107,9 @@ extern "C"
     typedef struct rl2_graphics_bitmap rl2GraphicsBitmap;
     typedef rl2GraphicsBitmap *rl2GraphicsBitmapPtr;
 
+    typedef struct rl2_affine_transform_data rl2AffineTransformData;
+    typedef rl2AffineTransformData *rl2AffineTransformDataPtr;
+
 /**
  Creates a generic Graphics Context 
 
@@ -1391,8 +1394,8 @@ extern "C"
  \return 0 (false) on error, any other value on success.
  
  \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap,
- rl2_graph_draw_bitmap, rl2_graph_draw_graphic_symbol, 
- rl2_graph_draw_mark_symbol
+ rl2_graph_draw_bitmap, rl2_graph_draw_tranformed_bitmap,
+ rl2_graph_draw_graphic_symbol, rl2_graph_draw_mark_symbol
  */
     RL2_DECLARE int rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr
 						    context,
@@ -1400,6 +1403,128 @@ extern "C"
 						    double scale_x,
 						    double scale_y, double x,
 						    double y);
+
+/**
+ Creates an Affine Transform Data object 
+
+ \param xx the XX component - Affine Transform Matrix.
+ \param yx the YX component - Affine Transform Matrix.
+ \param xy the XY component - Affine Transform Matrix.
+ \param yy the YY component - Affine Transform Matrix.
+ \param xoff the X0 component - Affine Transform Matrix.
+ \param yoff the Y0 component - Affine Transform Matrix.
+ \param max_threads number of concurrent threads. 
+
+ \return the pointer to the corresponding Affine Transform Data object: 
+ NULL on failure.
+ 
+ \sa rl2_destroy_affine_transform, rl2_set_affine_transform_origin,
+ rl2_set_affine_transform_destination, rl2_transform_bitmap
+ 
+ \note you are responsible to destroy (before or after) any Affine
+ Trasform Data object created by rl2_create_affine_transform() by 
+ invoking rl2_destroy_affine_transform().
+ The object returned by rl2_create_affine_transform() is incomplete
+ and not directly usable; you must call both rl2_set_affine_transform_origin()
+ and rl2_set_affine_transform_destination() in order to get a complete
+ and usable object.
+ 
+ \sa rl2_destroy_affine_transform, rl2_set_affine_transform_origin,
+ rl2_set_affine_transform_destination, rl2_is_valid_affine_transform,
+ rl2_transform_bitmap
+ */
+    RL2_DECLARE rl2AffineTransformDataPtr
+	rl2_create_affine_transform (double xx, double yx, double xy, double yy,
+				     double xoff, double yoff, int max_threads);
+
+/**
+ Destroys an Affine Transform Data object freeing any allocated resource 
+
+ \param ptr the pointer to a valid Affine Transform Data object
+ returned by a previous call to rl2_create_affine_transform()
+ 
+ \sa rl2_create_affine_transform
+ */
+    RL2_DECLARE void rl2_destroy_affine_transform (rl2AffineTransformDataPtr
+						   ptr);
+
+/**
+ Assigning the Origin context to an Affine Transform Data object
+
+ \param ptr the pointer to a valid Affine Transform Data object
+ returned by a previous call to rl2_create_affine_transform()
+ \param width width (in pixels) of the bitmap
+ \param height height (in pixels) of the bitmap
+ \param minx lower left corner: X coordinate (in map units).
+ \param miny lower left corner: Y coordinate (in map units).
+ \param maxx upper right corner: X coordinate (in map units).
+ \param maxy upper right corner: Y coordinate (in map units).
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_create_affine_transform, rl2_set_affine_transform_destination
+ */
+    RL2_DECLARE int
+	rl2_set_affine_transform_origin (rl2AffineTransformDataPtr ptr,
+					 int width, int height, double minx,
+					 double miny, double maxx, double maxy);
+
+/**
+ Assigning the Destination context to an Affine Transform Data object
+
+ \param ptr the pointer to a valid Affine Transform Data object
+ returned by a previous call to rl2_create_affine_transform()
+ \param width width (in pixels) of the bitmap
+ \param height height (in pixels) of the bitmap
+ \param minx lower left corner: X coordinate (in map units).
+ \param miny lower left corner: Y coordinate (in map units).
+ \param maxx upper right corner: X coordinate (in map units).
+ \param maxy upper right corner: Y coordinate (in map units).
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_create_affine_transform, rl2_set_affine_transform_origin
+ */
+    RL2_DECLARE int
+	rl2_set_affine_transform_destination (rl2AffineTransformDataPtr ptr,
+					      int width, int height,
+					      double minx, double miny,
+					      double maxx, double maxy);
+
+/**
+ Checks an Affine Transform Data object for validity 
+
+ \param ptr the pointer to a valid Affine Transform Data object
+ returned by a previous call to rl2_create_affine_transform()
+
+ \return 1 (true) on success, 0 (false) on error
+ 
+ \sa rl2_create_affine_transform, rl2_set_affine_transform_origin,
+ rl2_set_affine_transform_destination
+ */
+    RL2_DECLARE int
+	rl2_is_valid_affine_transform (rl2AffineTransformDataPtr ptr);
+
+/**
+ Transforms a Bitmap by applying an Affine Transform 
+
+ \param at_data the pointer to valid Affine Transform Data.
+ \param bitmap indirect reference to a pointer to a valid Graphics 
+ Bitmap to be transformed.
+
+ \return 0 (false) on error, any other value on success.
+ 
+ \sa rl2_graph_create_bitmap, rl2_graph_destroy_bitmap,
+ rl2_create_affine_transform, rl2_set_affine_transform_origin,
+ rl2_set_affine_transform_destination, rl2_destroy_affine_transform
+ 
+ \note the Graphics Bitmap object passed to this function will be
+ always internally destroied and eventually replaced by a new
+ transformed Graphics Bitmap; in the failure case bitmap will point
+ to NULL.
+ */
+    RL2_DECLARE int rl2_transform_bitmap (rl2AffineTransformDataPtr at_data,
+					  rl2GraphicsBitmapPtr * bitmap);
 
 /**
  Rescales a raw pixbuf (RGB or GRAYSCALE)

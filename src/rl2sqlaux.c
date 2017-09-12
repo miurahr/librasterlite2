@@ -66,6 +66,8 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include "rasterlite2/rl2graphics.h"
 #include "rasterlite2_private.h"
 
+#include <spatialite/gg_const.h>
+
 struct aux_raster_render
 {
 /* an ancillary struct for Map Raster rendering */
@@ -2648,7 +2650,7 @@ get_rgba_from_monochrome_transparent (unsigned int width,
       {
 	  for (col = 0; col < width; col++)
 	    {
-		if (*p_in++ == 0)
+		if (*p_in++ == 1)
 		  {
 		      *p_out++ = 0;	/* Black */
 		      *p_out++ = 0;
@@ -5684,6 +5686,487 @@ do_set_canvas_ready (rl2CanvasPtr ptr, int which)
 }
 
 static int
+do_transform_raster_bbox (struct aux_renderer *aux)
+{
+/* transforming a BBOX into another SRID */
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    const char *sql;
+    const unsigned char *x_blob;
+    int x_blob_sz;
+    int count = 0;
+    rl2LinestringPtr line;
+    unsigned char *blob;
+    int blob_sz;
+    sqlite3 *handle = aux->sqlite;
+    int srid_out = aux->out_srid;
+    int srid = aux->srid;
+    double minx = aux->minx;
+    double miny = aux->miny;
+    double maxx = aux->maxx;
+    double maxy = aux->maxy;
+    double cx = minx + ((maxx - minx) / 2.0);
+    double cy = miny + ((maxy - miny) / 2.0);
+
+    sql = "SELECT ST_Transform(SetSRID(?, ?), ?)";
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT BBOX-reproject SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto error;
+      }
+
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    line = rl2CreateLinestring (5);
+    rl2SetPoint (line->coords, 0, minx, miny);
+    rl2SetPoint (line->coords, 1, maxx, miny);
+    rl2SetPoint (line->coords, 2, maxx, maxy);
+    rl2SetPoint (line->coords, 3, minx, maxy);
+    rl2SetPoint (line->coords, 4, cx, cy);
+    if (!rl2_serialize_linestring (line, &blob, &blob_sz))
+	goto error;
+    sqlite3_bind_blob (stmt, 1, blob, blob_sz, free);
+    rl2DestroyLinestring (line);
+    sqlite3_bind_int (stmt, 2, srid_out);
+    sqlite3_bind_int (stmt, 3, srid);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      double nat_cx;
+		      double nat_cy;
+		      double nat_ll_x;
+		      double nat_ll_y;
+		      double nat_lr_x;
+		      double nat_lr_y;
+		      double nat_ur_x;
+		      double nat_ur_y;
+		      double nat_ul_x;
+		      double nat_ul_y;
+		      double nat_minx;
+		      double nat_miny;
+		      double nat_maxx;
+		      double nat_maxy;
+		      rl2GeometryPtr geom = NULL;
+		      rl2LinestringPtr line = NULL;
+		      x_blob = sqlite3_column_blob (stmt, 0);
+		      x_blob_sz = sqlite3_column_bytes (stmt, 0);
+		      geom = rl2_geometry_from_blob (x_blob, x_blob_sz);
+		      if (geom == NULL)
+			  goto error;
+		      line = geom->first_linestring;
+		      if (line == NULL)
+			{
+			    rl2_destroy_geometry (geom);
+			    goto error;
+			}
+		      if (line->points != 5)
+			{
+			    rl2_destroy_geometry (geom);
+			    goto error;
+			}
+		      rl2GetPoint (line->coords, 0, &nat_ll_x, &nat_ll_y);
+		      rl2GetPoint (line->coords, 1, &nat_lr_x, &nat_lr_y);
+		      rl2GetPoint (line->coords, 2, &nat_ur_x, &nat_ur_y);
+		      rl2GetPoint (line->coords, 3, &nat_ul_x, &nat_ul_y);
+		      rl2GetPoint (line->coords, 4, &nat_cx, &nat_cy);
+		      rl2_destroy_geometry (geom);
+		      count++;
+		      /* determining the BBOX in Native SRID */
+		      nat_minx = nat_ll_x;
+		      if (nat_lr_x < nat_minx)
+			  nat_minx = nat_lr_x;
+		      if (nat_ur_x < nat_minx)
+			  nat_minx = nat_ur_x;
+		      if (nat_ul_x < nat_minx)
+			  nat_minx = nat_ul_x;
+		      nat_miny = nat_lr_y;
+		      if (nat_lr_y < nat_miny)
+			  nat_miny = nat_lr_y;
+		      if (nat_ur_y < nat_miny)
+			  nat_miny = nat_ur_y;
+		      if (nat_ul_y < nat_miny)
+			  nat_miny = nat_ul_y;
+		      nat_maxx = nat_ll_x;
+		      if (nat_lr_x > nat_maxx)
+			  nat_maxx = nat_lr_x;
+		      if (nat_ur_x > nat_maxx)
+			  nat_maxx = nat_ur_x;
+		      if (nat_ul_x > nat_maxx)
+			  nat_maxx = nat_ul_x;
+		      nat_maxy = nat_lr_y;
+		      if (nat_lr_y > nat_maxy)
+			  nat_maxy = nat_lr_y;
+		      if (nat_ur_y > nat_maxy)
+			  nat_maxy = nat_ur_y;
+		      if (nat_ul_y > nat_maxy)
+			  nat_maxy = nat_ul_y;
+
+		      aux->native_ll_x = nat_ll_x;
+		      aux->native_ll_y = nat_ll_y;
+		      aux->native_lr_x = nat_lr_x;
+		      aux->native_lr_y = nat_lr_y;
+		      aux->native_ur_x = nat_ur_x;
+		      aux->native_ur_y = nat_ur_y;
+		      aux->native_ul_x = nat_ul_x;
+		      aux->native_ul_y = nat_ul_y;
+		      aux->native_cx = nat_cx;
+		      aux->native_cy = nat_cy;
+		      aux->native_minx = nat_minx;
+		      aux->native_miny = nat_miny;
+		      aux->native_maxx = nat_maxx;
+		      aux->native_maxy = nat_maxy;
+		  }
+	    }
+	  else
+	    {
+		fprintf (stderr,
+			 "SELECT BBOX-reproject; sqlite3_step() error: %s\n",
+			 sqlite3_errmsg (handle));
+		goto error;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    if (count != 1)
+	return 0;
+    return 1;
+
+  error:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    return 0;
+}
+
+static int
+do_compute_atm (struct aux_renderer *aux)
+{
+/* computing polynomial coeffs and Affine Transform Matrix */
+    int retcode = 0;
+    int ret;
+    sqlite3_stmt *stmt = NULL;
+    char *sql;
+    char *tmp_table = NULL;
+    char *xtmp_table;
+    double xx;
+    double yx;
+    double xy;
+    double yy;
+    double xoff;
+    double yoff;
+    int count = 0;
+    sqlite3 *handle = aux->sqlite;
+    const void *data = aux->data;
+    double dest_ll_x = aux->native_ll_x;
+    double dest_ll_y = aux->native_ll_y;
+    double dest_lr_x = aux->native_lr_x;
+    double dest_lr_y = aux->native_lr_y;
+    double dest_ur_x = aux->native_ur_x;
+    double dest_ur_y = aux->native_ur_y;
+    double dest_ul_x = aux->native_ul_x;
+    double dest_ul_y = aux->native_ul_y;
+    double orig_ll_x = aux->minx;
+    double orig_ll_y = aux->miny;
+    double orig_lr_x = aux->maxx;
+    double orig_lr_y = aux->miny;
+    double orig_ur_x = aux->maxx;
+    double orig_ur_y = aux->maxy;
+    double orig_ul_x = aux->minx;
+    double orig_ul_y = aux->maxy;
+
+    if (data != NULL)
+      {
+	  struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
+	  tmp_table = priv_data->tmp_atm_table;
+      }
+    else
+	return 0;
+    if (tmp_table == NULL)
+	return 0;
+
+/* creating a temporary table */
+    xtmp_table = rl2_double_quoted_sql (tmp_table);
+    sql =
+	sqlite3_mprintf
+	("CREATE TEMPORARY TABLE IF NOT EXISTS \"%s\" (g1 BLOB, g2 BLOB)",
+	 xtmp_table);
+    free (xtmp_table);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("CREATE TEMPORARY TABLE ATM; SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto stop;
+      }
+
+/* deleting all rows from the temp table */
+    xtmp_table = rl2_double_quoted_sql (tmp_table);
+    sql = sqlite3_mprintf ("DELETE FROM \"%s\"", xtmp_table);
+    free (xtmp_table);
+    ret = sqlite3_exec (handle, sql, NULL, NULL, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("DELETE FROM ATM; SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto stop;
+      }
+
+/* inserting GCP points into the tmp table */
+    xtmp_table = rl2_double_quoted_sql (tmp_table);
+    sql =
+	sqlite3_mprintf
+	("INSERT INTO \"%s\" VALUES (MakePoint(?, ?), MakePoint(?, ?))",
+	 xtmp_table);
+    free (xtmp_table);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("INSER INTO tmp_ggp; SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto stop;
+      }
+/* first pair of corresponding points: Lower Left corner */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, orig_ll_x);
+    sqlite3_bind_double (stmt, 2, orig_ll_y);
+    sqlite3_bind_double (stmt, 3, dest_ll_x);
+    sqlite3_bind_double (stmt, 4, dest_ll_y);
+    ret = sqlite3_step (stmt);
+    if (ret != SQLITE_DONE && ret != SQLITE_ROW)
+      {
+	  printf ("INSER INTO tmp_gcp; SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto stop;
+      }
+/* second pair of corresponding points: Lower Right corner */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, orig_lr_x);
+    sqlite3_bind_double (stmt, 2, orig_lr_y);
+    sqlite3_bind_double (stmt, 3, dest_lr_x);
+    sqlite3_bind_double (stmt, 4, dest_lr_y);
+    ret = sqlite3_step (stmt);
+    if (ret != SQLITE_DONE && ret != SQLITE_ROW)
+      {
+	  printf ("INSER INTO tmp_gcp; SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto stop;
+      }
+/* third pair of corresponding points: Upper Right corner */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, orig_ur_x);
+    sqlite3_bind_double (stmt, 2, orig_ur_y);
+    sqlite3_bind_double (stmt, 3, dest_ur_x);
+    sqlite3_bind_double (stmt, 4, dest_ur_y);
+    ret = sqlite3_step (stmt);
+    if (ret != SQLITE_DONE && ret != SQLITE_ROW)
+      {
+	  printf ("INSER INTO tmp_gcp; SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto stop;
+      }
+/* fourth pair of corresponding points: Upper Left corner */
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    sqlite3_bind_double (stmt, 1, orig_ul_x);
+    sqlite3_bind_double (stmt, 2, orig_ul_y);
+    sqlite3_bind_double (stmt, 3, dest_ul_x);
+    sqlite3_bind_double (stmt, 4, dest_ul_y);
+    ret = sqlite3_step (stmt);
+    if (ret != SQLITE_DONE && ret != SQLITE_ROW)
+      {
+	  printf ("INSER INTO tmp_gcp; SQL error: %s\n",
+		  sqlite3_errmsg (handle));
+	  goto stop;
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+/* fetching the Affine Transform Matrix */
+    xtmp_table = rl2_double_quoted_sql (tmp_table);
+    sql =
+	sqlite3_mprintf ("SELECT GCP2ATM(GCP_Compute(g1, g2)) FROM \"%s\"",
+			 xtmp_table);
+    free (xtmp_table);
+    ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt, NULL);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  printf ("SELECT CGCP2ATM() SQL error: %s\n", sqlite3_errmsg (handle));
+	  goto stop;
+      }
+    sqlite3_reset (stmt);
+    sqlite3_clear_bindings (stmt);
+    while (1)
+      {
+	  ret = sqlite3_step (stmt);
+	  if (ret == SQLITE_DONE)
+	      break;
+	  if (ret == SQLITE_ROW)
+	    {
+		if (sqlite3_column_type (stmt, 0) == SQLITE_BLOB)
+		  {
+		      rl2PrivAffineTransform matrix;
+		      if (!rl2_affine_transform_from_blob
+			  (&matrix,
+			   (const unsigned char *) sqlite3_column_blob (stmt,
+									0),
+			   sqlite3_column_bytes (stmt, 0)))
+			  goto stop;
+		      count++;
+		      xx = matrix.xx;
+		      yx = matrix.yx;
+		      xy = matrix.xy;
+		      yy = matrix.yy;
+		      xoff = matrix.xoff;
+		      yoff = matrix.yoff;
+		  }
+	    }
+	  else
+	    {
+		printf ("SELECT GCP2ATM SQL error: %s\n",
+			sqlite3_errmsg (handle));
+		goto stop;
+	    }
+      }
+    sqlite3_finalize (stmt);
+    stmt = NULL;
+
+  stop:
+    if (stmt != NULL)
+	sqlite3_finalize (stmt);
+    if (count == 1)
+      {
+	  aux->atm_xx = xx;
+	  aux->atm_yx = yx;
+	  aux->atm_xy = xy;
+	  aux->atm_yy = yy;
+	  aux->atm_xoff = xoff;
+	  aux->atm_yoff = yoff;
+	  retcode = 1;
+      }
+    return retcode;
+}
+
+static int
+do_get_raw_raster_data (struct aux_renderer *aux, int by_section)
+{
+/* attempting to load raw raster data */
+    int was_monochrome;
+    unsigned char out_pixel = aux->out_pixel;
+    sqlite3 *sqlite = aux->sqlite;
+    int max_threads = aux->max_threads;
+    int base_width = aux->base_width;
+    int base_height = aux->base_height;
+    unsigned char bg_red = aux->bg_red;
+    unsigned char bg_green = aux->bg_green;
+    unsigned char bg_blue = aux->bg_blue;
+    int reproject_on_the_fly = aux->reproject_on_the_fly;
+    double minx = aux->minx;
+    double maxx = aux->maxx;
+    double miny = aux->miny;
+    double maxy = aux->maxy;
+    double xx_res = aux->xx_res;
+    double yy_res = aux->yy_res;
+    rl2CoveragePtr coverage = aux->coverage;
+    rl2RasterSymbolizerPtr symbolizer = aux->symbolizer;
+    rl2RasterStatisticsPtr stats = aux->stats;
+    rl2PalettePtr palette = aux->palette;
+    rl2CoverageStylePtr cvg_stl = aux->cvg_stl;
+    int level_id = aux->level_id;
+    int scale = aux->scale;
+    unsigned char *outbuf = NULL;
+    int outbuf_size;
+
+    if (reproject_on_the_fly)
+      {
+	  /* we must always extract raster data using the Coverage's own SRID */
+	  minx = aux->native_minx;
+	  miny = aux->native_miny;
+	  maxx = aux->native_maxx;
+	  maxy = aux->native_maxy;
+	  xx_res = aux->xx_res;
+	  yy_res = aux->yy_res;
+	  base_width = aux->base_width;
+	  base_height = aux->base_height;
+	  level_id = aux->level_id;
+	  scale = aux->scale;
+      }
+
+    if (by_section)
+      {
+	  /* Mixed Resolutions Coverage */
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		out_pixel = RL2_PIXEL_GRAYSCALE;
+		was_monochrome = 1;
+	    }
+	  if (out_pixel == RL2_PIXEL_PALETTE)
+	      out_pixel = RL2_PIXEL_RGB;
+	  if (rl2_get_raw_raster_data_mixed_resolutions
+	      (sqlite, max_threads, coverage, base_width, base_height,
+	       minx, miny, maxx, maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	       bg_blue, symbolizer, stats) != RL2_OK)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		rl2_destroy_coverage_style (cvg_stl);
+		aux->cvg_stl = NULL;
+	    }
+      }
+    else
+      {
+	  /* ordinary Coverage */
+	  was_monochrome = 0;
+	  if (out_pixel == RL2_PIXEL_MONOCHROME)
+	    {
+		if (level_id != 0 && scale != 1)
+		  {
+		      out_pixel = RL2_PIXEL_GRAYSCALE;
+		      was_monochrome = 1;
+		  }
+	    }
+	  if (out_pixel == RL2_PIXEL_PALETTE)
+	    {
+		if (level_id != 0 && scale != 1)
+		    out_pixel = RL2_PIXEL_RGB;
+	    }
+	  if (rl2_get_raw_raster_data_bgcolor
+	      (sqlite, max_threads, coverage, base_width, base_height,
+	       minx, miny, maxx, maxy, xx_res, yy_res,
+	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
+	       bg_blue, symbolizer, stats) != RL2_OK)
+	      goto error;
+	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
+	    {
+		rl2_destroy_coverage_style (cvg_stl);
+		aux->cvg_stl = NULL;
+	    }
+      }
+
+/* completing the aux struct for passing rendering arguments */
+    aux->outbuf = outbuf;
+    aux->palette = palette;
+    aux->out_pixel = out_pixel;
+    return 1;
+
+  error:
+    return 0;
+}
+
+static int
 do_paint_map_from_raster (struct aux_raster_render *args)
 {
 /* 
@@ -5733,8 +6216,6 @@ do_paint_map_from_raster (struct aux_raster_render *args)
     double aspect_dst;
     int ok_style;
     int ok_format;
-    unsigned char *outbuf = NULL;
-    int outbuf_size;
     unsigned char *image = NULL;
     int image_size;
     rl2PalettePtr palette = NULL;
@@ -5747,8 +6228,8 @@ do_paint_map_from_raster (struct aux_raster_render *args)
     int aux_symbolizer = 0;
     double opacity = 1.0;
     struct aux_renderer aux;
-    int was_monochrome;
     int by_section = 0;
+    int reproject_on_the_fly = 0;
 
     sqlite = args->sqlite;
     data = args->data;
@@ -5871,9 +6352,70 @@ do_paint_map_from_raster (struct aux_raster_render *args)
 	    }
       }
 
-    x_res = ext_x / (double) width;
-    y_res = ext_y / (double) height;
+/* attempting to load the Coverage definitions from the DBMS */
+    coverage = rl2_create_coverage_from_dbms (sqlite, db_prefix, cvg_name);
+    if (coverage == NULL)
+	goto error;
+    if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
+	srid = -1;
+    if (out_srid > 0 && srid > 0)
+      {
+	  if (out_srid != srid)
+	      reproject_on_the_fly = 1;
+      }
+
+    if (reproject_on_the_fly)
+      {
+	  /* tranforming the BBOX into the Coverage's Native SRID */
+	  aux.sqlite = sqlite;
+	  aux.data = data;
+	  aux.minx = minx;
+	  aux.miny = miny;
+	  aux.maxx = maxx;
+	  aux.maxy = maxy;
+	  aux.srid = srid;
+	  aux.out_srid = out_srid;
+	  if (!do_transform_raster_bbox (&aux))
+	      goto error;
+	  /* expanding the Native BBOX */
+	  ext_x = aux.native_maxx - aux.native_minx;
+	  ext_y = aux.native_maxy - aux.native_miny;
+	  x_res = ext_x / (double) width;
+	  y_res = ext_y / (double) height;
+	  aux.native_minx =
+	      aux.native_cx -
+	      ((((double) width + ((double) width / 5.0)) / 2.0) * x_res);
+	  aux.native_maxx =
+	      aux.native_cx +
+	      ((((double) width + ((double) width / 5.0)) / 2.0) * x_res);
+	  aux.native_miny =
+	      aux.native_cy -
+	      ((((double) height + ((double) height / 5.0)) / 2.0) * y_res);
+	  aux.native_maxy =
+	      aux.native_cy +
+	      ((((double) height + ((double) height / 5.0)) / 2.0) * y_res);
+	  ext_x = aux.native_maxx - aux.native_minx;
+	  ext_y = aux.native_maxy - aux.native_miny;
+	  aux.base_width = ext_x / x_res;
+	  aux.base_height = ext_y / y_res;
+      }
+
+    if (reproject_on_the_fly)
+      {
+	  ext_x = aux.native_maxx - aux.native_minx;
+	  ext_y = aux.native_maxy - aux.native_miny;
+	  x_res = ext_x / (double) (aux.base_width);
+	  y_res = ext_y / (double) (aux.base_height);
+      }
+    else
+      {
+	  ext_x = maxx - minx;
+	  ext_y = maxy - miny;
+	  x_res = ext_x / (double) width;
+	  y_res = ext_y / (double) height;
+      }
     map_scale = standard_scale (sqlite, out_srid, width, height, ext_x, ext_y);
+
 /* validating the style */
     ok_style = 0;
     if (style == NULL)
@@ -5909,20 +6451,6 @@ do_paint_map_from_raster (struct aux_raster_render *args)
     if (!ok_style)
 	goto error;
 
-/* attempting to load the Coverage definitions from the DBMS */
-    coverage = rl2_create_coverage_from_dbms (sqlite, db_prefix, cvg_name);
-    if (coverage == NULL)
-	goto error;
-    if (rl2_get_coverage_srid (coverage, &srid) != RL2_OK)
-	srid = -1;
-    if (out_srid > 0 && srid > 0)
-      {
-	  if (out_srid != srid)
-	    {
-		/* raster reprojection isn't yet supported */
-		goto error;
-	    }
-      }
     cvg = (rl2PrivCoveragePtr) coverage;
     out_pixel = RL2_PIXEL_UNKNOWN;
     if (cvg->sampleType == RL2_SAMPLE_UINT8 && cvg->pixelType == RL2_PIXEL_RGB
@@ -5959,6 +6487,12 @@ do_paint_map_from_raster (struct aux_raster_render *args)
 		symb->bandSelection->redBand = red_band;
 		symb->bandSelection->greenBand = green_band;
 		symb->bandSelection->blueBand = blue_band;
+		symb->bandSelection->redContrast =
+		    RL2_CONTRAST_ENHANCEMENT_NONE;
+		symb->bandSelection->greenContrast =
+		    RL2_CONTRAST_ENHANCEMENT_NONE;
+		symb->bandSelection->blueContrast =
+		    RL2_CONTRAST_ENHANCEMENT_NONE;
 		symb->bandSelection->grayContrast =
 		    RL2_CONTRAST_ENHANCEMENT_NONE;
 		rule->style_type = RL2_RASTER_STYLE;
@@ -6082,11 +6616,13 @@ do_paint_map_from_raster (struct aux_raster_render *args)
 	       &scale, &xscale, &xx_res, &yy_res))
 	      goto error;
       }
+
     base_width = (int) (ext_x / xx_res);
     base_height = (int) (ext_y / yy_res);
-    if ((base_width <= 0 && base_width >= USHRT_MAX)
-	|| (base_height <= 0 && base_height >= USHRT_MAX))
+    if ((base_width <= 0 || base_width >= USHRT_MAX)
+	|| (base_height <= 0 || base_height >= USHRT_MAX))
 	goto error;
+
     if ((base_width * base_height) > (8192 * 8192))
       {
 	  /* warning: this usually implies missing Pyramid support */
@@ -6106,57 +6642,17 @@ do_paint_map_from_raster (struct aux_raster_render *args)
     else if (aspect_org != aspect_dst && !reaspect)
 	goto error;
 
-    if (by_section)
+    if (reproject_on_the_fly)
       {
-	  /* Mixed Resolutions Coverage */
-	  was_monochrome = 0;
-	  if (out_pixel == RL2_PIXEL_MONOCHROME)
-	    {
-		out_pixel = RL2_PIXEL_GRAYSCALE;
-		was_monochrome = 1;
-	    }
-	  if (out_pixel == RL2_PIXEL_PALETTE)
-	      out_pixel = RL2_PIXEL_RGB;
-	  if (rl2_get_raw_raster_data_mixed_resolutions
-	      (sqlite, max_threads, coverage, base_width, base_height,
-	       minx, miny, maxx, maxy, xx_res, yy_res,
-	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
-	       bg_blue, symbolizer, stats) != RL2_OK)
+	  /* computing the Affine Transform Matrix */
+	  aux.width = width;
+	  aux.height = height;
+	  aux.base_width = base_width;
+	  aux.base_height = base_height;
+	  aux.xx_res = xx_res;
+	  aux.yy_res = yy_res;
+	  if (!do_compute_atm (&aux))
 	      goto error;
-	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
-	    {
-		rl2_destroy_coverage_style (cvg_stl);
-		cvg_stl = NULL;
-	    }
-      }
-    else
-      {
-	  /* ordinary Coverage */
-	  was_monochrome = 0;
-	  if (out_pixel == RL2_PIXEL_MONOCHROME)
-	    {
-		if (level_id != 0 && scale != 1)
-		  {
-		      out_pixel = RL2_PIXEL_GRAYSCALE;
-		      was_monochrome = 1;
-		  }
-	    }
-	  if (out_pixel == RL2_PIXEL_PALETTE)
-	    {
-		if (level_id != 0 && scale != 1)
-		    out_pixel = RL2_PIXEL_RGB;
-	    }
-	  if (rl2_get_raw_raster_data_bgcolor
-	      (sqlite, max_threads, coverage, base_width, base_height,
-	       minx, miny, maxx, maxy, xx_res, yy_res,
-	       &outbuf, &outbuf_size, &palette, &out_pixel, bg_red, bg_green,
-	       bg_blue, symbolizer, stats) != RL2_OK)
-	      goto error;
-	  if (was_monochrome && out_pixel == RL2_PIXEL_GRAYSCALE)
-	    {
-		rl2_destroy_coverage_style (cvg_stl);
-		cvg_stl = NULL;
-	    }
       }
 
 /* preparing the aux struct for passing rendering arguments */
@@ -6171,18 +6667,16 @@ do_paint_map_from_raster (struct aux_raster_render *args)
     aux.maxx = maxx;
     aux.maxy = maxy;
     aux.srid = srid;
+    aux.out_srid = out_srid;
+    aux.reproject_on_the_fly = reproject_on_the_fly;
     if (by_section)
-      {
-	  aux.by_section = 1;
-	  aux.x_res = x_res;
-	  aux.y_res = y_res;
-      }
+	aux.by_section = 1;
     else
-      {
-	  aux.by_section = 0;
-	  aux.xx_res = xx_res;
-	  aux.yy_res = yy_res;
-      }
+	aux.by_section = 0;
+    aux.x_res = x_res;
+    aux.y_res = y_res;
+    aux.xx_res = xx_res;
+    aux.yy_res = yy_res;
     aux.transparent = transparent;
     aux.opacity = opacity;
     aux.quality = quality;
@@ -6193,12 +6687,22 @@ do_paint_map_from_raster (struct aux_raster_render *args)
     aux.coverage = coverage;
     aux.symbolizer = symbolizer;
     aux.stats = stats;
-    aux.outbuf = outbuf;
-    aux.palette = palette;
+    aux.cvg_stl = cvg_stl;
+    aux.level_id = level_id;
+    aux.scale = scale;
+    aux.outbuf = NULL;
+    aux.palette = NULL;
     aux.out_pixel = out_pixel;
     aux.image = NULL;
     aux.image_size = 0;
     aux.graphics_ctx = NULL;
+
+    if (!do_get_raw_raster_data (&aux, by_section))
+      {
+	  cvg_stl = aux.cvg_stl;
+	  goto error;
+      }
+    cvg_stl = aux.cvg_stl;
     if (canvas)
       {
 	  /* using the Canvas Base Graphics Context */
@@ -6327,7 +6831,7 @@ do_transform_point (sqlite3 * handle, const unsigned char *blob, int blob_sz,
 	  else
 	    {
 		fprintf (stderr,
-			 "SELECT wms_reproject; sqlite3_step() error: %s\n",
+			 "SELECT pixel-reproject; sqlite3_step() error: %s\n",
 			 sqlite3_errmsg (handle));
 		goto error;
 	    }
@@ -6740,12 +7244,12 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 	 &maxy) != RL2_OK)
 	goto error;
 /* computing the extend frame */
-	extended_x = (maxx - minx) / 20.0;
-	ext_min_x = minx - extended_x;
-	ext_max_x = maxx + extended_x;
-	extended_y = (maxy - miny) / 20.0;
-	ext_min_y = miny - extended_y;
-	ext_max_y = maxy + extended_y;
+    extended_x = (maxx - minx) / 20.0;
+    ext_min_x = minx - extended_x;
+    ext_max_x = maxx + extended_x;
+    extended_y = (maxy - miny) / 20.0;
+    ext_min_y = miny - extended_y;
+    ext_max_y = maxy + extended_y;
 
 /* attempting to load the VectorLayer definitions from the DBMS */
     multi = rl2_create_vector_layer_from_dbms (sqlite, db_prefix, cvg_name);
@@ -6805,7 +7309,7 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 	  /* preparing a Graphics Context */
 	  ctx = rl2_graph_create_context (width, height);
 	  if (lyr_stl != NULL)
-	  {
+	    {
 		has_labels = rl2_style_has_labels (lyr_stl);
 		if (has_labels)
 		  {
@@ -6813,7 +7317,7 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 		      if (ctx_labels == NULL)
 			  goto error;
 		  }
-	  }
+	    }
       }
 
     for (j = 0; j < rl2_get_multilayer_count (multi); j++)
@@ -6965,13 +7469,15 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 		    sql =
 			sqlite3_mprintf
 			("SELECT ST_Intersection(ST_Transform(ST_GetFaceGeometry(%Q, face_id), %d), "
-			"BuildMbr(%f, %f, %f, %f))",
-			 toponame, out_srid, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
+			 "BuildMbr(%f, %f, %f, %f))",
+			 toponame, out_srid, ext_min_x, ext_min_y, ext_max_x,
+			 ext_max_y);
 		else
 		    sql =
 			sqlite3_mprintf
 			("SELECT ST_Intersection(ST_GetFaceGeometry(%Q, face_id), "
-			"BuildMbr(%f, %f, %f, %f))", toponame, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
+			 "BuildMbr(%f, %f, %f, %f))", toponame, ext_min_x,
+			 ext_min_y, ext_max_x, ext_max_y);
 	    }
 	  else
 	    {
@@ -6981,12 +7487,15 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 		    quoted = rl2_double_quoted_sql (lyr->f_geometry_column);
 		if (reproject_on_the_fly)
 		    sql =
-			sqlite3_mprintf ("SELECT ST_Intersection(ST_Transform(\"%s\", %d), "
-			"BuildMbr(%f, %f, %f, %f))",
-					 quoted, out_srid, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
+			sqlite3_mprintf
+			("SELECT ST_Intersection(ST_Transform(\"%s\", %d), "
+			 "BuildMbr(%f, %f, %f, %f))", quoted, out_srid,
+			 ext_min_x, ext_min_y, ext_max_x, ext_max_y);
 		else
 		    sql = sqlite3_mprintf ("SELECT ST_Intersection(\"%s\", "
-		    "BuildMbr(%f, %f, %f, %f))", quoted, ext_min_x, ext_min_y, ext_max_x, ext_max_y);
+					   "BuildMbr(%f, %f, %f, %f))", quoted,
+					   ext_min_x, ext_min_y, ext_max_x,
+					   ext_max_y);
 		free (quoted);
 	    }
 	  sqlite3_free (toponame);
@@ -7582,15 +8091,15 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
 	    }
 	  return RL2_OK;
       }
-      
-      if (ctx_labels != NULL)
+
+    if (ctx_labels != NULL)
       {
-		  /* merging Label sub-layer */
-		rl2GraphicsContextPtr ctx_in = ctx_labels;
-		rl2GraphicsContextPtr ctx_out = ctx;
-		    rl2_graph_merge (ctx_out, ctx_in);
-	  }
-	  
+	  /* merging Label sub-layer */
+	  rl2GraphicsContextPtr ctx_in = ctx_labels;
+	  rl2GraphicsContextPtr ctx_out = ctx;
+	  rl2_graph_merge (ctx_out, ctx_in);
+      }
+
     rl2_destroy_multi_layer (multi);
     multi = NULL;
     if (lyr_stl != NULL)
@@ -7608,10 +8117,10 @@ do_paint_map_from_vector (struct aux_vector_render *aux)
     rl2_graph_destroy_context (ctx);
     ctx = NULL;
     if (ctx_labels != NULL)
-    {
-		rl2_graph_destroy_context (ctx_labels);
-		ctx_labels = NULL;
-	}
+      {
+	  rl2_graph_destroy_context (ctx_labels);
+	  ctx_labels = NULL;
+      }
 
     if (!get_payload_from_rgb_rgba_transparent
 	(width, height, rgb, alpha, format_id, quality, &image, &image_size,

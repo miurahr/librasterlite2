@@ -238,6 +238,37 @@ extern "C"
 #define RL2_ORIGIN_RAW			0x4e
 #define RL2_ORIGIN_TIFF			0x4f
 
+    struct Control_Points
+    {
+	int count;
+	double *e1;
+	double *n1;
+	double *e2;
+	double *n2;
+	int *status;
+    };
+
+    typedef struct rl2_priv_affine_transform
+    {
+	double xx;
+	double xy;
+	double xz;
+	double xoff;
+	double yx;
+	double yy;
+	double yz;
+	double yoff;
+	double zx;
+	double zy;
+	double zz;
+	double zoff;
+	double w1;
+	double w2;
+	double w3;
+	double w4;
+    } rl2PrivAffineTransform;
+    typedef rl2PrivAffineTransform *rl2PrivAffineTransformPtr;
+
 
     struct rl2_private_tt_font
     {
@@ -323,6 +354,7 @@ extern "C"
     struct rl2_private_data
     {
 	int max_threads;
+	char *tmp_atm_table;
 	void *FTlibrary;
 	struct rl2_private_tt_font *first_font;
 	struct rl2_private_tt_font *last_font;
@@ -1101,6 +1133,7 @@ extern "C"
     {
 	/* helper struct for passing arguments to aux_render_image */
 	sqlite3 *sqlite;
+	const void *data;
 	int max_threads;
 	int width;
 	int height;
@@ -1111,6 +1144,28 @@ extern "C"
 	double maxx;
 	double maxy;
 	int srid;
+	int reproject_on_the_fly;
+	int out_srid;
+	double native_cx;
+	double native_cy;
+	double native_ll_x;
+	double native_ll_y;
+	double native_lr_x;
+	double native_lr_y;
+	double native_ur_x;
+	double native_ur_y;
+	double native_ul_x;
+	double native_ul_y;
+	double native_minx;
+	double native_miny;
+	double native_maxx;
+	double native_maxy;
+	double atm_xx;
+	double atm_yx;
+	double atm_xy;
+	double atm_yy;
+	double atm_xoff;
+	double atm_yoff;
 	int by_section;
 	sqlite3_int64 section_id;
 	double x_res;
@@ -1127,6 +1182,9 @@ extern "C"
 	rl2CoveragePtr coverage;
 	rl2RasterSymbolizerPtr symbolizer;
 	rl2RasterStatisticsPtr stats;
+	rl2CoverageStylePtr cvg_stl;
+	int level_id;
+	int scale;
 	unsigned char *outbuf;
 	rl2PalettePtr palette;
 	unsigned char out_pixel;
@@ -1327,6 +1385,17 @@ extern "C"
 	float *sr_mask;
     } rl2AuxShadower;
     typedef rl2AuxShadower *rl2AuxShadowerPtr;
+
+    typedef struct rl2_transform_params
+    {
+	void *at_data;
+	void *in;
+	void *out;
+	void *opaque_thread_id;
+	int base_row;
+	int row_incr;
+    } rl2TransformParams;
+    typedef rl2TransformParams *rl2TransformParamsPtr;
 
     typedef struct rl2_priv_canvas
     {
@@ -2270,6 +2339,8 @@ extern "C"
 					    const char *facename,
 					    unsigned char **font, int *font_sz);
 
+    RL2_PRIVATE rl2LinestringPtr rl2CreateLinestring (int vert);
+
     RL2_PRIVATE rl2LinestringPtr rl2_linestring_to_image (rl2LinestringPtr line,
 							  int height,
 							  double minx,
@@ -2284,6 +2355,10 @@ extern "C"
     RL2_PRIVATE void rl2DestroyLinestring (rl2LinestringPtr ptr);
 
     RL2_PRIVATE void rl2DestroyRing (rl2RingPtr ptr);
+
+    RL2_PRIVATE int
+	rl2_affine_transform_from_blob (rl2PrivAffineTransformPtr matrix,
+					const unsigned char *blob, int blob_sz);
 
     RL2_PRIVATE void rl2_estimate_text_length (void *ctx, const char *text,
 					       double *length, double *extra);

@@ -458,7 +458,7 @@ do_export_section_jpeg_jgw (sqlite3 * sqlite, const char *coverage,
 }
 
 static gaiaGeomCollPtr
-get_center_point (sqlite3 * sqlite, const char *coverage)
+get_center_point (sqlite3 * sqlite, const char *coverage, int srid)
 {
 /* attempting to retrieve the Coverage's Center Point */
     char *sql;
@@ -468,9 +468,9 @@ get_center_point (sqlite3 * sqlite, const char *coverage)
 
     sql = sqlite3_mprintf ("SELECT MakePoint("
 			   "extent_minx + ((extent_maxx - extent_minx) / 2.0), "
-			   "extent_miny + ((extent_maxy - extent_miny) / 2.0)) "
-			   "FROM raster_coverages WHERE coverage_name = %Q",
-			   coverage);
+			   "extent_miny + ((extent_maxy - extent_miny) / 2.0), %d) "
+			   "FROM raster_coverages_ref_sys WHERE coverage_name = %Q "
+			   "AND srid = %d", srid, coverage, srid);
     ret = sqlite3_prepare_v2 (sqlite, sql, strlen (sql), &stmt, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)
@@ -558,7 +558,7 @@ do_export_image (sqlite3 * sqlite, const char *coverage, gaiaGeomCollPtr geom,
 
 static int
 test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
-	       int type, int *retcode)
+	       int type, int transform, int *retcode)
 {
 /* testing some DBMS Coverage */
     int ret;
@@ -775,8 +775,44 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  return 0;
       }
 
+/* enabling SRID=32633 */
+    sql =
+	sqlite3_mprintf ("SELECT SE_RegisterRasterCoverageSRID(%Q, 32633)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SE_RegisterRasterCoverageSRID \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -6;
+	  return 0;
+      }
+
+/* updating the Coverage's extent */
+    sql =
+	sqlite3_mprintf ("SELECT SE_UpdateRasterCoverageExtent(%Q, 1)",
+			 coverage);
+    ret = execute_check (sqlite, sql);
+    sqlite3_free (sql);
+    if (ret != SQLITE_OK)
+      {
+	  fprintf (stderr, "SE_UpdateRasterCoverageExtent \"%s\" error: %s\n",
+		   coverage, err_msg);
+	  sqlite3_free (err_msg);
+	  *retcode += -6;
+	  return 0;
+      }
+
 /* export tests */
-    geom = get_center_point (sqlite, coverage);
+    if (transform)
+      {
+	  geom = get_center_point (sqlite, coverage, 32633);
+	  goto test_map;
+      }
+    else
+	geom = get_center_point (sqlite, coverage, 32632);
     if (geom == NULL)
       {
 	  *retcode += -6;
@@ -842,6 +878,7 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
 	  *retcode += -18;
 	  return 0;
       }
+  test_map:
     if (!do_export_image (sqlite, coverage, geom, 600.015, ".png"))
       {
 	  *retcode += -19;
@@ -871,6 +908,11 @@ test_coverage (sqlite3 * sqlite, unsigned char pixel, unsigned char compression,
       {
 	  *retcode += -24;
 	  return 0;
+      }
+    if (transform)
+      {
+	  gaiaFreeGeomColl (geom);
+	  return 1;
       }
     if (!do_export_section_jpeg (sqlite, coverage, geom, 1))
       {
@@ -1181,51 +1223,53 @@ main (int argc, char *argv[])
 /* RGB tests */
     ret = -100;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_NONE, 1, &ret))
+	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_NONE, 1, 0, &ret))
 	return ret;
     ret = -130;
-    if (!test_coverage (db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_PNG, 1, &ret))
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_PNG, 1, 1, &ret))
 	return ret;
     ret = -160;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, 1, &ret))
+	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, 1, 0, &ret))
 	return ret;
     ret = -200;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_NONE, 0, &ret))
+	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_NONE, 0, 0, &ret))
 	return ret;
     ret = -230;
-    if (!test_coverage (db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_PNG, 0, &ret))
+    if (!test_coverage
+	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_PNG, 0, 0, &ret))
 	return ret;
     ret = -260;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, 0, &ret))
+	(db_handle, RL2_PIXEL_RGB, RL2_COMPRESSION_JPEG, 0, 1, &ret))
 	return ret;
 
 /* GRAYSCALE tests */
     ret = -600;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, 1, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, 1, 0, &ret))
 	return ret;
     ret = -630;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, 1, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, 1, 1, &ret))
 	return ret;
     ret = -660;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, 1, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, 1, 1, &ret))
 	return ret;
     ret = -700;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, 0, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_NONE, 0, 0, &ret))
 	return ret;
     ret = -730;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, 0, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_PNG, 0, 0, &ret))
 	return ret;
     ret = -760;
     if (!test_coverage
-	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, 0, &ret))
+	(db_handle, RL2_PIXEL_GRAYSCALE, RL2_COMPRESSION_JPEG, 0, 0, &ret))
 	return ret;
 
 /* dropping all RGB Coverages */

@@ -45,6 +45,14 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <math.h>
 
+#if defined(_WIN32) && !defined(__MINGW32__)
+#include <windows.h>
+#include <process.h>
+#else
+#include <unistd.h>
+#include <pthread.h>
+#endif
+
 #ifdef LOADABLE_EXTENSION
 #include "rasterlite2/sqlite.h"
 #endif
@@ -186,6 +194,32 @@ typedef struct rl2_graphics_bitmap
     cairo_pattern_t *pattern;
 } RL2GraphBitmap;
 typedef RL2GraphBitmap *RL2GraphBitmapPtr;
+
+typedef struct rl2_priv_affine_transform_data
+{
+    double xx;
+    double xy;
+    double yx;
+    double yy;
+    double x_off;
+    double y_off;
+    int orig_ok;
+    int orig_width;
+    int orig_height;
+    double orig_minx;
+    double orig_miny;
+    double orig_x_res;
+    double orig_y_res;
+    int dest_ok;
+    int dest_width;
+    int dest_height;
+    double dest_minx;
+    double dest_miny;
+    double dest_x_res;
+    double dest_y_res;
+    int max_threads;
+} rl2PrivAffineTransformData;
+typedef rl2PrivAffineTransformData *rl2PrivAffineTransformDataPtr;
 
 static unsigned char
 unpremultiply (unsigned char c, unsigned char a)
@@ -2008,7 +2042,7 @@ rl2_graph_release_font (rl2GraphicsContextPtr context)
 	cairo = ctx->clip_cairo;
     else
 	cairo = ctx->cairo;
-    cairo_select_font_face (cairo, "monospace", CAIRO_FONT_SLANT_NORMAL,
+    cairo_select_font_face (cairo, "", CAIRO_FONT_SLANT_NORMAL,
 			    CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size (cairo, 10.0);
     return 1;
@@ -2026,8 +2060,9 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 	  /* True Type Font */
 	  if (fnt->cairo_scaled_font != NULL)
 	    {
-			if (cairo_scaled_font_get_reference_count(fnt->cairo_scaled_font) > 0)
-		cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+		if (cairo_scaled_font_get_reference_count
+		    (fnt->cairo_scaled_font) > 0)
+		    cairo_scaled_font_destroy (fnt->cairo_scaled_font);
 	    }
 	  if (fnt->cairo_font != NULL)
 	    {
@@ -2040,16 +2075,18 @@ rl2_graph_destroy_font (rl2GraphicsFontPtr font)
 	  /* Cairo Toy Font */
 	  if (fnt->facename != NULL)
 	      free (fnt->facename);
-	  if (fnt->cairo_scaled_font != NULL)
-	    {
-			if (cairo_scaled_font_get_reference_count(fnt->cairo_scaled_font) > 0)
-		cairo_scaled_font_destroy (fnt->cairo_scaled_font);
-	    }
-	  if (fnt->cairo_font != NULL)
-	    {
-		if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
-		    cairo_font_face_destroy (fnt->cairo_font);
-	    }
+	  /*
+	     if (fnt->cairo_scaled_font != NULL)
+	     {
+	     if (cairo_scaled_font_get_reference_count(fnt->cairo_scaled_font) > 0)
+	     cairo_scaled_font_destroy (fnt->cairo_scaled_font);
+	     }
+	     if (fnt->cairo_font != NULL)
+	     {
+	     if (cairo_font_face_get_reference_count (fnt->cairo_font) > 0)
+	     cairo_font_face_destroy (fnt->cairo_font);
+	     }
+	   */
       }
     free (fnt);
 }
@@ -3188,6 +3225,397 @@ rl2_graph_draw_rescaled_bitmap (rl2GraphicsContextPtr context,
     cairo_restore (cairo);
     cairo_surface_flush (surface);
     return 1;
+}
+
+RL2_DECLARE rl2AffineTransformDataPtr
+rl2_create_affine_transform (double xx, double yx, double xy, double yy,
+			     double xoff, double yoff, int max_threads)
+{
+/* creating an incomplete Affine Transform Data object */
+    rl2PrivAffineTransformDataPtr ptr =
+	malloc (sizeof (rl2PrivAffineTransformData));
+    ptr->xx = xx;
+    ptr->yx = yx;
+    ptr->xy = xy;
+    ptr->yy = yy;
+    ptr->x_off = xoff;
+    ptr->y_off = yoff;
+    ptr->max_threads = max_threads;
+    ptr->orig_ok = 0;
+    ptr->dest_ok = 0;
+    return (rl2AffineTransformDataPtr) ptr;
+}
+
+RL2_DECLARE void
+rl2_destroy_affine_transform (rl2AffineTransformDataPtr xptr)
+{
+/* destroying an Affine Transform Data object */
+    rl2PrivAffineTransformDataPtr ptr = (rl2PrivAffineTransformDataPtr) xptr;
+    if (ptr == NULL)
+	return;
+    free (ptr);
+}
+
+RL2_DECLARE int
+rl2_set_affine_transform_origin (rl2AffineTransformDataPtr xptr, int width,
+				 int height, double minx, double miny,
+				 double maxx, double maxy)
+{
+/* setting the Origin context */
+    double ext_x = maxx - minx;
+    double ext_y = maxy - miny;
+    double x_res = ext_x / (double) width;
+    double y_res = ext_y / (double) height;
+    rl2PrivAffineTransformDataPtr ptr = (rl2PrivAffineTransformDataPtr) xptr;
+    if (ptr == NULL)
+	return 0;
+    if (x_res <= 0.0 || y_res <= 0.0)
+	return 0;
+    ptr->orig_width = width;
+    ptr->orig_height = height;
+    ptr->orig_minx = minx;
+    ptr->orig_miny = miny;
+    ptr->orig_x_res = x_res;
+    ptr->orig_y_res = y_res;
+    ptr->orig_ok = 1;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_set_affine_transform_destination (rl2AffineTransformDataPtr xptr, int width,
+				      int height, double minx, double miny,
+				      double maxx, double maxy)
+{
+/* setting the Destination context */
+    double ext_x = maxx - minx;
+    double ext_y = maxy - miny;
+    double x_res = ext_x / (double) width;
+    double y_res = ext_y / (double) height;
+    rl2PrivAffineTransformDataPtr ptr = (rl2PrivAffineTransformDataPtr) xptr;
+    if (ptr == NULL)
+	return 0;
+    if (x_res <= 0.0 || y_res <= 0.0)
+	return 0;
+    ptr->dest_width = width;
+    ptr->dest_height = height;
+    ptr->dest_minx = minx;
+    ptr->dest_miny = miny;
+    ptr->dest_x_res = x_res;
+    ptr->dest_y_res = y_res;
+    ptr->dest_ok = 1;
+    return 1;
+}
+
+RL2_DECLARE int
+rl2_is_valid_affine_transform (rl2AffineTransformDataPtr xptr)
+{
+/* testing an Affine Transform Data object for validity */
+    rl2PrivAffineTransformDataPtr ptr = (rl2PrivAffineTransformDataPtr) xptr;
+    if (ptr == NULL)
+	return 0;
+    if (ptr->orig_ok && ptr->dest_ok)
+	return 1;
+    return 0;
+}
+
+#if defined(_WIN32) && !defined(__MINGW32__)
+DWORD WINAPI
+doRunTransformThread (void *arg)
+#else
+void *
+doRunTransformThread (void *arg)
+#endif
+{
+/* threaded function: Affine Transform */
+    rl2TransformParamsPtr params = (rl2TransformParamsPtr) arg;
+    int x;
+    int y;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    rl2PrivAffineTransformDataPtr atm =
+	(rl2PrivAffineTransformDataPtr) (params->at_data);
+    RL2GraphBitmapPtr in = (RL2GraphBitmapPtr) (params->in);
+    RL2GraphBitmapPtr out = (RL2GraphBitmapPtr) (params->out);
+    for (y = params->base_row; y < atm->dest_height; y += params->row_incr)
+      {
+	  int y_rev = atm->dest_height - y - 1;
+	  for (x = 0; x < atm->dest_width; x++)
+	    {
+		double x_out = atm->dest_minx + (atm->dest_x_res * (double) x);
+		double y_out =
+		    atm->dest_miny + (atm->dest_y_res * (double) y_rev);
+		double x_in =
+		    (atm->xx * x_out) + (atm->xy * y_out) + atm->x_off;
+		double y_in =
+		    (atm->yx * x_out) + (atm->yy * y_out) + atm->y_off;
+		int x0 = (x_in - atm->orig_minx) / atm->orig_x_res;
+		int y0 =
+		    (atm->orig_height - 1) - (y_in -
+					      atm->orig_miny) / atm->orig_y_res;
+		if (x0 >= 0 && x0 < atm->orig_width && y0 >= 0
+		    && y0 < atm->orig_height)
+		  {
+		      /* copying a transformed pixel */
+		      p_in = in->rgba + (y0 * atm->orig_width * 4) + (x0 * 4);
+		      p_out = out->rgba + (y * atm->dest_width * 4) + (x * 4);
+		      *p_out++ = *p_in++;	/* red */
+		      *p_out++ = *p_in++;	/* green */
+		      *p_out++ = *p_in++;	/* blue */
+		      *p_out++ = *p_in++;	/* alpha */
+		  }
+	    }
+      }
+#if defined(_WIN32) && !defined(__MINGW32__)
+    return 0;
+#else
+    pthread_exit (NULL);
+#endif
+}
+
+static void
+start_transform_thread (rl2TransformParamsPtr params)
+{
+/* starting a concurrent thread */
+#if defined(_WIN32) && !defined(__MINGW32__)
+    HANDLE thread_handle;
+    HANDLE *p_thread;
+    DWORD dwThreadId;
+    thread_handle =
+	CreateThread (NULL, 0, doRunTransformThread, params, 0, &dwThreadId);
+    SetThreadPriority (thread_handle, THREAD_PRIORITY_IDLE);
+    p_thread = malloc (sizeof (HANDLE));
+    *p_thread = thread_handle;
+    params->opaque_thread_id = p_thread;
+#else
+    pthread_t thread_id;
+    pthread_t *p_thread;
+    int ok_prior = 0;
+    int policy;
+    int min_prio;
+    pthread_attr_t attr;
+    struct sched_param sp;
+    pthread_attr_init (&attr);
+    if (pthread_attr_setschedpolicy (&attr, SCHED_RR) == 0)
+      {
+	  /* attempting to set the lowest priority */
+	  if (pthread_attr_getschedpolicy (&attr, &policy) == 0)
+	    {
+		min_prio = sched_get_priority_min (policy);
+		sp.sched_priority = min_prio;
+		if (pthread_attr_setschedparam (&attr, &sp) == 0)
+		  {
+		      /* ok, setting the lowest priority */
+		      ok_prior = 1;
+		      pthread_create (&thread_id, &attr, doRunTransformThread,
+				      params);
+		  }
+	    }
+      }
+    if (!ok_prior)
+      {
+	  /* failure: using standard priority */
+	  pthread_create (&thread_id, NULL, doRunTransformThread, params);
+      }
+    p_thread = malloc (sizeof (pthread_t));
+    *p_thread = thread_id;
+    params->opaque_thread_id = p_thread;
+#endif
+}
+
+static void
+do_multi_thread_transform (rl2TransformParamsPtr params_array, int count)
+{
+/* applying the Affine Transform  - multi-thread */
+    rl2TransformParamsPtr params;
+    int i;
+#if defined(_WIN32) && !defined(__MINGW32__)
+    HANDLE *handles;
+#endif
+
+    for (i = 0; i < count; i++)
+      {
+	  /* starting all children threads */
+	  params = params_array + i;
+	  start_transform_thread (params);
+      }
+
+/* waiting until all child threads exit */
+#if defined(_WIN32) && !defined(__MINGW32__)
+    handles = malloc (sizeof (HANDLE) * count);
+    for (i = 0; i < count; i++)
+      {
+	  /* initializing the HANDLEs array */
+	  HANDLE *pOpaque;
+	  params = params_array + i;
+	  pOpaque = (HANDLE *) (params->opaque_thread_id);
+	  *(handles + i) = *pOpaque;
+      }
+    WaitForMultipleObjects (count, handles, TRUE, INFINITE);
+    free (handles);
+#else
+    for (i = 0; i < count; i++)
+      {
+	  pthread_t *pOpaque;
+	  params = params_array + i;
+	  pOpaque = (pthread_t *) (params->opaque_thread_id);
+	  pthread_join (*pOpaque, NULL);
+      }
+#endif
+
+/* all children threads have now finished: resuming the main thread */
+    for (i = 0; i < count; i++)
+      {
+	  params = params_array + i;
+	  params->at_data = NULL;
+	  params->in = NULL;
+	  params->out = NULL;
+	  params->opaque_thread_id = NULL;
+      }
+}
+
+static void
+do_mono_thread_transform (rl2TransformParamsPtr params)
+{
+/* applying the Affine Transform  - single thread */
+    int x;
+    int y;
+    unsigned char *p_in;
+    unsigned char *p_out;
+    rl2PrivAffineTransformDataPtr atm =
+	(rl2PrivAffineTransformDataPtr) (params->at_data);
+    RL2GraphBitmapPtr in = (RL2GraphBitmapPtr) (params->in);
+    RL2GraphBitmapPtr out = (RL2GraphBitmapPtr) (params->out);
+    for (y = 0; y < atm->dest_height; y++)
+      {
+	  int y_rev = atm->dest_height - y - 1;
+	  for (x = 0; x < atm->dest_width; x++)
+	    {
+		double x_out = atm->dest_minx + (atm->dest_x_res * (double) x);
+		double y_out =
+		    atm->dest_miny + (atm->dest_y_res * (double) y_rev);
+		double x_in =
+		    (atm->xx * x_out) + (atm->xy * y_out) + atm->x_off;
+		double y_in =
+		    (atm->yx * x_out) + (atm->yy * y_out) + atm->y_off;
+		int x0 = (x_in - atm->orig_minx) / atm->orig_x_res;
+		int y0 =
+		    (atm->orig_height - 1) - (y_in -
+					      atm->orig_miny) / atm->orig_y_res;
+		if (x0 >= 0 && x0 < atm->orig_width && y0 >= 0
+		    && y0 < atm->orig_height)
+		  {
+		      /* copying a transformed pixel */
+		      p_in = in->rgba + (y0 * atm->orig_width * 4) + (x0 * 4);
+		      p_out = out->rgba + (y * atm->dest_width * 4) + (x * 4);
+		      *p_out++ = *p_in++;	/* red */
+		      *p_out++ = *p_in++;	/* green */
+		      *p_out++ = *p_in++;	/* blue */
+		      *p_out++ = *p_in++;	/* alpha */
+		  }
+	    }
+      }
+}
+
+RL2_DECLARE int
+rl2_transform_bitmap (rl2AffineTransformDataPtr at_data,
+		      rl2GraphicsBitmapPtr * bitmap)
+{
+/* creating a new Graphics Bitmap object by applying an Affine Transform */
+    rl2TransformParamsPtr params_array = NULL;
+    rl2TransformParamsPtr params;
+    int ipar;
+    int x;
+    int y;
+    int max_threads;
+    unsigned char *p_out;
+    unsigned char *rgba = NULL;
+    int rgba_sz;
+    rl2GraphicsBitmapPtr out_bitmap = NULL;
+    rl2PrivAffineTransformDataPtr atm = (rl2PrivAffineTransformDataPtr) at_data;
+    RL2GraphBitmapPtr in = *((RL2GraphBitmapPtr *) bitmap);
+    RL2GraphBitmapPtr out;
+    if (atm == NULL)
+	goto error;
+    if (!rl2_is_valid_affine_transform (at_data))
+	goto error;
+    if (in == NULL)
+	goto error;
+    if (in->width != atm->orig_width || in->height != atm->orig_height)
+	goto error;
+
+/* creating the output bitmap */
+    rgba_sz = atm->dest_width * atm->dest_height * 4;
+    rgba = malloc (rgba_sz);
+    if (rgba == NULL)
+	goto error;
+    p_out = rgba;
+    for (y = 0; y < atm->dest_height; y++)
+      {
+	  for (x = 0; x < atm->dest_width; x++)
+	    {
+		/* priming a transparent background */
+		*p_out++ = 0;	/* red */
+		*p_out++ = 0;	/* green */
+		*p_out++ = 0;	/* blue */
+		*p_out++ = 0;	/* alpha */
+	    }
+      }
+    out_bitmap =
+	rl2_graph_create_bitmap (rgba, atm->dest_width, atm->dest_height);
+    if (out_bitmap == NULL)
+	goto error;
+
+    out = (RL2GraphBitmapPtr) out_bitmap;
+
+    max_threads = atm->max_threads;
+    if (max_threads < 1)
+	max_threads = 1;
+    if (max_threads > 64)
+	max_threads = 64;
+/* allocating the Transform Params array */
+    params_array = malloc (sizeof (rl2TransformParams) * max_threads);
+    if (params_array == NULL)
+	goto error;
+    for (ipar = 0; ipar < max_threads; ipar++)
+      {
+	  /* initializing Transform Params */
+	  params = params_array + ipar;
+	  params->at_data = at_data;
+	  params->in = in;
+	  params->out = out;
+	  params->opaque_thread_id = NULL;
+	  params->base_row = ipar;
+	  params->row_incr = max_threads;
+      }
+    if (max_threads > 1)
+      {
+	  /* adopting a multithreaded strategy */
+	  do_multi_thread_transform (params_array, max_threads);
+      }
+    else
+      {
+	  /* single thread execution */
+	  do_mono_thread_transform (params);
+      }
+    free (params_array);
+    rl2_graph_destroy_bitmap (in);
+    *bitmap = out_bitmap;
+    return 1;
+
+  error:
+    if (params_array != NULL)
+	free (params_array);
+    if (in != NULL)
+	rl2_graph_destroy_bitmap (in);
+    if (out_bitmap != NULL)
+	rl2_graph_destroy_bitmap (out_bitmap);
+    else
+      {
+	  if (rgba != NULL)
+	      free (rgba);
+      }
+    *bitmap = NULL;
+    return 0;
 }
 
 RL2_DECLARE int

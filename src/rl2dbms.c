@@ -5311,7 +5311,6 @@ rl2_get_raw_raster_mask_common (sqlite3 * handle, int max_threads,
 			   xxdata);
     free (xdb_prefix);
     free (xxdata);
-    fprintf (stderr, "%s\n", sql);
     ret = sqlite3_prepare_v2 (handle, sql, strlen (sql), &stmt_data, NULL);
     sqlite3_free (sql);
     if (ret != SQLITE_OK)

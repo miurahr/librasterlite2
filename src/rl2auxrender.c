@@ -581,6 +581,114 @@ aux_render_composed_image (struct aux_renderer *aux, unsigned char *aggreg_rgba)
 }
 
 static int
+do_aux_reproject_image_graphics (struct aux_renderer *aux)
+{
+/*
+/ rendering a raster image - Graphics
+/ with reprojection on-the-fly
+*/
+    unsigned char *rgba = NULL;
+    rl2GraphicsBitmapPtr base_img = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    rl2AffineTransformDataPtr at_data = NULL;
+    int base_width = aux->base_width;
+    int base_height = aux->base_height;
+
+    aux->image = NULL;
+    aux->image_size = 0;
+    rgba = malloc (base_width * base_height * 4);
+    if (rgba == NULL)
+	goto error;
+
+    /* using the Canvas Base Graphics Context */
+    ctx = aux->graphics_ctx;
+    if (ctx == NULL)
+	goto error;
+    if (aux->out_pixel == RL2_PIXEL_MONOCHROME)
+      {
+	  /* Monochrome */
+	  if (!get_rgba_from_monochrome_transparent
+	      (base_width, base_height, aux->outbuf, rgba))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    else if (aux->out_pixel == RL2_PIXEL_PALETTE)
+      {
+	  /* Palette */
+	  if (!get_rgba_from_palette_transparent
+	      (base_width, base_height, aux->outbuf,
+	       aux->palette, rgba, 255, 255, 255))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    else if (aux->out_pixel == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* Grayscale */
+	  if (!get_rgba_from_grayscale_transparent
+	      (base_width, base_height, aux->outbuf, rgba, 255))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    else
+      {
+	  /* RGB */
+	  if (!get_rgba_from_rgb_transparent
+	      (base_width, base_height, aux->outbuf, rgba, 255, 255, 255))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    base_img = rl2_graph_create_bitmap (rgba, base_width, base_height);
+    if (base_img == NULL)
+	goto error;
+    rgba = NULL;
+    at_data =
+	rl2_create_affine_transform (aux->atm_xx, aux->atm_yx, aux->atm_xy,
+				     aux->atm_yy, aux->atm_xoff, aux->atm_yoff,
+				     aux->max_threads);
+    if (at_data == NULL)
+	goto error;
+    if (!rl2_set_affine_transform_origin
+	(at_data, aux->base_width, aux->base_height, aux->native_minx,
+	 aux->native_miny, aux->native_maxx, aux->native_maxy))
+	goto error;
+    if (!rl2_set_affine_transform_destination
+	(at_data, aux->width, aux->height, aux->minx, aux->miny, aux->maxx,
+	 aux->maxy))
+	goto error;
+    if (!rl2_transform_bitmap (at_data, &base_img))
+	goto error;
+
+    rl2_destroy_affine_transform (at_data);
+    rl2_graph_draw_bitmap (ctx, base_img, 0, 0);
+
+    rl2_graph_destroy_bitmap (base_img);
+    return RL2_OK;
+
+  error:
+    if (base_img != NULL)
+	rl2_graph_destroy_bitmap (base_img);
+    if (at_data != NULL)
+	rl2_destroy_affine_transform (at_data);
+    if (aux->outbuf != NULL)
+	free (aux->outbuf);
+    if (rgba != NULL)
+	free (rgba);
+    return RL2_ERROR;
+}
+
+static int
 do_aux_render_image_graphics (struct aux_renderer *aux)
 {
 /* rendering a raster image - Graphics Context */
@@ -592,6 +700,9 @@ do_aux_render_image_graphics (struct aux_renderer *aux)
 
     if (aux->out_pixel == RL2_PIXEL_PALETTE && aux->palette == NULL)
 	goto error;
+
+    if (aux->reproject_on_the_fly)
+	return do_aux_reproject_image_graphics (aux);
 
     aux->image = NULL;
     aux->image_size = 0;
@@ -671,6 +782,186 @@ do_aux_render_image_graphics (struct aux_renderer *aux)
 }
 
 static int
+do_aux_reproject_image_blob (struct aux_renderer *aux)
+{
+/*
+/ rendering a raster image - BLOB
+/ with reprojection on-the-fly
+*/
+    unsigned char *image = NULL;
+    int image_size;
+    unsigned char *rgb = NULL;
+    unsigned char *alpha = NULL;
+    unsigned char *rgba = NULL;
+    int half_transparent;
+    rl2GraphicsBitmapPtr base_img = NULL;
+    rl2GraphicsContextPtr ctx = NULL;
+    rl2AffineTransformDataPtr at_data = NULL;
+    int base_width = aux->base_width;
+    int base_height = aux->base_height;
+
+    aux->image = NULL;
+    aux->image_size = 0;
+    rgba = malloc (base_width * base_height * 4);
+    if (rgba == NULL)
+	goto error;
+
+    /* using the Canvas Base Graphics Context */
+    ctx = rl2_graph_create_context (aux->width, aux->height);
+    if (ctx == NULL)
+	goto error;
+    if (aux->out_pixel == RL2_PIXEL_MONOCHROME)
+      {
+	  /* Monochrome */
+	  if (!get_rgba_from_monochrome_transparent
+	      (base_width, base_height, aux->outbuf, rgba))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    else if (aux->out_pixel == RL2_PIXEL_PALETTE)
+      {
+	  /* Palette */
+	  if (!get_rgba_from_palette_transparent
+	      (base_width, base_height, aux->outbuf,
+	       aux->palette, rgba, 255, 255, 255))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    else if (aux->out_pixel == RL2_PIXEL_GRAYSCALE)
+      {
+	  /* Grayscale */
+	  if (!get_rgba_from_grayscale_transparent
+	      (base_width, base_height, aux->outbuf, rgba, 255))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    else
+      {
+	  /* RGB */
+	  if (!get_rgba_from_rgb_transparent
+	      (base_width, base_height, aux->outbuf, rgba, 255, 255, 255))
+	    {
+		aux->outbuf = NULL;
+		goto error;
+	    }
+	  aux->outbuf = NULL;
+      }
+    base_img = rl2_graph_create_bitmap (rgba, base_width, base_height);
+    if (base_img == NULL)
+	goto error;
+    rgba = NULL;
+    at_data =
+	rl2_create_affine_transform (aux->atm_xx, aux->atm_yx, aux->atm_xy,
+				     aux->atm_yy, aux->atm_xoff, aux->atm_yoff,
+				     aux->max_threads);
+    if (at_data == NULL)
+	goto error;
+    if (!rl2_set_affine_transform_origin
+	(at_data, aux->base_width, aux->base_height, aux->native_minx,
+	 aux->native_miny, aux->native_maxx, aux->native_maxy))
+	goto error;
+    if (!rl2_set_affine_transform_destination
+	(at_data, aux->width, aux->height, aux->minx, aux->miny, aux->maxx,
+	 aux->maxy))
+	goto error;
+    if (!rl2_transform_bitmap (at_data, &base_img))
+	goto error;
+
+    rl2_destroy_affine_transform (at_data);
+    rl2_graph_draw_bitmap (ctx, base_img, 0, 0);
+    rl2_graph_destroy_bitmap (base_img);
+    rgb = rl2_graph_get_context_rgb_array (ctx);
+    alpha = NULL;
+    if (aux->transparent)
+	alpha = rl2_graph_get_context_alpha_array (ctx, &half_transparent);
+    rl2_graph_destroy_context (ctx);
+    if (rgb == NULL)
+	goto error;
+    if (aux->out_pixel == RL2_PIXEL_GRAYSCALE
+	|| aux->out_pixel == RL2_PIXEL_MONOCHROME)
+      {
+	  /* Grayscale or Monochrome upsampled */
+	  if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		if (alpha == NULL)
+		    goto error;
+		if (!get_payload_from_gray_rgba_transparent
+		    (aux->width, aux->height, rgb, alpha,
+		     aux->format_id, aux->quality, &image, &image_size,
+		     aux->opacity))
+		    goto error;
+	    }
+	  else
+	    {
+		if (alpha != NULL)
+		    free (alpha);
+		alpha = NULL;
+		if (!get_payload_from_gray_rgba_opaque
+		    (aux->width, aux->height, aux->sqlite, aux->minx,
+		     aux->miny, aux->maxx, aux->maxy, aux->srid, rgb,
+		     aux->format_id, aux->quality, &image, &image_size))
+		    goto error;
+	    }
+      }
+    else
+      {
+	  /* RGB */
+	  if (aux->transparent && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		if (alpha == NULL)
+		    goto error;
+		if (!get_payload_from_rgb_rgba_transparent
+		    (aux->width, aux->height, rgb, alpha,
+		     aux->format_id, aux->quality, &image, &image_size,
+		     aux->opacity, 0))
+		    goto error;
+	    }
+	  else
+	    {
+		if (alpha != NULL)
+		    free (alpha);
+		alpha = NULL;
+		if (!get_payload_from_rgb_rgba_opaque
+		    (aux->width, aux->height, aux->sqlite, aux->minx,
+		     aux->miny, aux->maxx, aux->maxy, aux->srid, rgb,
+		     aux->format_id, aux->quality, &image, &image_size))
+		    goto error;
+	    }
+      }
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    aux->image = image;
+    aux->image_size = image_size;
+    return RL2_OK;
+
+  error:
+    if (base_img != NULL)
+	rl2_graph_destroy_bitmap (base_img);
+    if (at_data != NULL)
+	rl2_destroy_affine_transform (at_data);
+    if (aux->outbuf != NULL)
+	free (aux->outbuf);
+    if (rgb != NULL)
+	free (rgb);
+    if (alpha != NULL)
+	free (alpha);
+    if (rgba != NULL)
+	free (rgba);
+    return RL2_ERROR;
+}
+
+static int
 do_aux_render_image_blob (struct aux_renderer *aux)
 {
 /* rendering a raster image - BLOB */
@@ -679,7 +970,6 @@ do_aux_render_image_blob (struct aux_renderer *aux)
     unsigned char *rgb = NULL;
     unsigned char *alpha = NULL;
     unsigned char *rgba = NULL;
-    unsigned char *gray = NULL;
     int half_transparent;
     rl2GraphicsBitmapPtr base_img = NULL;
     rl2GraphicsContextPtr ctx = NULL;
@@ -688,6 +978,9 @@ do_aux_render_image_blob (struct aux_renderer *aux)
 
     if (aux->out_pixel == RL2_PIXEL_PALETTE && aux->palette == NULL)
 	goto error;
+
+    if (aux->reproject_on_the_fly)
+	return do_aux_reproject_image_blob (aux);
 
     if (aux->base_width == aux->width && aux->base_height == aux->height)
       {
@@ -995,14 +1288,13 @@ do_aux_render_image_blob (struct aux_renderer *aux)
   error:
     if (aux->outbuf != NULL)
 	free (aux->outbuf);
+    aux->outbuf = NULL;
     if (rgb != NULL)
 	free (rgb);
     if (alpha != NULL)
 	free (alpha);
     if (rgba != NULL)
 	free (rgba);
-    if (gray != NULL)
-	free (gray);
     return RL2_ERROR;
 }
 
@@ -1738,8 +2030,10 @@ rl2_get_raw_raster_data_mixed_resolutions (sqlite3 * handle, int max_threads,
     if (db_prefix == NULL)
 	db_prefix = "main";
     xdb_prefix = rl2_double_quoted_sql (db_prefix);
-    xsections = sqlite3_mprintf ("DB=%s.%s_sections", db_prefix, coverage);
+    xsections = sqlite3_mprintf ("%s_sections", coverage);
     xxsections = rl2_double_quoted_sql (xsections);
+    sqlite3_free (xsections);
+    xsections = sqlite3_mprintf ("DB=%s.%s_sections", db_prefix, coverage);
     sql =
 	sqlite3_mprintf
 	("SELECT section_id, MbrMinX(geometry), MbrMinY(geometry), "

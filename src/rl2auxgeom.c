@@ -67,6 +67,10 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include <spatialite/gg_const.h>
 
+#define MATRIX_MAGIC_START		0x00
+#define MATRIX_MAGIC_DELIMITER	0x3a
+#define MATRIX_MAGIC_END		0xb3
+
 /*
 /
 / PLEASE NOTE: all these functions are roughly equivalent to the 
@@ -119,7 +123,7 @@ rl2DestroyPoint (rl2PointPtr ptr)
 	free (ptr);
 }
 
-static rl2LinestringPtr
+RL2_PRIVATE rl2LinestringPtr
 rl2CreateLinestring (int vert)
 {
 /* LINESTRING object constructor */
@@ -2530,4 +2534,45 @@ rl2_build_circle (double cx, double cy, double radius)
     rl2GetPoint (ln->coords, 0, &x, &y);
     rl2SetPoint (ln->coords, 128, x, y);
     return out;
+}
+
+RL2_PRIVATE int
+rl2_affine_transform_from_blob (rl2PrivAffineTransformPtr matrix, const unsigned char *blob, int blob_sz)
+{
+/* decoding an Affine Transform Matrix object */
+    int endian;
+    int endian_arch = rl2GeomEndianArch ();
+    const unsigned char *ptr = blob;
+    if (blob == NULL)
+	return 0;
+    if (blob_sz != 146)
+	return 0;
+
+    if (*ptr != MATRIX_MAGIC_START)
+	return 0;
+    if (*(ptr + 1) == 1)
+	endian = 1;
+    else if (*(ptr + 1) == 0)
+	endian = 0;
+    else
+	return 0;
+    matrix->xx = rl2GeomImport64 (ptr + 2, endian, endian_arch);
+    matrix->xy = rl2GeomImport64 (ptr + 11, endian, endian_arch);
+    matrix->xz = rl2GeomImport64 (ptr + 20, endian, endian_arch);
+    matrix->xoff = rl2GeomImport64 (ptr + 29, endian, endian_arch);
+    matrix->yx = rl2GeomImport64 (ptr + 38, endian, endian_arch);
+    matrix->yy = rl2GeomImport64 (ptr + 47, endian, endian_arch);
+    matrix->yz = rl2GeomImport64 (ptr + 56, endian, endian_arch);
+    matrix->yoff = rl2GeomImport64 (ptr + 65, endian, endian_arch);
+    matrix->zx = rl2GeomImport64 (ptr + 74, endian, endian_arch);
+    matrix->zy = rl2GeomImport64 (ptr + 83, endian, endian_arch);
+    matrix->zz = rl2GeomImport64 (ptr + 92, endian, endian_arch);
+    matrix->zoff = rl2GeomImport64 (ptr + 101, endian, endian_arch);
+    matrix->w1 = rl2GeomImport64 (ptr + 110, endian, endian_arch);
+    matrix->w2 = rl2GeomImport64 (ptr + 119, endian, endian_arch);
+    matrix->w3 = rl2GeomImport64 (ptr + 128, endian, endian_arch);
+    matrix->w4 = rl2GeomImport64 (ptr + 137, endian, endian_arch);
+    if (*(ptr + 145) != MATRIX_MAGIC_END)
+	return 0;
+    return 1;
 }

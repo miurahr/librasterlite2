@@ -62,6 +62,9 @@ RL2_DECLARE void *
 rl2_alloc_private (void)
 {
 /* allocating and initializing default private connection data */
+    unsigned char rnd[16];
+    char uuid[64];
+    char *p = uuid;
     int i;
     FT_Error error;
     FT_Library library;
@@ -70,6 +73,22 @@ rl2_alloc_private (void)
     if (priv_data == NULL)
 	return NULL;
     priv_data->max_threads = 1;
+
+/* creating an UUID name for temp ATM table */
+    priv_data->tmp_atm_table = NULL;
+    sqlite3_randomness (16, rnd);
+    for (i = 0; i < 16; i++)
+      {
+	  if (i == 4 || i == 6 || i == 8 || i == 10)
+	      *p++ = '-';
+	  sprintf (p, "%02x", rnd[i]);
+	  p += 2;
+      }
+    *p = '\0';
+    uuid[14] = '4';
+    uuid[19] = '8';
+    priv_data->tmp_atm_table = sqlite3_mprintf ("tmp_atm_%s", uuid);
+
 /* initializing FreeType */
     error = FT_Init_FreeType (&library);
     if (error)
@@ -103,6 +122,8 @@ rl2_cleanup_private (const void *ptr)
     if (priv_data == NULL)
 	return;
 
+    if (priv_data->tmp_atm_table != NULL)
+	sqlite3_free (priv_data->tmp_atm_table);
 /* cleaning the internal Font Cache */
     pF = priv_data->first_font;
     while (pF != NULL)

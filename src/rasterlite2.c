@@ -2387,6 +2387,21 @@ rl2_create_pixel (unsigned char sample_type, unsigned char pixel_type,
 }
 
 RL2_DECLARE rl2PixelPtr
+rl2_create_pixel_none ()
+{
+/* allocating and initializing a Pixel object of the NONE type */
+    rl2PrivPixelPtr pxl = malloc (sizeof (rl2PrivPixel));
+    if (pxl == NULL)
+	return NULL;
+    pxl->sampleType = RL2_SAMPLE_NONE;
+    pxl->pixelType = RL2_PIXEL_NONE;
+    pxl->nBands = 0;
+    pxl->isTransparent = 0;
+    pxl->Samples = NULL;
+    return (rl2PixelPtr) pxl;
+}
+
+RL2_DECLARE rl2PixelPtr
 rl2_clone_pixel (rl2PixelPtr org)
 {
 /* cloning a Pixel object */
@@ -2396,6 +2411,11 @@ rl2_clone_pixel (rl2PixelPtr org)
     rl2PrivPixelPtr px_in = (rl2PrivPixelPtr) org;
     if (px_in == NULL)
 	return NULL;
+
+/* never cloning a NONE pixel */
+    if (rl2_is_pixel_none (org) == RL2_TRUE)
+	return NULL;
+
     dst = rl2_create_pixel (px_in->sampleType, px_in->pixelType, px_in->nBands);
     if (dst == NULL)
 	return NULL;
@@ -2548,6 +2568,13 @@ rl2_compare_pixels (rl2PixelPtr pixel1, rl2PixelPtr pixel2)
     rl2PrivPixelPtr pxl2 = (rl2PrivPixelPtr) pixel2;
     if (pxl1 == NULL || pxl2 == NULL)
 	return RL2_ERROR;
+
+/* never comparing a NONE pixel */
+    if (rl2_is_pixel_none (pixel1) == RL2_TRUE)
+	return RL2_ERROR;
+    if (rl2_is_pixel_none (pixel2) == RL2_TRUE)
+	return RL2_ERROR;
+
     if (pxl1->sampleType != pxl2->sampleType)
 	return RL2_ERROR;
     if (pxl1->pixelType != pxl2->pixelType)
@@ -2602,6 +2629,19 @@ rl2_compare_pixels (rl2PixelPtr pixel1, rl2PixelPtr pixel2)
     return RL2_TRUE;
 }
 
+RL2_DECLARE int
+rl2_is_pixel_none (rl2PixelPtr pixel)
+{
+/* testing for a NONE pixel */
+    rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) pixel;
+    if (pxl == NULL)
+	return RL2_ERROR;
+    if (pxl->sampleType == RL2_SAMPLE_NONE && pxl->pixelType == RL2_PIXEL_NONE
+	&& pxl->nBands == 0)
+	return RL2_TRUE;
+    return RL2_FALSE;
+}
+
 
 RL2_DECLARE int
 rl2_get_pixel_type (rl2PixelPtr ptr,
@@ -2612,6 +2652,11 @@ rl2_get_pixel_type (rl2PixelPtr ptr,
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
+
+/* never accept a NONE pixel */
+    if (rl2_is_pixel_none (ptr) == RL2_TRUE)
+	return RL2_ERROR;
+
     *sample_type = pxl->sampleType;
     *pixel_type = pxl->pixelType;
     *num_bands = pxl->nBands;
@@ -2937,6 +2982,11 @@ rl2_is_pixel_transparent (rl2PixelPtr ptr, int *is_transparent)
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
+
+/* never accept a NONE pixel */
+    if (rl2_is_pixel_none (ptr) == RL2_TRUE)
+	return RL2_ERROR;
+
     if (pxl->isTransparent)
 	*is_transparent = RL2_TRUE;
     else
@@ -2951,6 +3001,11 @@ rl2_is_pixel_opaque (rl2PixelPtr ptr, int *is_opaque)
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
+
+/* never accept a NONE pixel */
+    if (rl2_is_pixel_none (ptr) == RL2_TRUE)
+	return RL2_ERROR;
+
     if (pxl->isTransparent)
 	*is_opaque = RL2_FALSE;
     else
@@ -2965,6 +3020,11 @@ rl2_set_pixel_transparent (rl2PixelPtr ptr)
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
+
+/* never accept a NONE pixel */
+    if (rl2_is_pixel_none (ptr) == RL2_TRUE)
+	return RL2_ERROR;
+
     pxl->isTransparent = 1;
     return RL2_OK;
 }
@@ -2976,6 +3036,11 @@ rl2_set_pixel_opaque (rl2PixelPtr ptr)
     rl2PrivPixelPtr pxl = (rl2PrivPixelPtr) ptr;
     if (pxl == NULL)
 	return RL2_ERROR;
+
+/* never accept a NONE pixel */
+    if (rl2_is_pixel_none (ptr) == RL2_TRUE)
+	return RL2_ERROR;
+
     pxl->isTransparent = 0;
     return RL2_OK;
 }

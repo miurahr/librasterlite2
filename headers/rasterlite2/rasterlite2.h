@@ -109,6 +109,8 @@ extern "C"
 #define RL2_SAMPLE_FLOAT		0xaa
 /** RasterLite2 constant: Sample Type Floating Point Double Precision */
 #define RL2_SAMPLE_DOUBLE		0xab
+/** RasterLite2 constant: Sample Type NONE */
+#define RL2_SAMPLE_NONE			0xff
 
 /** RasterLite2 constant: Pixel Type UNKNOWN */
 #define RL2_PIXEL_UNKNOWN		0x10
@@ -124,6 +126,8 @@ extern "C"
 #define RL2_PIXEL_MULTIBAND		0x15
 /** RasterLite2 constant: Pixel Type Data-Grid */
 #define RL2_PIXEL_DATAGRID		0x16
+/** RasterLite2 constant: Pixel Type NONE */
+#define RL2_PIXEL_NONE			0xff
 
 /** RasterLite2 constant: Opaque Pixel */
 #define RL2_PIXEL_OPAQUE		0x80
@@ -769,6 +773,18 @@ extern "C"
 	rl2_create_pixel (unsigned char sample_type, unsigned char pixel_type,
 			  unsigned char num_samples);
 
+/**
+ Allocates and initializes a new Pixel object (of the NONE type)
+
+ \return the pointer to newly created Pixel Object: NULL on failure.
+ 
+ \sa rl2_destroy_pixel, rl2_is_pixel_none
+ 
+ \note you are responsible to destroy (before or after) any allocated 
+ Pixel object.
+ */
+    RL2_DECLARE rl2PixelPtr rl2_create_pixel_none ();
+
     RL2_DECLARE rl2PixelPtr rl2_clone_pixel (rl2PixelPtr org);
 
     RL2_DECLARE rl2PixelPtr rl2_create_triple_band_pixel (rl2PixelPtr org,
@@ -791,6 +807,17 @@ extern "C"
  \sa rl2_create_pixel
  */
     RL2_DECLARE void rl2_destroy_pixel (rl2PixelPtr pxl);
+
+/**
+ Testing if some Pixels is of the NONE type
+
+ \param pxl pointer to some Pixel Object.
+ 
+ \return RL2_TRUE or RL2_FALSE; RL2_ERROR if any error is encountered.
+
+ \sa rl2_create_pixel_none
+ */
+    RL2_DECLARE int rl2_is_pixel_none (rl2PixelPtr pxl);
 
 /**
  Testing if two different Pixels are exactly the same

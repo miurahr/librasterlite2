@@ -2452,6 +2452,8 @@ extern "C"
 	parse_sld_se_stroke_dasharray (const char *value, int *count,
 				       double **list);
 
+    RL2_PRIVATE void rl2_prime_white_opaque_background (void *ctx);
+
 #ifdef __cplusplus
 }
 #endif

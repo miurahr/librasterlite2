@@ -1618,6 +1618,11 @@ exec_catalog (sqlite3 * handle)
 		    ("-------------------------------------------------------------------------------\n");
 		if (no_data == NULL)
 		    printf ("        NO-DATA Pixel: *** undefined ***\n");
+		else if (rl2_is_pixel_none (no_data) == RL2_TRUE)
+		  {
+		      printf
+			  ("        NO-DATA Pixel: NONE (all pixels are valid)\n");
+		  }
 		else
 		  {
 		      unsigned char i;
@@ -5344,7 +5349,17 @@ main (int argc, char *argv[])
       case ARG_MODE_CREATE:
 	  if (no_data_str != NULL)
 	    {
-		no_data = parse_no_data (no_data_str, sample, pixel, num_bands);
+		if (strcasecmp (no_data_str, "NONE") == 0)
+		  {
+		      /* special case: NoData is Pixel NONE */
+		      no_data = rl2_create_pixel_none ();
+		  }
+		else
+		  {
+		      /* attempting to parse the NoData string */
+		      no_data =
+			  parse_no_data (no_data_str, sample, pixel, num_bands);
+		  }
 		if (no_data == NULL)
 		  {
 		      fprintf (stderr,

@@ -7868,6 +7868,24 @@ rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
     if (pxl == NULL)
 	return RL2_ERROR;
 
+    if (rl2_is_pixel_none (pixel) == RL2_TRUE)
+      {
+	  /* special case: serializing a Pixel of the NONE type */
+	  sz = 4;
+	  p = malloc (sz);
+	  if (p == NULL)
+	      return RL2_ERROR;
+	  ptr = p;
+
+	  *ptr++ = 0x00;	/* start marker */
+	  *ptr++ = RL2_NO_DATA_START;
+	  *ptr++ = RL2_PIXEL_NONE;
+	  *ptr++ = RL2_NO_DATA_END;
+	  *blob = p;
+	  *blob_size = sz;
+	  return RL2_OK;
+      }
+
     switch (pxl->sampleType)
       {
       case RL2_SAMPLE_1_BIT:
@@ -7958,6 +7976,27 @@ rl2_serialize_dbms_pixel (rl2PixelPtr pixel, unsigned char **blob,
     *blob = p;
     *blob_size = sz;
     return RL2_OK;
+}
+
+static int
+check_raster_serialized_pixel_none (const unsigned char *blob, int blob_size)
+{
+/* checking a NONE Pixel value serialized object from validity */
+    const unsigned char *ptr = blob;
+    if (blob == NULL)
+	return 0;
+    if (blob_size < 4)
+	return 0;
+    if (*ptr++ != 0x00)
+	return 0;		/* invalid start signature */
+    if (*ptr++ != RL2_NO_DATA_START)
+	return 0;		/* invalid start signature */
+    if (*ptr++ != RL2_PIXEL_NONE)
+	return 0;		/* invalid Pixel NONE marker */
+    if (*ptr != RL2_NO_DATA_END)
+	return 0;		/* invalid end signature */
+
+    return 1;
 }
 
 static int
@@ -8126,6 +8165,8 @@ rl2_is_valid_dbms_pixel (const unsigned char *blob, int blob_size,
     const unsigned char *ptr;
     unsigned char xsample_type;
     unsigned char xnum_bands;
+    if (check_raster_serialized_pixel_none(blob, blob_size))
+    return RL2_OK;
     if (!check_raster_serialized_pixel (blob, blob_size))
 	return RL2_ERROR;
     ptr = blob + 3;
@@ -8151,6 +8192,12 @@ rl2_deserialize_dbms_pixel (const unsigned char *blob, int blob_size)
     const unsigned char *ptr = blob;
     int endian;
     int endian_arch = endianArch ();
+    if (check_raster_serialized_pixel_none (blob, blob_size))
+      {
+	  /* creating a pixel of the NONE type */
+	  pixel = rl2_create_pixel_none ();
+	  return pixel;
+      }
     if (!check_raster_serialized_pixel (blob, blob_size))
 	return NULL;
 

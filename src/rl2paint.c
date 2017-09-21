@@ -4693,3 +4693,15 @@ rl2_get_canvas_ctx (rl2CanvasPtr ptr, int which)
       };
     return NULL;
 }
+
+RL2_PRIVATE void
+rl2_prime_white_opaque_background (void *pctx)
+{
+    /* priming a White opaque background */
+    RL2GraphContextPtr ctx = (RL2GraphContextPtr) pctx;
+    int width = cairo_image_surface_get_width (ctx->surface);
+    int height = cairo_image_surface_get_height (ctx->surface);
+    cairo_rectangle (ctx->cairo, 0, 0, width, height);
+    cairo_set_source_rgba (ctx->cairo, 1.0, 1.0, 1.0, 1.0);
+    cairo_fill (ctx->cairo);
+}

@@ -2650,19 +2650,19 @@ get_rgba_from_monochrome_transparent (unsigned int width,
       {
 	  for (col = 0; col < width; col++)
 	    {
-		if (*p_in++ == 1)
-		  {
-		      *p_out++ = 0;	/* Black */
-		      *p_out++ = 0;
-		      *p_out++ = 0;
-		      *p_out++ = 255;	/* alpha */
-		  }
-		else
+		if (*p_in++ == 0)
 		  {
 		      *p_out++ = 255;	/* White */
 		      *p_out++ = 255;
 		      *p_out++ = 255;
 		      *p_out++ = 0;	/* alpha */
+		  }
+		else
+		  {
+		      *p_out++ = 0;	/* Black */
+		      *p_out++ = 0;
+		      *p_out++ = 0;
+		      *p_out++ = 255;	/* alpha */
 		  }
 	    }
       }

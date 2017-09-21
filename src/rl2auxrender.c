@@ -806,10 +806,21 @@ do_aux_reproject_image_blob (struct aux_renderer *aux)
     if (rgba == NULL)
 	goto error;
 
-    /* using the Canvas Base Graphics Context */
+    /* creating a Graphics Context */
     ctx = rl2_graph_create_context (aux->width, aux->height);
     if (ctx == NULL)
 	goto error;
+    if (aux->out_pixel == RL2_PIXEL_GRAYSCALE
+	|| aux->out_pixel == RL2_PIXEL_MONOCHROME)
+      {
+	  /* Grayscale or Monochrome upsampled */
+	  if (aux->transparent == 0 && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
+	    {
+		/* priming a White transparent background */
+		rl2_prime_white_opaque_background (ctx);
+	    }
+      }
+
     if (aux->out_pixel == RL2_PIXEL_MONOCHROME)
       {
 	  /* Monochrome */

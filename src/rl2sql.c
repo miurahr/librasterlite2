@@ -433,6 +433,44 @@ fnct_IsValidPixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_IsPixelNone (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ IsPixelNone(BLOBencoded pixel)
+/
+/ will return 1 (TRUE, it's a NONE Pixel) or 0 (FALSE, no it's not a NONE Pixel)
+/ or -1 (INVALID ARGS)
+/
+*/
+    const unsigned char *blob;
+    int blob_sz;
+    int err = 0;
+    rl2PixelPtr pixel;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+    if (sqlite3_value_type (argv[0]) != SQLITE_BLOB)
+	err = 1;
+    if (err)
+	sqlite3_result_int (context, -1);
+    else
+      {
+	  blob = sqlite3_value_blob (argv[0]);
+	  blob_sz = sqlite3_value_bytes (argv[0]);
+	  pixel = rl2_deserialize_dbms_pixel (blob, blob_sz);
+	  if (pixel == NULL)
+	      sqlite3_result_int (context, -1);
+	  else
+	    {
+		if (rl2_is_pixel_none (pixel) == RL2_TRUE)
+		    sqlite3_result_int (context, 1);
+		else
+		    sqlite3_result_int (context, 0);
+		rl2_destroy_pixel (pixel);
+	    }
+      }
+}
+
+static void
 fnct_IsValidRasterPalette (sqlite3_context * context, int argc,
 			   sqlite3_value ** argv)
 {
@@ -946,8 +984,39 @@ fnct_CreatePixel (sqlite3_context * context, int argc, sqlite3_value ** argv)
     if (strcasecmp (pixel_type, "MULTIBAND") == 0)
 	pixel = RL2_PIXEL_MULTIBAND;
 
-/* attempting to create the Pixel */
+/* attempting to create a Pixel NONE */
     pxl = rl2_create_pixel (sample, pixel, (unsigned char) num_bands);
+    if (pxl == NULL)
+	goto error;
+    if (rl2_serialize_dbms_pixel (pxl, &blob, &blob_sz) != RL2_OK)
+	goto error;
+    sqlite3_result_blob (context, blob, blob_sz, free);
+    rl2_destroy_pixel (pxl);
+    return;
+
+  error:
+    sqlite3_result_null (context);
+    if (pxl != NULL)
+	rl2_destroy_pixel (pxl);
+}
+
+static void
+fnct_CreatePixelNone (sqlite3_context * context, int argc,
+		      sqlite3_value ** argv)
+{
+/* SQL function:
+/ CreatePixelNone()
+/
+/ will return a serialized binary Pixel Object of the NONE type
+/ or NULL on failure
+*/
+    rl2PixelPtr pxl = NULL;
+    unsigned char *blob = NULL;
+    int blob_sz = 0;
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+
+/* attempting to create the Pixel */
+    pxl = rl2_create_pixel_none ();
     if (pxl == NULL)
 	goto error;
     if (rl2_serialize_dbms_pixel (pxl, &blob, &blob_sz) != RL2_OK)
@@ -9870,6 +9939,12 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
     sqlite3_create_function (db, "RL2_IsValidPixel", 3,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidPixel, 0, 0);
+    sqlite3_create_function (db, "IsPixelNone", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_IsPixelNone, 0, 0);
+    sqlite3_create_function (db, "RL2_IsPixelNone", 1,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_IsPixelNone, 0, 0);
     sqlite3_create_function (db, "IsValidRasterPalette", 2,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_IsValidRasterPalette, 0, 0);
@@ -9997,6 +10072,12 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
     sqlite3_create_function (db, "RL2_CreatePixel", 3,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_CreatePixel, 0, 0);
+    sqlite3_create_function (db, "CreatePixelNone", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_CreatePixelNone, 0, 0);
+    sqlite3_create_function (db, "RL2_CreatePixelNone", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_CreatePixelNone, 0, 0);
     sqlite3_create_function (db, "GetPixelType", 1,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_GetPixelType, 0, 0);

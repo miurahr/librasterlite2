@@ -7705,7 +7705,7 @@ do_wms_GetFeatureInfo_post (const char *url, const char *proxy,
 			    double maxy, int width, int height, int mouse_x,
 			    int mouse_y)
 {
-/* attempting to execute a WMS GepFeatureInfo request [method POST] */
+/* attempting to execute a WMS GetFeatureInfo request [method POST] */
 
 /* not yet implemented: just a stupid placeholder always returning NULL */
     if (url == NULL || proxy == NULL || version == NULL || format == NULL
@@ -7715,4 +7715,11 @@ do_wms_GetFeatureInfo_post (const char *url, const char *proxy,
 	|| swap_xy == mouse_x)
 	return NULL;
     return NULL;
+}
+
+RL2_DECLARE const char *
+rl2_curl_version (void)
+{
+/* returning the CURL version string */
+	return LIBCURL_VERSION;
 }

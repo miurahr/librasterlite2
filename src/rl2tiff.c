@@ -8090,3 +8090,21 @@ rl2_build_tiff_xml_summary (rl2TiffOriginPtr tiff)
     sqlite3_free (prev);
     return xml;
 }
+
+RL2_DECLARE const char *
+rl2_tiff_version (void)
+{
+/* returning the TIFF version string */
+	static char version[128];
+	sprintf(version, "libtiff %d", TIFF_VERSION_CLASSIC);
+	return version;
+}
+
+RL2_DECLARE const char *
+rl2_geotiff_version (void)
+{
+/* returning the GeoTIFF version string */
+	static char version[128];
+	sprintf(version, "libgeotiff %d", LIBGEOTIFF_VERSION);
+	return version;
+}

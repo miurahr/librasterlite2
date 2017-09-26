@@ -89,6 +89,171 @@ fnct_rl2_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
+fnct_rl2_cairo_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_cairo_version()
+/
+/ return a text string representing the current Cairo version
+*/
+    int len;
+    const char *p_result = rl2_cairo_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_curl_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_curl_version()
+/
+/ return a text string representing the current cURL version
+*/
+    int len;
+    const char *p_result = rl2_curl_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_zlib_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_zlib_version()
+/
+/ return a text string representing the current zlib version
+*/
+    int len;
+    const char *p_result = rl2_zlib_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_lzma_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_lzma_version()
+/
+/ return a text string representing the current LZMA version
+*/
+    int len;
+    const char *p_result = rl2_lzma_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_png_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_png_version()
+/
+/ return a text string representing the current PNG version
+*/
+    int len;
+    const char *p_result = rl2_png_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_jpeg_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_jpeg_version()
+/
+/ return a text string representing the current JPEG version
+*/
+    int len;
+    const char *p_result = rl2_jpeg_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_tiff_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_tiff_version()
+/
+/ return a text string representing the current TIFF version
+*/
+    int len;
+    const char *p_result = rl2_tiff_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_geotiff_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_geotiff_version()
+/
+/ return a text string representing the current GeoTIFF version
+*/
+    int len;
+    const char *p_result = rl2_geotiff_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_webp_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_webp_version()
+/
+/ return a text string representing the current WEBP version
+*/
+    int len;
+    const char *p_result = rl2_webp_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_charLS_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_charLS_version()
+/
+/ return a text string representing the current CharLS version
+*/
+    int len;
+    const char *p_result = rl2_charLS_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
+fnct_rl2_openJPEG_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+{
+/* SQL function:
+/ rl2_openJPEG_version()
+/
+/ return a text string representing the current OpenJPEG version
+*/
+    int len;
+    const char *p_result = rl2_openJPEG_version ();
+    RL2_UNUSED ();		/* LCOV_EXCL_LINE */
+    len = strlen (p_result);
+    sqlite3_result_text (context, p_result, len, SQLITE_TRANSIENT);
+}
+
+static void
 fnct_rl2_has_codec_none (sqlite3_context * context, int argc,
 			 sqlite3_value ** argv)
 {
@@ -9885,6 +10050,39 @@ register_rl2_sql_functions (void *p_db, const void *p_data)
     sqlite3_create_function (db, "rl2_version", 0,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_version, 0, 0);
+    sqlite3_create_function (db, "rl2_cairo_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_cairo_version, 0, 0);
+    sqlite3_create_function (db, "rl2_curl_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_curl_version, 0, 0);
+    sqlite3_create_function (db, "rl2_zlib_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_zlib_version, 0, 0);
+    sqlite3_create_function (db, "rl2_lzma_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_lzma_version, 0, 0);
+    sqlite3_create_function (db, "rl2_png_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_png_version, 0, 0);
+    sqlite3_create_function (db, "rl2_jpeg_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_jpeg_version, 0, 0);
+    sqlite3_create_function (db, "rl2_tiff_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_tiff_version, 0, 0);
+    sqlite3_create_function (db, "rl2_geotiff_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_geotiff_version, 0, 0);
+    sqlite3_create_function (db, "rl2_webp_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_webp_version, 0, 0);
+    sqlite3_create_function (db, "rl2_charLS_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_charLS_version, 0, 0);
+    sqlite3_create_function (db, "rl2_openJpeg_version", 0,
+			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
+			     fnct_rl2_openJPEG_version, 0, 0);
     sqlite3_create_function (db, "rl2_target_cpu", 0,
 			     SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
 			     fnct_rl2_target_cpu, 0, 0);

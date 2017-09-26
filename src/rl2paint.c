@@ -4705,3 +4705,10 @@ rl2_prime_white_opaque_background (void *pctx)
     cairo_set_source_rgba (ctx->cairo, 1.0, 1.0, 1.0, 1.0);
     cairo_fill (ctx->cairo);
 }
+
+RL2_DECLARE const char *
+rl2_cairo_version (void)
+{
+/* returning the CAIRO version string */
+	return cairo_version_string();
+}

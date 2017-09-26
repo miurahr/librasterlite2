@@ -1663,3 +1663,12 @@ rl2_decode_png (const unsigned char *blob, int blob_size,
     free (row_pointers);
     return RL2_ERROR;
 }
+
+RL2_DECLARE const char *
+rl2_png_version (void)
+{
+/* returning the PNG version string */
+	static char version[128];
+	sprintf(version, "libpng %s", PNG_LIBPNG_VER_STRING);
+	return version;
+}

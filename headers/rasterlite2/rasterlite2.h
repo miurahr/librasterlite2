@@ -691,6 +691,83 @@ extern "C"
  */
     RL2_DECLARE const char *rl2_version (void);
 
+/**
+ Return the current Cairo version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_cairo_version (void);
+
+/**
+ Return the current cURL version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_curl_version (void);
+
+/**
+ Return the current zlib version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_zlib_version (void);
+
+/**
+ Return the current LZMA version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_lzma_version (void);
+
+/**
+ Return the current PNG version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_png_version (void);
+
+/**
+ Return the current JPEG version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_jpeg_version (void);
+
+/**
+ Return the current TIFF version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_tiff_version (void);
+
+/**
+ Return the current GeoTIFF version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_geotiff_version (void);
+
+/**
+ Return the current WEBP version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_webp_version (void);
+
+/**
+ Return the current CharLS version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_charLS_version (void);
+
+/**
+ Return the current OpenJPEG version.
+
+ \return the version string.
+ */
+    RL2_DECLARE const char *rl2_openJPEG_version (void);
+
 #ifdef LOADABLE_EXTENSION
     RL2_DECLARE int
 	sqlite3_rasterlite_init (sqlite3 * db, char **pzErrMsg,

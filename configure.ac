@@ -120,6 +120,7 @@ AC_CONFIG_FILES([Makefile \
 		test/sql_stmt_tests/Makefile \
 		test/sql_stmt_security_tests/Makefile \
 		tools/Makefile \
+		examples/Makefile \
 		Doxyfile \
 		rasterlite2.pc])
 

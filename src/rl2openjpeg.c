@@ -1644,3 +1644,18 @@ rl2_build_jpeg2000_xml_summary (unsigned int width, unsigned int height,
 }
 
 #endif /* end OpenJpeg conditional */
+
+RL2_DECLARE const char *
+rl2_openJPEG_version (void)
+{
+/* returning the openJPEG version string */
+	static char version[128];
+#ifndef OMIT_OPENJPEG
+	sprintf(version, "libopenjp2 %s", opj_version());
+#else
+	strcpy(version, "unsupported");
+	return version;
+#endif
+	return version;
+}
+

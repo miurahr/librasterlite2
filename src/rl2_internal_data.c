@@ -62,9 +62,6 @@ RL2_DECLARE void *
 rl2_alloc_private (void)
 {
 /* allocating and initializing default private connection data */
-    unsigned char rnd[16];
-    char uuid[64];
-    char *p = uuid;
     int i;
     FT_Error error;
     FT_Library library;
@@ -73,21 +70,7 @@ rl2_alloc_private (void)
     if (priv_data == NULL)
 	return NULL;
     priv_data->max_threads = 1;
-
-/* creating an UUID name for temp ATM table */
     priv_data->tmp_atm_table = NULL;
-    sqlite3_randomness (16, rnd);
-    for (i = 0; i < 16; i++)
-      {
-	  if (i == 4 || i == 6 || i == 8 || i == 10)
-	      *p++ = '-';
-	  sprintf (p, "%02x", rnd[i]);
-	  p += 2;
-      }
-    *p = '\0';
-    uuid[14] = '4';
-    uuid[19] = '8';
-    priv_data->tmp_atm_table = sqlite3_mprintf ("tmp_atm_%s", uuid);
 
 /* initializing FreeType */
     error = FT_Init_FreeType (&library);
@@ -109,6 +92,33 @@ rl2_alloc_private (void)
 	  ptr->raster = NULL;
       }
     return priv_data;
+}
+
+RL2_PRIVATE char *
+rl2_init_tmp_atm_table (void *data)
+{
+    unsigned char rnd[16];
+    char uuid[64];
+    char *p = uuid;
+    int i;
+    struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
+    if (priv_data->tmp_atm_table != NULL)
+	return priv_data->tmp_atm_table;
+
+/* creating an UUID name for temp ATM table */
+    sqlite3_randomness (16, rnd);
+    for (i = 0; i < 16; i++)
+      {
+	  if (i == 4 || i == 6 || i == 8 || i == 10)
+	      *p++ = '-';
+	  sprintf (p, "%02x", rnd[i]);
+	  p += 2;
+      }
+    *p = '\0';
+    uuid[14] = '4';
+    uuid[19] = '8';
+    priv_data->tmp_atm_table = sqlite3_mprintf ("tmp_atm_%s", uuid);
+    return priv_data->tmp_atm_table;
 }
 
 RL2_DECLARE void

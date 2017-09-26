@@ -5883,7 +5883,7 @@ do_compute_atm (struct aux_renderer *aux)
     if (data != NULL)
       {
 	  struct rl2_private_data *priv_data = (struct rl2_private_data *) data;
-	  tmp_table = priv_data->tmp_atm_table;
+	  tmp_table = rl2_init_tmp_atm_table (priv_data);
       }
     else
 	return 0;

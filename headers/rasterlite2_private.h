@@ -2454,6 +2454,8 @@ extern "C"
 
     RL2_PRIVATE void rl2_prime_white_opaque_background (void *ctx);
 
+    RL2_PRIVATE char *rl2_init_tmp_atm_table (void *data);
+
 #ifdef __cplusplus
 }
 #endif

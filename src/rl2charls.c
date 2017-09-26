@@ -470,3 +470,17 @@ rl2_decode_charls (const unsigned char *charls_buf, int charls_sz,
 }
 
 #endif /* end CharLS conditional */
+
+RL2_DECLARE const char *
+rl2_charLS_version (void)
+{
+/* returning the CharLS version string */
+	static char version[128];
+#ifndef OMIT_CHARLS
+	sprintf(version, "libchals 1.0");
+#else
+	strcpy(version, "unsupported");
+	return version;
+#endif
+	return version;
+}

@@ -49,6 +49,8 @@
 #include <rasterlite2/rasterlite2.h>
 #include <spatialite.h>
 
+#include "config.h"
+
 #define ARG_NONE		0
 #define ARG_DB_PATH		1
 #define ARG_IP_ADDR		2
@@ -4858,12 +4860,40 @@ open_db (const char *path, sqlite3 ** handle, int cache_size, void *cache,
 }
 
 static void
+do_version ()
+{
+/* printing version infos */
+    fprintf (stderr, "\nVersion infos\n");
+    fprintf (stderr, "===========================================\n");
+    fprintf (stderr, "wmslite ........: %s\n", VERSION);
+    fprintf (stderr, "target CPU .....: %s\n", rl2_target_cpu ());
+    fprintf (stderr, "librasterlite2 .: %s\n", rl2_version ());
+    fprintf (stderr, "libspatialite ..: %s\n", spatialite_version ());
+    fprintf (stderr, "libsqlite3 .....: %s\n", sqlite3_libversion ());
+    fprintf (stderr, "libcairo .......: %s\n", rl2_cairo_version ());
+    fprintf (stderr, "libcurl ........: %s\n", rl2_curl_version ());
+    fprintf (stderr, "DEFLATE ........: %s\n", rl2_zlib_version ());
+    fprintf (stderr, "LZMA ...........: %s\n", rl2_lzma_version ());
+    fprintf (stderr, "PNG ............: %s\n", rl2_png_version ());
+    fprintf (stderr, "JPEG ...........: %s\n", rl2_jpeg_version ());
+    fprintf (stderr, "TIFF ...........: %s\n", rl2_tiff_version ());
+    fprintf (stderr, "GeoTIFF ........: %s\n", rl2_geotiff_version ());
+    fprintf (stderr, "WEBP ...........: %s\n", rl2_webp_version ());
+    fprintf (stderr, "CharLS .........: %s\n", rl2_charLS_version ());
+    fprintf (stderr, "JPEG2000 .......: %s\n", rl2_openJPEG_version ());
+    fprintf (stderr, "\n");
+}
+
+static void
 do_help ()
 {
 /* printing the argument list */
     fprintf (stderr, "\n\nusage: wmslite ARGLIST ]\n");
     fprintf (stderr,
 	     "==============================================================\n");
+    fprintf (stderr,
+	     "-h or --help                    print this help message\n");
+    fprintf (stderr, "-v or --version                 print version infos\n");
     fprintf (stderr, "-db or --db-path      pathname  RasterLite2 DB path\n");
     fprintf (stderr,
 	     "-ip or --ip-addr    ip-address  IP address [default: 127.0.0.1]\n\n");
@@ -4949,6 +4979,12 @@ main (int argc, char *argv[])
 	      || strcmp (argv[i], "-h") == 0)
 	    {
 		do_help ();
+		return -1;
+	    }
+	  if (strcasecmp (argv[i], "--version") == 0
+	      || strcmp (argv[i], "-v") == 0)
+	    {
+		do_version ();
 		return -1;
 	    }
 	  if (strcmp (argv[i], "-db") == 0

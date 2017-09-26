@@ -31,6 +31,12 @@
 #include <limits.h>
 #include <time.h>
 
+#if defined(_WIN32) && !defined(__MINGW32__)
+#include "config-msvc.h"
+#else
+#include "config.h"
+#endif
+
 #include <rasterlite2/rasterlite2.h>
 #include <rasterlite2/rl2tiff.h>
 #include <rasterlite2/rl2graphics.h>
@@ -4347,6 +4353,31 @@ parse_no_data (const char *in, unsigned char sample_type,
 }
 
 static void
+do_version ()
+{
+/* printing version infos */
+    fprintf (stderr, "\nVersion infos\n");
+    fprintf (stderr, "===========================================\n");
+    fprintf (stderr, "rl2tool ........: %s\n", VERSION);
+    fprintf (stderr, "target CPU .....: %s\n", rl2_target_cpu ());
+    fprintf (stderr, "librasterlite2 .: %s\n", rl2_version ());
+    fprintf (stderr, "libspatialite ..: %s\n", spatialite_version ());
+    fprintf (stderr, "libsqlite3 .....: %s\n", sqlite3_libversion ());
+    fprintf (stderr, "libcairo .......: %s\n", rl2_cairo_version ());
+    fprintf (stderr, "libcurl ........: %s\n", rl2_curl_version ());
+    fprintf (stderr, "DEFLATE ........: %s\n", rl2_zlib_version ());
+    fprintf (stderr, "LZMA ...........: %s\n", rl2_lzma_version ());
+    fprintf (stderr, "PNG ............: %s\n", rl2_png_version ());
+    fprintf (stderr, "JPEG ...........: %s\n", rl2_jpeg_version ());
+    fprintf (stderr, "TIFF ...........: %s\n", rl2_tiff_version ());
+    fprintf (stderr, "GeoTIFF ........: %s\n", rl2_geotiff_version ());
+    fprintf (stderr, "WEBP ...........: %s\n", rl2_webp_version ());
+    fprintf (stderr, "CharLS .........: %s\n", rl2_charLS_version ());
+    fprintf (stderr, "JPEG2000 .......: %s\n", rl2_openJPEG_version ());
+    fprintf (stderr, "\n");
+}
+
+static void
 do_help (int mode)
 {
 /* printing the argument list */
@@ -4355,6 +4386,7 @@ do_help (int mode)
 	     "==============================================================\n");
     fprintf (stderr,
 	     "-h or --help                    print this help message\n");
+    fprintf (stderr, "-v or --version                 print version infos\n");
     if (mode == ARG_NONE || mode == ARG_MODE_CREATE)
       {
 	  /* MODE = CREATE */
@@ -4805,6 +4837,18 @@ main (int argc, char *argv[])
     if (argc >= 2)
       {
 	  /* extracting the MODE */
+	  if (strcasecmp (argv[1], "--help") == 0
+	      || strcmp (argv[1], "-h") == 0)
+	    {
+		do_help (mode);
+		return -1;
+	    }
+	  if (strcasecmp (argv[1], "--version") == 0
+	      || strcmp (argv[1], "-v") == 0)
+	    {
+		do_version ();
+		return -1;
+	    }
 	  if (strcasecmp (argv[1], "CREATE") == 0)
 	      mode = ARG_MODE_CREATE;
 	  if (strcasecmp (argv[1], "DROP") == 0)
@@ -4832,10 +4876,21 @@ main (int argc, char *argv[])
 	  if (strcasecmp (argv[1], "HISTOGRAM") == 0)
 	      mode = ARG_MODE_HISTOGRAM;
       }
-
     for (i = 2; i < argc; i++)
       {
 	  /* parsing the invocation arguments */
+	  if (strcasecmp (argv[i], "--help") == 0
+	      || strcmp (argv[i], "-h") == 0)
+	    {
+		do_help (mode);
+		return -1;
+	    }
+	  if (strcasecmp (argv[i], "--version") == 0
+	      || strcmp (argv[i], "-v") == 0)
+	    {
+		do_version ();
+		return -1;
+	    }
 	  if (next_arg != ARG_NONE)
 	    {
 		switch (next_arg)
@@ -5023,13 +5078,6 @@ main (int argc, char *argv[])
 		  };
 		next_arg = ARG_NONE;
 		continue;
-	    }
-
-	  if (strcasecmp (argv[i], "--help") == 0
-	      || strcmp (argv[i], "-h") == 0)
-	    {
-		do_help (mode);
-		return -1;
 	    }
 	  if (strcmp (argv[i], "-db") == 0
 	      || strcasecmp (argv[i], "--db-path") == 0)
@@ -5344,6 +5392,7 @@ main (int argc, char *argv[])
       }
 
 /* checking the arguments */
+    fprintf (stderr, "*********** check\n");
     switch (mode)
       {
       case ARG_MODE_CREATE:

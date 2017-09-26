@@ -655,5 +655,16 @@ EXTRA_DIST = getmaxthreads1.testcase \
 	testpixel_uint8_mband.testcase \
 	testpixel_uint8_plt.testcase \
 	testpixel_uint8_rgb.testcase \
-	targetcpu.testcase 
-	version.testcase 
+	targetcpu.testcase \
+	version.testcase \
+	version_cairo.testcase \
+	version_curl.testcase \
+	version_zlib.testcase \
+	version_lzma.testcase \
+	version_png.testcase \
+	version_jpeg.testcase \
+	version_tiff.testcase \
+	version_geotiff.testcase \
+	version_webp.testcase \
+	version_charls.testcase \
+	version_openjpeg.testcase

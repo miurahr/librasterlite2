@@ -46,10 +46,12 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <string.h>
 #include <float.h>
 
-#include <zlib.h>
-#include <lzma.h>
-
 #include "config.h"
+
+#include <zlib.h>
+#ifndef OMIT_LZMA
+#include <lzma.h>
+#endif
 
 #ifdef LOADABLE_EXTENSION
 #include "rasterlite2/sqlite.h"
@@ -8600,4 +8602,27 @@ rl2_delta_decode (unsigned char *buffer, int size, int distance)
 	  return RL2_OK;
       };
     return RL2_ERROR;
+}
+
+RL2_DECLARE const char *
+rl2_zlib_version (void)
+{
+/* returning the zlib version string */
+	static char version[128];
+	sprintf(version, "zlib %s", zlibVersion());
+	return version;
+}
+
+RL2_DECLARE const char *
+rl2_lzma_version (void)
+{
+/* returning the LZMA version string */
+	static char version[128];
+#ifndef OMIT_LZMA
+	sprintf(version, "liblzma %s", lzma_version_string());
+	return version;
+#else
+	strcpy(version, "unsupported");
+	return version;
+#endif
 }

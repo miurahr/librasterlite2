@@ -293,6 +293,7 @@ main (int argc, char *argv[])
     char *err_msg = NULL;
     sqlite3 *handle;
     void *cache;
+    void *priv_data;
     unsigned char *pixels;
     int pixels_sz;
     rl2PixelPtr no_data = NULL;
@@ -318,8 +319,8 @@ main (int argc, char *argv[])
 /* initializing both SpatiaLite and RasterLite2 */
     cache = spatialite_alloc_connection ();
     spatialite_init_ex (handle, cache, 0);
-    rl2_init (handle, 0);
-
+    priv_data = rl2_alloc_private ();
+    rl2_init (handle, priv_data, 0);
 
 /* showing the SQLite version */
     printf ("SQLite version: %s\n", sqlite3_libversion ());
@@ -390,7 +391,8 @@ main (int argc, char *argv[])
 				  0,	/* disabling MixedResolutions mode */
 				  1,	/* enabling Section Paths recording */
 				  1,	/* enabling Section MD5 checksum */
-				  1	/* enabling Section Summary */
+				  1,	/* enabling Section Summary */
+				  1	/* enabling IsQueryable */
 	) != RL2_OK)
 	return 0;
 
@@ -473,6 +475,7 @@ main (int argc, char *argv[])
     if (!err)
 	printf ("\n\nsample successfully terminated\n");
     spatialite_cleanup_ex (cache);
+    rl2_cleanup_private (priv_data);
     spatialite_shutdown ();
     return 0;
 }

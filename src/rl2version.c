@@ -50,17 +50,14 @@ the terms of any one of the MPL, the GPL or the LGPL.
 
 #include "rasterlite2/rasterlite2.h"
 
-const char rl2version[] = VERSION;
-const char rl2targetcpu[] = TARGET_CPU;
-
 RL2_DECLARE const char *
 rl2_version (void)
 {
-    return rl2version;
+    return VERSION;
 }
 
 RL2_DECLARE const char *
 rl2_target_cpu (void)
 {
-    return rl2targetcpu;
+    return TARGET_CPU;
 }

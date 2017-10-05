@@ -817,7 +817,7 @@ do_aux_reproject_image_blob (struct aux_renderer *aux)
 	  if (aux->transparent == 0 && aux->format_id == RL2_OUTPUT_FORMAT_PNG)
 	    {
 		/* priming a White transparent background */
-		rl2_prime_white_opaque_background (ctx);
+		rl2_prime_background (ctx, 255, 255, 255, 0);
 	    }
       }
 
@@ -1478,9 +1478,6 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp, unsigned char **blob,
     double yy_res;
     int base_width;
     int base_height;
-    double aspect_org;
-    double aspect_dst;
-    double confidence;
     int srid;
     int i;
     double opacity;
@@ -1667,14 +1664,6 @@ rl2_aux_group_renderer (struct aux_group_renderer *auxgrp, unsigned char **blob,
 	  base_height = (int) (ext_y / yy_res);
 	  if ((base_width <= 0 && base_width >= USHRT_MAX)
 	      || (base_height <= 0 && base_height >= USHRT_MAX))
-	      goto error;
-	  aspect_org = (double) base_width / (double) base_height;
-	  aspect_dst = (double) auxgrp->width / (double) auxgrp->height;
-	  confidence = aspect_org / 100.0;
-	  if (aspect_dst >= (aspect_org - confidence)
-	      || aspect_dst <= (aspect_org + confidence))
-	      ;
-	  else if (aspect_org != aspect_dst && !(auxgrp->reaspect))
 	      goto error;
 
 	  symbolizer = lyr->raster_symbolizer;

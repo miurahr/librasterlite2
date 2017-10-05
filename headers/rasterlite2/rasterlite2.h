@@ -6100,6 +6100,7 @@ extern "C"
 						     const char *cvg_name,
 						     const unsigned char *blob,
 						     int blob_sz,
+						     int reaspect,
 						     const char *style,
 						     const unsigned char
 						     *quick_style);
@@ -6111,6 +6112,7 @@ extern "C"
 							const char *cvg_name,
 							const unsigned char
 							*blob, int blob_sz,
+							int reaspect,
 							const char *style,
 							const unsigned char
 							*quick_style,

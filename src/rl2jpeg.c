@@ -1567,11 +1567,11 @@ RL2_DECLARE const char *
 rl2_jpeg_version (void)
 {
 /* returning the JPEG version string */
-	static char version[128];
+    static char version[128];
 #ifdef LIBJPEG_TURBO_VERSION_NUMBER
-	sprintf(version, "libjpeg-turbo %d", LIBJPEG_TURBO_VERSION_NUMBER);
+    sprintf (version, "libjpeg-turbo %d", LIBJPEG_TURBO_VERSION_NUMBER);
 #else
-	sprintf(version, "libjpeg %d", JPEG_LIB_VERSION);
+    sprintf (version, "libjpeg %d", JPEG_LIB_VERSION);
 #endif
-	return version;
+    return version;
 }

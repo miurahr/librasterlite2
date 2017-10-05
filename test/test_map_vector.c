@@ -239,25 +239,25 @@ test_capi_base (sqlite3 * sqlite, const char *coverage, const char *style,
       case 0:
 	  ret =
 	      rl2_map_image_paint_from_vector (sqlite, data, canvas, NULL,
-					       coverage, blob, blob_sz, style,
-					       NULL);
+					       coverage, blob, blob_sz, 0,
+					       style, NULL);
 	  break;
       case 1:
 	  ret =
 	      rl2_map_image_paint_from_vector_ex (sqlite, data, canvas, NULL,
-						  coverage, blob, blob_sz,
+						  coverage, blob, blob_sz, 0,
 						  style, NULL, 1, 1, 1, 1, 1);
 	  break;
       case 2:
 	  ret =
 	      rl2_map_image_paint_from_vector_ex (sqlite, data, canvas, NULL,
-						  coverage, blob, blob_sz,
+						  coverage, blob, blob_sz, 0,
 						  style, NULL, 0, 1, 0, 1, 0);
 	  break;
       case 3:
 	  ret =
 	      rl2_map_image_paint_from_vector_ex (sqlite, data, canvas, NULL,
-						  coverage, blob, blob_sz,
+						  coverage, blob, blob_sz, 0,
 						  style, NULL, 1, 0, 1, 0, 1);
 	  break;
       };

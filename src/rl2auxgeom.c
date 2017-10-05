@@ -2537,7 +2537,8 @@ rl2_build_circle (double cx, double cy, double radius)
 }
 
 RL2_PRIVATE int
-rl2_affine_transform_from_blob (rl2PrivAffineTransformPtr matrix, const unsigned char *blob, int blob_sz)
+rl2_affine_transform_from_blob (rl2PrivAffineTransformPtr matrix,
+				const unsigned char *blob, int blob_sz)
 {
 /* decoding an Affine Transform Matrix object */
     int endian;

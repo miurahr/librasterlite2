@@ -3132,6 +3132,7 @@ rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
 					    geom2);
 		rl2_destroy_geometry (geom2);
 	    }
+	  rl2_destroy_geometry (geom3);
       }
     else
       {
@@ -3144,7 +3145,8 @@ rl2_graph_draw_warped_text (sqlite3 * handle, rl2GraphicsContextPtr context,
 	      goto error;
 	  geom3 = rl2_draw_wrapped_label (handle, context, cairo, text, geom2);
 	  rl2_destroy_geometry (geom2);
-	  rl2_destroy_geometry (geom3);
+	  if (geom3 != geom2)
+	      rl2_destroy_geometry (geom3);
       }
 
     rl2_destroy_geometry (geom);
@@ -4694,15 +4696,20 @@ rl2_get_canvas_ctx (rl2CanvasPtr ptr, int which)
     return NULL;
 }
 
-RL2_PRIVATE void
-rl2_prime_white_opaque_background (void *pctx)
+RL2_DECLARE void
+rl2_prime_background (void *pctx, unsigned char red, unsigned char green,
+		      unsigned char blue, unsigned char alpha)
 {
-    /* priming a White opaque background */
+/* priming the background */
+    double r = (double) red / 255.0;
+    double g = (double) green / 255.0;
+    double b = (double) blue / 255.0;
+    double a = (double) alpha / 255.0;
     RL2GraphContextPtr ctx = (RL2GraphContextPtr) pctx;
     int width = cairo_image_surface_get_width (ctx->surface);
     int height = cairo_image_surface_get_height (ctx->surface);
     cairo_rectangle (ctx->cairo, 0, 0, width, height);
-    cairo_set_source_rgba (ctx->cairo, 1.0, 1.0, 1.0, 1.0);
+    cairo_set_source_rgba (ctx->cairo, r, g, b, a);
     cairo_fill (ctx->cairo);
 }
 
@@ -4710,5 +4717,5 @@ RL2_DECLARE const char *
 rl2_cairo_version (void)
 {
 /* returning the CAIRO version string */
-	return cairo_version_string();
+    return cairo_version_string ();
 }

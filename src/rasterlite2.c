@@ -521,6 +521,8 @@ check_coverage_no_data (rl2PrivPixelPtr pxl_no_data,
 /* checking if the NoData pixel is consistent with the Coverage */
     if (pxl_no_data == NULL)
 	return 1;
+    if (rl2_is_pixel_none ((rl2PixelPtr) pxl_no_data))
+	return 1;		/* always accepting NoData = NONE as valid */
     if (pxl_no_data->sampleType != sample_type)
 	return 0;
     if (pxl_no_data->pixelType != pixel_type)

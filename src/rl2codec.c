@@ -8167,8 +8167,8 @@ rl2_is_valid_dbms_pixel (const unsigned char *blob, int blob_size,
     const unsigned char *ptr;
     unsigned char xsample_type;
     unsigned char xnum_bands;
-    if (check_raster_serialized_pixel_none(blob, blob_size))
-    return RL2_OK;
+    if (check_raster_serialized_pixel_none (blob, blob_size))
+	return RL2_OK;
     if (!check_raster_serialized_pixel (blob, blob_size))
 	return RL2_ERROR;
     ptr = blob + 3;
@@ -8608,21 +8608,21 @@ RL2_DECLARE const char *
 rl2_zlib_version (void)
 {
 /* returning the zlib version string */
-	static char version[128];
-	sprintf(version, "zlib %s", zlibVersion());
-	return version;
+    static char version[128];
+    sprintf (version, "zlib %s", zlibVersion ());
+    return version;
 }
 
 RL2_DECLARE const char *
 rl2_lzma_version (void)
 {
 /* returning the LZMA version string */
-	static char version[128];
+    static char version[128];
 #ifndef OMIT_LZMA
-	sprintf(version, "liblzma %s", lzma_version_string());
-	return version;
+    sprintf (version, "liblzma %s", lzma_version_string ());
+    return version;
 #else
-	strcpy(version, "unsupported");
-	return version;
+    strcpy (version, "unsupported");
+    return version;
 #endif
 }

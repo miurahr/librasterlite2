@@ -1649,13 +1649,12 @@ RL2_DECLARE const char *
 rl2_openJPEG_version (void)
 {
 /* returning the openJPEG version string */
-	static char version[128];
+    static char version[128];
 #ifndef OMIT_OPENJPEG
-	sprintf(version, "libopenjp2 %s", opj_version());
+    sprintf (version, "libopenjp2 %s", opj_version ());
 #else
-	strcpy(version, "unsupported");
-	return version;
+    strcpy (version, "unsupported");
+    return version;
 #endif
-	return version;
+    return version;
 }
-

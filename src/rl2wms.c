@@ -7721,5 +7721,5 @@ RL2_DECLARE const char *
 rl2_curl_version (void)
 {
 /* returning the CURL version string */
-	return LIBCURL_VERSION;
+    return LIBCURL_VERSION;
 }

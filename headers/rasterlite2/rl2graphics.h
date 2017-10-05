@@ -120,7 +120,8 @@ extern "C"
  
  \sa rl2_graph_destroy_context, rl2_graph_create_svg_context,
  rl2_graph_create_pdf_context, rl2_graph_create_mem_pdf_context,
- rl2_graph_context_get_dimensions, rl2_graph_create_context_rgba
+ rl2_graph_context_get_dimensions, rl2_graph_create_context_rgba,
+ rl2_prime_background
  
  \note you are responsible to destroy (before or after) any Graphics Context
  returned by rl2_graph_create_context() by invoking rl2_graph_destroy_context().
@@ -250,6 +251,22 @@ extern "C"
     RL2_DECLARE int
 	rl2_graph_context_get_dimensions (rl2GraphicsContextPtr handle,
 					  int *width, int *height);
+
+/**
+ Initialiting the background
+
+ \param handle the pointer to a valid Graphics Context.
+ \param red Red component of the background colour. 
+ \param green Green component of the background colour. 
+ \param blue Blue component of the background colour. 
+ \param alpha Alpha component (transparency) of the background colour. 
+ 
+ \sa rl2_graph_create_context
+ */
+    RL2_DECLARE void
+	rl2_prime_background (void *pctx, unsigned char red,
+			      unsigned char green, unsigned char blue,
+			      unsigned char alpha);
 
 /**
  Create an in-memory PDF target

@@ -89,7 +89,8 @@ fnct_rl2_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
 }
 
 static void
-fnct_rl2_cairo_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_cairo_version (sqlite3_context * context, int argc,
+			sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_cairo_version()
@@ -104,7 +105,8 @@ fnct_rl2_cairo_version (sqlite3_context * context, int argc, sqlite3_value ** ar
 }
 
 static void
-fnct_rl2_curl_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_curl_version (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_curl_version()
@@ -119,7 +121,8 @@ fnct_rl2_curl_version (sqlite3_context * context, int argc, sqlite3_value ** arg
 }
 
 static void
-fnct_rl2_zlib_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_zlib_version (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_zlib_version()
@@ -134,7 +137,8 @@ fnct_rl2_zlib_version (sqlite3_context * context, int argc, sqlite3_value ** arg
 }
 
 static void
-fnct_rl2_lzma_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_lzma_version (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_lzma_version()
@@ -149,7 +153,8 @@ fnct_rl2_lzma_version (sqlite3_context * context, int argc, sqlite3_value ** arg
 }
 
 static void
-fnct_rl2_png_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_png_version (sqlite3_context * context, int argc,
+		      sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_png_version()
@@ -164,7 +169,8 @@ fnct_rl2_png_version (sqlite3_context * context, int argc, sqlite3_value ** argv
 }
 
 static void
-fnct_rl2_jpeg_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_jpeg_version (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_jpeg_version()
@@ -179,7 +185,8 @@ fnct_rl2_jpeg_version (sqlite3_context * context, int argc, sqlite3_value ** arg
 }
 
 static void
-fnct_rl2_tiff_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_tiff_version (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_tiff_version()
@@ -194,7 +201,8 @@ fnct_rl2_tiff_version (sqlite3_context * context, int argc, sqlite3_value ** arg
 }
 
 static void
-fnct_rl2_geotiff_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_geotiff_version (sqlite3_context * context, int argc,
+			  sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_geotiff_version()
@@ -209,7 +217,8 @@ fnct_rl2_geotiff_version (sqlite3_context * context, int argc, sqlite3_value ** 
 }
 
 static void
-fnct_rl2_webp_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_webp_version (sqlite3_context * context, int argc,
+		       sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_webp_version()
@@ -224,7 +233,8 @@ fnct_rl2_webp_version (sqlite3_context * context, int argc, sqlite3_value ** arg
 }
 
 static void
-fnct_rl2_charLS_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_charLS_version (sqlite3_context * context, int argc,
+			 sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_charLS_version()
@@ -239,7 +249,8 @@ fnct_rl2_charLS_version (sqlite3_context * context, int argc, sqlite3_value ** a
 }
 
 static void
-fnct_rl2_openJPEG_version (sqlite3_context * context, int argc, sqlite3_value ** argv)
+fnct_rl2_openJPEG_version (sqlite3_context * context, int argc,
+			   sqlite3_value ** argv)
 {
 /* SQL function:
 / rl2_openJPEG_version()

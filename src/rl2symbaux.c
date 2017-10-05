@@ -1718,6 +1718,7 @@ rl2_create_default_line_placement ()
     place->is_repeated = 0;
     place->initial_gap = 0.0;
     place->gap = 0.0;
+    place->is_aligned = 0;
     place->generalize_line = 0;
     place->col_perpoff = NULL;
     place->col_inigap = NULL;

@@ -1668,7 +1668,7 @@ RL2_DECLARE const char *
 rl2_png_version (void)
 {
 /* returning the PNG version string */
-	static char version[128];
-	sprintf(version, "libpng %s", PNG_LIBPNG_VER_STRING);
-	return version;
+    static char version[128];
+    sprintf (version, "libpng %s", PNG_LIBPNG_VER_STRING);
+    return version;
 }

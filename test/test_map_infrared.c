@@ -133,7 +133,7 @@ execute_check_value (sqlite3 * sqlite, const char *sql, int *value)
 	    }
       }
     sqlite3_finalize (stmt);
-	return retcode;
+    return retcode;
 }
 
 static int

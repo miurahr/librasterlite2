@@ -727,12 +727,12 @@ RL2_DECLARE const char *
 rl2_webp_version (void)
 {
 /* returning the WEBP version string */
-	static char version[128];
+    static char version[128];
 #ifndef OMIT_WEBP
-	sprintf(version, "libwebp %x", WebPGetDecoderVersion());
+    sprintf (version, "libwebp %x", WebPGetDecoderVersion ());
 #else
-	strcpy(version, "unsupported");
-	return version;
+    strcpy (version, "unsupported");
+    return version;
 #endif
-	return version;
+    return version;
 }

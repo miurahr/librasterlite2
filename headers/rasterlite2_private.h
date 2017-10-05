@@ -1213,7 +1213,6 @@ extern "C"
 	unsigned char bg_blue;
 	int transparent;
 	int quality;
-	int reaspect;
     };
 
     typedef struct rl2_point

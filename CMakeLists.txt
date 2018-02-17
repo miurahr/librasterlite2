@@ -19,7 +19,10 @@ if(MSVC)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /nologo ${CL_FLAGS_DBG}")
 endif(MSVC)
 
-set(HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/headers)
+# Generate config.h
+include(configure.cmake)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+set(HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/headers ${CMAKE_CURRENT_BINARY_DIR})
 
 # macro
 include(FindPackageHandleStandardArgs)

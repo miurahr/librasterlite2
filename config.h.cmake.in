@@ -1,0 +1,96 @@
+/* config.h.cmake.in derived from config.h.in  */
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#cmakedefine HAVE_DLFCN_H
+
+/* Define to 1 if you have the <float.h> header file. */
+#cmakedefine HAVE_FLOAT_H
+
+/* Define to 1 if you have the <libgeotiff/geotiff.h> header file. */
+#cmakedefine HAVE_LIBGEOTIFF_GEOTIFF_H
+
+/* Define to 1 if you have the <geotiff/geotiff.h> header file. */
+#cmakedefine HAVE_GEOTIFF_GEOTIFF_H
+
+/* Define to 1 if you have the <geotiff.h> header file. */
+#cmakedefine HAVE_GEOTIFF_H
+
+/* Define to 1 if you have the <gif_lib.h> header file. */
+#cmakedefine HAVE_GIF_LIB_H
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#cmakedefine HAVE_INTTYPES_H
+
+/* Define to 1 if you have the <jerror.h> header file. */
+#cmakedefine HAVE_JERROR_H
+
+/* Define to 1 if you have the <jpeglib.h> header file. */
+#cmakedefine HAVE_JPEGLIB_H
+
+/* Define to 1 if you have the <lzma.h> header file. */
+#cmakedefine HAVE_LZMA_H
+
+/* Define to 1 if you have the <math.h> header file. */
+#cmakedefine HAVE_MATH_H
+
+/* Define to 1 if you have the <memory.h> header file. */
+#cmakedefine HAVE_MEMORY_H
+
+/* Define to 1 if you have the <openjpeg-2.0/openjpeg.h> header file. */
+#cmakedefine HAVE_OPENJPEG_2_0_OPENJPEG_H
+
+/* Define to 1 if you have the <openjpeg-2.1/openjpeg.h> header file. */
+#cmakedefine HAVE_OPENJPEG_2_1_OPENJPEG_H
+
+/* Define to 1 if you have the <png.h> header file. */
+#cmakedefine HAVE_PNG_H
+
+/* Define to 1 if you have the `sqrt' function. */
+#cmakedefine HAVE_SQRT
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#cmakedefine HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#cmakedefine HAVE_STDIO_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#cmakedefine HAVE_STDLIB_H
+
+/* Define to 1 if you have the `strcasecmp' function. */
+#cmakedefine HAVE_STRCASECMP
+
+/* Define to 1 if you have the `strerror' function. */
+#cmakedefine HAVE_STRERROR
+
+/* Define to 1 if you have the `strftime' function. */
+#cmakedefine HAVE_STRFTIME
+
+/* Define to 1 if you have the <strings.h> header file. */
+#cmakedefine HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#cmakedefine HAVE_STRING_H
+
+/* Define to 1 if you have the `strncasecmp' function. */
+#cmakedefine HAVE_STRNCASECMP
+
+/* Define to 1 if you have the `strstr' function. */
+#cmakedefine HAVE_STRSTR
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#cmakedefine HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#cmakedefine HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#cmakedefine HAVE_UNISTD_H
+
+/* Define to 1 if you have the <zlib.h> header file. */
+#cmakedefine HAVE_ZLIB_H
+
+#ifdef _MSC_VER 
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
+#endif

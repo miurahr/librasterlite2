@@ -50,6 +50,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <curl/curl.h>
 #include <libxml/parser.h>
 
+#include "config.h"
 #include "rasterlite2/sqlite.h"
 
 #include "rasterlite2/rasterlite2.h"

@@ -58,3 +58,12 @@ find_package(Threads)
 
 # build library
 add_subdirectory(src)
+
+# test library
+if(NOT MSVC)
+enable_testing()
+add_subdirectory(test)
+endif()
+
+# build tools
+add_subdirectory(tools)

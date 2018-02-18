@@ -1,0 +1,22 @@
+# Configure @PROJECT_NAME@
+#
+# Set such as
+#  @PROJECT_NAME_UPPER@_FOUND = 1
+#  @PROJECT_NAME_UPPER@_INCLUDE_DIRS = /usr/local/include
+#  @PROJECT_NAME_UPPER@_LIBRARIES = @PROJECT_NAME@_library
+#  @PROJECT_NAME_UPPER@_LIBRARY_DIRS = /usr/local/lib
+#  @PROJECT_NAME_UPPER@_BINARY_DIRS = /usr/local/bin
+#  @PROJECT_NAME_UPPER@_VERSION = 1.4.1 (for example)
+
+message (STATUS "Reading ${CMAKE_CURRENT_LIST_FILE}")
+get_filename_component (_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
+get_filename_component (_ROOT "${_DIR}/@PROJECT_ROOT_DIR@" ABSOLUTE)
+set (@PROJECT_NAME_UPPER@_FOUND 1)
+set (@PROJECT_NAME_UPPER@_INCLUDE_DIRS "${_ROOT}/include")
+set (@PROJECT_NAME_UPPER@_LIBRARY_DIRS "${_ROOT}/lib")
+set (@PROJECT_NAME_UPPER@_BINARY_DIRS "${_ROOT}/bin")
+set (@PROJECT_NAME_UPPER@_LIBRARIES @TARGET_LIB_NAME@)
+# Read in the exported definition of the library
+include ("${_DIR}/@PROJECT_NAME_LOWER@-depends.cmake")
+unset (_ROOT)
+unset (_DIR)

@@ -116,7 +116,7 @@ endif()
 
 
 install(TARGETS ${TARGET_NAME}
-            EXPORT ${TARGET_NAME}-depends
+            EXPORT ${PROJECT_NAME}-depends
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib
             ARCHIVE DESTINATION lib)

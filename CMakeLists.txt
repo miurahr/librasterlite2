@@ -67,3 +67,17 @@ endif()
 
 # build tools
 add_subdirectory(tools)
+
+include(CMakePackageConfigHelpers)
+if (NOT WIN32)
+    set (INSTALL_CMAKE_DIR "share/cmake/${PROJECT_NAME}")
+else ()
+    set (INSTALL_CMAKE_DIR "share/${PROJECT_NAME}")
+endif ()
+configure_package_config_file(cmake/project-config.cmake.in ${PROJECT_NAME}-config.cmake
+        INSTALL_DESTINATION ${INSTALL_CMAKE_DIR})
+write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
+        VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+install(FILES ${PROJECT_NAME}-config.cmake ${PROJECT_NAME}-config-version.cmake DESTINATION "${INSTALL_CMAKE_DIR}")
+install(EXPORT ${PROJECT_NAME}-depends FILE ${PROJECT_NAME}-depends.cmake
+        DESTINATION "${INSTALL_CMAKE_DIR}")

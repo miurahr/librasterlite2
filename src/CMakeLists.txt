@@ -31,6 +31,7 @@ target_include_directories(${TARGET_NAME}
         ${CAIRO_INCLUDE_DIR}
         ${CHARLS_INCLUDE_DIRS}
         ${CURL_INCLUDE_DIRS}
+        ${FREETYPE_INCLUDE_DIRS}
         ${FREEXL_INCLUDE_DIR}
         ${GEOS_INCLUDE_DIRS}
         ${GEOTIFF_INCLUDE_DIRS}
@@ -52,6 +53,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC
         ${CAIRO_LIBRARY}
         ${CHARLS_LIBRARIES}
         ${CURL_LIBRARY}
+        ${FREETYPE_LIBRARY}
         ${FREEXL_LIBRARY}
         ${GEOS_LIBRARIES}
         ${GEOTIFF_LIBRARIES}
@@ -81,6 +83,34 @@ add_definitions("-DTARGET_CPU=\"${CMAKE_SYSTEM_PROCESSOR}\"")
 if(MSVC)
 add_definitions("-DM_PI=3.14159265358979323846")
 endif()
+
+if(NOT CHARLS_FOUND)
+  add_definitions(-DOMIT_CHARLS)
+endif()
+if(NOT LZMA_FOUND)
+  add_definitions(-DOMIT_LZMA)
+endif()
+if(OPENJPEG_FOUND)
+  if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20100)
+    if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20200)
+      if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20300)
+        add_definitions(-DOPENJPEG_2_3)
+      else()
+        add_definitions(-DOPENJPEG_2_2)
+      endif()
+    else()
+      add_definitions(-DOPENJPEG_2_1)
+    endif()
+  else()
+    message(FATAL_ERROR "Unsupported openjpeg library version: ${OPENJPEG_VERSION_STRING}")
+  endif()
+else()
+  add_definitions(-DOMIT_OPENJPEG)
+endif()
+if(NOT WEBP_FOUND)
+  add_definitions(-DOMIT_WEBP)
+endif()
+
 
 install(TARGETS ${TARGET_NAME}
             EXPORT ${PROJECT_NAME}-depends

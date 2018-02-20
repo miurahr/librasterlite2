@@ -41,7 +41,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
  
 */
 
-#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -66,6 +65,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
 #include <windows.h>
 #include <process.h>
 #else
+#include <unistd.h>
 #include <pthread.h>
 #endif
 

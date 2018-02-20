@@ -51,7 +51,6 @@ target_include_directories(${TARGET_NAME}
 target_link_libraries(${TARGET_NAME} PUBLIC
         ${TIFF_LIBRARIES}
         ${CAIRO_LIBRARY}
-        ${CHARLS_LIBRARIES}
         ${CURL_LIBRARY}
         ${FREETYPE_LIBRARY}
         ${FREEXL_LIBRARY}
@@ -60,14 +59,11 @@ target_link_libraries(${TARGET_NAME} PUBLIC
         ${GIFLIB_LIBRARY}
         ${JPEG_LIBRARIES}
         ${LIBXML2_LIBRARIES}
-        ${LZMA_LIBRARY}
-        ${OPENJPEG_LIBRARIES}
         ${PNG_LIBRARIES}
         ${PIXMAN_LIBRARIES}
         ${PROJ4_LIBRARIES}
         ${SQLITE3_LIBRARIES}
         ${SPATIALITE_LIBRARIES}
-        ${WEBP_LIBRARIES}
         ${ZLIB_LIBRARIES})
 
 find_package(Iconv)
@@ -84,13 +80,18 @@ if(MSVC)
 add_definitions("-DM_PI=3.14159265358979323846")
 endif()
 
-if(NOT CHARLS_FOUND)
+if(CHARLS_FOUND AND CHARLS_VERSION EQUAL 1)
+  target_link_libraries(${TARGET_NAME} PUBLIC ${CHARLS_LIBRARIES})
+else()
   add_definitions(-DOMIT_CHARLS)
 endif()
-if(NOT LZMA_FOUND)
+if(LZMA_FOUND)
+  target_link_libraries(${TARGET_NAME} PUBLIC ${LZMA_LIBRARY})
+else()
   add_definitions(-DOMIT_LZMA)
 endif()
 if(OPENJPEG_FOUND)
+  target_link_libraries(${TARGET_NAME} PUBLIC ${OPENJPEG_LIBRARIES})
   if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20100)
     if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20200)
       if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20300)
@@ -107,7 +108,9 @@ if(OPENJPEG_FOUND)
 else()
   add_definitions(-DOMIT_OPENJPEG)
 endif()
-if(NOT WEBP_FOUND)
+if(WEBP_FOUND)
+  target_link_libraries(${TARGET_NAME} PUBLIC ${WEBP_LIBRARY})
+else()
   add_definitions(-DOMIT_WEBP)
 endif()
 

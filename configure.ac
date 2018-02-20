@@ -28,8 +28,6 @@ AH_TEMPLATE([NDEBUG],
 AC_DEFINE(NDEBUG)
 AH_TEMPLATE([TARGET_CPU],
             [Should contain a text-string describing the intended target CPU])
-AH_TEMPLATE([OPENJPEG_2_1],
-            [testing for OpenJpeg 2.1])
             
 # config depending options
 AH_TEMPLATE([OMIT_LZMA],
@@ -144,33 +142,17 @@ AC_SUBST(LIBPNG_LIBS)
 AC_ARG_ENABLE(openjpeg, [AS_HELP_STRING(
   [--enable-openjpeg], [enables OpenJpeg inclusion [default=yes]])],
   [], [enable_openjpeg=yes])
-    if test x"$enable_openjpeg" != "xno"; then
-    #
-    # testing OpenJpeg-2 headers
-    # they could be either on -/include/openjpeg-2.0
-    #                   or on -/include/openjpeg-2.1
-    #
-    AC_CHECK_HEADERS(openjpeg-2.0/openjpeg.h)
-    AC_CHECK_HEADERS(openjpeg-2.1/openjpeg.h)
-    if test x"$ac_cv_header_openjpeg_2_0_openjpeg_h" != x"yes" &&
-        test x"$ac_cv_header_openjpeg_2_1_openjpeg_h" != x"yes";
-    then
-        AC_MSG_ERROR(['OpenJpeg-2' is required but the header (openjpeg.h) doesn't seem to be installed on this system])
-    fi 
-    AC_CHECK_LIB(openjp2,opj_create_decompress,,AC_MSG_ERROR(['libopenjp2' is required but it doesn't seems to be installed on this system.]),-lm)
-    # testing for OpenJpeg 2.0 or 2.1
-    AC_COMPILE_IFELSE(  [AC_LANG_PROGRAM([[#ifdef HAVE_OPENJPEG_2_1_OPENJPEG_H
-                                       #include <openjpeg-2.1/openjpeg.h>
-                                       #else
-                                       #include <openjpeg-2.0/openjpeg.h>
-                                       #endif]],
-                                     [[void *d; opj_stream_t *s; opj_stream_set_user_data (s, &d, NULL);]])],
-                    [
-                      AC_MSG_RESULT([yes])
-                      AC_DEFINE(OPENJPEG_2_1)
-                    ],
-                    [AC_MSG_RESULT([no])]
-                 )
+if test x"$enable_openjpeg" != "xno"; then
+  PKG_CHECK_MODULES(LIBOPENJPEG, libopenjp2,
+                      [openjpeg2=yes],[openjpeg2=no])
+  if test x$openjpeg2 = xno; then
+    AC_MSG_ERROR("*** libopenjp2 library not found ***")
+    AC_DEFINE(OMIT_OPENJPEG)
+  else
+    AC_SUBST(LIBOPENJPEG_CFLAGS)
+    AC_SUBST(LIBOPENJPEG_LIBS)
+    AC_DEFINE(ENABLE_OPENJPEG)
+  fi
 else
   AC_DEFINE(OMIT_OPENJPEG)
 fi

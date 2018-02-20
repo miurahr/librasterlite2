@@ -151,9 +151,6 @@
 /* Should be defined in order to disable WebP support. */
 #undef OMIT_WEBP
 
-/* testing for OpenJpeg 2.1 */
-#undef OPENJPEG_2_1
-
 /* Name of package */
 #undef PACKAGE
 

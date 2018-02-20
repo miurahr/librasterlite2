@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project(librasterlite2
-        VERSION 1.0.0.0
+        VERSION 1.1.0.2   # v1.1.0-devel2
         LANGUAGES C)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(TARGET_NAME rasterlite2-target)

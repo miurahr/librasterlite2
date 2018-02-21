@@ -79,6 +79,8 @@ configure_package_config_file(cmake/project-config.cmake.in ${PROJECT_NAME}-conf
         INSTALL_DESTINATION ${INSTALL_CMAKE_DIR})
 write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
         VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
-install(FILES ${PROJECT_NAME}-config.cmake ${PROJECT_NAME}-config-version.cmake DESTINATION "${INSTALL_CMAKE_DIR}")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+        DESTINATION "${INSTALL_CMAKE_DIR}")
 install(EXPORT ${PROJECT_NAME}-depends FILE ${PROJECT_NAME}-depends.cmake
         DESTINATION "${INSTALL_CMAKE_DIR}")

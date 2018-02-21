@@ -2593,6 +2593,7 @@ do_import_dir (sqlite3 * handle, int max_threads, const char *dir_path,
 	    }
 	  sqlite3_free (search);
 	  return cnt;
+	  }
 #else
 /* not Visual Studio .NET */
     int cnt = 0;

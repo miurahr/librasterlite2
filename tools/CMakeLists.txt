@@ -21,6 +21,8 @@ foreach(UTILNAME IN LISTS UTIL_TARGET)
         endif()
     endif()
 endforeach()
+add_definitions("-DVERSION=\"${PROJECT_VERSION}\"")
+
 install (TARGETS ${UTIL_TARGET}
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib

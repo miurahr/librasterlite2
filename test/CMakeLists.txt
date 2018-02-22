@@ -11,7 +11,12 @@ foreach(TESTF IN LISTS TESTCASE)
     target_link_libraries(${TESTNAME} PRIVATE  $<TARGET_NAME:${TARGET_NAME}>
         ${LIBXML2_LIBRARIES}
         ${SQLITE3_LIBRARIES}
-        ${SPATIALITE_LIBRARIES})
+        ${SPATIALITE_LIBRARIES}
+        Threads::Threads
+        -lm)
+    if(WIN32)
+        target_link_libraries(${TESTNAME} PRIVATE wsock32 ws2_32)
+    endif()
     add_test(NAME ${TESTNAME} COMMAND ${TESTNAME})
     list(APPEND TEST_COMMANDS ${TESTNAME})
 endforeach()

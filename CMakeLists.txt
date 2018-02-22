@@ -57,6 +57,13 @@ find_package(WEBP)
 find_package(ZLIB REQUIRED)
 find_package(Threads)
 
+# transitive libraries
+if(NOT BUILD_SHARED_LIBS)
+    find_package(OpenSSL)
+    find_package(Libssh2 CONFIG)
+    # Libssh2Config.cmake may not exist on linux
+    local_find_package(Libssh2 "libssh2.h" "ssh2")
+endif()
 # build library
 add_subdirectory(src)
 

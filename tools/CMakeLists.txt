@@ -11,7 +11,15 @@ foreach(UTILNAME IN LISTS UTIL_TARGET)
     target_link_libraries(${UTILNAME} PRIVATE $<TARGET_NAME:${TARGET_NAME}>
         ${SPATIALITE_LIBRARIES}
         ${SQLITE3_LIBRARIES}
-        Threads::Threads)
+        Threads::Threads
+        -lm)
+    if(NOT BUILD_SHARED_LIBS)
+        # transient libraries
+        target_link_libraries(${UTILNAME} PRIVATE ${OPENSSL_LIBRARIES} ${Libssh2_LIBRARY})
+        if(WIN32)
+            target_link_libraries(${UTILNAME} PRIVATE wsock32 ws2_32)
+        endif()
+    endif()
 endforeach()
 install (TARGETS ${UTIL_TARGET}
             RUNTIME DESTINATION bin

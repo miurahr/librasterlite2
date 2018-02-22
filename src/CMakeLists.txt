@@ -80,7 +80,7 @@ if(MSVC)
   target_compile_definitions(${TARGET_NAME} PRIVATE "-DM_PI=3.14159265358979323846")
 endif()
 
-if(CHARLS_FOUND)
+if(CHARLS_FOUND AND CHARLS_VERSION EQUAL 1)
   target_link_libraries(${TARGET_NAME} PUBLIC ${CHARLS_LIBRARIES})
 else()
   target_compile_definitions(${TARGET_NAME} PRIVATE -DOMIT_CHARLS)

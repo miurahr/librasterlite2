@@ -59,7 +59,9 @@ FIND_PATH(GEOS_INCLUDE_DIR
 FIND_LIBRARY(GEOS_LIBRARY
              NAMES geos_c
              HINTS ${GEOS_PREFIX}/lib)
-
+# Try to find on windows
+FIND_LIBRARY(GEOS_LIBRARY
+             NAMES libgeos_c)
 mark_as_advanced(GEOS_INCLUDE_DIR GEOS_LIBRARY)
 
 include(FindPackageHandleStandardArgs)
